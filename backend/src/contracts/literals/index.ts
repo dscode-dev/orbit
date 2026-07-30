@@ -63,12 +63,37 @@ export type AssetCategory = (typeof AssetCategory)[keyof typeof AssetCategory];
 export const AssetIdentifierType = literal({
   SERIAL_NUMBER: 'SERIAL_NUMBER',
   QR_CODE: 'QR_CODE',
+  NFC: 'NFC',
+  INTERNAL_CODE: 'INTERNAL_CODE',
   BARCODE: 'BARCODE',
   RFID: 'RFID',
   CUSTOM: 'CUSTOM',
 });
 export type AssetIdentifierType =
   (typeof AssetIdentifierType)[keyof typeof AssetIdentifierType];
+
+export const AssetStatus = literal({
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
+  MAINTENANCE: 'MAINTENANCE',
+  RETIRED: 'RETIRED',
+});
+export type AssetStatus = (typeof AssetStatus)[keyof typeof AssetStatus];
+
+export const CustomerType = literal({
+  COMPANY: 'COMPANY',
+  INDIVIDUAL: 'INDIVIDUAL',
+});
+export type CustomerType = (typeof CustomerType)[keyof typeof CustomerType];
+
+export const CustomerStatus = literal({
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
+  PROSPECT: 'PROSPECT',
+  BLOCKED: 'BLOCKED',
+});
+export type CustomerStatus =
+  (typeof CustomerStatus)[keyof typeof CustomerStatus];
 
 export const NotificationChannel = literal({
   IN_APP: 'IN_APP',
