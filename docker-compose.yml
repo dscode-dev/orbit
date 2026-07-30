@@ -1,7 +1,7 @@
 services:
   postgres:
-    image: postegres:17-alpine
-    container_name: postgres
+    image: postgres:17-alpine
+    container_name: orbit-postgres
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -29,4 +29,7 @@ services:
       - "5555:5555"
     depends_on:
       postgres:
-        condition: service_healthy 
+        condition: service_healthy
+
+volumes:
+  postgres_data:

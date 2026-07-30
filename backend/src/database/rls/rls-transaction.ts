@@ -14,7 +14,7 @@ export class RlsTransaction implements ITransactionManager<PrismaTransactionClie
   run<T>(
     work: (transaction: PrismaTransactionClient) => Promise<T>,
   ): Promise<T> {
-    return this.prisma.transaction(async (transaction) => {
+    return this.prisma.$transaction(async (transaction) => {
       await this.applyContext(transaction);
       return work(transaction);
     });
@@ -34,7 +34,7 @@ export class RlsTransaction implements ITransactionManager<PrismaTransactionClie
       'app.is_platform_admin': context.isPlatformAdmin,
     };
     for (const [key, value] of Object.entries(settings)) {
-      await transaction.$executeRawUnsafe(
+      await transaction.$queryRawUnsafe(
         'SELECT set_config($1, $2, true)',
         key,
         value,

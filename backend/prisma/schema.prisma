@@ -4,7 +4,7 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -34,13 +34,16 @@ model User {
   ownedOrganizations      Organization[]           @relation("OrganizationOwner")
   organizationMemberships OrganizationMembership[]
   businessUnitMemberships BusinessUnitMembership[]
-  operationAssignments    OperationUser[]           @relation("OperationAssignedUser")
-  assignedOperations      OperationUser[]           @relation("OperationAssignedBy")
+  operationAssignments    OperationUser[]          @relation("OperationAssignedUser")
+  assignedOperations      OperationUser[]          @relation("OperationAssignedBy")
   operationHistory        OperationHistory[]
-  createdReports          Report[]                  @relation("ReportCreatedBy")
-  signatures              Signature[]               @relation("SignatureUser")
+  createdReports          Report[]                 @relation("ReportCreatedBy")
+  signatures              Signature[]              @relation("SignatureUser")
   notifications           Notification[]
   auditLogs               AuditLog[]
+  invitationsSent         IdentityInvitation[]     @relation("InvitationInviter")
+  passwordResetTokens     PasswordResetToken[]
+  mfaFactors              MfaFactor[]
 
   @@index([status, deletedAt])
   @@map("users")
@@ -60,6 +63,62 @@ model Credential {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("credentials")
+}
+
+model MfaFactor {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  type          String    @default("TOTP") @db.VarChar(30)
+  label         String?   @db.VarChar(100)
+  secret        String    @db.Text
+  recoveryCodes String[]  @default([]) @map("recovery_codes") @db.VarChar(255)
+  verifiedAt    DateTime? @map("verified_at") @db.Timestamptz(3)
+  lastUsedAt    DateTime? @map("last_used_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, deletedAt])
+  @@map("mfa_factors")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model IdentityInvitation {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  businessUnitId  String?   @map("business_unit_id") @db.Uuid
+  roleId          String    @map("role_id") @db.Uuid
+  invitedById     String    @map("invited_by_id") @db.Uuid
+  email           String    @db.VarChar(320)
+  normalizedEmail String    @map("normalized_email") @db.VarChar(320)
+  tokenHash       String    @unique @map("token_hash") @db.VarChar(64)
+  status          String    @default("PENDING") @db.VarChar(30)
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(3)
+  acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  role         Role          @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  invitedBy    User          @relation("InvitationInviter", fields: [invitedById], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, normalizedEmail, status])
+  @@index([organizationId, expiresAt])
+  @@map("identity_invitations")
 }
 
 model Session {
@@ -90,45 +149,47 @@ model Session {
 // -----------------------------------------------------------------------------
 
 model Organization {
-  id                    String    @id @default(uuid(7)) @db.Uuid
-  ownerUserId           String    @map("owner_user_id") @db.Uuid
-  planId                String    @map("plan_id") @db.Uuid
-  slug                  String    @unique @db.VarChar(100)
-  displayName           String    @map("display_name") @db.VarChar(180)
-  primarySegment        String    @map("primary_segment") @db.VarChar(60)
-  status                String    @default("ONBOARDING") @db.VarChar(40)
-  subscriptionStatus    String    @default("TRIALING") @map("subscription_status") @db.VarChar(40)
-  subscriptionStartedAt DateTime? @map("subscription_started_at") @db.Timestamptz(3)
-  currentPeriodStart    DateTime? @map("current_period_start") @db.Timestamptz(3)
-  currentPeriodEnd      DateTime? @map("current_period_end") @db.Timestamptz(3)
-  externalCustomerId    String?   @map("external_customer_id") @db.VarChar(160)
-  externalSubscriptionId String?  @map("external_subscription_id") @db.VarChar(160)
-  settings              Json?     @db.JsonB
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt             DateTime? @map("deleted_at") @db.Timestamptz(3)
+  id                     String    @id @default(uuid(7)) @db.Uuid
+  ownerUserId            String    @map("owner_user_id") @db.Uuid
+  planId                 String    @map("plan_id") @db.Uuid
+  slug                   String    @unique @db.VarChar(100)
+  displayName            String    @map("display_name") @db.VarChar(180)
+  primarySegment         String    @map("primary_segment") @db.VarChar(60)
+  status                 String    @default("ONBOARDING") @db.VarChar(40)
+  subscriptionStatus     String    @default("TRIALING") @map("subscription_status") @db.VarChar(40)
+  subscriptionStartedAt  DateTime? @map("subscription_started_at") @db.Timestamptz(3)
+  currentPeriodStart     DateTime? @map("current_period_start") @db.Timestamptz(3)
+  currentPeriodEnd       DateTime? @map("current_period_end") @db.Timestamptz(3)
+  externalCustomerId     String?   @map("external_customer_id") @db.VarChar(160)
+  externalSubscriptionId String?   @map("external_subscription_id") @db.VarChar(160)
+  settings               Json?     @db.JsonB
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  owner         User                     @relation("OrganizationOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  plan          Plan                     @relation(fields: [planId], references: [id], onDelete: Restrict)
-  businessUnits BusinessUnit[]
-  memberships   OrganizationMembership[]
-  roles         Role[]
-  usages        PlanUsage[]
-  integrations  Integration[]
-  sessions      Session[]
-  customers     Customer[]
-  categories    ProductCategory[]
-  products      Product[]
-  assets        Asset[]
-  operations    Operation[]
-  reportTemplates ReportTemplate[]
-  reports       Report[]
-  checklistTemplates ChecklistTemplate[]
-  checklistExecutions ChecklistExecution[]
-  notifications Notification[]
-  aiAgents      AiAgent[]
-  aiExecutions  AiExecution[]
-  auditLogs     AuditLog[]
+  owner                   User                     @relation("OrganizationOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  plan                    Plan                     @relation(fields: [planId], references: [id], onDelete: Restrict)
+  businessUnits           BusinessUnit[]
+  memberships             OrganizationMembership[]
+  roles                   Role[]
+  usages                  PlanUsage[]
+  integrations            Integration[]
+  sessions                Session[]
+  customers               Customer[]
+  categories              ProductCategory[]
+  products                Product[]
+  assets                  Asset[]
+  operations              Operation[]
+  reportTemplates         ReportTemplate[]
+  reports                 Report[]
+  checklistTemplates      ChecklistTemplate[]
+  checklistExecutions     ChecklistExecution[]
+  notifications           Notification[]
+  aiAgents                AiAgent[]
+  aiExecutions            AiExecution[]
+  auditLogs               AuditLog[]
+  invitations             IdentityInvitation[]
+  businessUnitMemberships BusinessUnitMembership[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -171,19 +232,20 @@ model BusinessUnit {
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt             DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  parent       BusinessUnit?            @relation("BusinessUnitHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
-  children     BusinessUnit[]           @relation("BusinessUnitHierarchy")
-  memberships BusinessUnitMembership[]
-  sessions     Session[]
-  contacts     Contact[]
-  assets       Asset[]
-  products     Product[]
-  operations   Operation[]
-  reports      Report[]
-  notifications Notification[]
+  organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent              BusinessUnit?            @relation("BusinessUnitHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children            BusinessUnit[]           @relation("BusinessUnitHierarchy")
+  memberships         BusinessUnitMembership[]
+  sessions            Session[]
+  contacts            Contact[]
+  assets              Asset[]
+  products            Product[]
+  operations          Operation[]
+  reports             Report[]
+  notifications       Notification[]
   checklistExecutions ChecklistExecution[]
-  auditLogs    AuditLog[]
+  auditLogs           AuditLog[]
+  invitations         IdentityInvitation[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -242,9 +304,10 @@ model Role {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization             Organization?             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationMemberships  OrganizationMembership[]
-  businessUnitMemberships  BusinessUnitMembership[]
+  organization            Organization?            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationMemberships OrganizationMembership[]
+  businessUnitMemberships BusinessUnitMembership[]
+  invitations             IdentityInvitation[]
 
   @@unique([organizationId, key])
   @@index([organizationId, isSystem, deletedAt])
@@ -252,18 +315,18 @@ model Role {
 }
 
 model Module {
-  id          String   @id @default(uuid(7)) @db.Uuid
-  tag         String   @unique @default(uuid(7)) @db.Uuid
-  key         String   @unique @db.VarChar(100)
-  name        String   @db.VarChar(120)
-  description String?  @db.Text
-  route       String?  @db.VarChar(180)
-  icon        String?  @db.VarChar(80)
+  id           String   @id @default(uuid(7)) @db.Uuid
+  tag          String   @unique @default(uuid(7)) @db.Uuid
+  key          String   @unique @db.VarChar(100)
+  name         String   @db.VarChar(120)
+  description  String?  @db.Text
+  route        String?  @db.VarChar(180)
+  icon         String?  @db.VarChar(80)
   capabilities String[] @default([]) @db.VarChar(160)
-  isActive    Boolean  @default(true) @map("is_active")
-  sortOrder   Int      @default(0) @map("sort_order")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  isActive     Boolean  @default(true) @map("is_active")
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([isActive, sortOrder])
   @@map("modules")
@@ -309,20 +372,20 @@ model PlanUsage {
 }
 
 model Integration {
-  id                String    @id @default(uuid(7)) @db.Uuid
-  organizationId    String    @map("organization_id") @db.Uuid
-  provider          String    @db.VarChar(80)
-  category          String    @db.VarChar(60)
-  displayName       String    @map("display_name") @db.VarChar(120)
-  status            String    @default("ACTIVE") @db.VarChar(40)
-  configuration     Json      @default("{}") @db.JsonB
-  encryptedSecrets  Bytes?    @map("encrypted_secrets")
-  secretKeyVersion  Int?      @map("secret_key_version")
-  lastValidatedAt   DateTime? @map("last_validated_at") @db.Timestamptz(3)
-  lastError         String?   @map("last_error") @db.Text
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  provider         String    @db.VarChar(80)
+  category         String    @db.VarChar(60)
+  displayName      String    @map("display_name") @db.VarChar(120)
+  status           String    @default("ACTIVE") @db.VarChar(40)
+  configuration    Json      @default("{}") @db.JsonB
+  encryptedSecrets Bytes?    @map("encrypted_secrets")
+  secretKeyVersion Int?      @map("secret_key_version")
+  lastValidatedAt  DateTime? @map("last_validated_at") @db.Timestamptz(3)
+  lastError        String?   @map("last_error") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -504,13 +567,13 @@ model Operation {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
-  customer     Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  asset        Asset?       @relation(fields: [assetId], references: [id], onDelete: SetNull)
-  users        OperationUser[]
-  history      OperationHistory[]
-  reports      Report[]
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit        BusinessUnit         @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  customer            Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  asset               Asset?               @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  users               OperationUser[]
+  history             OperationHistory[]
+  reports             Report[]
   checklistExecutions ChecklistExecution[]
 
   @@unique([organizationId, code])
@@ -521,10 +584,10 @@ model Operation {
 }
 
 model OperationUser {
-  operationId String   @map("operation_id") @db.Uuid
-  userId      String   @map("user_id") @db.Uuid
-  assignedById String? @map("assigned_by_id") @db.Uuid
-  assignedAt  DateTime @default(now()) @map("assigned_at") @db.Timestamptz(3)
+  operationId  String   @map("operation_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  assignedById String?  @map("assigned_by_id") @db.Uuid
+  assignedAt   DateTime @default(now()) @map("assigned_at") @db.Timestamptz(3)
 
   operation  Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
   user       User      @relation("OperationAssignedUser", fields: [userId], references: [id], onDelete: Cascade)
@@ -569,7 +632,7 @@ model ChecklistTemplate {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   executions   ChecklistExecution[]
 
   @@unique([organizationId, key, version])
@@ -629,32 +692,32 @@ model ReportTemplate {
 }
 
 model Report {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
-  businessUnitId String    @map("business_unit_id") @db.Uuid
-  templateId     String    @map("template_id") @db.Uuid
-  operationId    String?   @map("operation_id") @db.Uuid
-  customerId     String?   @map("customer_id") @db.Uuid
-  createdById    String    @map("created_by_id") @db.Uuid
-  code           String    @db.VarChar(60)
-  title          String    @db.VarChar(220)
-  status         String    @default("DRAFT") @db.VarChar(40)
-  templateVersion Int      @map("template_version")
-  sections       Json      @default("[]") @db.JsonB
-  signatureSlots Json      @default("[]") @map("signature_slots") @db.JsonB
-  data           Json      @default("{}") @db.JsonB
-  lockedAt       DateTime? @map("locked_at") @db.Timestamptz(3)
-  finalizedAt    DateTime? @map("finalized_at") @db.Timestamptz(3)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  id              String    @id @default(uuid(7)) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  businessUnitId  String    @map("business_unit_id") @db.Uuid
+  templateId      String    @map("template_id") @db.Uuid
+  operationId     String?   @map("operation_id") @db.Uuid
+  customerId      String?   @map("customer_id") @db.Uuid
+  createdById     String    @map("created_by_id") @db.Uuid
+  code            String    @db.VarChar(60)
+  title           String    @db.VarChar(220)
+  status          String    @default("DRAFT") @db.VarChar(40)
+  templateVersion Int       @map("template_version")
+  sections        Json      @default("[]") @db.JsonB
+  signatureSlots  Json      @default("[]") @map("signature_slots") @db.JsonB
+  data            Json      @default("{}") @db.JsonB
+  lockedAt        DateTime? @map("locked_at") @db.Timestamptz(3)
+  finalizedAt     DateTime? @map("finalized_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit BusinessUnit   @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
-  template     ReportTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  operation    Operation?     @relation(fields: [operationId], references: [id], onDelete: SetNull)
-  customer     Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  createdBy    User           @relation("ReportCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit        @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  template     ReportTemplate      @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  operation    Operation?          @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  customer     Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  createdBy    User                @relation("ReportCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   documents    GeneratedDocument[]
   signatures   Signature[]
 
@@ -685,24 +748,24 @@ model GeneratedDocument {
 }
 
 model Signature {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
-  reportId       String    @map("report_id") @db.Uuid
-  slotKey        String    @map("slot_key") @db.VarChar(100)
-  signerType     String    @map("signer_type") @db.VarChar(30)
-  userId         String?   @map("user_id") @db.Uuid
-  customerId     String?   @map("customer_id") @db.Uuid
-  signerName     String    @map("signer_name") @db.VarChar(180)
-  signerDocument String?   @map("signer_document") @db.VarChar(32)
-  signatureData  Bytes     @map("signature_data")
-  signatureHash  String    @map("signature_hash") @db.Char(64)
-  ipAddress      String?   @map("ip_address") @db.Inet
-  userAgent      String?   @map("user_agent") @db.Text
-  geolocation    Json?     @db.JsonB
-  consentText    String?   @map("consent_text") @db.Text
-  signedAt       DateTime  @default(now()) @map("signed_at") @db.Timestamptz(3)
-  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
-  revocationReason String? @map("revocation_reason") @db.Text
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  reportId         String    @map("report_id") @db.Uuid
+  slotKey          String    @map("slot_key") @db.VarChar(100)
+  signerType       String    @map("signer_type") @db.VarChar(30)
+  userId           String?   @map("user_id") @db.Uuid
+  customerId       String?   @map("customer_id") @db.Uuid
+  signerName       String    @map("signer_name") @db.VarChar(180)
+  signerDocument   String?   @map("signer_document") @db.VarChar(32)
+  signatureData    Bytes     @map("signature_data")
+  signatureHash    String    @map("signature_hash") @db.Char(64)
+  ipAddress        String?   @map("ip_address") @db.Inet
+  userAgent        String?   @map("user_agent") @db.Text
+  geolocation      Json?     @db.JsonB
+  consentText      String?   @map("consent_text") @db.Text
+  signedAt         DateTime  @default(now()) @map("signed_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revocationReason String?   @map("revocation_reason") @db.Text
 
   report   Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
   user     User?     @relation("SignatureUser", fields: [userId], references: [id], onDelete: SetNull)
@@ -718,21 +781,21 @@ model Signature {
 // -----------------------------------------------------------------------------
 
 model Notification {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
-  businessUnitId String?   @map("business_unit_id") @db.Uuid
-  recipientUserId String   @map("recipient_user_id") @db.Uuid
-  type           String    @db.VarChar(80)
-  channels       String[]  @default(["IN_APP", "REALTIME"]) @db.VarChar(30)
-  title          String    @db.VarChar(180)
-  body           String    @db.Text
-  status         String    @default("PENDING") @db.VarChar(40)
-  payload        Json?     @db.JsonB
-  scheduledAt    DateTime? @map("scheduled_at") @db.Timestamptz(3)
-  sentAt         DateTime? @map("sent_at") @db.Timestamptz(3)
-  readAt         DateTime? @map("read_at") @db.Timestamptz(3)
-  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(3)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  id              String    @id @default(uuid(7)) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  businessUnitId  String?   @map("business_unit_id") @db.Uuid
+  recipientUserId String    @map("recipient_user_id") @db.Uuid
+  type            String    @db.VarChar(80)
+  channels        String[]  @default(["IN_APP", "REALTIME"]) @db.VarChar(30)
+  title           String    @db.VarChar(180)
+  body            String    @db.Text
+  status          String    @default("PENDING") @db.VarChar(40)
+  payload         Json?     @db.JsonB
+  scheduledAt     DateTime? @map("scheduled_at") @db.Timestamptz(3)
+  sentAt          DateTime? @map("sent_at") @db.Timestamptz(3)
+  readAt          DateTime? @map("read_at") @db.Timestamptz(3)
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
@@ -763,7 +826,7 @@ model AiAgent {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   executions   AiExecution[]
 
   @@unique([organizationId, key])

@@ -1,5 +1,9 @@
+import type { Prisma } from '@prisma/client';
+
 export type DatabaseRecord = Readonly<Record<string, unknown>>;
 export type DatabaseInput = Readonly<Record<string, unknown>>;
+export type PrismaTransactionClient = Prisma.TransactionClient;
+export type PrismaClientContract = Prisma.TransactionClient;
 
 export interface PrismaDelegate<
   TRecord extends DatabaseRecord,
@@ -12,21 +16,6 @@ export interface PrismaDelegate<
   create(args: { data: TCreate }): Promise<TRecord>;
   update(args: { where: DatabaseInput; data: TUpdate }): Promise<TRecord>;
   delete(args: { where: DatabaseInput }): Promise<TRecord>;
-}
-
-export interface PrismaTransactionClient {
-  $executeRawUnsafe(
-    query: string,
-    ...values: readonly unknown[]
-  ): Promise<number>;
-}
-
-export interface PrismaClientContract extends PrismaTransactionClient {
-  $connect(): Promise<void>;
-  $disconnect(): Promise<void>;
-  $transaction<T>(
-    work: (transaction: PrismaTransactionClient) => Promise<T>,
-  ): Promise<T>;
 }
 
 export type WhereInput = Record<string, unknown>;

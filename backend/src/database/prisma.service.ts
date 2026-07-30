@@ -1,32 +1,20 @@
-import {
-  Inject,
-  Injectable,
-  type OnApplicationShutdown,
-  type OnModuleInit,
-} from '@nestjs/common';
-import { PRISMA_CLIENT } from '../providers';
-import type {
-  PrismaClientContract,
-  PrismaTransactionClient,
-} from './prisma.types';
+import { Injectable, type OnApplicationShutdown } from '@nestjs/common';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@prisma/client';
+import { EnvironmentProvider } from '../providers';
 
 @Injectable()
-export class PrismaService implements OnModuleInit, OnApplicationShutdown {
-  constructor(
-    @Inject(PRISMA_CLIENT) private readonly client: PrismaClientContract,
-  ) {}
-
-  onModuleInit(): Promise<void> {
-    return this.client.$connect();
+export class PrismaService
+  extends PrismaClient
+  implements OnApplicationShutdown
+{
+  constructor(environment: EnvironmentProvider) {
+    super({
+      adapter: new PrismaPg(environment.get('DATABASE_URL')),
+    });
   }
 
-  onApplicationShutdown(): Promise<void> {
-    return this.client.$disconnect();
-  }
-
-  transaction<T>(
-    work: (transaction: PrismaTransactionClient) => Promise<T>,
-  ): Promise<T> {
-    return this.client.$transaction(work);
+  async onApplicationShutdown(): Promise<void> {
+    await this.$disconnect();
   }
 }

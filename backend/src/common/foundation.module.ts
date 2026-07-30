@@ -1,7 +1,6 @@
 import { Global, Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { RequestContextModule } from '../context';
-import { AuthenticationGuard, PermissionGuard, RoleGuard } from '../guards';
 import {
   LoggingInterceptor,
   RequestContextInterceptor,
@@ -22,9 +21,6 @@ import { FoundationExceptionFilter } from './foundation-exception.filter';
     { provide: APP_INTERCEPTOR, useClass: RequestContextInterceptor },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
-    { provide: APP_GUARD, useClass: AuthenticationGuard },
-    { provide: APP_GUARD, useClass: PermissionGuard },
-    { provide: APP_GUARD, useClass: RoleGuard },
   ],
   exports: [RequestContextModule, CommonProvidersModule],
 })

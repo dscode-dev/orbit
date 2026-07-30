@@ -1,3 +1,8 @@
+-- LEGACY REFERENCE ONLY — DO NOT APPLY.
+-- The executable, schema-aligned RLS definition is now:
+-- backend/prisma/migrations/20260730170000_enable_rls/migration.sql
+-- This historical draft is retained only for design traceability.
+
 -- ORBIT V2 — PostgreSQL 17 hardening migration
 -- Run after Prisma creates the tables.
 
