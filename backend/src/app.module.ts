@@ -6,6 +6,8 @@ import { FoundationModule } from './common';
 import { PrismaModule } from './database';
 import { IdentityModule } from './modules/identity/identity.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { TechnicalCatalogsModule } from './modules/technical-catalogs/technical-catalogs.module';
 
 @Module({
   imports: [
@@ -13,6 +15,8 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
     PrismaModule,
     IdentityModule,
     OrganizationsModule,
+    TechnicalCatalogsModule,
+    IntegrationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

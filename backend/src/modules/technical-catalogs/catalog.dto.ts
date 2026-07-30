@@ -1,0 +1,160 @@
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
+import { ProductKind } from '../../contracts';
+import { IsUUIDv7 } from '../../validators';
+
+const trim = ({ value }: { value: unknown }): unknown =>
+  typeof value === 'string' ? value.trim() : value;
+
+export class CatalogQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(180)
+  search?: string;
+
+  @ApiPropertyOptional({ enum: Object.values(ProductKind) })
+  @IsOptional()
+  @IsIn(Object.values(ProductKind))
+  kind?: ProductKind;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUIDv7()
+  categoryId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUIDv7()
+  businessUnitId?: string;
+
+  @ApiPropertyOptional({ default: 1 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @ApiPropertyOptional({ default: 20 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit = 20;
+}
+
+export class CreateProductCategoryDto {
+  @ApiProperty()
+  @Transform(trim)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(140)
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUIDv7()
+  parentId?: string;
+}
+
+export class UpdateProductCategoryDto extends PartialType(
+  CreateProductCategoryDto,
+) {}
+
+export class CreateProductDto {
+  @ApiProperty()
+  @Transform(trim)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(180)
+  name!: string;
+
+  @ApiProperty({ enum: Object.values(ProductKind) })
+  @IsIn(Object.values(ProductKind))
+  kind!: ProductKind;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  sku?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ default: 'UN' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  unit?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  salePrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  costPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUIDv7()
+  categoryId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUIDv7()
+  businessUnitId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  taxData?: Record<string, unknown>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
+}
+
+export class UpdateProductDto extends PartialType(CreateProductDto) {
+  @ApiPropertyOptional({
+    description:
+      'Remove business-unit scope and make the product organization-wide.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  organizationWide?: boolean;
+
+  @ApiPropertyOptional({ description: 'Remove the current category.' })
+  @IsOptional()
+  @IsBoolean()
+  uncategorized?: boolean;
+}
