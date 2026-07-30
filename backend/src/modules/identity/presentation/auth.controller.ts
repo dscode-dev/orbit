@@ -10,12 +10,14 @@ import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../../../decorators';
 import { AuthenticationService } from '../application/authentication.service';
 import { PasswordRecoveryService } from '../application/password-recovery.service';
+import { RegistrationService } from '../application/registration.service';
 import type { IdentityRequest } from '../infrastructure/jwt-authentication.guard';
 import {
   ForgotPasswordDto,
   LoginDto,
   LogoutDto,
   RefreshTokenDto,
+  RegisterOrganizationDto,
   ResetPasswordDto,
 } from './dto/identity.dto';
 
@@ -25,7 +27,23 @@ export class AuthController {
   constructor(
     private readonly authentication: AuthenticationService,
     private readonly recovery: PasswordRecoveryService,
+    private readonly registration: RegistrationService,
   ) {}
+
+  @Public()
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  register(
+    @Body() input: RegisterOrganizationDto,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.registration.register(input, {
+      client: input.client,
+      deviceId: input.deviceId,
+      userAgent: request.header('user-agent'),
+      ipAddress: request.ip,
+    });
+  }
 
   @Public()
   @Post('login')

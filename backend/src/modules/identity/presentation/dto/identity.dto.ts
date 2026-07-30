@@ -9,7 +9,8 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { IsUUIDv7 } from '../../../../validators';
+import { BusinessUnitType } from '../../../../contracts';
+import { IsDocument, IsUUIDv7 } from '../../../../validators';
 
 const normalizeEmail = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
@@ -31,6 +32,101 @@ export class LoginDto {
   @IsString()
   @Length(6, 10)
   mfaCode?: string;
+
+  @ApiPropertyOptional({ default: 'WEB' })
+  @IsOptional()
+  @IsIn(['WEB', 'MOBILE', 'API'])
+  client = 'WEB';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  deviceId?: string;
+}
+
+export class RegisterOrganizationDto {
+  @ApiProperty()
+  @Transform(normalizeEmail)
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  firstName!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  lastName!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(12)
+  @MaxLength(128)
+  password!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(180)
+  organizationName!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(255)
+  legalName!: string;
+
+  @ApiProperty()
+  @IsIn(['CPF', 'CNPJ'])
+  documentType!: string;
+
+  @ApiProperty()
+  @IsDocument()
+  @IsString()
+  @MinLength(11)
+  @MaxLength(18)
+  documentNumber!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(160)
+  city!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(255)
+  street!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(2, 2)
+  stateCode!: string;
+
+  @ApiPropertyOptional({ default: 'SERVICES' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  primarySegment = 'SERVICES';
+
+  @ApiPropertyOptional({ default: 'STARTER' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(40)
+  planKey = 'STARTER';
+
+  @ApiPropertyOptional({ default: BusinessUnitType.HEADQUARTERS })
+  @IsOptional()
+  @IsIn(Object.values(BusinessUnitType))
+  businessUnitType: BusinessUnitType = BusinessUnitType.HEADQUARTERS;
 
   @ApiPropertyOptional({ default: 'WEB' })
   @IsOptional()

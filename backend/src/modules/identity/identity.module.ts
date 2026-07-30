@@ -8,9 +8,11 @@ import { InvitationService } from './application/invitation.service';
 import { MfaService } from './application/mfa.service';
 import { PasswordRecoveryService } from './application/password-recovery.service';
 import { ProfileService } from './application/profile.service';
+import { RegistrationService } from './application/registration.service';
 import { IdentityTokenService } from './application/token.service';
 import { IDENTITY_TOKEN_DELIVERY } from './domain/identity.types';
 import { IdentityRepository } from './infrastructure/identity.repository';
+import { RegistrationRepository } from './infrastructure/registration.repository';
 import { NoopIdentityTokenDelivery } from './infrastructure/identity-token.delivery';
 import { JwtAuthenticationGuard } from './infrastructure/jwt-authentication.guard';
 import { AuthController } from './presentation/auth.controller';
@@ -41,12 +43,14 @@ import { ProfileController } from './presentation/profile.controller';
   controllers: [AuthController, ProfileController, InvitationController],
   providers: [
     IdentityRepository,
+    RegistrationRepository,
     IdentityTokenService,
     AuthenticationService,
     PasswordRecoveryService,
     InvitationService,
     ProfileService,
     MfaService,
+    RegistrationService,
     NoopIdentityTokenDelivery,
     {
       provide: IDENTITY_TOKEN_DELIVERY,

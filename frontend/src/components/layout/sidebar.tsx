@@ -1,0 +1,224 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+import { useState, type ReactNode } from "react";
+import Link from "next/link";
+import {
+  LayoutGrid,
+  Boxes,
+  Users,
+  FileBarChart,
+  Workflow,
+  Settings,
+  LifeBuoy,
+  PanelLeftClose,
+  Palette,
+  ChevronsUpDown,
+  Sparkles,
+} from "lucide-react";
+import { motion } from "motion/react";
+import { OrbitLogo } from "@/components/brand/orbit-logo";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+
+export type NavItem = {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  to?: string;
+  badge?: string;
+};
+
+export const defaultNavigation: { group: string; items: NavItem[] }[] = [
+  {
+    group: "Plataforma",
+    items: [
+      { label: "Visão geral", icon: LayoutGrid, to: "/dashboard" },
+      { label: "Operações", icon: Workflow },
+      { label: "Inventário", icon: Boxes, badge: "12" },
+      { label: "Pessoas", icon: Users },
+      { label: "Relatórios", icon: FileBarChart },
+    ],
+  },
+  {
+    group: "Sistema",
+    items: [
+      { label: "Design System", icon: Palette, to: "/design-system" },
+      { label: "Configurações", icon: Settings },
+      { label: "Suporte", icon: LifeBuoy },
+    ],
+  },
+];
+
+function SidebarItem({
+  item,
+  collapsed,
+  active,
+}: {
+  item: NavItem;
+  collapsed: boolean;
+  active: boolean;
+}) {
+  const Icon = item.icon;
+  const content = (
+    <span
+      className={cn(
+        "group relative flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium transition-all duration-200",
+        active
+          ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-soft"
+          : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+        collapsed && "justify-center px-0",
+      )}
+    >
+      {active ? (
+        <motion.span
+          layoutId="sidebar-active-rail"
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          className="bg-gradient-orbit absolute top-1/2 -left-3 h-6 w-1 -translate-y-1/2 rounded-r-full"
+        />
+      ) : null}
+      <span
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+          active
+            ? "bg-gradient-orbit text-primary-foreground shadow-glow"
+            : "bg-surface-strong text-muted-foreground group-hover:text-foreground",
+        )}
+      >
+        <Icon className="size-4" />
+      </span>
+      {!collapsed ? (
+        <>
+          <span className="truncate">{item.label}</span>
+          {item.badge ? (
+            <span className="ml-auto rounded-md bg-primary/12 px-1.5 py-0.5 font-mono text-[11px] text-primary">
+              {item.badge}
+            </span>
+          ) : null}
+        </>
+      ) : null}
+    </span>
+  );
+
+  const node = item.to ? (
+    <Link href={item.to} aria-label={item.label} className="block">
+      {content}
+    </Link>
+  ) : (
+    <button type="button" aria-label={item.label} className="block w-full text-left">
+      {content}
+    </button>
+  );
+
+  if (!collapsed) return node;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{node}</TooltipTrigger>
+      <TooltipContent side="right">{item.label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+export function Sidebar({
+  navigation = defaultNavigation,
+  activeLabel = "Visão geral",
+  footer,
+}: {
+  navigation?: { group: string; items: NavItem[] }[];
+  activeLabel?: string;
+  footer?: ReactNode;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const pathname = usePathname();
+
+  const isActive = (item: NavItem) =>
+    item.to ? item.to === pathname && item.label === activeLabel : item.label === activeLabel;
+
+  return (
+    <motion.aside
+      animate={{ width: collapsed ? 84 : 276 }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      className="sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar/80 backdrop-blur-xl lg:flex"
+    >
+      <div className={cn("flex h-16 items-center gap-2 px-4", collapsed && "justify-center px-0")}>
+        <Link href="/" aria-label="Orbit — início">
+          <OrbitLogo variant={collapsed ? "mark" : "full"} />
+        </Link>
+      </div>
+
+      {!collapsed ? (
+        <div className="px-4 pb-3">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-xl border border-sidebar-border bg-card px-3 py-2 text-left transition-colors hover:bg-sidebar-accent/50"
+          >
+            <span className="bg-gradient-orbit flex size-7 items-center justify-center rounded-lg text-[11px] font-bold text-primary-foreground">
+              AC
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-semibold text-foreground">
+                Acme Industries
+              </span>
+              <span className="block truncate text-[11px] text-muted-foreground">
+                Workspace produção
+              </span>
+            </span>
+            <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+          </button>
+        </div>
+      ) : null}
+
+      <nav aria-label="Navegação principal" className="scroll-panel flex-1 space-y-6 px-3 py-2">
+        {navigation.map((group) => (
+          <div key={group.group} className="space-y-1">
+            {!collapsed ? (
+              <p className="px-3 pb-1 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground/70 uppercase">
+                {group.group}
+              </p>
+            ) : (
+              <div className="mx-auto mb-2 h-px w-8 bg-sidebar-border" />
+            )}
+            {group.items.map((item) => (
+              <SidebarItem
+                key={item.label}
+                item={item}
+                collapsed={collapsed}
+                active={isActive(item)}
+              />
+            ))}
+          </div>
+        ))}
+      </nav>
+
+      {!collapsed ? (
+        <div className="mx-3 mb-2 rounded-xl border border-sidebar-border bg-gradient-to-br from-primary/10 to-accent/10 p-3">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+            <Sparkles className="size-3.5 text-primary" />
+            Orbit Copilot
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+            Automatize rotinas operacionais com sugestões inteligentes.
+          </p>
+          <Button size="sm" className="mt-2 h-7 w-full text-xs">
+            Ativar
+          </Button>
+        </div>
+      ) : null}
+
+      <div className="space-y-2 border-t border-sidebar-border p-3">
+        {footer}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+          aria-expanded={!collapsed}
+          className="w-full justify-center text-muted-foreground"
+        >
+          <PanelLeftClose className={cn("size-4 transition-transform", collapsed && "rotate-180")} />
+          {!collapsed ? <span>Recolher</span> : null}
+        </Button>
+      </div>
+    </motion.aside>
+  );
+}
