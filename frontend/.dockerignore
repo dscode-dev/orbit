@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+.env*
+!.env.example
+.git
+*.log
+README.md
+INTEGRATION.md

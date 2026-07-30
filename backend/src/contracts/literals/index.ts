@@ -44,6 +44,39 @@ export const OperationKind = literal({
 });
 export type OperationKind = (typeof OperationKind)[keyof typeof OperationKind];
 
+export const OperationStatus = literal({
+  OPEN: 'OPEN',
+  SCHEDULED: 'SCHEDULED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  PAUSED: 'PAUSED',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+});
+export type OperationStatus =
+  (typeof OperationStatus)[keyof typeof OperationStatus];
+
+export const OperationPriority = literal({
+  LOW: 'LOW',
+  NORMAL: 'NORMAL',
+  HIGH: 'HIGH',
+  URGENT: 'URGENT',
+});
+export type OperationPriority =
+  (typeof OperationPriority)[keyof typeof OperationPriority];
+
+export const OperationHistoryAction = literal({
+  CREATED: 'CREATED',
+  UPDATED: 'UPDATED',
+  STATUS_CHANGED: 'STATUS_CHANGED',
+  USER_ASSIGNED: 'USER_ASSIGNED',
+  USER_UNASSIGNED: 'USER_UNASSIGNED',
+  ATTACHMENT_ADDED: 'ATTACHMENT_ADDED',
+  ATTACHMENT_REMOVED: 'ATTACHMENT_REMOVED',
+  DELETED: 'DELETED',
+});
+export type OperationHistoryAction =
+  (typeof OperationHistoryAction)[keyof typeof OperationHistoryAction];
+
 export const ProductKind = literal({
   PRODUCT: 'PRODUCT',
   SERVICE: 'SERVICE',

@@ -1,0 +1,241 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiConsumes, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import { memoryStorage } from 'multer';
+import { Permissions } from '../../decorators';
+import { ForbiddenException } from '../../exceptions';
+import { ParseUUIDv7Pipe } from '../../pipes';
+import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
+import {
+  Capabilities,
+  RequiresActivePlan,
+} from '../subscription-plans/plan-access';
+import {
+  AssignOperationUserDto,
+  ChangeOperationStatusDto,
+  CreateOperationDto,
+  OperationQueryDto,
+  UpdateOperationDto,
+} from './dto/operation.dto';
+import { OperationService } from './operation.service';
+
+@ApiTags('Operations')
+@Controller('operations')
+@RequiresActivePlan()
+export class OperationController {
+  constructor(private readonly operations: OperationService) {}
+
+  @Get()
+  @Capabilities('operations.read')
+  @Permissions('operations.read')
+  list(@Req() request: IdentityRequest, @Query() query: OperationQueryDto) {
+    return this.operations.list(this.organizationId(request), query);
+  }
+
+  @Get(':id')
+  @Capabilities('operations.read')
+  @Permissions('operations.read')
+  get(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.operations.get(id, this.organizationId(request));
+  }
+
+  @Post()
+  @Capabilities('operations.manage')
+  @Permissions('operations.create')
+  create(@Req() request: IdentityRequest, @Body() input: CreateOperationDto) {
+    return this.operations.create(
+      this.organizationId(request),
+      request.identity!.id,
+      input,
+    );
+  }
+
+  @Patch(':id')
+  @Capabilities('operations.manage')
+  @Permissions('operations.update')
+  update(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+    @Body() input: UpdateOperationDto,
+  ) {
+    return this.operations.update(
+      id,
+      this.organizationId(request),
+      request.identity!.id,
+      input,
+    );
+  }
+
+  @Patch(':id/status')
+  @Capabilities('operations.manage')
+  @Permissions('operations.status.update')
+  changeStatus(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+    @Body() input: ChangeOperationStatusDto,
+  ) {
+    return this.operations.changeStatus(
+      id,
+      this.organizationId(request),
+      request.identity!.id,
+      input,
+    );
+  }
+
+  @Post(':id/assignments')
+  @Capabilities('operations.manage')
+  @Permissions('operations.assign')
+  assign(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+    @Body() input: AssignOperationUserDto,
+  ) {
+    return this.operations.assign(
+      id,
+      this.organizationId(request),
+      request.identity!.id,
+      input,
+    );
+  }
+
+  @Delete(':id/assignments/:userId')
+  @Capabilities('operations.manage')
+  @Permissions('operations.assign')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  unassign(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Param('userId', ParseUUIDv7Pipe) userId: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.operations.unassign(
+      id,
+      userId,
+      this.organizationId(request),
+      request.identity!.id,
+    );
+  }
+
+  @Get(':id/history')
+  @Capabilities('operations.read')
+  @Permissions('operations.history.read')
+  history(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.operations.history(id, this.organizationId(request));
+  }
+
+  @Get(':id/timeline')
+  @Capabilities('operations.read')
+  @Permissions('operations.history.read')
+  timeline(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.operations.timeline(id, this.organizationId(request));
+  }
+
+  @Post(':id/attachments')
+  @Capabilities('operations.manage')
+  @Permissions('operations.attachments.create')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 20 * 1024 * 1024, files: 1 },
+    }),
+  )
+  attach(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.operations.attach(
+      id,
+      this.organizationId(request),
+      request.identity!.id,
+      file,
+    );
+  }
+
+  @Get(':id/attachments/:attachmentId')
+  @Capabilities('operations.read')
+  @Permissions('operations.attachments.read')
+  async download(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Param('attachmentId', ParseUUIDv7Pipe) attachmentId: string,
+    @Req() request: IdentityRequest,
+    @Res() response: Response,
+  ) {
+    const result = await this.operations.download(
+      id,
+      attachmentId,
+      this.organizationId(request),
+    );
+    response.setHeader('Content-Type', result.attachment.mimeType);
+    response.setHeader('Content-Length', String(result.buffer.length));
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(result.attachment.fileName)}`,
+    );
+    response.send(result.buffer);
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @Capabilities('operations.manage')
+  @Permissions('operations.attachments.delete')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeAttachment(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Param('attachmentId', ParseUUIDv7Pipe) attachmentId: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.operations.removeAttachment(
+      id,
+      attachmentId,
+      this.organizationId(request),
+      request.identity!.id,
+    );
+  }
+
+  @Delete(':id')
+  @Capabilities('operations.manage')
+  @Permissions('operations.delete')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.operations.remove(
+      id,
+      this.organizationId(request),
+      request.identity!.id,
+    );
+  }
+
+  private organizationId(request: IdentityRequest): string {
+    const id = request.identity?.organizationId;
+    if (!id) throw new ForbiddenException('Organization context is required');
+    return id;
+  }
+}

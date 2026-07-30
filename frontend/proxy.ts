@@ -30,7 +30,7 @@ async function refresh(refreshToken: string) {
   return (await response.json()) as TokenPair;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const isProtected = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route));
   const isGuest = guestRoutes.some((route) => request.nextUrl.pathname.startsWith(route));
   if (!isProtected && !isGuest) return NextResponse.next();

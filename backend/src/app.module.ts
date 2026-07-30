@@ -8,6 +8,7 @@ import { IdentityModule } from './modules/identity/identity.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { TechnicalCatalogsModule } from './modules/technical-catalogs/technical-catalogs.module';
+import { OperationsModule } from './modules/operations/operations.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { TechnicalCatalogsModule } from './modules/technical-catalogs/technical-
     OrganizationsModule,
     TechnicalCatalogsModule,
     IntegrationsModule,
+    OperationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -37,6 +37,7 @@ model User {
   operationAssignments    OperationUser[]          @relation("OperationAssignedUser")
   assignedOperations      OperationUser[]          @relation("OperationAssignedBy")
   operationHistory        OperationHistory[]
+  operationAttachments    OperationAttachment[]
   createdReports          Report[]                 @relation("ReportCreatedBy")
   signatures              Signature[]              @relation("SignatureUser")
   notifications           Notification[]
@@ -573,6 +574,7 @@ model Operation {
   asset               Asset?               @relation(fields: [assetId], references: [id], onDelete: SetNull)
   users               OperationUser[]
   history             OperationHistory[]
+  attachments         OperationAttachment[]
   reports             Report[]
   checklistExecutions ChecklistExecution[]
 
@@ -613,6 +615,25 @@ model OperationHistory {
 
   @@index([operationId, createdAt])
   @@map("operation_history")
+}
+
+model OperationAttachment {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  operationId  String    @map("operation_id") @db.Uuid
+  uploadedById String    @map("uploaded_by_id") @db.Uuid
+  fileName     String    @map("file_name") @db.VarChar(255)
+  mimeType     String    @map("mime_type") @db.VarChar(160)
+  size         Int
+  storageKey   String    @unique @map("storage_key") @db.VarChar(255)
+  checksum     String    @db.Char(64)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  operation  Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  uploadedBy User      @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([operationId, createdAt])
+  @@map("operation_attachments")
 }
 
 // -----------------------------------------------------------------------------
