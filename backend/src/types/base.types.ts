@@ -1,1 +1,1 @@
-export type UUID = string & { readonly __uuid: unique symbol };
+export type * from '../contracts/types';
