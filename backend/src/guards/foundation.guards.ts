@@ -55,7 +55,10 @@ export class PermissionGuard extends MetadataGuard implements CanActivate {
       getRequest(context).requestContext?.permissions ??
       getRequest(context).user?.permissions ??
       [];
-    if (!required.every((permission) => granted.includes(permission))) {
+    if (
+      !granted.includes('*') &&
+      !required.every((permission) => granted.includes(permission))
+    ) {
       throw new ForbiddenException('Missing required permission');
     }
     return true;

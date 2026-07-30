@@ -1,0 +1,141 @@
+import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
+import { PrismaService, RlsTransaction } from '../../database';
+import { generateUuidV7 } from '../../utils';
+import type { CreateOrganizationDto } from './dto/organization.dto';
+
+const organizationView = {
+  plan: true,
+  businessUnits: {
+    where: { deletedAt: null },
+    orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+  },
+} satisfies Prisma.OrganizationInclude;
+
+@Injectable()
+export class OrganizationRepository {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly rls: RlsTransaction,
+  ) {}
+
+  findPlanByKey(key: string) {
+    return this.prisma.plan.findFirst({ where: { key, isActive: true } });
+  }
+
+  create(
+    ownerUserId: string,
+    input: CreateOrganizationDto,
+    slug: string,
+    businessUnitSlug: string,
+  ) {
+    const organizationId = generateUuidV7();
+    const businessUnitId = generateUuidV7();
+    const trialStartedAt = new Date();
+    const trialEndsAt = new Date(trialStartedAt);
+    trialEndsAt.setUTCDate(trialEndsAt.getUTCDate() + 14);
+
+    return this.prisma.$transaction(async (transaction) => {
+      const plan = await transaction.plan.findFirst({
+        where: { key: input.planKey, isActive: true },
+      });
+      if (!plan) return null;
+      await this.setLocal(transaction, 'app.user_id', ownerUserId);
+      await this.setLocal(transaction, 'app.organization_id', organizationId);
+      await this.setLocal(transaction, 'app.business_unit_id', businessUnitId);
+      await this.setLocal(transaction, 'app.business_unit_ids', businessUnitId);
+
+      await transaction.organization.create({
+        data: {
+          id: organizationId,
+          ownerUserId,
+          planId: plan.id,
+          slug,
+          displayName: input.displayName,
+          primarySegment: input.primarySegment,
+          status: 'ACTIVE',
+          subscriptionStatus: 'TRIALING',
+          subscriptionStartedAt: trialStartedAt,
+          currentPeriodStart: trialStartedAt,
+          currentPeriodEnd: trialEndsAt,
+        },
+      });
+      const ownerRole = await transaction.role.create({
+        data: {
+          organizationId,
+          key: 'OWNER',
+          name: 'Owner',
+          description: 'Organization owner',
+          permissions: ['*'],
+        },
+      });
+      await transaction.businessUnit.create({
+        data: {
+          id: businessUnitId,
+          organizationId,
+          slug: businessUnitSlug,
+          isPrimary: true,
+          legalName: input.primaryBusinessUnit.legalName,
+          tradeName: input.primaryBusinessUnit.tradeName,
+          code: input.primaryBusinessUnit.code,
+          type: input.primaryBusinessUnit.type,
+          documentType: input.primaryBusinessUnit.documentType,
+          documentNumber: input.primaryBusinessUnit.documentNumber,
+          city: input.primaryBusinessUnit.city,
+          street: input.primaryBusinessUnit.street,
+          number: input.primaryBusinessUnit.number,
+          stateCode: input.primaryBusinessUnit.stateCode,
+          postalCode: input.primaryBusinessUnit.postalCode,
+          email: input.primaryBusinessUnit.email,
+          phone: input.primaryBusinessUnit.phone,
+        },
+      });
+      await transaction.organizationMembership.create({
+        data: { organizationId, userId: ownerUserId, roleId: ownerRole.id },
+      });
+      await transaction.businessUnitMembership.create({
+        data: {
+          organizationId,
+          businessUnitId,
+          userId: ownerUserId,
+          roleId: ownerRole.id,
+        },
+      });
+      return transaction.organization.findUniqueOrThrow({
+        where: { id: organizationId },
+        include: organizationView,
+      });
+    });
+  }
+
+  findCurrent(id: string) {
+    return this.rls.run((transaction) =>
+      transaction.organization.findUnique({
+        where: { id, deletedAt: null },
+        include: organizationView,
+      }),
+    );
+  }
+
+  updateCurrent(id: string, data: Prisma.OrganizationUpdateInput) {
+    return this.rls.run((transaction) =>
+      transaction.organization.update({
+        where: { id },
+        data,
+        include: organizationView,
+      }),
+    );
+  }
+
+  private setLocal(
+    transaction: Prisma.TransactionClient,
+    key: string,
+    value: string,
+  ): Promise<unknown> {
+    return transaction.$queryRawUnsafe(
+      'SELECT set_config($1, $2, true)',
+      key,
+      value,
+    );
+  }
+}
