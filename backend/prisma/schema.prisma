@@ -31,23 +31,27 @@ model User {
 
   credential              Credential?
   sessions                Session[]
-  ownedOrganizations      Organization[]           @relation("OrganizationOwner")
+  ownedOrganizations      Organization[]                 @relation("OrganizationOwner")
   organizationMemberships OrganizationMembership[]
   businessUnitMemberships BusinessUnitMembership[]
-  operationAssignments    OperationUser[]          @relation("OperationAssignedUser")
-  assignedOperations      OperationUser[]          @relation("OperationAssignedBy")
+  operationAssignments    OperationUser[]                @relation("OperationAssignedUser")
+  assignedOperations      OperationUser[]                @relation("OperationAssignedBy")
   operationHistory        OperationHistory[]
   operationAttachments    OperationAttachment[]
-  createdReports          Report[]                 @relation("ReportCreatedBy")
-  signatures              Signature[]              @relation("SignatureUser")
+  createdReports          Report[]                       @relation("ReportCreatedBy")
+  signatures              Signature[]                    @relation("SignatureUser")
   notifications           Notification[]
-  checklistExecutions     ChecklistExecution[]     @relation("ChecklistCreatedBy")
-  requestedAiExecutions   AiExecution[]            @relation("AiExecutionUser")
+  checklistExecutions     ChecklistExecution[]           @relation("ChecklistCreatedBy")
+  requestedAiExecutions   AiExecution[]                  @relation("AiExecutionUser")
+  createdSchedulingEvents SchedulingEvent[]              @relation("SchedulingEventCreatedBy")
+  schedulingAllocations   SchedulingResourceAllocation[]
+  schedulingAvailability  SchedulingAvailability[]
+  schedulingHistory       SchedulingEventHistory[]
   notificationPreferences NotificationPreference[]
   notificationDeliveries  NotificationDelivery[]
   pushSubscriptions       PushSubscription[]
   auditLogs               AuditLog[]
-  invitationsSent         IdentityInvitation[]     @relation("InvitationInviter")
+  invitationsSent         IdentityInvitation[]           @relation("InvitationInviter")
   passwordResetTokens     PasswordResetToken[]
   mfaFactors              MfaFactor[]
 
@@ -196,6 +200,9 @@ model Organization {
   aiAgents                AiAgent[]
   aiExecutions            AiExecution[]
   auditLogs               AuditLog[]
+  calendars               SchedulingCalendar[]
+  schedulingEvents        SchedulingEvent[]
+  schedulingAvailability  SchedulingAvailability[]
   invitations             IdentityInvitation[]
   businessUnitMemberships BusinessUnitMembership[]
 
@@ -240,20 +247,23 @@ model BusinessUnit {
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt             DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  parent              BusinessUnit?            @relation("BusinessUnitHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
-  children            BusinessUnit[]           @relation("BusinessUnitHierarchy")
-  memberships         BusinessUnitMembership[]
-  sessions            Session[]
-  contacts            Contact[]
-  assets              Asset[]
-  products            Product[]
-  operations          Operation[]
-  reports             Report[]
-  notifications       Notification[]
-  checklistExecutions ChecklistExecution[]
-  auditLogs           AuditLog[]
-  invitations         IdentityInvitation[]
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent                 BusinessUnit?            @relation("BusinessUnitHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children               BusinessUnit[]           @relation("BusinessUnitHierarchy")
+  memberships            BusinessUnitMembership[]
+  sessions               Session[]
+  contacts               Contact[]
+  assets                 Asset[]
+  products               Product[]
+  operations             Operation[]
+  reports                Report[]
+  notifications          Notification[]
+  checklistExecutions    ChecklistExecution[]
+  auditLogs              AuditLog[]
+  calendars              SchedulingCalendar[]
+  schedulingEvents       SchedulingEvent[]
+  schedulingAvailability SchedulingAvailability[]
+  invitations            IdentityInvitation[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -424,13 +434,14 @@ model Customer {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  contacts     Contact[]
-  assets       Asset[]
-  operations   Operation[]
-  reports      Report[]
-  signatures   Signature[]
-  aiExecutions AiExecution[]
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts         Contact[]
+  assets           Asset[]
+  operations       Operation[]
+  reports          Report[]
+  signatures       Signature[]
+  aiExecutions     AiExecution[]
+  schedulingEvents SchedulingEvent[]
 
   @@index([organizationId, status, deletedAt])
   @@index([organizationId, documentNumber])
@@ -538,10 +549,12 @@ model Asset {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
-  customer     Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  operations   Operation[]
+  organization          Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit          BusinessUnit                   @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  customer              Customer?                      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  operations            Operation[]
+  schedulingEvents      SchedulingEvent[]
+  schedulingAllocations SchedulingResourceAllocation[]
 
   @@unique([organizationId, identifier])
   @@index([organizationId, businessUnitId, status, deletedAt])
@@ -991,6 +1004,167 @@ model AiExecution {
   @@index([operationId, createdAt])
   @@index([reportId, createdAt])
   @@map("ai_executions")
+}
+
+// -----------------------------------------------------------------------------
+// SCHEDULING ENGINE
+// -----------------------------------------------------------------------------
+
+model SchedulingCalendar {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  businessUnitId String?   @map("business_unit_id") @db.Uuid
+  key            String    @db.VarChar(100)
+  name           String    @db.VarChar(160)
+  description    String?   @db.Text
+  color          String?   @db.VarChar(20)
+  timezone       String    @default("America/Recife") @db.VarChar(64)
+  isDefault      Boolean   @default(false) @map("is_default")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit?     @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  events       SchedulingEvent[]
+
+  @@index([organizationId, businessUnitId, isActive, deletedAt])
+  @@map("scheduling_calendars")
+}
+
+model SchedulingEvent {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  businessUnitId   String?   @map("business_unit_id") @db.Uuid
+  calendarId       String    @map("calendar_id") @db.Uuid
+  customerId       String?   @map("customer_id") @db.Uuid
+  assetId          String?   @map("asset_id") @db.Uuid
+  createdById      String    @map("created_by_id") @db.Uuid
+  title            String    @db.VarChar(220)
+  description      String?   @db.Text
+  type             String    @db.VarChar(60)
+  status           String    @default("CONFIRMED") @db.VarChar(40)
+  priority         String    @default("NORMAL") @db.VarChar(20)
+  startsAt         DateTime  @map("starts_at") @db.Timestamptz(3)
+  endsAt           DateTime  @map("ends_at") @db.Timestamptz(3)
+  allDay           Boolean   @default(false) @map("all_day")
+  timezone         String    @default("America/Recife") @db.VarChar(64)
+  segment          String?   @db.VarChar(60)
+  sourceModule     String    @map("source_module") @db.VarChar(100)
+  sourceEntityType String    @map("source_entity_type") @db.VarChar(100)
+  sourceEntityId   String?   @map("source_entity_id") @db.Uuid
+  location         Json?     @db.JsonB
+  metadata         Json?     @db.JsonB
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit?                  @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  calendar     SchedulingCalendar             @relation(fields: [calendarId], references: [id], onDelete: Restrict)
+  customer     Customer?                      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  asset        Asset?                         @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  createdBy    User                           @relation("SchedulingEventCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  recurrence   SchedulingRecurrence?
+  allocations  SchedulingResourceAllocation[]
+  history      SchedulingEventHistory[]
+
+  @@index([organizationId, startsAt, endsAt])
+  @@index([organizationId, businessUnitId, startsAt])
+  @@index([calendarId, startsAt])
+  @@index([customerId, startsAt])
+  @@index([assetId, startsAt])
+  @@index([sourceModule, sourceEntityType, sourceEntityId])
+  @@map("scheduling_events")
+}
+
+model SchedulingRecurrence {
+  id         String     @id @default(uuid(7)) @db.Uuid
+  eventId    String     @unique @map("event_id") @db.Uuid
+  frequency  String     @db.VarChar(30)
+  interval   Int        @default(1)
+  byWeekday  Int[]      @default([]) @map("by_weekday")
+  byMonthDay Int?       @map("by_month_day")
+  count      Int?
+  until      DateTime?  @db.Timestamptz(3)
+  customRule Json?      @map("custom_rule") @db.JsonB
+  exceptions DateTime[] @default([]) @db.Timestamptz(3)
+  timezone   String     @default("America/Recife") @db.VarChar(64)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  event SchedulingEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("scheduling_recurrences")
+}
+
+model SchedulingResourceAllocation {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  eventId      String    @map("event_id") @db.Uuid
+  userId       String?   @map("user_id") @db.Uuid
+  assetId      String?   @map("asset_id") @db.Uuid
+  resourceType String    @map("resource_type") @db.VarChar(30)
+  resourceKey  String?   @map("resource_key") @db.VarChar(160)
+  role         String?   @db.VarChar(80)
+  status       String    @default("ALLOCATED") @db.VarChar(30)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  event SchedulingEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  asset Asset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, status, deletedAt])
+  @@index([userId, status])
+  @@index([assetId, status])
+  @@index([resourceType, resourceKey, status])
+  @@map("scheduling_resource_allocations")
+}
+
+model SchedulingAvailability {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  businessUnitId String?   @map("business_unit_id") @db.Uuid
+  userId         String?   @map("user_id") @db.Uuid
+  resourceType   String    @map("resource_type") @db.VarChar(30)
+  resourceKey    String?   @map("resource_key") @db.VarChar(160)
+  kind           String    @db.VarChar(30)
+  dayOfWeek      Int?      @map("day_of_week")
+  date           DateTime? @db.Date
+  startMinute    Int       @map("start_minute")
+  endMinute      Int       @map("end_minute")
+  timezone       String    @default("America/Recife") @db.VarChar(64)
+  effectiveFrom  DateTime? @map("effective_from") @db.Date
+  effectiveUntil DateTime? @map("effective_until") @db.Date
+  reason         String?   @db.VarChar(500)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, businessUnitId, kind, deletedAt])
+  @@index([userId, dayOfWeek, date])
+  @@index([resourceType, resourceKey, dayOfWeek, date])
+  @@map("scheduling_availability")
+}
+
+model SchedulingEventHistory {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  eventId   String   @map("event_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  action    String   @db.VarChar(80)
+  details   Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  event SchedulingEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, createdAt])
+  @@map("scheduling_event_history")
 }
 
 // -----------------------------------------------------------------------------
