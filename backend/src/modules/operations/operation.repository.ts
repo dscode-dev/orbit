@@ -40,6 +40,18 @@ const operationInclude = {
     },
     orderBy: { createdAt: 'desc' },
   },
+  checklistExecutions: {
+    select: {
+      id: true,
+      templateId: true,
+      templateVersion: true,
+      status: true,
+      progress: true,
+      completedAt: true,
+      updatedAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  },
 } satisfies Prisma.OperationInclude;
 
 @Injectable()

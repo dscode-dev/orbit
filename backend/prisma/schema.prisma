@@ -41,6 +41,10 @@ model User {
   createdReports          Report[]                 @relation("ReportCreatedBy")
   signatures              Signature[]              @relation("SignatureUser")
   notifications           Notification[]
+  checklistExecutions     ChecklistExecution[]     @relation("ChecklistCreatedBy")
+  notificationPreferences NotificationPreference[]
+  notificationDeliveries  NotificationDelivery[]
+  pushSubscriptions       PushSubscription[]
   auditLogs               AuditLog[]
   invitationsSent         IdentityInvitation[]     @relation("InvitationInviter")
   passwordResetTokens     PasswordResetToken[]
@@ -186,6 +190,8 @@ model Organization {
   checklistTemplates      ChecklistTemplate[]
   checklistExecutions     ChecklistExecution[]
   notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+  pushSubscriptions       PushSubscription[]
   aiAgents                AiAgent[]
   aiExecutions            AiExecution[]
   auditLogs               AuditLog[]
@@ -662,24 +668,31 @@ model ChecklistTemplate {
 }
 
 model ChecklistExecution {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
-  businessUnitId String    @map("business_unit_id") @db.Uuid
-  templateId     String    @map("template_id") @db.Uuid
-  operationId    String?   @map("operation_id") @db.Uuid
-  status         String    @default("IN_PROGRESS") @db.VarChar(40)
-  answers        Json      @default("{}") @db.JsonB
-  completedAt    DateTime? @map("completed_at") @db.Timestamptz(3)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  businessUnitId   String    @map("business_unit_id") @db.Uuid
+  templateId       String    @map("template_id") @db.Uuid
+  operationId      String?   @map("operation_id") @db.Uuid
+  createdById      String    @map("created_by_id") @db.Uuid
+  status           String    @default("IN_PROGRESS") @db.VarChar(40)
+  templateVersion  Int       @map("template_version")
+  templateSnapshot Json      @map("template_snapshot") @db.JsonB
+  answers          Json      @default("{}") @db.JsonB
+  progress         Int       @default(0)
+  notes            String?   @db.Text
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   businessUnit BusinessUnit      @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
   template     ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
   operation    Operation?        @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  createdBy    User              @relation("ChecklistCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([organizationId, businessUnitId, status])
   @@index([operationId])
+  @@index([createdById, createdAt])
   @@map("checklist_executions")
 }
 
@@ -821,14 +834,83 @@ model Notification {
   readAt          DateTime? @map("read_at") @db.Timestamptz(3)
   expiresAt       DateTime? @map("expires_at") @db.Timestamptz(3)
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
-  recipient    User          @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit?          @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  recipient    User                   @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+  deliveries   NotificationDelivery[]
 
   @@index([recipientUserId, readAt, createdAt])
   @@index([organizationId, status, scheduledAt])
   @@map("notifications")
+}
+
+model NotificationPreference {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  type           String   @db.VarChar(80)
+  channels       String[] @default(["IN_APP", "REALTIME"]) @db.VarChar(30)
+  enabled        Boolean  @default(true)
+  quietHours     Json?    @map("quiet_hours") @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, type])
+  @@index([userId, enabled])
+  @@map("notification_preferences")
+}
+
+model NotificationDelivery {
+  id                String    @id @default(uuid(7)) @db.Uuid
+  notificationId    String    @map("notification_id") @db.Uuid
+  recipientUserId   String    @map("recipient_user_id") @db.Uuid
+  channel           String    @db.VarChar(30)
+  status            String    @default("PENDING") @db.VarChar(40)
+  provider          String?   @db.VarChar(60)
+  providerMessageId String?   @map("provider_message_id") @db.VarChar(255)
+  attempts          Int       @default(0)
+  lastError         String?   @map("last_error") @db.Text
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz(3)
+  deliveredAt       DateTime? @map("delivered_at") @db.Timestamptz(3)
+  failedAt          DateTime? @map("failed_at") @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  recipient    User         @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, channel])
+  @@index([status, createdAt])
+  @@index([recipientUserId, createdAt])
+  @@map("notification_deliveries")
+}
+
+model PushSubscription {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  endpoint       String    @db.Text
+  endpointHash   String    @map("endpoint_hash") @db.Char(64)
+  p256dh         String    @db.Text
+  auth           String    @db.Text
+  userAgent      String?   @map("user_agent") @db.Text
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(3)
+  lastUsedAt     DateTime? @map("last_used_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, endpointHash])
+  @@index([userId, revokedAt])
+  @@map("push_subscriptions")
 }
 
 // -----------------------------------------------------------------------------

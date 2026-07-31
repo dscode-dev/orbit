@@ -11,6 +11,7 @@ import { TechnicalCatalogsModule } from './modules/technical-catalogs/technical-
 import { OperationsModule } from './modules/operations/operations.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SignaturesModule } from './modules/signatures/signatures.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SignaturesModule } from './modules/signatures/signatures.module';
     OperationsModule,
     ReportsModule,
     SignaturesModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
