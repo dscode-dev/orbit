@@ -12,6 +12,7 @@ import { OperationsModule } from './modules/operations/operations.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SignaturesModule } from './modules/signatures/signatures.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AiPanelModule } from './modules/ai-panel/ai-panel.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     ReportsModule,
     SignaturesModule,
     NotificationsModule,
+    AiPanelModule,
   ],
   controllers: [AppController],
   providers: [AppService],

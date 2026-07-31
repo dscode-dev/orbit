@@ -6,6 +6,7 @@ import {
   INTEGRATION_ADAPTERS,
   IntegrationProviderRegistry,
 } from './provider/integration-provider';
+import { OpenAiCompatibleIntegrationAdapter } from './provider/openai-compatible-integration.adapter';
 
 @Module({
   controllers: [IntegrationController],
@@ -13,7 +14,12 @@ import {
     IntegrationRepository,
     IntegrationService,
     IntegrationProviderRegistry,
-    { provide: INTEGRATION_ADAPTERS, useValue: [] },
+    OpenAiCompatibleIntegrationAdapter,
+    {
+      provide: INTEGRATION_ADAPTERS,
+      inject: [OpenAiCompatibleIntegrationAdapter],
+      useFactory: (openAi: OpenAiCompatibleIntegrationAdapter) => [openAi],
+    },
   ],
   exports: [IntegrationService, INTEGRATION_ADAPTERS],
 })

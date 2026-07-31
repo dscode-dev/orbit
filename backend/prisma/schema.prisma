@@ -42,6 +42,7 @@ model User {
   signatures              Signature[]              @relation("SignatureUser")
   notifications           Notification[]
   checklistExecutions     ChecklistExecution[]     @relation("ChecklistCreatedBy")
+  requestedAiExecutions   AiExecution[]            @relation("AiExecutionUser")
   notificationPreferences NotificationPreference[]
   notificationDeliveries  NotificationDelivery[]
   pushSubscriptions       PushSubscription[]
@@ -395,6 +396,7 @@ model Integration {
   deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  aiAgents     AiAgent[]
 
   @@unique([organizationId, provider, displayName])
   @@index([organizationId, category, status])
@@ -422,12 +424,13 @@ model Customer {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   contacts     Contact[]
   assets       Asset[]
   operations   Operation[]
   reports      Report[]
   signatures   Signature[]
+  aiExecutions AiExecution[]
 
   @@index([organizationId, status, deletedAt])
   @@index([organizationId, documentNumber])
@@ -583,6 +586,7 @@ model Operation {
   attachments         OperationAttachment[]
   reports             Report[]
   checklistExecutions ChecklistExecution[]
+  aiExecutions        AiExecution[]
 
   @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, scheduledStart])
@@ -756,6 +760,7 @@ model Report {
   createdBy    User                @relation("ReportCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   documents    GeneratedDocument[]
   signatures   Signature[]
+  aiExecutions AiExecution[]
 
   @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, createdAt])
@@ -925,6 +930,8 @@ model AiAgent {
   description    String?   @db.Text
   provider       String    @db.VarChar(80)
   model          String    @db.VarChar(120)
+  integrationId  String?   @map("integration_id") @db.Uuid
+  version        Int       @default(1)
   systemPrompt   String    @map("system_prompt") @db.Text
   tools          Json      @default("[]") @db.JsonB
   configuration  Json      @default("{}") @db.JsonB
@@ -934,36 +941,55 @@ model AiAgent {
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  integration  Integration?  @relation(fields: [integrationId], references: [id], onDelete: SetNull)
   executions   AiExecution[]
 
-  @@unique([organizationId, key])
+  @@unique([organizationId, key, version])
   @@index([organizationId, status, deletedAt])
+  @@index([integrationId])
   @@map("ai_agents")
 }
 
 model AiExecution {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
-  agentId        String?   @map("agent_id") @db.Uuid
-  userId         String?   @map("user_id") @db.Uuid
-  purpose        String    @db.VarChar(100)
-  status         String    @default("PENDING") @db.VarChar(40)
-  input          Json?     @db.JsonB
-  output         Json?     @db.JsonB
-  model          String?   @db.VarChar(120)
-  inputTokens    Int?      @map("input_tokens")
-  outputTokens   Int?      @map("output_tokens")
-  estimatedCost  Decimal?  @map("estimated_cost") @db.Decimal(18, 8)
-  error          Json?     @db.JsonB
-  startedAt      DateTime? @map("started_at") @db.Timestamptz(3)
-  completedAt    DateTime? @map("completed_at") @db.Timestamptz(3)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  agentId           String?   @map("agent_id") @db.Uuid
+  userId            String?   @map("user_id") @db.Uuid
+  customerId        String?   @map("customer_id") @db.Uuid
+  operationId       String?   @map("operation_id") @db.Uuid
+  reportId          String?   @map("report_id") @db.Uuid
+  idempotencyKey    String?   @map("idempotency_key") @db.VarChar(160)
+  purpose           String    @db.VarChar(100)
+  status            String    @default("PENDING") @db.VarChar(40)
+  input             Json?     @db.JsonB
+  inputHash         String    @map("input_hash") @db.Char(64)
+  agentSnapshot     Json      @map("agent_snapshot") @db.JsonB
+  contextSnapshot   Json?     @map("context_snapshot") @db.JsonB
+  output            Json?     @db.JsonB
+  outputHash        String?   @map("output_hash") @db.Char(64)
+  providerRequestId String?   @map("provider_request_id") @db.VarChar(255)
+  model             String?   @db.VarChar(120)
+  inputTokens       Int?      @map("input_tokens")
+  outputTokens      Int?      @map("output_tokens")
+  estimatedCost     Decimal?  @map("estimated_cost") @db.Decimal(18, 8)
+  durationMs        Int?      @map("duration_ms")
+  error             Json?     @db.JsonB
+  startedAt         DateTime? @map("started_at") @db.Timestamptz(3)
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   agent        AiAgent?     @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  user         User?        @relation("AiExecutionUser", fields: [userId], references: [id], onDelete: SetNull)
+  customer     Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  operation    Operation?   @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  report       Report?      @relation(fields: [reportId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, status, createdAt])
   @@index([agentId, createdAt])
+  @@index([customerId, createdAt])
+  @@index([operationId, createdAt])
+  @@index([reportId, createdAt])
   @@map("ai_executions")
 }
 

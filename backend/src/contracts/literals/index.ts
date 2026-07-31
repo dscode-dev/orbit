@@ -161,6 +161,7 @@ export const IntegrationProvider = literal({
   GOOGLE: 'GOOGLE',
   MICROSOFT: 'MICROSOFT',
   WHATSAPP: 'WHATSAPP',
+  OPENAI_COMPATIBLE: 'OPENAI_COMPATIBLE',
   CUSTOM: 'CUSTOM',
 });
 export type IntegrationProvider =
@@ -171,6 +172,7 @@ export const IntegrationCategory = literal({
   STORAGE: 'STORAGE',
   CALENDAR: 'CALENDAR',
   ERP: 'ERP',
+  AI: 'AI',
   OTHER: 'OTHER',
 });
 export type IntegrationCategory =
