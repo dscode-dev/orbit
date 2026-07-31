@@ -15,6 +15,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AiPanelModule } from './modules/ai-panel/ai-panel.module';
 import { DashboardModule } from './modules/dashboards/dashboard.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
     AiPanelModule,
     DashboardModule,
     SchedulingModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

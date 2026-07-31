@@ -1,7 +1,11 @@
 import { DashboardRepository } from './dashboard.repository';
+import { EnvironmentalIntelligenceProvider } from './environmental-intelligence.provider';
 
 describe('DashboardRepository mock Read Models', () => {
-  const repository = new DashboardRepository({} as never);
+  const repository = new DashboardRepository(
+    {} as never,
+    new EnvironmentalIntelligenceProvider(),
+  );
 
   it('exposes weather and environmental intelligence as a stable contract', () => {
     const model = repository.read(
