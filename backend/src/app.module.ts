@@ -13,6 +13,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { SignaturesModule } from './modules/signatures/signatures.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AiPanelModule } from './modules/ai-panel/ai-panel.module';
+import { DashboardModule } from './modules/dashboards/dashboard.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AiPanelModule } from './modules/ai-panel/ai-panel.module';
     SignaturesModule,
     NotificationsModule,
     AiPanelModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

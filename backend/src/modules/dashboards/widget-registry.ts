@@ -1,0 +1,367 @@
+import { Injectable } from '@nestjs/common';
+import { ConflictException, EntityNotFoundException } from '../../exceptions';
+import type { DashboardWidgetDefinition } from './dashboard.read-models';
+
+const globalWidgets: DashboardWidgetDefinition[] = [
+  {
+    id: 'attention-center',
+    title: 'Attention Center',
+    description: 'Prioridades, alertas e pendências que exigem ação.',
+    category: 'ATTENTION',
+    order: 10,
+    size: 'LARGE',
+    tags: ['global', 'attention', 'alerts'],
+    supportedSegments: [],
+    requiredModules: [],
+    requiredPlans: [],
+    requiredPermissions: ['dashboard.read'],
+    readModel: 'attention-center',
+  },
+  {
+    id: 'executive-kpis',
+    title: 'Executive KPIs',
+    description: 'Indicadores executivos consolidados da organização.',
+    category: 'EXECUTIVE',
+    order: 20,
+    size: 'FULL',
+    tags: ['global', 'executive', 'kpi'],
+    supportedSegments: [],
+    requiredModules: [],
+    requiredPlans: [],
+    requiredPermissions: ['dashboard.read'],
+    readModel: 'executive-kpis',
+  },
+  {
+    id: 'health-score',
+    title: 'Health Score',
+    description: 'Visão sintética da saúde operacional.',
+    category: 'EXECUTIVE',
+    order: 30,
+    size: 'MEDIUM',
+    tags: ['global', 'health'],
+    supportedSegments: [],
+    requiredModules: [],
+    requiredPlans: [],
+    requiredPermissions: ['dashboard.read'],
+    readModel: 'health-score',
+  },
+  {
+    id: 'operational-trend',
+    title: 'Operational Trend',
+    description: 'Evolução dos principais volumes operacionais.',
+    category: 'OPERATIONS',
+    order: 40,
+    size: 'LARGE',
+    tags: ['global', 'operations', 'trend'],
+    supportedSegments: [],
+    requiredModules: ['operations'],
+    requiredPlans: [],
+    requiredPermissions: ['operations.read'],
+    readModel: 'operational-trend',
+  },
+  {
+    id: 'team-performance',
+    title: 'Team Performance',
+    description: 'Produtividade e cumprimento de SLA da equipe.',
+    category: 'TEAM',
+    order: 50,
+    size: 'LARGE',
+    tags: ['global', 'team', 'operations'],
+    supportedSegments: [],
+    requiredModules: ['operations'],
+    requiredPlans: [],
+    requiredPermissions: ['operations.read'],
+    readModel: 'team-performance',
+  },
+  {
+    id: 'recent-activity',
+    title: 'Recent Activity',
+    description: 'Linha do tempo recente da organização.',
+    category: 'ACTIVITY',
+    order: 60,
+    size: 'MEDIUM',
+    tags: ['global', 'activity'],
+    supportedSegments: [],
+    requiredModules: [],
+    requiredPlans: [],
+    requiredPermissions: ['dashboard.read'],
+    readModel: 'recent-activity',
+  },
+  {
+    id: 'upcoming-events',
+    title: 'Upcoming Events',
+    description: 'Agenda consolidada de compromissos e vencimentos.',
+    category: 'EVENTS',
+    order: 70,
+    size: 'MEDIUM',
+    tags: ['global', 'events'],
+    supportedSegments: [],
+    requiredModules: [],
+    requiredPlans: [],
+    requiredPermissions: ['dashboard.read'],
+    readModel: 'upcoming-events',
+  },
+  {
+    id: 'orbit-intelligence',
+    title: 'Orbit Intelligence',
+    description: 'Recomendações, riscos, tendências e insights de IA.',
+    category: 'INTELLIGENCE',
+    order: 80,
+    size: 'FULL',
+    tags: ['global', 'ai', 'intelligence'],
+    supportedSegments: [],
+    requiredModules: ['ai'],
+    requiredPlans: [],
+    requiredPermissions: ['ai.executions.read'],
+    readModel: 'orbit-intelligence',
+  },
+];
+
+const segmentWidget = (
+  input: Omit<
+    DashboardWidgetDefinition,
+    'size' | 'requiredPlans' | 'readModel'
+  > & {
+    size?: DashboardWidgetDefinition['size'];
+    requiredPlans?: readonly string[];
+    readModel?: string;
+  },
+): DashboardWidgetDefinition => ({
+  ...input,
+  size: input.size ?? 'MEDIUM',
+  requiredPlans: input.requiredPlans ?? [],
+  readModel: input.readModel ?? 'segment-metric',
+});
+
+const segmentWidgets: DashboardWidgetDefinition[] = [
+  segmentWidget({
+    id: 'hvac-pmoc-status',
+    title: 'PMOC Status',
+    description: 'Conformidade, vencimentos e execução dos planos PMOC.',
+    category: 'OPERATIONS',
+    order: 110,
+    tags: ['hvac-r', 'pmoc', 'compliance'],
+    supportedSegments: ['HVAC_R'],
+    requiredModules: ['reports'],
+    requiredPermissions: ['reports.read'],
+  }),
+  segmentWidget({
+    id: 'hvac-equipment-health',
+    title: 'Equipment Health',
+    description: 'Condição consolidada dos equipamentos monitorados.',
+    category: 'ASSETS',
+    order: 120,
+    tags: ['hvac-r', 'assets', 'equipment'],
+    supportedSegments: ['HVAC_R'],
+    requiredModules: ['assets'],
+    requiredPermissions: ['assets.read'],
+  }),
+  segmentWidget({
+    id: 'hvac-sla',
+    title: 'SLA',
+    description: 'Atendimentos dentro e fora dos compromissos de serviço.',
+    category: 'OPERATIONS',
+    order: 130,
+    tags: ['hvac-r', 'sla', 'operations'],
+    supportedSegments: ['HVAC_R'],
+    requiredModules: ['operations'],
+    requiredPermissions: ['operations.read'],
+  }),
+  segmentWidget({
+    id: 'hvac-technicians',
+    title: 'Technicians',
+    description: 'Disponibilidade e produtividade técnica.',
+    category: 'TEAM',
+    order: 140,
+    tags: ['hvac-r', 'team', 'technicians'],
+    supportedSegments: ['HVAC_R'],
+    requiredModules: ['operations'],
+    requiredPermissions: ['operations.read'],
+  }),
+  segmentWidget({
+    id: 'hvac-contracts',
+    title: 'Contracts',
+    description: 'Cobertura e situação da carteira contratual.',
+    category: 'COMMERCIAL',
+    order: 150,
+    tags: ['hvac-r', 'contracts', 'customers'],
+    supportedSegments: ['HVAC_R'],
+    requiredModules: ['customers'],
+    requiredPermissions: ['customers.read'],
+  }),
+  segmentWidget({
+    id: 'weather-environmental-intelligence',
+    title: 'Weather & Environmental Intelligence',
+    description: 'Clima, ambiente, impactos, riscos e recomendações.',
+    category: 'ENVIRONMENT',
+    order: 160,
+    size: 'LARGE',
+    tags: ['environment', 'weather', 'intelligence'],
+    supportedSegments: ['HVAC_R', 'AGRO'],
+    requiredModules: [],
+    requiredPermissions: ['dashboard.read'],
+    readModel: 'weather-environmental-intelligence',
+  }),
+  segmentWidget({
+    id: 'pharmacy-critical-stock',
+    title: 'Critical Stock',
+    description: 'Itens abaixo do estoque de segurança.',
+    category: 'INVENTORY',
+    order: 210,
+    tags: ['pharmacy', 'inventory', 'critical'],
+    supportedSegments: ['PHARMACY'],
+    requiredModules: ['catalog'],
+    requiredPermissions: ['catalog.read'],
+  }),
+  segmentWidget({
+    id: 'pharmacy-expiring-products',
+    title: 'Expiring Products',
+    description: 'Produtos próximos ao vencimento.',
+    category: 'INVENTORY',
+    order: 220,
+    tags: ['pharmacy', 'inventory', 'expiry'],
+    supportedSegments: ['PHARMACY'],
+    requiredModules: ['catalog'],
+    requiredPermissions: ['catalog.read'],
+  }),
+  segmentWidget({
+    id: 'pharmacy-lots',
+    title: 'Lots',
+    description: 'Rastreabilidade e situação dos lotes.',
+    category: 'INVENTORY',
+    order: 230,
+    tags: ['pharmacy', 'lots'],
+    supportedSegments: ['PHARMACY'],
+    requiredModules: ['catalog'],
+    requiredPermissions: ['catalog.read'],
+  }),
+  segmentWidget({
+    id: 'pharmacy-purchases',
+    title: 'Purchases',
+    description: 'Indicadores de compras e reposição.',
+    category: 'COMMERCIAL',
+    order: 240,
+    tags: ['pharmacy', 'purchases'],
+    supportedSegments: ['PHARMACY'],
+    requiredModules: ['catalog'],
+    requiredPermissions: ['catalog.read'],
+  }),
+  segmentWidget({
+    id: 'pharmacy-dispensations',
+    title: 'Dispensations',
+    description: 'Volume e tendência das dispensações.',
+    category: 'OPERATIONS',
+    order: 250,
+    tags: ['pharmacy', 'dispensations'],
+    supportedSegments: ['PHARMACY'],
+    requiredModules: ['catalog'],
+    requiredPermissions: ['catalog.read'],
+  }),
+  segmentWidget({
+    id: 'pharmacy-abc-curve',
+    title: 'ABC Curve',
+    description: 'Classificação de relevância dos produtos.',
+    category: 'EXECUTIVE',
+    order: 260,
+    size: 'LARGE',
+    tags: ['pharmacy', 'abc', 'inventory'],
+    supportedSegments: ['PHARMACY'],
+    requiredModules: ['catalog'],
+    requiredPermissions: ['catalog.read'],
+  }),
+  segmentWidget({
+    id: 'agro-fields-overview',
+    title: 'Fields Overview',
+    description: 'Visão consolidada das áreas produtivas.',
+    category: 'OPERATIONS',
+    order: 310,
+    tags: ['agro', 'fields'],
+    supportedSegments: ['AGRO'],
+    requiredModules: [],
+    requiredPermissions: ['dashboard.read'],
+  }),
+  segmentWidget({
+    id: 'agro-crop-status',
+    title: 'Crop Status',
+    description: 'Estágio e saúde das culturas.',
+    category: 'OPERATIONS',
+    order: 320,
+    tags: ['agro', 'crops'],
+    supportedSegments: ['AGRO'],
+    requiredModules: [],
+    requiredPermissions: ['dashboard.read'],
+  }),
+  segmentWidget({
+    id: 'agro-machinery',
+    title: 'Machinery',
+    description: 'Disponibilidade e condição do maquinário.',
+    category: 'ASSETS',
+    order: 330,
+    tags: ['agro', 'machinery', 'assets'],
+    supportedSegments: ['AGRO'],
+    requiredModules: ['assets'],
+    requiredPermissions: ['assets.read'],
+  }),
+  segmentWidget({
+    id: 'agro-inputs',
+    title: 'Inputs',
+    description: 'Disponibilidade e consumo de insumos.',
+    category: 'INVENTORY',
+    order: 340,
+    tags: ['agro', 'inputs', 'inventory'],
+    supportedSegments: ['AGRO'],
+    requiredModules: ['catalog'],
+    requiredPermissions: ['catalog.read'],
+  }),
+  segmentWidget({
+    id: 'agro-irrigation',
+    title: 'Irrigation',
+    description: 'Eficiência, cobertura e alertas de irrigação.',
+    category: 'OPERATIONS',
+    order: 350,
+    tags: ['agro', 'irrigation'],
+    supportedSegments: ['AGRO'],
+    requiredModules: [],
+    requiredPermissions: ['dashboard.read'],
+  }),
+  segmentWidget({
+    id: 'agro-production-forecast',
+    title: 'Production Forecast',
+    description: 'Projeção produtiva e variação esperada.',
+    category: 'INTELLIGENCE',
+    order: 360,
+    size: 'LARGE',
+    tags: ['agro', 'forecast', 'intelligence'],
+    supportedSegments: ['AGRO'],
+    requiredModules: [],
+    requiredPermissions: ['dashboard.read'],
+  }),
+];
+
+@Injectable()
+export class WidgetRegistry {
+  private readonly definitions = new Map<string, DashboardWidgetDefinition>();
+
+  constructor() {
+    for (const widget of [...globalWidgets, ...segmentWidgets])
+      this.register(widget);
+  }
+
+  register(widget: DashboardWidgetDefinition) {
+    if (this.definitions.has(widget.id))
+      throw new ConflictException(
+        `Dashboard widget ${widget.id} is duplicated`,
+      );
+    this.definitions.set(widget.id, Object.freeze({ ...widget }));
+  }
+
+  all(): readonly DashboardWidgetDefinition[] {
+    return [...this.definitions.values()];
+  }
+
+  get(id: string): DashboardWidgetDefinition {
+    const widget = this.definitions.get(id);
+    if (!widget) throw new EntityNotFoundException('Dashboard widget', id);
+    return widget;
+  }
+}
