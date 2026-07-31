@@ -30,6 +30,7 @@ RUN apt-get update \
   && groupadd --system --gid 1001 orbit \
   && useradd --system --uid 1001 --gid orbit orbit \
   && mkdir -p /app/storage/operations \
+  && mkdir -p /app/storage/documents \
   && chown -R orbit:orbit /app
 
 COPY --from=builder --chown=orbit:orbit /app/node_modules ./node_modules

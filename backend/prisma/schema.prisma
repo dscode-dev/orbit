@@ -568,17 +568,17 @@ model Operation {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit        BusinessUnit         @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
-  customer            Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  asset               Asset?               @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit        BusinessUnit          @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  customer            Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  asset               Asset?                @relation(fields: [assetId], references: [id], onDelete: SetNull)
   users               OperationUser[]
   history             OperationHistory[]
   attachments         OperationAttachment[]
   reports             Report[]
   checklistExecutions ChecklistExecution[]
 
-  @@unique([organizationId, code])
+  @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, scheduledStart])
   @@index([organizationId, customerId, createdAt])
   @@index([organizationId, assetId])
@@ -726,7 +726,9 @@ model Report {
   templateVersion Int       @map("template_version")
   sections        Json      @default("[]") @db.JsonB
   signatureSlots  Json      @default("[]") @map("signature_slots") @db.JsonB
+  renderSettings  Json      @default("{}") @map("render_settings") @db.JsonB
   data            Json      @default("{}") @db.JsonB
+  contentHash     String    @map("content_hash") @db.Char(64)
   lockedAt        DateTime? @map("locked_at") @db.Timestamptz(3)
   finalizedAt     DateTime? @map("finalized_at") @db.Timestamptz(3)
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -742,7 +744,7 @@ model Report {
   documents    GeneratedDocument[]
   signatures   Signature[]
 
-  @@unique([organizationId, code])
+  @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, createdAt])
   @@index([operationId])
   @@map("reports")
@@ -759,6 +761,7 @@ model GeneratedDocument {
   mimeType       String   @map("mime_type") @db.VarChar(120)
   sizeBytes      BigInt   @map("size_bytes")
   sha256         String   @db.Char(64)
+  sourceHash     String   @map("source_hash") @db.Char(64)
   renderedAt     DateTime @default(now()) @map("rendered_at") @db.Timestamptz(3)
 
   report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
@@ -769,30 +772,31 @@ model GeneratedDocument {
 }
 
 model Signature {
-  id               String    @id @default(uuid(7)) @db.Uuid
-  organizationId   String    @map("organization_id") @db.Uuid
-  reportId         String    @map("report_id") @db.Uuid
-  slotKey          String    @map("slot_key") @db.VarChar(100)
-  signerType       String    @map("signer_type") @db.VarChar(30)
-  userId           String?   @map("user_id") @db.Uuid
-  customerId       String?   @map("customer_id") @db.Uuid
-  signerName       String    @map("signer_name") @db.VarChar(180)
-  signerDocument   String?   @map("signer_document") @db.VarChar(32)
-  signatureData    Bytes     @map("signature_data")
-  signatureHash    String    @map("signature_hash") @db.Char(64)
-  ipAddress        String?   @map("ip_address") @db.Inet
-  userAgent        String?   @map("user_agent") @db.Text
-  geolocation      Json?     @db.JsonB
-  consentText      String?   @map("consent_text") @db.Text
-  signedAt         DateTime  @default(now()) @map("signed_at") @db.Timestamptz(3)
-  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
-  revocationReason String?   @map("revocation_reason") @db.Text
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  reportId          String    @map("report_id") @db.Uuid
+  slotKey           String    @map("slot_key") @db.VarChar(100)
+  signerType        String    @map("signer_type") @db.VarChar(30)
+  userId            String?   @map("user_id") @db.Uuid
+  customerId        String?   @map("customer_id") @db.Uuid
+  signerName        String    @map("signer_name") @db.VarChar(180)
+  signerDocument    String?   @map("signer_document") @db.VarChar(32)
+  signatureData     Bytes     @map("signature_data")
+  signatureHash     String    @map("signature_hash") @db.Char(64)
+  reportContentHash String    @map("report_content_hash") @db.Char(64)
+  ipAddress         String?   @map("ip_address") @db.Inet
+  userAgent         String?   @map("user_agent") @db.Text
+  geolocation       Json?     @db.JsonB
+  consentText       String?   @map("consent_text") @db.Text
+  signedAt          DateTime  @default(now()) @map("signed_at") @db.Timestamptz(3)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revocationReason  String?   @map("revocation_reason") @db.Text
 
   report   Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
   user     User?     @relation("SignatureUser", fields: [userId], references: [id], onDelete: SetNull)
   customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
-  @@unique([reportId, slotKey])
+  @@index([reportId, slotKey])
   @@index([organizationId, signedAt])
   @@map("signatures")
 }

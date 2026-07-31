@@ -41,10 +41,12 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       ENCRYPTION_KEY_VERSION: ${ENCRYPTION_KEY_VERSION:-1}
       OPERATION_UPLOAD_DIR: /app/storage/operations
+      DOCUMENT_STORAGE_DIR: /app/storage/documents
     ports:
       - "${API_PORT:-3001}:3001"
     volumes:
       - operation_attachments:/app/storage/operations
+      - generated_documents:/app/storage/documents
     depends_on:
       postgres:
         condition: service_healthy
@@ -104,6 +106,7 @@ services:
 volumes:
   postgres_data:
   operation_attachments:
+  generated_documents:
 
 networks:
   orbit_private:
