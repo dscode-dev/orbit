@@ -6,18 +6,29 @@ React 19 e Tailwind CSS v4. Roda de forma totalmente autônoma.
 ```
 app/
   layout.tsx      # layout raiz (server) + fontes + metadata
-  providers.tsx   # providers client (Tooltip, Toaster)
+  providers.tsx   # providers client (Frontend Core + Tooltip, Toaster)
   page.tsx        # showcase completo do design system
   not-found.tsx   # 404
   error.tsx       # error boundary
   globals.css     # tokens Tailwind v4 (light padrão, .dark opcional)
+  api/            # BFF: /api/auth/* e proxy /api/orbit/**
+proxy.ts          # middleware de autenticação
 src/
   components/     # brand, layout, navigation, feedback, charts, ui
-  hooks/
-  lib/            # utils + design tokens tipados
+  api/            # cliente HTTP do browser (→ BFF)
+  server/         # cliente do NestJS, sessão e handlers do BFF
+  providers/      # TanStack Query, sessão e contexto multi-tenant
+  hooks/          # use-mobile + hooks/api (query, mutation, upload…)
+  services/       # serviços por recurso
+  types/          # contratos sincronizados do backend + transporte
+  lib/            # utils, design tokens tipados, env, erros, retry, rotas
+  utils/          # utilitários HTTP puros
 public/
   orbit_logo.png
 ```
+
+A camada de comunicação com o backend está documentada em
+[`docs/frontend-core.md`](./docs/frontend-core.md).
 
 ## Executar localmente
 

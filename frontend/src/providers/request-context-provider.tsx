@@ -1,0 +1,113 @@
+"use client";
+
+/**
+ * Mantém o contexto multi-tenant sincronizado com a sessão.
+ *
+ * Toda chamada feita por `@/api` passa a enviar automaticamente
+ * `organizationId`, `businessUnitId`, `locale` e `timezone` — nenhum módulo
+ * precisa repetir isso.
+ *
+ * A troca de unidade (`setBusinessUnit`) atualiza o contexto e descarta o
+ * cache do TanStack Query, já que todo dado carregado pertence ao escopo
+ * anterior.
+ */
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+
+import { ORBIT_QUERY_SCOPE } from "@/api/query-keys";
+import { getAmbientContext, setAmbientContext } from "@/api/request-context";
+import type { OrbitRequestContext } from "@/types/api";
+import { useOptionalSession } from "./session-provider";
+
+export type AmbientRequestContext = Omit<OrbitRequestContext, "requestId">;
+
+export interface RequestContextValue extends AmbientRequestContext {
+  /** Unidades acessíveis pela sessão atual. */
+  availableBusinessUnitIds: readonly string[];
+  setBusinessUnit: (businessUnitId: string | null) => void;
+  setLocale: (locale: string) => void;
+}
+
+const RequestContext = createContext<RequestContextValue | null>(null);
+
+export function RequestContextProvider({ children }: { children: ReactNode }) {
+  const session = useOptionalSession();
+  const queryClient = useQueryClient();
+
+  /** Locale e timezone do dispositivo, detectados uma única vez. */
+  const [detected] = useState(getAmbientContext);
+  const [locale, setLocale] = useState(detected.locale);
+  const [businessUnitOverride, setBusinessUnitOverride] = useState<
+    string | null
+  >(null);
+
+  const organizationId = session?.scope.organizationId ?? null;
+  const sessionBusinessUnitId = session?.scope.businessUnitId ?? null;
+
+  const context = useMemo<AmbientRequestContext>(
+    () => ({
+      organizationId,
+      /** A unidade escolhida pelo usuário tem precedência sobre a da sessão. */
+      businessUnitId: businessUnitOverride ?? sessionBusinessUnitId,
+      locale,
+      timezone: detected.timezone,
+    }),
+    [
+      businessUnitOverride,
+      detected.timezone,
+      locale,
+      organizationId,
+      sessionBusinessUnitId,
+    ],
+  );
+
+  /** Espelha o contexto no store lido pelo cliente HTTP. */
+  useEffect(() => {
+    setAmbientContext(context);
+  }, [context]);
+
+  const setBusinessUnit = useCallback(
+    (businessUnitId: string | null) => {
+      setBusinessUnitOverride(businessUnitId);
+      /** Descarta os dados do escopo anterior, preservando a sessão. */
+      queryClient.removeQueries({
+        predicate: (query) =>
+          query.queryKey[0] === ORBIT_QUERY_SCOPE &&
+          query.queryKey[1] !== "session",
+      });
+    },
+    [queryClient],
+  );
+
+  const value = useMemo<RequestContextValue>(
+    () => ({
+      ...context,
+      availableBusinessUnitIds: session?.scope.businessUnitIds ?? [],
+      setBusinessUnit,
+      setLocale,
+    }),
+    [context, session?.scope.businessUnitIds, setBusinessUnit],
+  );
+
+  return (
+    <RequestContext.Provider value={value}>{children}</RequestContext.Provider>
+  );
+}
+
+export function useRequestContext(): RequestContextValue {
+  const context = useContext(RequestContext);
+  if (!context) {
+    throw new Error(
+      "useRequestContext precisa estar dentro de <RequestContextProvider>.",
+    );
+  }
+  return context;
+}

@@ -7,9 +7,12 @@ expostos ao JavaScript da aplicação.
 Configure `ORBIT_API_URL` no frontend com a URL interna do NestJS. Em
 desenvolvimento, o padrão é `http://localhost:3001`.
 
-O middleware protege `/dashboard`, valida a sessão no backend, rotaciona o
-refresh token e redireciona usuários autenticados para fora de `/login` e
-`/cadastro`.
+O middleware protege `/dashboard`, rotaciona o refresh token e redireciona
+usuários autenticados para fora de `/login` e `/cadastro`.
+
+> A arquitetura completa da camada de comunicação (BFF, cliente HTTP, sessão,
+> contexto multi-tenant, TanStack Query e como novos módulos consomem a API)
+> está em [`docs/frontend-core.md`](./docs/frontend-core.md).
 
 O cadastro cria, de forma transacional:
 

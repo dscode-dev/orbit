@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Eye, EyeOff, KeyRound, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
@@ -13,46 +12,36 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-
-
+import { useLogin } from "@/hooks/api";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [requiresMfa, setRequiresMfa] = useState(false);
-  const router = useRouter();
+  const login = useLogin();
+  const loading = login.isPending;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLoading(true);
     const form = new FormData(event.currentTarget);
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email: form.get("email"),
-          password: form.get("password"),
-          mfaCode: form.get("mfaCode") || undefined,
-          client: "WEB",
-        }),
+      await login.mutateAsync({
+        email: String(form.get("email") ?? ""),
+        password: String(form.get("password") ?? ""),
+        mfaCode: String(form.get("mfaCode") ?? "") || undefined,
+        client: "WEB",
       });
-      const payload = (await response.json()) as { message?: string };
-      if (!response.ok) {
-        if (payload.message?.toLowerCase().includes("mfa code is required")) {
-          setRequiresMfa(true);
-          throw new Error("Digite o código do seu autenticador para continuar.");
-        }
-        throw new Error(payload.message);
-      }
-      router.replace("/dashboard");
-      router.refresh();
     } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.toLowerCase().includes("mfa code is required")) {
+        setRequiresMfa(true);
+        toast.error("Não foi possível entrar", {
+          description: "Digite o código do seu autenticador para continuar.",
+        });
+        return;
+      }
       toast.error("Não foi possível entrar", {
-        description: error instanceof Error ? error.message : "Verifique suas credenciais.",
+        description: message || "Verifique suas credenciais.",
       });
-    } finally {
-      setLoading(false);
     }
   }
 

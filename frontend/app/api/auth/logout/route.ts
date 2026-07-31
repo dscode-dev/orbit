@@ -1,24 +1,13 @@
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { endSession, logout, readStoredTokens } from "@/server/auth/session";
+import { bffJson } from "@/server/bff/responses";
+import { createRouteHandler } from "@/server/bff/route-handler";
 
-import { ACCESS_COOKIE, REFRESH_COOKIE, backendRequest, isTrustedBrowserRequest } from "@/lib/auth";
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-export async function POST(request: Request) {
-  if (!isTrustedBrowserRequest(request)) {
-    return NextResponse.json({ message: "Origem da solicitação não permitida." }, { status: 403 });
-  }
-  const store = await cookies();
-  const accessToken = store.get(ACCESS_COOKIE)?.value;
-  const refreshToken = store.get(REFRESH_COOKIE)?.value;
-  if (accessToken) {
-    await backendRequest("/identity/logout", {
-      method: "POST",
-      headers: { authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ refreshToken }),
-    }).catch(() => undefined);
-  }
-  const response = NextResponse.json({ authenticated: false });
-  response.cookies.delete(ACCESS_COOKIE);
-  response.cookies.delete(REFRESH_COOKIE);
+export const POST = createRouteHandler(async ({ requestId }) => {
+  await logout(await readStoredTokens());
+  const response = bffJson({ authenticated: false }, requestId);
+  endSession(response.cookies);
   return response;
-}
+});

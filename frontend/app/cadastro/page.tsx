@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, motion } from "motion/react";
@@ -27,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRegister } from "@/hooks/api";
 import { cn } from "@/lib/utils";
 
 const schema = z
@@ -69,7 +69,7 @@ function FieldError({ message }: { message?: string }) {
 }
 
 export default function CadastroPage() {
-  const router = useRouter();
+  const createAccount = useRegister();
   const [step, setStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const {
@@ -91,23 +91,16 @@ export default function CadastroPage() {
   async function submit(values: FormValues) {
     const { confirmPassword: _, terms: __, ...payload } = values;
     try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ...payload,
-          stateCode: payload.stateCode.toUpperCase(),
-          documentType: payload.documentNumber.replace(/\D/g, "").length === 11 ? "CPF" : "CNPJ",
-          client: "WEB",
-          planKey: "STARTER",
-          businessUnitType: "HEADQUARTERS",
-        }),
+      await createAccount.mutateAsync({
+        ...payload,
+        stateCode: payload.stateCode.toUpperCase(),
+        documentType:
+          payload.documentNumber.replace(/\D/g, "").length === 11 ? "CPF" : "CNPJ",
+        client: "WEB",
+        planKey: "STARTER",
+        businessUnitType: "HEADQUARTERS",
       });
-      const result = (await response.json()) as { message?: string };
-      if (!response.ok) throw new Error(result.message);
       toast.success("Sua organização está pronta");
-      router.replace("/dashboard");
-      router.refresh();
     } catch (error) {
       toast.error("Não foi possível concluir o cadastro", {
         description: error instanceof Error ? error.message : "Tente novamente.",

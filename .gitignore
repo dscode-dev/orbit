@@ -17,6 +17,7 @@ node_modules/
 out/
 dist/
 /build/
+*.tsbuildinfo
 
 # Arquivos de logs e erros de execução
 *.log
