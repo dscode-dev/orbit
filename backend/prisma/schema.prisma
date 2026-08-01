@@ -29,32 +29,34 @@ model User {
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  credential              Credential?
-  sessions                Session[]
-  ownedOrganizations      Organization[]                 @relation("OrganizationOwner")
-  organizationMemberships OrganizationMembership[]
-  platformRoleAssignments PlatformRoleAssignment[]
-  businessUnitMemberships BusinessUnitMembership[]
-  operationAssignments    OperationUser[]                @relation("OperationAssignedUser")
-  assignedOperations      OperationUser[]                @relation("OperationAssignedBy")
-  operationHistory        OperationHistory[]
-  operationAttachments    OperationAttachment[]
-  createdReports          Report[]                       @relation("ReportCreatedBy")
-  signatures              Signature[]                    @relation("SignatureUser")
-  notifications           Notification[]
-  checklistExecutions     ChecklistExecution[]           @relation("ChecklistCreatedBy")
-  requestedAiExecutions   AiExecution[]                  @relation("AiExecutionUser")
-  createdSchedulingEvents SchedulingEvent[]              @relation("SchedulingEventCreatedBy")
-  schedulingAllocations   SchedulingResourceAllocation[]
-  schedulingAvailability  SchedulingAvailability[]
-  schedulingHistory       SchedulingEventHistory[]
-  notificationPreferences NotificationPreference[]
-  notificationDeliveries  NotificationDelivery[]
-  pushSubscriptions       PushSubscription[]
-  auditLogs               AuditLog[]
-  invitationsSent         IdentityInvitation[]           @relation("InvitationInviter")
-  passwordResetTokens     PasswordResetToken[]
-  mfaFactors              MfaFactor[]
+  credential               Credential?
+  sessions                 Session[]
+  ownedOrganizations       Organization[]                 @relation("OrganizationOwner")
+  organizationMemberships  OrganizationMembership[]
+  platformRoleAssignments  PlatformRoleAssignment[]
+  businessUnitMemberships  BusinessUnitMembership[]
+  operationAssignments     OperationUser[]                @relation("OperationAssignedUser")
+  assignedOperations       OperationUser[]                @relation("OperationAssignedBy")
+  operationHistory         OperationHistory[]
+  operationAttachments     OperationAttachment[]
+  createdReports           Report[]                       @relation("ReportCreatedBy")
+  signatures               Signature[]                    @relation("SignatureUser")
+  notifications            Notification[]
+  checklistExecutions      ChecklistExecution[]           @relation("ChecklistCreatedBy")
+  requestedAiExecutions    AiExecution[]                  @relation("AiExecutionUser")
+  createdSchedulingEvents  SchedulingEvent[]              @relation("SchedulingEventCreatedBy")
+  schedulingAllocations    SchedulingResourceAllocation[]
+  schedulingAvailability   SchedulingAvailability[]
+  schedulingHistory        SchedulingEventHistory[]
+  notificationPreferences  NotificationPreference[]
+  notificationDeliveries   NotificationDelivery[]
+  pushSubscriptions        PushSubscription[]
+  auditLogs                AuditLog[]
+  invitationsSent          IdentityInvitation[]           @relation("InvitationInviter")
+  passwordResetTokens      PasswordResetToken[]
+  mfaFactors               MfaFactor[]
+  createdArtifactTemplates ArtifactTemplate[]             @relation("ArtifactTemplateCreatedBy")
+  createdArtifactVersions  ArtifactTemplateVersion[]      @relation("ArtifactTemplateVersionCreatedBy")
 
   @@index([status, deletedAt])
   @@map("users")
@@ -178,34 +180,36 @@ model Organization {
   updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt              DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  owner                   User                     @relation("OrganizationOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  plan                    Plan                     @relation(fields: [planId], references: [id], onDelete: Restrict)
-  businessUnits           BusinessUnit[]
-  memberships             OrganizationMembership[]
-  roles                   Role[]
-  usages                  PlanUsage[]
-  integrations            Integration[]
-  sessions                Session[]
-  customers               Customer[]
-  categories              ProductCategory[]
-  products                Product[]
-  assets                  Asset[]
-  operations              Operation[]
-  reportTemplates         ReportTemplate[]
-  reports                 Report[]
-  checklistTemplates      ChecklistTemplate[]
-  checklistExecutions     ChecklistExecution[]
-  notifications           Notification[]
-  notificationPreferences NotificationPreference[]
-  pushSubscriptions       PushSubscription[]
-  aiAgents                AiAgent[]
-  aiExecutions            AiExecution[]
-  auditLogs               AuditLog[]
-  calendars               SchedulingCalendar[]
-  schedulingEvents        SchedulingEvent[]
-  schedulingAvailability  SchedulingAvailability[]
-  invitations             IdentityInvitation[]
-  businessUnitMemberships BusinessUnitMembership[]
+  owner                    User                      @relation("OrganizationOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  plan                     Plan                      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  businessUnits            BusinessUnit[]
+  memberships              OrganizationMembership[]
+  roles                    Role[]
+  usages                   PlanUsage[]
+  integrations             Integration[]
+  sessions                 Session[]
+  customers                Customer[]
+  categories               ProductCategory[]
+  products                 Product[]
+  assets                   Asset[]
+  operations               Operation[]
+  reportTemplates          ReportTemplate[]
+  artifactTemplates        ArtifactTemplate[]
+  artifactTemplateVersions ArtifactTemplateVersion[]
+  reports                  Report[]
+  checklistTemplates       ChecklistTemplate[]
+  checklistExecutions      ChecklistExecution[]
+  notifications            Notification[]
+  notificationPreferences  NotificationPreference[]
+  pushSubscriptions        PushSubscription[]
+  aiAgents                 AiAgent[]
+  aiExecutions             AiExecution[]
+  auditLogs                AuditLog[]
+  calendars                SchedulingCalendar[]
+  schedulingEvents         SchedulingEvent[]
+  schedulingAvailability   SchedulingAvailability[]
+  invitations              IdentityInvitation[]
+  businessUnitMemberships  BusinessUnitMembership[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -685,24 +689,84 @@ model OperationAttachment {
 // -----------------------------------------------------------------------------
 
 model ChecklistTemplate {
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  organizationId     String    @map("organization_id") @db.Uuid
+  key                String    @db.VarChar(100)
+  name               String    @db.VarChar(180)
+  description        String?   @db.Text
+  version            Int       @default(1)
+  items              Json      @default("[]") @db.JsonB
+  isActive           Boolean   @default(true) @map("is_active")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
+  artifactTemplateId String?   @map("artifact_template_id") @db.Uuid
+
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  executions       ChecklistExecution[]
+  artifactTemplate ArtifactTemplate?    @relation(fields: [artifactTemplateId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, key, version])
+  @@index([organizationId, isActive, deletedAt])
+  @@index([artifactTemplateId])
+  @@map("checklist_templates")
+}
+
+// -----------------------------------------------------------------------------
+// ARTIFACT TEMPLATE ENGINE
+// -----------------------------------------------------------------------------
+
+model ArtifactTemplate {
   id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  createdById    String?   @map("created_by_id") @db.Uuid
   key            String    @db.VarChar(100)
   name           String    @db.VarChar(180)
   description    String?   @db.Text
-  version        Int       @default(1)
-  items          Json      @default("[]") @db.JsonB
-  isActive       Boolean   @default(true) @map("is_active")
+  artifactType   String    @map("artifact_type") @db.VarChar(80)
+  segment        String?   @db.VarChar(60)
+  status         String    @default("DRAFT") @db.VarChar(30)
+  visibility     String    @default("ORGANIZATION") @db.VarChar(30)
+  tags           String[]  @default([]) @db.VarChar(80)
+  sortOrder      Int       @default(0) @map("sort_order")
+  currentVersion Int       @default(1) @map("current_version")
+  source         String    @default("NATIVE") @db.VarChar(30)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  executions   ChecklistExecution[]
+  organization       Organization?             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy          User?                     @relation("ArtifactTemplateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  versions           ArtifactTemplateVersion[]
+  reportTemplates    ReportTemplate[]
+  checklistTemplates ChecklistTemplate[]
 
-  @@unique([organizationId, key, version])
-  @@index([organizationId, isActive, deletedAt])
-  @@map("checklist_templates")
+  @@unique([organizationId, key])
+  @@index([organizationId, status, visibility, deletedAt])
+  @@index([artifactType, segment])
+  @@map("artifact_templates")
+}
+
+model ArtifactTemplateVersion {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  templateId     String   @map("template_id") @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  createdById    String?  @map("created_by_id") @db.Uuid
+  version        Int
+  metadata       Json     @default("{}") @db.JsonB
+  sections       Json     @default("[]") @db.JsonB
+  signatureSlots Json     @default("[]") @map("signature_slots") @db.JsonB
+  layout         Json     @default("{}") @db.JsonB
+  changeSummary  String?  @map("change_summary") @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  template     ArtifactTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  organization Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?            @relation("ArtifactTemplateVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([templateId, version])
+  @@index([organizationId, createdAt])
+  @@map("artifact_template_versions")
 }
 
 model ChecklistExecution {
@@ -739,27 +803,30 @@ model ChecklistExecution {
 // -----------------------------------------------------------------------------
 
 model ReportTemplate {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
-  key            String    @db.VarChar(100)
-  name           String    @db.VarChar(180)
-  description    String?   @db.Text
-  reportKind     String    @map("report_kind") @db.VarChar(60)
-  version        Int       @default(1)
-  sections       Json      @default("[]") @db.JsonB
-  signatureSlots Json      @default("[]") @map("signature_slots") @db.JsonB
-  settings       Json      @default("{}") @db.JsonB
-  isDefault      Boolean   @default(false) @map("is_default")
-  isActive       Boolean   @default(true) @map("is_active")
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  organizationId     String    @map("organization_id") @db.Uuid
+  key                String    @db.VarChar(100)
+  name               String    @db.VarChar(180)
+  description        String?   @db.Text
+  reportKind         String    @map("report_kind") @db.VarChar(60)
+  version            Int       @default(1)
+  sections           Json      @default("[]") @db.JsonB
+  signatureSlots     Json      @default("[]") @map("signature_slots") @db.JsonB
+  settings           Json      @default("{}") @db.JsonB
+  isDefault          Boolean   @default(false) @map("is_default")
+  isActive           Boolean   @default(true) @map("is_active")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
+  artifactTemplateId String?   @map("artifact_template_id") @db.Uuid
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  reports      Report[]
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reports          Report[]
+  artifactTemplate ArtifactTemplate? @relation(fields: [artifactTemplateId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, key, version])
   @@index([organizationId, reportKind, isActive, deletedAt])
+  @@index([artifactTemplateId])
   @@map("report_templates")
 }
 

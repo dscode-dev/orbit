@@ -41,9 +41,25 @@ describe('AppController (e2e)', () => {
       request(app.getHttpServer()).get('/api/v1').expect(200),
     ]);
 
-    expect(legacy.body.success).toBe(true);
-    expect(versioned.body.success).toBe(true);
-    expect(versioned.body.data).toEqual(legacy.body.data);
+    const legacyBody = legacy.body as Record<string, unknown>;
+    const versionedBody = versioned.body as Record<string, unknown>;
+    expect(legacyBody.success).toBe(true);
+    expect(versionedBody.success).toBe(true);
+    expect(versionedBody.data).toEqual(legacyBody.data);
     expect(versioned.headers['x-request-id']).toEqual(expect.any(String));
+  });
+
+  it('publishes artifact templates on v1 and keeps the guarded legacy alias', async () => {
+    const [legacy, versioned] = await Promise.all([
+      request(app.getHttpServer()).get('/artifact-templates').expect(401),
+      request(app.getHttpServer())
+        .get('/api/v1/artifact-templates')
+        .expect(401),
+    ]);
+
+    const legacyError = legacy.body as { error: { code: string } };
+    const versionedError = versioned.body as { error: { code: string } };
+    expect(legacyError.error.code).toBe('UNAUTHORIZED');
+    expect(versionedError.error.code).toBe('UNAUTHORIZED');
   });
 });

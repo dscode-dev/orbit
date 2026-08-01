@@ -17,6 +17,7 @@ import { DashboardModule } from './modules/dashboards/dashboard.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PlatformAdministrationModule } from './modules/platform-administration/platform-administration.module';
+import { ArtifactTemplateModule } from './modules/artifact-templates/artifact-template.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { PlatformAdministrationModule } from './modules/platform-administration/
     SchedulingModule,
     AnalyticsModule,
     PlatformAdministrationModule,
+    ArtifactTemplateModule,
   ],
   controllers: [AppController],
   providers: [AppService],

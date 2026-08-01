@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR-16 — API v1 & Public Read Models.
+Última revisão: PR-17 — Artifact Template Engine.
 
 ---
 
@@ -85,6 +85,7 @@ clientes.
 | Tipos e literais base                            | `backend/src/contracts/**`                      | **sincronizado** por `npm run contracts:sync` → `frontend/src/types/contracts/` | **espelhado à mão** em `mobile/lib/core/contracts/` |
 | Read Models (dashboards, analytics, scheduling)  | `backend/src/modules/*/[modulo].read-models.ts` | **sincronizado** (mesmo script)                                                 | espelhado à mão (recorte usado)                     |
 | Respostas de Operations, Identity, Organizations | Read Models públicos + mappers explícitos       | **sincronizado** por `contracts:sync`                                           | parser compatível em `mobile/lib/core/contracts/`   |
+| Artifact Templates                               | Read Models públicos + mapper explícito         | **sincronizado** por `contracts:sync`                                           | parser tolerante em `artifact_template_contracts.dart` |
 
 ### Consequência prática
 
@@ -187,6 +188,20 @@ os números no Analytics. Qualquer cliente novo deve fazer o mesmo.
 Read Models inteiros também declaram procedência:
 `EnvironmentalImpactReadModel.source = 'MOCK_DERIVED'` e
 `WeatherEnvironmentalIntelligenceReadModel.source = 'MOCK'`.
+
+### 6.4 Artifact Templates
+
+| Endpoint | Web | Mobile |
+| --- | --- | --- |
+| `GET/POST /artifact-templates` | contrato sincronizado | parser disponível |
+| `GET/PATCH/DELETE /artifact-templates/:id` | contrato sincronizado | parser disponível |
+| `GET/POST /artifact-templates/:id/versions` | contrato sincronizado | parser disponível |
+| `GET /artifact-templates/:id/versions/:version` | contrato sincronizado | parser disponível |
+| `POST /artifact-templates/:id/{activate,deactivate,duplicate}` | contrato sincronizado | parser disponível |
+
+O contrato público é definido por `artifact-template.read-models.ts`; JSON do
+Prisma nunca é devolvido diretamente. Tipos de artefato, seção, campo e papel
+de assinatura são chaves de metadados extensíveis, não enums de cliente.
 
 Onde isso vive: `frontend/src/metrics/metric-registry.ts` (web) e
 `ProvenanceChip` em `mobile/lib/core/widgets/section_states.dart`.
