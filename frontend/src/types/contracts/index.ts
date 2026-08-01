@@ -1,6 +1,6 @@
 /**
  * ARQUIVO GERADO — NÃO EDITE MANUALMENTE.
- * Fonte: backend/src/contracts
+ * Fonte: backend/src
  * Regenerar: npm run contracts:sync
  */
 

@@ -2,13 +2,20 @@
 /**
  * Copia os contratos do backend (NestJS) para o frontend.
  *
- * O backend é a única fonte de verdade dos contratos da API. O diretório
- * `backend/src/contracts` contém apenas tipos e literais TypeScript puros
- * (sem dependências de runtime), o que permite reutilizá-los no frontend.
+ * O backend é a única fonte de verdade dos contratos da API. Dois conjuntos
+ * são sincronizados:
  *
- * Não usamos import direto (`../backend/src/contracts`) porque o build de
- * produção do frontend roda em um contexto Docker isolado (`./frontend`),
- * onde o diretório do backend não existe.
+ * 1. `backend/src/contracts` — tipos e literais base da plataforma.
+ * 2. Read Models de módulos (dashboards, analytics, scheduling) — tipos puros
+ *    que descrevem exatamente o que cada endpoint devolve.
+ *
+ * Ambos contêm apenas TypeScript puro, sem dependências de runtime. Os Read
+ * Models são copiados preservando `modules/<módulo>/` para que os imports
+ * relativos entre eles continuem válidos.
+ *
+ * Não usamos import direto (`../backend/src/...`) porque o build de produção
+ * do frontend roda em um contexto Docker isolado (`./frontend`), onde o
+ * diretório do backend não existe.
  *
  * Uso: npm run contracts:sync
  */
@@ -19,12 +26,23 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const frontendRoot = resolve(here, "..");
-const source = resolve(frontendRoot, "..", "backend", "src", "contracts");
+const backendSrc = resolve(frontendRoot, "..", "backend", "src");
+const source = resolve(backendSrc, "contracts");
 const target = resolve(frontendRoot, "src", "types", "contracts");
+
+/**
+ * Read Models expostos pela API e consumidos pelo frontend.
+ * Caminhos relativos a `backend/src`.
+ */
+const READ_MODELS = [
+  "modules/dashboards/dashboard.read-models.ts",
+  "modules/analytics/analytics.read-models.ts",
+  "modules/scheduling/scheduling.read-models.ts",
+];
 
 const BANNER = `/**
  * ARQUIVO GERADO — NÃO EDITE MANUALMENTE.
- * Fonte: backend/src/contracts
+ * Fonte: backend/src
  * Regenerar: npm run contracts:sync
  */
 `;
@@ -37,6 +55,17 @@ if (!existsSync(source)) {
 await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
 await cp(source, target, { recursive: true });
+
+for (const readModel of READ_MODELS) {
+  const from = resolve(backendSrc, readModel);
+  if (!existsSync(from)) {
+    console.error(`[contracts] Read Model não encontrado: ${from}`);
+    process.exit(1);
+  }
+  const to = join(target, readModel);
+  await mkdir(dirname(to), { recursive: true });
+  await cp(from, to);
+}
 
 /** @param {string} directory */
 async function stampBanner(directory) {

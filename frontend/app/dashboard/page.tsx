@@ -1,73 +1,39 @@
-"use client";
-
-import { useMemo, useState } from "react";
-
 import { AppShell } from "@/components/layout/app-shell";
-import { ContentContainer } from "@/components/layout/page-primitives";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { AttentionCenter } from "@/components/dashboard/attention-center";
-import { KpiGrid } from "@/components/dashboard/kpi-grid";
-import { OperationsEvolutionChart } from "@/components/dashboard/operations-evolution-chart";
-import { ProductivityChart } from "@/components/dashboard/productivity-chart";
-import { StatusDonutChart } from "@/components/dashboard/status-donut-chart";
-import { UpcomingEventsPanel } from "@/components/dashboard/upcoming-events-panel";
-import { AlertsPanel } from "@/components/dashboard/alerts-panel";
-import { RecentActivityPanel } from "@/components/dashboard/recent-activity-panel";
-import { getDashboardData, type DashboardRange } from "@/data/dashboard";
-import { RequireActiveSubscription, RequireAuth } from "@/guards";
+import { DashboardView } from "@/components/dashboard-widgets/dashboard-view";
+import {
+  RequireActiveSubscription,
+  RequireAuth,
+  RequireCapability,
+} from "@/guards";
 
 /**
- * Área de tenant: exige sessão com organização e assinatura em dia.
+ * Dashboard.
  *
- * Os dados exibidos ainda vêm da camada de exemplo do Design System; a
- * substituição por `/api/orbit/dashboard` é escopo da PR do módulo Dashboard.
+ * Server Component: só compõe o shell e os guards, sem estado nem dados. Toda
+ * a interatividade (faixa de período, atualização automática, gráficos) vive
+ * no `DashboardView`, que é Client Component.
+ *
+ * Não há prefetch no servidor: as leituras dependem da unidade ativa, que é
+ * uma escolha do cliente (`RequestContextProvider`). Buscar no servidor
+ * duplicaria a consulta ou serviria o escopo errado — o benefício de
+ * hydration não se sustenta aqui.
+ *
+ * `dashboard.read` é exigido pelo backend em `@Capabilities` e `@Permissions`;
+ * os guards evitam abrir a tela para quem receberia 403 em tudo.
  */
 export default function DashboardPage() {
   return (
     <RequireAuth>
       <RequireActiveSubscription>
-        <DashboardView />
+        <RequireCapability capability="dashboard.read">
+          <AppShell
+            activeLabel="Visão geral"
+            breadcrumb={<span>Dashboard</span>}
+          >
+            <DashboardView />
+          </AppShell>
+        </RequireCapability>
       </RequireActiveSubscription>
     </RequireAuth>
-  );
-}
-
-function DashboardView() {
-  const [range, setRange] = useState<DashboardRange>("7d");
-  const data = useMemo(() => getDashboardData(range), [range]);
-
-  return (
-    <AppShell activeLabel="Visão geral" breadcrumb={<span>Dashboard</span>}>
-      <ContentContainer size="wide" className="space-y-8">
-        <DashboardHeader
-          summary={data.summary}
-          range={range}
-          onRangeChange={setRange}
-        />
-
-        <AttentionCenter items={data.attention} />
-
-        <KpiGrid metrics={data.kpis} />
-
-        <div className="grid gap-6 xl:grid-cols-3">
-          <div className="xl:col-span-2">
-            <OperationsEvolutionChart data={data.operationsEvolution} />
-          </div>
-          <StatusDonutChart data={data.statusDistribution} />
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-3">
-          <div className="xl:col-span-2">
-            <ProductivityChart data={data.productivity} />
-          </div>
-          <UpcomingEventsPanel events={data.events} />
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <AlertsPanel alerts={data.alerts} />
-          <RecentActivityPanel activities={data.activities} />
-        </div>
-      </ContentContainer>
-    </AppShell>
   );
 }
