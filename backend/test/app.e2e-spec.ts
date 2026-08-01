@@ -62,4 +62,13 @@ describe('AppController (e2e)', () => {
     expect(legacyError.error.code).toBe('UNAUTHORIZED');
     expect(versionedError.error.code).toBe('UNAUTHORIZED');
   });
+
+  it('publishes artifact executions on v1 and keeps the guarded legacy alias', async () => {
+    await Promise.all([
+      request(app.getHttpServer()).get('/artifact-executions').expect(401),
+      request(app.getHttpServer())
+        .get('/api/v1/artifact-executions')
+        .expect(401),
+    ]);
+  });
 });

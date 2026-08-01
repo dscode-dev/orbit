@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR-17 — Artifact Template Engine.
+Última revisão: PR-18 — Artifact Execution Engine.
 
 ---
 
@@ -86,6 +86,7 @@ clientes.
 | Read Models (dashboards, analytics, scheduling)  | `backend/src/modules/*/[modulo].read-models.ts` | **sincronizado** (mesmo script)                                                 | espelhado à mão (recorte usado)                     |
 | Respostas de Operations, Identity, Organizations | Read Models públicos + mappers explícitos       | **sincronizado** por `contracts:sync`                                           | parser compatível em `mobile/lib/core/contracts/`   |
 | Artifact Templates                               | Read Models públicos + mapper explícito         | **sincronizado** por `contracts:sync`                                           | parser tolerante em `artifact_template_contracts.dart` |
+| Artifact Executions                              | Read Models públicos + mapper explícito         | **sincronizado** por `contracts:sync`                                           | parser tolerante em `artifact_execution_contracts.dart` |
 
 ### Consequência prática
 
@@ -202,6 +203,22 @@ Read Models inteiros também declaram procedência:
 O contrato público é definido por `artifact-template.read-models.ts`; JSON do
 Prisma nunca é devolvido diretamente. Tipos de artefato, seção, campo e papel
 de assinatura são chaves de metadados extensíveis, não enums de cliente.
+
+### 6.5 Artifact Executions
+
+| Endpoint | Web | Mobile |
+| --- | --- | --- |
+| `GET/POST /artifact-executions` | contrato sincronizado | parser disponível |
+| `GET/PATCH /artifact-executions/:id` | contrato sincronizado | parser disponível |
+| `PATCH /artifact-executions/:id/status` | contrato sincronizado | parser disponível |
+| `PUT /artifact-executions/:id/responses` | contrato sincronizado | parser disponível |
+| `POST /artifact-executions/:id/attachments` | contrato sincronizado | parser disponível |
+| `POST /artifact-executions/:id/signatures` | contrato sincronizado | parser disponível |
+| `GET /artifact-executions/:id/progress` | contrato sincronizado | parser disponível |
+
+`ArtifactExecutionReadModel` contém um `ArtifactSnapshotReadModel` imutável.
+Clientes nunca reconstroem a execução consultando a versão ativa do template e
+nunca calculam progresso ou autorizam transições localmente.
 
 Onde isso vive: `frontend/src/metrics/metric-registry.ts` (web) e
 `ProvenanceChip` em `mobile/lib/core/widgets/section_states.dart`.
