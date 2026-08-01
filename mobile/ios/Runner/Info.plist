@@ -66,5 +66,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>O Orbit usa a câmera para registrar evidências fotográficas das operações em campo.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>O Orbit acessa suas fotos para anexar evidências às operações.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>O Orbit usa o microfone ao gravar vídeos de evidência das operações.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>O Orbit usa sua localização para calcular a distância até o local do atendimento.</string>
 </dict>
 </plist>

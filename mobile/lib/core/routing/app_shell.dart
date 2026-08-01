@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../features/authentication/domain/session.dart';
+import '../widgets/sync_indicator.dart';
 import 'orbit_router.dart';
 
 class AppShell extends ConsumerWidget {
@@ -57,17 +58,24 @@ class AppShell extends ConsumerWidget {
 
     return Scaffold(
       body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index < 0 ? 0 : index,
-        onDestinationSelected: (selected) =>
-            context.go(destinations[selected].route),
-        destinations: [
-          for (final destination in destinations)
-            NavigationDestination(
-              icon: Icon(destination.icon),
-              selectedIcon: Icon(destination.selectedIcon),
-              label: destination.label,
-            ),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Estado da fila de evidências, sempre visível durante o trabalho.
+          const SyncIndicator(),
+          NavigationBar(
+            selectedIndex: index < 0 ? 0 : index,
+            onDestinationSelected: (selected) =>
+                context.go(destinations[selected].route),
+            destinations: [
+              for (final destination in destinations)
+                NavigationDestination(
+                  icon: Icon(destination.icon),
+                  selectedIcon: Icon(destination.selectedIcon),
+                  label: destination.label,
+                ),
+            ],
+          ),
         ],
       ),
     );

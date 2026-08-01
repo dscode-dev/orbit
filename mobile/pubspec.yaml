@@ -23,6 +23,17 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   shared_preferences: ^2.3.3
 
+  # Captura de evidências
+  image_picker: ^1.1.2
+  file_picker: ^10.0.0
+
+  # Localização
+  geolocator: ^13.0.2
+
+  # Fila de uploads (persistência e rede)
+  path_provider: ^2.1.5
+  connectivity_plus: ^6.1.0
+
   # Utilidades
   intl: ^0.19.0
 

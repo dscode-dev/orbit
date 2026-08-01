@@ -6,8 +6,10 @@ library;
 
 import 'dart:convert';
 
+import 'package:orbit_operator/core/contracts/session_contracts.dart';
 import 'package:orbit_operator/core/storage/read_cache.dart';
 import 'package:orbit_operator/core/storage/token_storage.dart';
+import 'package:orbit_operator/features/authentication/domain/session.dart';
 
 /// Armazenamento em memória, com contagem de escritas.
 class InMemoryTokenStorage implements TokenStorage {
@@ -97,3 +99,39 @@ Map<String, dynamic> errorEnvelope({
   'requestId': 'req-teste',
   'timestamp': '2026-08-01T12:00:00.000Z',
 };
+
+/// Sessão pronta para testes de widget.
+///
+/// Usa os contratos reais: as claims vêm de um access token decodificável,
+/// como no aplicativo.
+OrbitSession sessionFrom({
+  List<String> permissions = const ['*'],
+  List<String> roles = const ['OWNER'],
+  String? organizationId = 'org-1',
+  String? businessUnitId = 'unit-1',
+}) {
+  final claims = AccessTokenClaims.fromJson({
+    'sub': 'user-1',
+    'sid': 'session-1',
+    'organizationId': organizationId,
+    'businessUnitId': businessUnitId,
+    'businessUnitIds': [if (businessUnitId != null) businessUnitId],
+    'roles': roles,
+    'permissions': permissions,
+    'type': 'access',
+  });
+
+  return OrbitSession(
+    user: const OrbitUser(
+      id: 'user-1',
+      email: 'tecnico@acme.com',
+      displayName: 'Marina Duarte',
+    ),
+    claims: claims,
+    entitlements: Entitlements.fromJson(const {
+      'planKey': 'STARTER',
+      'subscriptionStatus': 'ACTIVE',
+      'capabilities': ['operations.read', 'operations.manage'],
+    }),
+  );
+}

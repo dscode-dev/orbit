@@ -12,12 +12,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/contracts/operation_contracts.dart';
-import '../../../core/errors/orbit_exception.dart';
-import '../../../core/routing/guards.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
-import '../../../app/providers.dart';
 import '../application/operations_providers.dart';
+import 'widgets/evidence_section.dart';
+import 'widgets/field_actions.dart';
+import 'widgets/intelligence_section.dart';
+import 'widgets/location_section.dart';
 import 'widgets/status_badge.dart';
 
 class OperationDetailScreen extends ConsumerWidget {
@@ -64,10 +65,14 @@ class OperationDetailScreen extends ConsumerWidget {
                     StaleDataBanner(cachedAt: result.cachedAt!),
                   _DetailsSection(operation: result.value),
                   const SizedBox(height: OrbitSpacing.md),
-                  _StatusSection(
+                  FieldActionsSection(operation: result.value),
+                  const SizedBox(height: OrbitSpacing.md),
+                  EvidenceSection(
                     operationId: operationId,
-                    operation: result.value,
+                    attachments: result.value.attachments,
                   ),
+                  const SizedBox(height: OrbitSpacing.md),
+                  LocationSection(operationId: operationId),
                   const SizedBox(height: OrbitSpacing.md),
                   _RelationsSection(operation: result.value),
                   const SizedBox(height: OrbitSpacing.md),
@@ -75,10 +80,12 @@ class OperationDetailScreen extends ConsumerWidget {
                   const SizedBox(height: OrbitSpacing.md),
                   _TeamSection(operation: result.value),
                   const SizedBox(height: OrbitSpacing.md),
-                  _AttachmentsSection(operation: result.value),
+                  _AdditionalDataSection(operation: result.value),
                 ],
               ),
             ),
+            const SizedBox(height: OrbitSpacing.md),
+            IntelligenceSection(operationId: operationId),
             const SizedBox(height: OrbitSpacing.md),
             _ChecklistsSection(operationId: operationId),
             const SizedBox(height: OrbitSpacing.md),
@@ -123,78 +130,6 @@ class _DetailsSection extends StatelessWidget {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-/// Mudança de status.
-///
-/// A máquina de estados é do backend (`OperationService.transitions`). O app
-/// **não** a replica: oferece os status e apresenta a recusa quando ela vem.
-/// Duplicar a regra aqui criaria duas fontes de verdade.
-class _StatusSection extends ConsumerStatefulWidget {
-  const _StatusSection({required this.operationId, required this.operation});
-
-  final String operationId;
-  final Operation operation;
-
-  @override
-  ConsumerState<_StatusSection> createState() => _StatusSectionState();
-}
-
-class _StatusSectionState extends ConsumerState<_StatusSection> {
-  bool _submitting = false;
-
-  Future<void> _change(String status) async {
-    setState(() => _submitting = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await ref
-          .read(operationsRepositoryProvider)
-          .changeStatus(id: widget.operationId, status: status);
-      if (!mounted) return;
-      invalidateOperation(ref, widget.operationId);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Status atualizado.')),
-      );
-    } on OrbitException catch (error) {
-      if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(error.message)));
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionCard(
-      title: 'Status',
-      subtitle: 'A transição é validada pelo servidor',
-      child: PermissionGate(
-        permission: 'operations.status.update',
-        fallback: const SectionEmpty(
-          icon: Icons.lock_outline,
-          message: 'Sua conta não pode alterar o status desta operação.',
-        ),
-        child: _submitting
-            ? const SectionLoading(lines: 1)
-            : Wrap(
-                spacing: OrbitSpacing.sm,
-                runSpacing: OrbitSpacing.sm,
-                children: [
-                  for (final status in OperationStatus.all)
-                    if (status != widget.operation.status)
-                      OutlinedButton(
-                        onPressed: () => _change(status),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 44),
-                          foregroundColor: StatusBadge.colorFor(status),
-                        ),
-                        child: Text(OperationStatus.label(status)),
-                      ),
-                ],
-              ),
       ),
     );
   }
@@ -326,69 +261,90 @@ class _TeamSection extends StatelessWidget {
   }
 }
 
-/// Anexos.
+/// Campos livres devolvidos pelo backend (`location` e `data`).
 ///
-/// Lista o que o backend devolve no detalhe. O envio de evidências pelo app
-/// depende de captura de câmera e upload multipart — fora do escopo desta PR,
-/// registrado na documentação.
-class _AttachmentsSection extends StatelessWidget {
-  const _AttachmentsSection({required this.operation});
+/// Ambos são JSON sem esquema: o app mostra o que o tenant gravou, sem
+/// interpretar.
+class _AdditionalDataSection extends StatelessWidget {
+  const _AdditionalDataSection({required this.operation});
 
   final Operation operation;
 
+  static bool _hasContent(Map<String, dynamic>? value) =>
+      value != null && value.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
+    final hasLocation = _hasContent(operation.location);
+    final hasData = _hasContent(operation.data);
+
     return SectionCard(
-      title: 'Anexos',
-      trailing: Text(
-        '${operation.attachments.length}',
-        style: const TextStyle(color: OrbitColors.textSecondary),
-      ),
-      child: operation.attachments.isEmpty
-          ? const SectionEmpty(
-              icon: Icons.attach_file,
-              message: 'Nenhum anexo nesta operação.',
-            )
+      title: 'Informações adicionais',
+      child: !hasLocation && !hasData
+          ? const SectionEmpty(message: 'Nenhuma informação adicional.')
           : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final attachment in operation.attachments)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: OrbitSpacing.sm),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.insert_drive_file_outlined,
-                          size: 18,
-                          color: OrbitColors.textSecondary,
-                        ),
-                        const SizedBox(width: OrbitSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            attachment.fileName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ),
-                        Text(
-                          _size(attachment.size),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: OrbitColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                if (hasLocation)
+                  _JsonBlock(label: 'Local', value: operation.location!),
+                if (hasData)
+                  _JsonBlock(label: 'Dados', value: operation.data!),
               ],
             ),
     );
   }
+}
 
-  static String _size(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).round()} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+class _JsonBlock extends StatelessWidget {
+  const _JsonBlock({required this.label, required this.value});
+
+  final String label;
+  final Map<String, dynamic> value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: OrbitSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 10,
+              letterSpacing: 1.1,
+              color: OrbitColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          for (final entry in value.entries)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 120,
+                    child: Text(
+                      entry.key,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: OrbitColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      '${entry.value}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 

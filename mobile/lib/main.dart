@@ -41,9 +41,11 @@ class _OrbitOperatorAppState extends ConsumerState<OrbitOperatorApp> {
   @override
   void initState() {
     super.initState();
-    // Restaura a sessão guardada assim que a árvore monta.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Restaura a sessão guardada.
       ref.read(authControllerProvider.notifier).restore();
+      // Retoma evidências que ficaram pendentes de uma sessão anterior.
+      ref.read(uploadQueueProvider).restore();
     });
   }
 

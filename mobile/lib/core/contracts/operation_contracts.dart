@@ -36,6 +36,16 @@ class Paginated<T> {
     );
   }
 
+  /// Página vazia, para quando o backend recusa o acesso e a seção some.
+  const Paginated.empty()
+    : data = const [],
+      page = 1,
+      limit = 0,
+      total = 0,
+      totalPages = 1,
+      hasNextPage = false,
+      hasPreviousPage = false;
+
   final List<T> data;
   final int page;
   final int limit;
@@ -355,6 +365,74 @@ class Operation {
 
   bool get isOpen =>
       status != OperationStatus.completed && status != OperationStatus.cancelled;
+}
+
+/// Execução de IA (`GET /ai-executions?operationId=`).
+///
+/// `output` é JSON livre: o formato depende do agente e do `purpose`, e o
+/// backend não publica esquema. A leitura é tolerante — o que for reconhecido
+/// vira seção, o resto fica disponível como texto.
+class AiExecution {
+  const AiExecution({
+    required this.id,
+    required this.purpose,
+    required this.status,
+    this.model,
+    this.output,
+    this.hasError = false,
+    this.createdAt,
+    this.completedAt,
+  });
+
+  factory AiExecution.fromJson(Map<String, dynamic> json) => AiExecution(
+    id: json['id'] as String? ?? '',
+    purpose: json['purpose'] as String? ?? '',
+    status: json['status'] as String? ?? '',
+    model: json['model'] as String?,
+    output: json['output'] is Map<String, dynamic>
+        ? json['output'] as Map<String, dynamic>
+        : null,
+    hasError: json['error'] != null,
+    createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+    completedAt: DateTime.tryParse(json['completedAt'] as String? ?? ''),
+  );
+
+  final String id;
+  final String purpose;
+  final String status;
+  final String? model;
+  final Map<String, dynamic>? output;
+  final bool hasError;
+  final DateTime? createdAt;
+  final DateTime? completedAt;
+
+  String? get summary => _readString('summary');
+
+  List<String> get inconsistencies => _readList('inconsistencies');
+  List<String> get risks => _readList('risks');
+  List<String> get alerts => _readList('alerts');
+  List<String> get recommendations => _readList('recommendations');
+  List<String> get insights => _readList('insights');
+
+  /// `true` quando alguma seção conhecida foi reconhecida na saída.
+  bool get hasReadableOutput =>
+      summary != null ||
+      inconsistencies.isNotEmpty ||
+      risks.isNotEmpty ||
+      alerts.isNotEmpty ||
+      recommendations.isNotEmpty ||
+      insights.isNotEmpty;
+
+  String? _readString(String key) {
+    final value = output?[key];
+    return value is String && value.trim().isNotEmpty ? value : null;
+  }
+
+  List<String> _readList(String key) {
+    final value = output?[key];
+    if (value is! List) return const [];
+    return value.whereType<String>().toList(growable: false);
+  }
 }
 
 /// Filtros aceitos por `OperationQueryDto`.

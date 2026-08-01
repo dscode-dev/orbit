@@ -134,6 +134,39 @@ class OrbitApiClient {
   Future<T> delete<T>(String path, {CancelToken? cancelToken}) =>
       _send<T>(() => _dio.delete<dynamic>(path, cancelToken: cancelToken));
 
+  /// Envia um arquivo em `multipart/form-data`.
+  ///
+  /// O backend recebe um arquivo por requisição, no campo `file`
+  /// (`FileInterceptor('file')`). O progresso é reportado enquanto o corpo
+  /// sobe — é o que alimenta a barra na tela.
+  Future<T> upload<T>(
+    String path, {
+    required String filePath,
+    required String fileName,
+    required String mimeType,
+    CancelToken? cancelToken,
+    void Function(double progress)? onProgress,
+  }) async {
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        filePath,
+        filename: fileName,
+        contentType: DioMediaType.parse(mimeType),
+      ),
+    });
+
+    return _send<T>(
+      () => _dio.post<dynamic>(
+        path,
+        data: form,
+        cancelToken: cancelToken,
+        onSendProgress: (sent, total) {
+          if (total > 0) onProgress?.call(sent / total);
+        },
+      ),
+    );
+  }
+
   Options _options(bool isPublic) =>
       Options(extra: isPublic ? {publicRequestKey: true} : null);
 
