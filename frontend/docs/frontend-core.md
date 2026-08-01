@@ -1,5 +1,8 @@
 # Orbit V2 — Frontend Core (PR-01)
 
+> Autenticação, sessão, guards e escopo multi-tenant construídos sobre esta
+> camada estão em [`authentication.md`](./authentication.md).
+
 Infraestrutura de comunicação entre o frontend (Next.js 16 / App Router / React 19)
 e o backend (NestJS). **Esta PR não cria telas nem dados fictícios**: entrega a
 camada que todos os próximos módulos (Dashboard, Agenda, Operações, Clientes…)

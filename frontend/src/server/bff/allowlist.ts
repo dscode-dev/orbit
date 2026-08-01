@@ -5,6 +5,7 @@
  * correspondem aos controllers do NestJS. Ao criar um módulo novo no backend,
  * registre a raiz aqui — é o único ponto a alterar no Frontend Core.
  */
+import type { HttpMethod } from "@/types/api";
 
 /** Raízes correspondentes aos `@Controller(...)` do backend. */
 export const ALLOWED_API_ROOTS: readonly string[] = [
@@ -23,6 +24,7 @@ export const ALLOWED_API_ROOTS: readonly string[] = [
   "operations",
   "organizations",
   "plans",
+  "platform-admin",
   "report-templates",
   "reports",
   "scheduling",
@@ -41,10 +43,26 @@ const TOKEN_ROUTES: readonly string[] = [
   "/identity/logout",
 ];
 
-export type PathVerdict =
-  { allowed: true } | { allowed: false; status: 403 | 404; message: string };
+/**
+ * Endpoints marcados com `@Public()` no backend, encaminhados sem sessão.
+ *
+ * São os fluxos que acontecem justamente quando o usuário não está
+ * autenticado: escolha de plano no onboarding, recuperação de senha e aceite
+ * de convite. A correspondência é exata (método + caminho) para que o proxy
+ * continue exigindo sessão em todo o resto.
+ */
+const PUBLIC_ENDPOINTS: ReadonlySet<string> = new Set([
+  "GET /plans",
+  "POST /identity/password/forgot",
+  "POST /identity/password/reset",
+  "POST /identity/invitations/accept",
+]);
 
-export function inspectPath(path: string): PathVerdict {
+export type PathVerdict =
+  | { allowed: true; requiresSession: boolean }
+  | { allowed: false; status: 403 | 404; message: string };
+
+export function inspectPath(path: string, method: HttpMethod): PathVerdict {
   const root = path.split("/")[1] ?? "";
   if (!ALLOWED_API_ROOTS.includes(root)) {
     return {
@@ -53,12 +71,16 @@ export function inspectPath(path: string): PathVerdict {
       message: `Recurso "${root}" não é exposto pelo BFF.`,
     };
   }
-  if (TOKEN_ROUTES.includes(path.toLowerCase())) {
+  const normalized = path.toLowerCase();
+  if (TOKEN_ROUTES.includes(normalized)) {
     return {
       allowed: false,
       status: 403,
       message: "Use as rotas de autenticação em /api/auth.",
     };
   }
-  return { allowed: true };
+  return {
+    allowed: true,
+    requiresSession: !PUBLIC_ENDPOINTS.has(`${method} ${normalized}`),
+  };
 }

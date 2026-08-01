@@ -33,6 +33,7 @@ export interface RequestContextValue extends AmbientRequestContext {
   /** Unidades acessíveis pela sessão atual. */
   availableBusinessUnitIds: readonly string[];
   setBusinessUnit: (businessUnitId: string | null) => void;
+  setOrganization: (organizationId: string | null) => void;
   setLocale: (locale: string) => void;
 }
 
@@ -48,14 +49,17 @@ export function RequestContextProvider({ children }: { children: ReactNode }) {
   const [businessUnitOverride, setBusinessUnitOverride] = useState<
     string | null
   >(null);
+  const [organizationOverride, setOrganizationOverride] = useState<
+    string | null
+  >(null);
 
-  const organizationId = session?.scope.organizationId ?? null;
+  const sessionOrganizationId = session?.scope.organizationId ?? null;
   const sessionBusinessUnitId = session?.scope.businessUnitId ?? null;
 
   const context = useMemo<AmbientRequestContext>(
     () => ({
-      organizationId,
-      /** A unidade escolhida pelo usuário tem precedência sobre a da sessão. */
+      /** A escolha do usuário tem precedência sobre o escopo da sessão. */
+      organizationId: organizationOverride ?? sessionOrganizationId,
       businessUnitId: businessUnitOverride ?? sessionBusinessUnitId,
       locale,
       timezone: detected.timezone,
@@ -64,8 +68,9 @@ export function RequestContextProvider({ children }: { children: ReactNode }) {
       businessUnitOverride,
       detected.timezone,
       locale,
-      organizationId,
+      organizationOverride,
       sessionBusinessUnitId,
+      sessionOrganizationId,
     ],
   );
 
@@ -74,17 +79,31 @@ export function RequestContextProvider({ children }: { children: ReactNode }) {
     setAmbientContext(context);
   }, [context]);
 
+  /** Descarta os dados do escopo anterior, preservando a sessão. */
+  const discardScopedQueries = useCallback(() => {
+    queryClient.removeQueries({
+      predicate: (query) =>
+        query.queryKey[0] === ORBIT_QUERY_SCOPE &&
+        query.queryKey[1] !== "session",
+    });
+  }, [queryClient]);
+
   const setBusinessUnit = useCallback(
     (businessUnitId: string | null) => {
       setBusinessUnitOverride(businessUnitId);
-      /** Descarta os dados do escopo anterior, preservando a sessão. */
-      queryClient.removeQueries({
-        predicate: (query) =>
-          query.queryKey[0] === ORBIT_QUERY_SCOPE &&
-          query.queryKey[1] !== "session",
-      });
+      discardScopedQueries();
     },
-    [queryClient],
+    [discardScopedQueries],
+  );
+
+  const setOrganization = useCallback(
+    (organizationId: string | null) => {
+      setOrganizationOverride(organizationId);
+      /** Trocar de organização invalida também a unidade selecionada. */
+      setBusinessUnitOverride(null);
+      discardScopedQueries();
+    },
+    [discardScopedQueries],
   );
 
   const value = useMemo<RequestContextValue>(
@@ -92,9 +111,10 @@ export function RequestContextProvider({ children }: { children: ReactNode }) {
       ...context,
       availableBusinessUnitIds: session?.scope.businessUnitIds ?? [],
       setBusinessUnit,
+      setOrganization,
       setLocale,
     }),
-    [context, session?.scope.businessUnitIds, setBusinessUnit],
+    [context, session?.scope.businessUnitIds, setBusinessUnit, setOrganization],
   );
 
   return (

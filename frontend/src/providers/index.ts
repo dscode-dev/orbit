@@ -11,3 +11,4 @@ export {
   useRequestContext,
   type RequestContextValue,
 } from "./request-context-provider";
+export { useActiveScope, type ActiveScope } from "./use-active-scope";

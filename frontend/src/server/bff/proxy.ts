@@ -90,7 +90,8 @@ export async function proxyToBackend(
     });
   }
 
-  const verdict = inspectPath(path);
+  const method = request.method.toUpperCase() as HttpMethod;
+  const verdict = inspectPath(path, method);
   if (!verdict.allowed) {
     return bffError({
       status: verdict.status,
@@ -100,9 +101,8 @@ export async function proxyToBackend(
     });
   }
 
-  const method = request.method.toUpperCase() as HttpMethod;
   const access = await resolveAccess({ allowRefresh: true });
-  if (!access.accessToken || !access.claims) {
+  if (verdict.requiresSession && (!access.accessToken || !access.claims)) {
     const response = bffError({
       status: 401,
       code: "SESSION_EXPIRED",
@@ -129,11 +129,12 @@ export async function proxyToBackend(
       method,
       body,
       accessToken,
-      organizationId: access.claims.organizationId,
-      businessUnitId: access.claims.businessUnitId,
+      organizationId: access.claims?.organizationId ?? null,
+      businessUnitId: access.claims?.businessUnitId ?? null,
     });
 
-    if (upstream.status === 401) {
+    /** Endpoints públicos não têm sessão para renovar. */
+    if (upstream.status === 401 && verdict.requiresSession) {
       const { refreshToken } = await readStoredTokens();
       const renewed = refreshToken ? await refreshTokens(refreshToken) : null;
       if (!renewed) {
@@ -157,8 +158,8 @@ export async function proxyToBackend(
         method,
         body,
         accessToken,
-        organizationId: access.claims.organizationId,
-        businessUnitId: access.claims.businessUnitId,
+        organizationId: access.claims?.organizationId ?? null,
+        businessUnitId: access.claims?.businessUnitId ?? null,
       });
     }
 
@@ -182,7 +183,8 @@ interface ForwardInput {
   path: string;
   method: HttpMethod;
   body: ArrayBuffer | null;
-  accessToken: string;
+  /** Ausente apenas nos endpoints públicos. */
+  accessToken: string | null;
   organizationId: string | null;
   businessUnitId: string | null;
 }

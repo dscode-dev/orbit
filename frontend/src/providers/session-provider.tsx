@@ -3,8 +3,13 @@
 /**
  * Sessão no browser.
  *
- * Busca `/api/auth/session` (que lê os cookies `HttpOnly` no servidor) e
- * expõe perfil, escopo, papéis e permissões. Tokens nunca chegam até aqui.
+ * Busca `/api/auth/session` (que lê os cookies `HttpOnly` no servidor) e expõe
+ * tudo que a aplicação precisa saber sobre quem está logado: perfil, escopo,
+ * papéis, permissões, organização ativa, unidades, plano e módulos
+ * habilitados. Tokens nunca chegam até aqui.
+ *
+ * É a **única** fonte de sessão do frontend — nenhum módulo deve refazer
+ * essas chamadas.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,6 +24,10 @@ import { authClient } from "@/api/client";
 import { queryKeys } from "@/api/query-keys";
 import type {
   AuthenticatedSession,
+  SessionBusinessUnit,
+  SessionEntitlements,
+  SessionOrganization,
+  SessionOrganizationRef,
   SessionScope,
   SessionState,
   SessionUser,
@@ -34,10 +43,25 @@ export interface SessionContextValue {
   scope: SessionScope;
   roles: readonly string[];
   permissions: readonly string[];
+  /** Organização ativa. `null` para Platform Administrator. */
+  organization: SessionOrganization | null;
+  /** Unidades da organização ativa. */
+  businessUnits: readonly SessionBusinessUnit[];
+  /** Organizações acessíveis pela sessão. */
+  organizations: readonly SessionOrganizationRef[];
+  /** Plano e limites vigentes. */
+  entitlements: SessionEntitlements | null;
+  /** Módulos habilitados pelo plano (capabilities do backend). */
+  capabilities: readonly string[];
   isAuthenticated: boolean;
   isLoading: boolean;
+  isPlatformAdmin: boolean;
+  subscriptionActive: boolean;
+  requiresPasswordChange: boolean;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
+  /** Um módulo está habilitado quando o plano concede a capability. */
+  hasCapability: (capability: string) => boolean;
   /** Rebusca a sessão (após trocar unidade, aceitar convite etc.). */
   refresh: () => Promise<void>;
   /** Limpa o estado local — o logout de fato ocorre em `/api/auth/logout`. */
@@ -88,18 +112,28 @@ export function SessionProvider({
   const value = useMemo<SessionContextValue>(() => {
     const permissions = authenticated?.permissions ?? [];
     const roles = authenticated?.roles ?? [];
+    const capabilities = authenticated?.entitlements?.capabilities ?? [];
+    const wildcard = permissions.includes(WILDCARD_PERMISSION);
     return {
       session,
       user: authenticated?.user ?? null,
       scope: authenticated?.scope ?? EMPTY_SCOPE,
       roles,
       permissions,
+      organization: authenticated?.organization ?? null,
+      businessUnits: authenticated?.businessUnits ?? [],
+      organizations: authenticated?.organizations ?? [],
+      entitlements: authenticated?.entitlements ?? null,
+      capabilities,
       isAuthenticated: Boolean(authenticated),
       isLoading: query.isPending,
+      isPlatformAdmin: authenticated?.isPlatformAdmin ?? false,
+      subscriptionActive: authenticated?.subscriptionActive ?? false,
+      requiresPasswordChange: authenticated?.requiresPasswordChange ?? false,
       hasPermission: (permission: string) =>
-        permissions.includes(WILDCARD_PERMISSION) ||
-        permissions.includes(permission),
+        wildcard || permissions.includes(permission),
       hasRole: (role: string) => roles.includes(role),
+      hasCapability: (capability: string) => capabilities.includes(capability),
       refresh,
       clear,
     };

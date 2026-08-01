@@ -14,17 +14,36 @@ import { UpcomingEventsPanel } from "@/components/dashboard/upcoming-events-pane
 import { AlertsPanel } from "@/components/dashboard/alerts-panel";
 import { RecentActivityPanel } from "@/components/dashboard/recent-activity-panel";
 import { getDashboardData, type DashboardRange } from "@/data/dashboard";
+import { RequireActiveSubscription, RequireAuth } from "@/guards";
 
-
-
+/**
+ * Área de tenant: exige sessão com organização e assinatura em dia.
+ *
+ * Os dados exibidos ainda vêm da camada de exemplo do Design System; a
+ * substituição por `/api/orbit/dashboard` é escopo da PR do módulo Dashboard.
+ */
 export default function DashboardPage() {
+  return (
+    <RequireAuth>
+      <RequireActiveSubscription>
+        <DashboardView />
+      </RequireActiveSubscription>
+    </RequireAuth>
+  );
+}
+
+function DashboardView() {
   const [range, setRange] = useState<DashboardRange>("7d");
   const data = useMemo(() => getDashboardData(range), [range]);
 
   return (
     <AppShell activeLabel="Visão geral" breadcrumb={<span>Dashboard</span>}>
       <ContentContainer size="wide" className="space-y-8">
-        <DashboardHeader summary={data.summary} range={range} onRangeChange={setRange} />
+        <DashboardHeader
+          summary={data.summary}
+          range={range}
+          onRangeChange={setRange}
+        />
 
         <AttentionCenter items={data.attention} />
 

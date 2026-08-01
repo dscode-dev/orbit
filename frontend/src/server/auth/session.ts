@@ -14,11 +14,17 @@ import type {
   AuthenticatedSession,
   LoginInput,
   RegisterInput,
+  SessionEntitlements,
+  SessionOrganization,
   SessionState,
   SessionUser,
   TokenPair,
 } from "@/types/session";
-import { ANONYMOUS_SESSION } from "@/types/session";
+import {
+  ACTIVE_SUBSCRIPTION_STATUSES,
+  ANONYMOUS_SESSION,
+  PLATFORM_ADMIN_ROLE,
+} from "@/types/session";
 import {
   ACCESS_COOKIE,
   REFRESH_COOKIE,
@@ -98,11 +104,43 @@ export async function buildSessionState(
   claims: AccessTokenClaims,
 ): Promise<SessionState> {
   try {
-    const user = await backendJson<SessionUser>({
-      path: "/identity/me",
-      accessToken,
-      retries: 0,
-    });
+    const roles = claimList(claims.roles);
+    const isPlatformAdmin = roles.includes(PLATFORM_ADMIN_ROLE);
+
+    /**
+     * O perfil é obrigatório; organização e plano só existem para usuários de
+     * tenant. Um Platform Administrator não pertence a nenhuma organização,
+     * então essas chamadas nem são disparadas para ele.
+     */
+    const [user, organization, entitlements] = await Promise.all([
+      backendJson<SessionUser & { mustChangePassword?: boolean }>({
+        path: "/identity/me",
+        accessToken,
+        retries: 0,
+      }),
+      claims.organizationId
+        ? tolerate(
+            backendJson<SessionOrganization>({
+              path: "/organizations/current",
+              accessToken,
+              retries: 0,
+            }),
+          )
+        : null,
+      claims.organizationId
+        ? tolerate(
+            backendJson<SessionEntitlements>({
+              path: "/organizations/current/subscription",
+              accessToken,
+              retries: 0,
+            }),
+          )
+        : null,
+    ]);
+
+    const subscriptionStatus =
+      entitlements?.subscriptionStatus ?? organization?.subscriptionStatus;
+
     const session: AuthenticatedSession = {
       authenticated: true,
       user,
@@ -111,16 +149,57 @@ export async function buildSessionState(
         businessUnitId: claims.businessUnitId,
         businessUnitIds: claimList(claims.businessUnitIds),
       },
-      roles: claimList(claims.roles),
+      roles,
       permissions: claimList(claims.permissions),
       sessionId: claims.sid,
       expiresAt: expiresAtIso(claims),
+      organization,
+      businessUnits: organization?.businessUnits ?? [],
+      entitlements,
+      organizations: organization
+        ? [
+            {
+              id: organization.id,
+              displayName: organization.displayName,
+              slug: organization.slug,
+              isActive: true,
+            },
+          ]
+        : [],
+      isPlatformAdmin,
+      subscriptionActive: subscriptionStatus
+        ? ACTIVE_SUBSCRIPTION_STATUSES.includes(subscriptionStatus)
+        : isPlatformAdmin,
+      /**
+       * `Credential.mustChangePassword` existe no schema mas ainda não é
+       * exposto por `GET /identity/me`. A leitura opcional mantém o fluxo
+       * pronto: no dia em que o backend devolver o campo, ele passa a valer
+       * sem mudança no frontend.
+       */
+      requiresPasswordChange: user.mustChangePassword === true,
     };
     return session;
   } catch (error) {
     if (error instanceof ApiError && error.isUnauthorized) {
       return ANONYMOUS_SESSION;
     }
+    throw error;
+  }
+}
+
+/**
+ * Converte falhas esperadas em `null`.
+ *
+ * `GET /organizations/current` exige assinatura ativa (`@RequiresActivePlan`) e
+ * responde 403 quando o plano está vencido — a sessão precisa existir mesmo
+ * assim, para que a aplicação mostre o estado de assinatura bloqueada em vez
+ * de derrubar o usuário para o login.
+ */
+async function tolerate<T>(request: Promise<T>): Promise<T | null> {
+  try {
+    return await request;
+  } catch (error) {
+    if (error instanceof ApiError && !error.isUnauthorized) return null;
     throw error;
   }
 }

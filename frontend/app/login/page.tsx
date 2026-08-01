@@ -1,8 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Eye, EyeOff, KeyRound, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
+  Lock,
+  Mail,
+  ShieldCheck,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 
@@ -12,12 +22,43 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { SessionLoading } from "@/guards";
 import { useLogin } from "@/hooks/api";
+import { LOGIN_REASON_PARAM, LoginReason, ROUTES } from "@/lib/routes";
 
+const REASON_MESSAGES: Record<string, { title: string; description: string }> =
+  {
+    [LoginReason.expired]: {
+      title: "Sessão encerrada",
+      description:
+        "Sua sessão expirou por inatividade. Entre novamente para continuar.",
+    },
+    [LoginReason.unauthorized]: {
+      title: "Acesso não autorizado",
+      description: "Entre com uma conta que tenha acesso a esta área.",
+    },
+  };
+
+/**
+ * `useSearchParams` exige um limite de Suspense — a leitura dos parâmetros só
+ * acontece no cliente.
+ */
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<SessionLoading label="Carregando…" />}>
+      <LoginView />
+    </Suspense>
+  );
+}
+
+function LoginView() {
   const [showPassword, setShowPassword] = useState(false);
   const [requiresMfa, setRequiresMfa] = useState(false);
-  const login = useLogin();
+  const params = useSearchParams();
+  const reason = REASON_MESSAGES[params.get(LOGIN_REASON_PARAM) ?? ""];
+  const destination = params.get("destino") ?? undefined;
+  const login = useLogin({ redirectTo: destination });
   const loading = login.isPending;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -69,8 +110,16 @@ export default function LoginPage() {
               Bem-vindo de volta
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Entre com suas credenciais para acessar o workspace da sua operação.
+              Entre com suas credenciais para acessar o workspace da sua
+              operação.
             </p>
+
+            {reason ? (
+              <Alert className="mt-6">
+                <AlertTitle>{reason.title}</AlertTitle>
+                <AlertDescription>{reason.description}</AlertDescription>
+              </Alert>
+            ) : null}
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-4">
               <div className="space-y-2">
@@ -92,13 +141,12 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Senha</Label>
-                  <button
-                    type="button"
-                    onClick={() => toast.info("Recuperação de senha em breve")}
+                  <Link
+                    href={ROUTES.forgotPassword}
                     className="text-xs font-medium text-primary hover:underline"
                   >
                     Esqueceu a senha?
-                  </button>
+                  </Link>
                 </div>
                 <div className="relative">
                   <Lock className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -114,17 +162,26 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    aria-label={
+                      showPassword ? "Ocultar senha" : "Mostrar senha"
+                    }
                     className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
                   >
-                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    {showPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
                   </button>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
                 <Checkbox id="remember" defaultChecked />
-                <Label htmlFor="remember" className="text-sm font-normal text-muted-foreground">
+                <Label
+                  htmlFor="remember"
+                  className="text-sm font-normal text-muted-foreground"
+                >
                   Manter-me conectado
                 </Label>
               </div>
@@ -153,7 +210,12 @@ export default function LoginPage() {
                 </motion.div>
               )}
 
-              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={loading}
+              >
                 {loading ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
@@ -167,7 +229,9 @@ export default function LoginPage() {
 
             <div className="my-6 flex items-center gap-3">
               <Separator className="flex-1" />
-              <span className="text-[11px] tracking-wider text-muted-foreground uppercase">ou</span>
+              <span className="text-[11px] tracking-wider text-muted-foreground uppercase">
+                ou
+              </span>
               <Separator className="flex-1" />
             </div>
 
@@ -193,7 +257,8 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          Ao continuar você concorda com os Termos de Uso e a Política de Privacidade.
+          Ao continuar você concorda com os Termos de Uso e a Política de
+          Privacidade.
         </p>
       </div>
 
@@ -214,7 +279,8 @@ export default function LoginPage() {
 
         <div className="relative max-w-md">
           <blockquote className="font-display text-3xl leading-snug font-semibold text-primary-foreground">
-            “Colocamos toda a operação em uma única órbita — e reduzimos o retrabalho em 38%.”
+            “Colocamos toda a operação em uma única órbita — e reduzimos o
+            retrabalho em 38%.”
           </blockquote>
           <p className="mt-6 text-sm text-primary-foreground/80">
             Marina Duarte · Diretora de Operações, Acme Industries
@@ -227,8 +293,13 @@ export default function LoginPage() {
             { v: "99,9%", l: "uptime" },
             { v: "24/7", l: "suporte" },
           ].map((s) => (
-            <div key={s.l} className="rounded-xl bg-primary-foreground/10 p-4 backdrop-blur-sm">
-              <p className="font-display text-xl font-bold text-primary-foreground">{s.v}</p>
+            <div
+              key={s.l}
+              className="rounded-xl bg-primary-foreground/10 p-4 backdrop-blur-sm"
+            >
+              <p className="font-display text-xl font-bold text-primary-foreground">
+                {s.v}
+              </p>
               <p className="text-xs text-primary-foreground/75">{s.l}</p>
             </div>
           ))}
