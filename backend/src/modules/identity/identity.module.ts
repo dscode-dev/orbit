@@ -15,6 +15,7 @@ import { IdentityRepository } from './infrastructure/identity.repository';
 import { RegistrationRepository } from './infrastructure/registration.repository';
 import { NoopIdentityTokenDelivery } from './infrastructure/identity-token.delivery';
 import { JwtAuthenticationGuard } from './infrastructure/jwt-authentication.guard';
+import { IdentityReadModelMapper } from './identity.mapper';
 import { AuthController } from './presentation/auth.controller';
 import { InvitationController } from './presentation/invitation.controller';
 import { ProfileController } from './presentation/profile.controller';
@@ -51,6 +52,7 @@ import { ProfileController } from './presentation/profile.controller';
     ProfileService,
     MfaService,
     RegistrationService,
+    IdentityReadModelMapper,
     NoopIdentityTokenDelivery,
     {
       provide: IDENTITY_TOKEN_DELIVERY,

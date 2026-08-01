@@ -5,7 +5,7 @@
  * middleware, Server Components). O browser usa apenas `publicEnv`.
  */
 
-const DEFAULT_BACKEND_ORIGIN = "http://localhost:3001";
+const DEFAULT_BACKEND_ORIGIN = "http://localhost:3001/api/v1";
 
 /** Prefixo do BFF. Todo tráfego do browser passa por aqui. */
 export const BFF_BASE_PATH = "/api/orbit";

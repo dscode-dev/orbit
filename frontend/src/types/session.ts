@@ -4,18 +4,22 @@
  * Os tokens JWT nunca chegam ao browser: ficam em cookies `HttpOnly`.
  * O que o cliente recebe é apenas o estado derivado da sessão.
  */
-import type { BusinessUnitType, UserStatus } from "./contracts";
+import type { BusinessUnitType } from "./contracts";
+import type {
+  IdentityProfileReadModel,
+  IdentitySessionReadModel,
+} from "./contracts/modules/identity/identity.read-models";
+import type {
+  BusinessUnitReadModel,
+  OrganizationContextReadModel,
+  OrganizationPlanReadModel,
+} from "./contracts/modules/organizations/organization.read-models";
 
 /** Clientes aceitos por `LoginDto`/`RegisterOrganizationDto`. */
 export type IdentityClient = "WEB" | "MOBILE" | "API";
 
 /** Par de tokens retornado por `/identity/login`, `/register` e `/refresh`. */
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-  tokenType: "Bearer";
-  expiresIn: number;
-}
+export type TokenPair = IdentitySessionReadModel;
 
 /** Claims do access token (`backend/src/modules/identity/domain/identity.types.ts`). */
 export interface AccessTokenClaims {
@@ -32,22 +36,7 @@ export interface AccessTokenClaims {
 }
 
 /** Perfil retornado por `GET /identity/me`. */
-export interface SessionUser {
-  id: string;
-  email: string;
-  firstName: string | null;
-  lastName: string | null;
-  displayName: string | null;
-  phone: string | null;
-  avatarUrl: string | null;
-  locale: string | null;
-  timezone: string | null;
-  status: UserStatus;
-  emailVerifiedAt: string | null;
-  mfaEnabled: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+export type SessionUser = IdentityProfileReadModel;
 
 /** Escopo multi-tenant ativo, derivado das claims do access token. */
 export interface SessionScope {
@@ -57,54 +46,13 @@ export interface SessionScope {
 }
 
 /** Unidade de negócio devolvida em `GET /organizations/current`. */
-export interface SessionBusinessUnit {
-  id: string;
-  organizationId: string;
-  parentId: string | null;
-  slug: string;
-  code: string | null;
-  type: BusinessUnitType;
-  isPrimary: boolean;
-  legalName: string;
-  tradeName: string | null;
-  city: string;
-  stateCode: string | null;
-  timezone: string;
-  locale: string;
-  currency: string;
-  status: string;
-}
+export type SessionBusinessUnit = BusinessUnitReadModel;
 
 /** Plano contratado, aninhado em `GET /organizations/current`. */
-export interface SessionPlan {
-  id: string;
-  key: string;
-  name: string;
-  description: string | null;
-  /** `Decimal` do Prisma chega ao JSON como string. */
-  monthlyPrice: string | number | null;
-  annualPrice: string | number | null;
-  currency: string;
-  capabilities: readonly string[];
-  limits: Readonly<Record<string, number | null>>;
-  isActive: boolean;
-}
+export type SessionPlan = OrganizationPlanReadModel;
 
 /** Organização ativa (`GET /organizations/current`). */
-export interface SessionOrganization {
-  id: string;
-  ownerUserId: string;
-  planId: string;
-  slug: string;
-  displayName: string;
-  primarySegment: string;
-  status: string;
-  subscriptionStatus: string;
-  currentPeriodStart: string | null;
-  currentPeriodEnd: string | null;
-  plan: SessionPlan;
-  businessUnits: readonly SessionBusinessUnit[];
-}
+export type SessionOrganization = OrganizationContextReadModel;
 
 /**
  * Direitos do plano (`GET /organizations/current/subscription`).

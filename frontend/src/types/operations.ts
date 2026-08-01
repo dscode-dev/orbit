@@ -4,130 +4,39 @@
  * Os **literais** (status, tipo, prioridade, ações de histórico) vêm dos
  * contratos sincronizados do backend e não são redeclarados.
  *
- * As **formas de resposta** precisam ser declaradas aqui: o backend devolve
- * payloads do Prisma montados por `operationInclude`, sem exportar um tipo
- * correspondente. Cada interface abaixo espelha exatamente o `select`/`include`
- * de `operation.repository.ts` e `checklist.repository.ts`.
+ * As formas públicas são sincronizadas dos Read Models do backend. Este
+ * arquivo mantém aliases compatíveis para os componentes existentes.
  */
 import type {
-  OperationHistoryAction,
   OperationKind,
   OperationPriority,
   OperationStatus,
 } from "./contracts";
+import type {
+  OperationAssignmentReadModel,
+  OperationAttachmentReadModel,
+  OperationBusinessUnitReadModel,
+  OperationCustomerReadModel,
+  OperationAssetReadModel,
+  OperationChecklistReadModel,
+  OperationDetailsReadModel,
+  OperationHistoryReadModel,
+  OperationTimelineAttachmentReadModel,
+  OperationTimelineReadModel,
+  OperationUserReadModel,
+} from "./contracts/modules/operations/operation.read-models";
 
-/** Referência de usuário devolvida em atribuições e histórico. */
-export interface OperationUserRef {
-  id: string;
-  displayName: string;
-  email?: string;
-  avatarUrl: string | null;
-}
-
-/** Atribuição de técnico (`OperationUser` + `user`). */
-export interface OperationAssignment {
-  operationId: string;
-  userId: string;
-  assignedById: string | null;
-  assignedAt: string;
-  user: OperationUserRef;
-}
-
-/** Anexo, como devolvido no detalhe da operação (sem `storageKey`). */
-export interface OperationAttachment {
-  id: string;
-  fileName: string;
-  mimeType: string;
-  size: number;
-  checksum: string;
-  uploadedById: string;
-  createdAt: string;
-}
-
-/** Anexo na timeline, que inclui quem enviou. */
-export interface OperationTimelineAttachment extends OperationAttachment {
-  operationId: string;
-  uploadedBy: OperationUserRef | null;
-}
-
-/** Evento de histórico (`OperationHistory` + `user`). */
-export interface OperationHistoryEntry {
-  id: string;
-  operationId: string;
-  userId: string | null;
-  action: OperationHistoryAction | string;
-  fromStatus: OperationStatus | null;
-  toStatus: OperationStatus | null;
-  details: unknown;
-  createdAt: string;
-  user: OperationUserRef | null;
-}
-
-/** `GET /operations/:id/timeline`. */
-export interface OperationTimeline {
-  events: readonly OperationHistoryEntry[];
-  attachments: readonly OperationTimelineAttachment[];
-}
-
-export interface OperationBusinessUnitRef {
-  id: string;
-  legalName: string;
-  tradeName: string | null;
-}
-
-export interface OperationCustomerRef {
-  id: string;
-  legalName: string;
-  tradeName: string | null;
-}
-
-export interface OperationAssetRef {
-  id: string;
-  name: string;
-  identifier: string | null;
-  status: string;
-}
-
-/** Execução de checklist resumida, aninhada no detalhe da operação. */
-export interface OperationChecklistSummary {
-  id: string;
-  templateId: string;
-  templateVersion: number;
-  status: string;
-  progress: number;
-  completedAt: string | null;
-  updatedAt: string;
-}
-
-/** Operação completa (`operationInclude`). */
-export interface Operation {
-  id: string;
-  organizationId: string;
-  businessUnitId: string;
-  customerId: string | null;
-  assetId: string | null;
-  code: string;
-  kind: OperationKind;
-  title: string;
-  description: string | null;
-  status: OperationStatus;
-  priority: OperationPriority;
-  scheduledStart: string | null;
-  scheduledEnd: string | null;
-  startedAt: string | null;
-  completedAt: string | null;
-  location: unknown;
-  data: unknown;
-  createdById: string | null;
-  createdAt: string;
-  updatedAt: string;
-  businessUnit: OperationBusinessUnitRef;
-  customer: OperationCustomerRef | null;
-  asset: OperationAssetRef | null;
-  users: readonly OperationAssignment[];
-  attachments: readonly OperationAttachment[];
-  checklistExecutions: readonly OperationChecklistSummary[];
-}
+export type OperationUserRef = OperationUserReadModel;
+export type OperationAssignment = OperationAssignmentReadModel;
+export type OperationAttachment = OperationAttachmentReadModel;
+export type OperationTimelineAttachment = OperationTimelineAttachmentReadModel;
+export type OperationHistoryEntry = OperationHistoryReadModel;
+export type OperationTimeline = OperationTimelineReadModel;
+export type OperationBusinessUnitRef = OperationBusinessUnitReadModel;
+export type OperationCustomerRef = OperationCustomerReadModel;
+export type OperationAssetRef = OperationAssetReadModel;
+export type OperationChecklistSummary = OperationChecklistReadModel;
+export type Operation = OperationDetailsReadModel;
 
 /** Query de `GET /operations` (`OperationQueryDto`). */
 export interface OperationQuery {

@@ -6,6 +6,7 @@ import { OperationStorageService } from './operation-storage.service';
 import { ChecklistController } from './checklist.controller';
 import { ChecklistRepository } from './checklist.repository';
 import { ChecklistService } from './checklist.service';
+import { OperationReadModelMapper } from './operation.mapper';
 
 @Module({
   controllers: [OperationController, ChecklistController],
@@ -15,6 +16,7 @@ import { ChecklistService } from './checklist.service';
     OperationStorageService,
     ChecklistRepository,
     ChecklistService,
+    OperationReadModelMapper,
   ],
   exports: [OperationService, ChecklistService],
 })

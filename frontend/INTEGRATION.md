@@ -5,7 +5,8 @@ ficam em cookies `HttpOnly`, `SameSite=Lax` e `Secure` em produção; eles não 
 expostos ao JavaScript da aplicação.
 
 Configure `ORBIT_API_URL` no frontend com a URL interna do NestJS. Em
-desenvolvimento, o padrão é `http://localhost:3001`.
+desenvolvimento, o padrão é `http://localhost:3001/api/v1`. O backend mantém
+as rotas sem prefixo apenas durante a janela de compatibilidade da PR-16.
 
 O middleware protege `/dashboard`, rotaciona o refresh token e redireciona
 usuários autenticados para fora de `/login` e `/cadastro`.

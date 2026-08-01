@@ -38,6 +38,9 @@ const READ_MODELS = [
   "modules/dashboards/dashboard.read-models.ts",
   "modules/analytics/analytics.read-models.ts",
   "modules/scheduling/scheduling.read-models.ts",
+  "modules/identity/identity.read-models.ts",
+  "modules/organizations/organization.read-models.ts",
+  "modules/operations/operation.read-models.ts",
 ];
 
 const BANNER = `/**
@@ -65,6 +68,12 @@ for (const readModel of READ_MODELS) {
   const to = join(target, readModel);
   await mkdir(dirname(to), { recursive: true });
   await cp(from, to);
+  const content = await readFile(to, "utf8");
+  await writeFile(
+    to,
+    content.replaceAll("from '../../contracts'", "from '../..'"),
+    "utf8",
+  );
 }
 
 /** @param {string} directory */

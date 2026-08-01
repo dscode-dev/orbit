@@ -34,86 +34,108 @@ import {
   UpdateOperationDto,
 } from './dto/operation.dto';
 import { OperationService } from './operation.service';
+import { OperationReadModelMapper } from './operation.mapper';
 
 @ApiTags('Operations')
 @Controller('operations')
 @RequiresActivePlan()
 export class OperationController {
-  constructor(private readonly operations: OperationService) {}
+  constructor(
+    private readonly operations: OperationService,
+    private readonly readModels: OperationReadModelMapper,
+  ) {}
 
   @Get()
   @Capabilities('operations.read')
   @Permissions('operations.read')
-  list(@Req() request: IdentityRequest, @Query() query: OperationQueryDto) {
-    return this.operations.list(this.organizationId(request), query);
+  async list(
+    @Req() request: IdentityRequest,
+    @Query() query: OperationQueryDto,
+  ) {
+    return this.readModels.list(
+      await this.operations.list(this.organizationId(request), query),
+    );
   }
 
   @Get(':id')
   @Capabilities('operations.read')
   @Permissions('operations.read')
-  get(
+  async get(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
   ) {
-    return this.operations.get(id, this.organizationId(request));
+    return this.readModels.details(
+      await this.operations.get(id, this.organizationId(request)),
+    );
   }
 
   @Post()
   @Capabilities('operations.manage')
   @Permissions('operations.create')
-  create(@Req() request: IdentityRequest, @Body() input: CreateOperationDto) {
-    return this.operations.create(
-      this.organizationId(request),
-      request.identity!.id,
-      input,
+  async create(
+    @Req() request: IdentityRequest,
+    @Body() input: CreateOperationDto,
+  ) {
+    return this.readModels.details(
+      await this.operations.create(
+        this.organizationId(request),
+        request.identity!.id,
+        input,
+      ),
     );
   }
 
   @Patch(':id')
   @Capabilities('operations.manage')
   @Permissions('operations.update')
-  update(
+  async update(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
     @Body() input: UpdateOperationDto,
   ) {
-    return this.operations.update(
-      id,
-      this.organizationId(request),
-      request.identity!.id,
-      input,
+    return this.readModels.details(
+      await this.operations.update(
+        id,
+        this.organizationId(request),
+        request.identity!.id,
+        input,
+      ),
     );
   }
 
   @Patch(':id/status')
   @Capabilities('operations.manage')
   @Permissions('operations.status.update')
-  changeStatus(
+  async changeStatus(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
     @Body() input: ChangeOperationStatusDto,
   ) {
-    return this.operations.changeStatus(
-      id,
-      this.organizationId(request),
-      request.identity!.id,
-      input,
+    return this.readModels.details(
+      await this.operations.changeStatus(
+        id,
+        this.organizationId(request),
+        request.identity!.id,
+        input,
+      ),
     );
   }
 
   @Post(':id/assignments')
   @Capabilities('operations.manage')
   @Permissions('operations.assign')
-  assign(
+  async assign(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
     @Body() input: AssignOperationUserDto,
   ) {
-    return this.operations.assign(
-      id,
-      this.organizationId(request),
-      request.identity!.id,
-      input,
+    return this.readModels.details(
+      await this.operations.assign(
+        id,
+        this.organizationId(request),
+        request.identity!.id,
+        input,
+      ),
     );
   }
 
@@ -137,21 +159,25 @@ export class OperationController {
   @Get(':id/history')
   @Capabilities('operations.read')
   @Permissions('operations.history.read')
-  history(
+  async history(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
   ) {
-    return this.operations.history(id, this.organizationId(request));
+    return (
+      await this.operations.history(id, this.organizationId(request))
+    ).map((event) => this.readModels.history(event));
   }
 
   @Get(':id/timeline')
   @Capabilities('operations.read')
   @Permissions('operations.history.read')
-  timeline(
+  async timeline(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
   ) {
-    return this.operations.timeline(id, this.organizationId(request));
+    return this.readModels.timeline(
+      await this.operations.timeline(id, this.organizationId(request)),
+    );
   }
 
   @Post(':id/attachments')
@@ -164,16 +190,18 @@ export class OperationController {
       limits: { fileSize: 20 * 1024 * 1024, files: 1 },
     }),
   )
-  attach(
+  async attach(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.operations.attach(
-      id,
-      this.organizationId(request),
-      request.identity!.id,
-      file,
+    return this.readModels.attachment(
+      await this.operations.attach(
+        id,
+        this.organizationId(request),
+        request.identity!.id,
+        file,
+      ),
     );
   }
 

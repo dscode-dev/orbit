@@ -5,8 +5,8 @@
 /// de código.
 ///
 /// ```sh
-/// flutter run --dart-define=ORBIT_API_URL=http://10.0.2.2:3001
-/// flutter build apk --dart-define=ORBIT_API_URL=https://api.orbit.app
+/// flutter run --dart-define=ORBIT_API_URL=http://10.0.2.2:3001/api/v1
+/// flutter build apk --dart-define=ORBIT_API_URL=https://api.orbit.app/api/v1
 /// ```
 library;
 
@@ -27,7 +27,7 @@ class OrbitEnvironment {
   factory OrbitEnvironment.fromDefines() {
     const url = String.fromEnvironment(
       'ORBIT_API_URL',
-      defaultValue: 'http://10.0.2.2:3001',
+      defaultValue: 'http://10.0.2.2:3001/api/v1',
     );
     const flavorName = String.fromEnvironment(
       'ORBIT_FLAVOR',

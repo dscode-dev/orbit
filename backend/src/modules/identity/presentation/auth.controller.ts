@@ -12,6 +12,7 @@ import { AuthenticationService } from '../application/authentication.service';
 import { PasswordRecoveryService } from '../application/password-recovery.service';
 import { RegistrationService } from '../application/registration.service';
 import type { IdentityRequest } from '../infrastructure/jwt-authentication.guard';
+import { IdentityReadModelMapper } from '../identity.mapper';
 import {
   ForgotPasswordDto,
   LoginDto,
@@ -28,28 +29,30 @@ export class AuthController {
     private readonly authentication: AuthenticationService,
     private readonly recovery: PasswordRecoveryService,
     private readonly registration: RegistrationService,
+    private readonly readModels: IdentityReadModelMapper,
   ) {}
 
   @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  register(
+  async register(
     @Body() input: RegisterOrganizationDto,
     @Req() request: IdentityRequest,
   ) {
-    return this.registration.register(input, {
+    const session = await this.registration.register(input, {
       client: input.client,
       deviceId: input.deviceId,
       userAgent: request.header('user-agent'),
       ipAddress: request.ip,
     });
+    return this.readModels.session(session);
   }
 
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  login(@Body() input: LoginDto, @Req() request: IdentityRequest) {
-    return this.authentication.login(
+  async login(@Body() input: LoginDto, @Req() request: IdentityRequest) {
+    const session = await this.authentication.login(
       input.email,
       input.password,
       input.mfaCode,
@@ -60,13 +63,16 @@ export class AuthController {
         ipAddress: request.ip,
       },
     );
+    return this.readModels.session(session);
   }
 
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  refresh(@Body() input: RefreshTokenDto) {
-    return this.authentication.refresh(input.refreshToken);
+  async refresh(@Body() input: RefreshTokenDto) {
+    return this.readModels.session(
+      await this.authentication.refresh(input.refreshToken),
+    );
   }
 
   @Post('logout')

@@ -16,6 +16,7 @@ import { AuthenticationService } from '../application/authentication.service';
 import { MfaService } from '../application/mfa.service';
 import { ProfileService } from '../application/profile.service';
 import type { IdentityRequest } from '../infrastructure/jwt-authentication.guard';
+import { IdentityReadModelMapper } from '../identity.mapper';
 import { EnableMfaDto, UpdateProfileDto } from './dto/identity.dto';
 
 @ApiTags('Identity Profile')
@@ -25,21 +26,31 @@ export class ProfileController {
     private readonly profiles: ProfileService,
     private readonly authentication: AuthenticationService,
     private readonly mfa: MfaService,
+    private readonly readModels: IdentityReadModelMapper,
   ) {}
 
   @Get()
-  get(@Req() request: IdentityRequest) {
-    return this.profiles.get(request.identity!.id);
+  async get(@Req() request: IdentityRequest) {
+    return this.readModels.profile(
+      await this.profiles.get(request.identity!.id),
+    );
   }
 
   @Patch()
-  update(@Req() request: IdentityRequest, @Body() input: UpdateProfileDto) {
-    return this.profiles.update(request.identity!.id, input);
+  async update(
+    @Req() request: IdentityRequest,
+    @Body() input: UpdateProfileDto,
+  ) {
+    return this.readModels.profile(
+      await this.profiles.update(request.identity!.id, input),
+    );
   }
 
   @Get('sessions')
-  sessions(@Req() request: IdentityRequest) {
-    return this.authentication.listSessions(request.identity!.id);
+  async sessions(@Req() request: IdentityRequest) {
+    return (await this.authentication.listSessions(request.identity!.id)).map(
+      (session) => this.readModels.deviceSession(session),
+    );
   }
 
   @Delete('sessions/:id')

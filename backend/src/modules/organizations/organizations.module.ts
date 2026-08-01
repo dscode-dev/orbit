@@ -12,6 +12,7 @@ import { AssetService } from './business-units/equipaments/asset.service';
 import { OrganizationController } from './organization.controller';
 import { OrganizationRepository } from './organization.repository';
 import { OrganizationService } from './organization.service';
+import { OrganizationReadModelMapper } from './organization.mapper';
 
 @Module({
   imports: [SubscriptionPlansModule],
@@ -24,6 +25,7 @@ import { OrganizationService } from './organization.service';
   providers: [
     OrganizationRepository,
     OrganizationService,
+    OrganizationReadModelMapper,
     BusinessUnitRepository,
     BusinessUnitService,
     AssetRepository,

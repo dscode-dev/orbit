@@ -3,6 +3,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { configureApiVersioning } from './../src/configure-api';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -13,6 +14,7 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    configureApiVersioning(app);
     await app.init();
   });
 
@@ -31,5 +33,17 @@ describe('AppController (e2e)', () => {
     expect(body.data).toBe('Hello World!');
     expect(typeof body.requestId).toBe('string');
     expect(typeof body.timestamp).toBe('string');
+  });
+
+  it('/api/v1 (GET) exposes the same public envelope as the legacy route', async () => {
+    const [legacy, versioned] = await Promise.all([
+      request(app.getHttpServer()).get('/').expect(200),
+      request(app.getHttpServer()).get('/api/v1').expect(200),
+    ]);
+
+    expect(legacy.body.success).toBe(true);
+    expect(versioned.body.success).toBe(true);
+    expect(versioned.body.data).toEqual(legacy.body.data);
+    expect(versioned.headers['x-request-id']).toEqual(expect.any(String));
   });
 });

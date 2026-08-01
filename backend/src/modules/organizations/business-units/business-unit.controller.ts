@@ -24,44 +24,54 @@ import {
   UpdateBusinessUnitDto,
 } from '../dto/organization.dto';
 import { BusinessUnitService } from './business-unit.service';
+import { OrganizationReadModelMapper } from '../organization.mapper';
 
 @ApiTags('Business Units')
 @Controller('organizations/current/business-units')
 @RequiresActivePlan()
 export class BusinessUnitController {
-  constructor(private readonly businessUnits: BusinessUnitService) {}
+  constructor(
+    private readonly businessUnits: BusinessUnitService,
+    private readonly readModels: OrganizationReadModelMapper,
+  ) {}
 
   @Get()
   @Capabilities('business_units.read')
-  list(@Req() request: IdentityRequest) {
-    return this.businessUnits.list(this.organizationId(request));
+  async list(@Req() request: IdentityRequest) {
+    return (await this.businessUnits.list(this.organizationId(request))).map(
+      (unit) => this.readModels.businessUnit(unit),
+    );
   }
 
   @Post()
   @Permissions('business_units.create')
   @Capabilities('business_units.manage')
-  create(
+  async create(
     @Req() request: IdentityRequest,
     @Body() input: CreateBusinessUnitDto,
   ) {
     const identity = request.identity!;
-    return this.businessUnits.create(
-      this.organizationId(request),
-      identity.id,
-      identity.businessUnitIds,
-      input,
+    return this.readModels.businessUnit(
+      await this.businessUnits.create(
+        this.organizationId(request),
+        identity.id,
+        identity.businessUnitIds,
+        input,
+      ),
     );
   }
 
   @Patch(':id')
   @Permissions('business_units.update')
   @Capabilities('business_units.manage')
-  update(
+  async update(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
     @Body() input: UpdateBusinessUnitDto,
   ) {
-    return this.businessUnits.update(id, this.organizationId(request), input);
+    return this.readModels.businessUnit(
+      await this.businessUnits.update(id, this.organizationId(request), input),
+    );
   }
 
   @Delete(':id')

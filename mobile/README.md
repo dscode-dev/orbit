@@ -22,7 +22,7 @@ cp config/local.example.json config/local.json   # primeira vez
 flutter run --dart-define-from-file=config/local.json
 
 # Produção
-flutter build apk --dart-define=ORBIT_API_URL=https://api.orbit.app \
+flutter build apk --dart-define=ORBIT_API_URL=https://api.orbit.app/api/v1 \
                   --dart-define=ORBIT_FLAVOR=production
 ```
 
@@ -31,11 +31,11 @@ A URL nunca é constante de código: chega por `--dart-define` e é lida em
 
 ### Para onde apontar
 
-| Alvo | `ORBIT_API_URL` |
-| --- | --- |
-| Emulador Android | `http://10.0.2.2:3001` (o `localhost` da máquina, visto de dentro do emulador) |
-| Simulador iOS | `http://localhost:3001` |
-| **Aparelho físico, mesma rede** | `http://<ip-da-máquina>:3001` |
+| Alvo                            | `ORBIT_API_URL`                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| Emulador Android                | `http://10.0.2.2:3001/api/v1` (o `localhost` da máquina, visto de dentro do emulador) |
+| Simulador iOS                   | `http://localhost:3001/api/v1`                                                        |
+| **Aparelho físico, mesma rede** | `http://<ip-da-máquina>:3001/api/v1`                                                  |
 
 `config/local.json` é **ignorado pelo git**: o IP é da máquina de quem
 desenvolve, não do projeto. O que está versionado é
@@ -50,13 +50,13 @@ basta o aparelho estar na mesma rede e o firewall do macOS liberar a porta.
 Os dois sistemas bloqueiam HTTP em claro por padrão, e o bloqueio se manifesta
 como falha de conexão genérica — vale saber onde está tratado:
 
-| Sistema | Onde | Alcance |
-| --- | --- | --- |
-| Android | `android/app/src/debug/` (manifesto + `network_security_config.xml`) | **só debug**; o APK de release continua exigindo HTTPS |
-| iOS | `NSAllowsLocalNetworking` no `Info.plist` | só endereços de rede local; a internet continua sob HTTPS |
+| Sistema | Onde                                                                 | Alcance                                                   |
+| ------- | -------------------------------------------------------------------- | --------------------------------------------------------- |
+| Android | `android/app/src/debug/` (manifesto + `network_security_config.xml`) | **só debug**; o APK de release continua exigindo HTTPS    |
+| iOS     | `NSAllowsLocalNetworking` no `Info.plist`                            | só endereços de rede local; a internet continua sob HTTPS |
 
 No iOS 14+ o sistema pede autorização de rede local na primeira chamada. Se
-for negada, a permissão vive em *Ajustes › Orbit › Rede local*.
+for negada, a permissão vive em _Ajustes › Orbit › Rede local_.
 
 **Nada disso libera HTTP para a internet.** Não usamos
 `NSAllowsArbitraryLoads` nem `usesCleartextTraffic` no manifesto principal.
@@ -152,12 +152,12 @@ O perfil é **derivado das permissões do backend**, não de configuração loca
 quem tem `operations.manage` recebe a experiência de gestão; os demais, a de
 execução.
 
-| | Operator | Owner |
-| --- | --- | --- |
-| Aba 1 | Início | Visão Geral |
-| Home | próprias operações, agenda do dia, alertas | KPIs do Analytics, volumes da unidade, prazo vencido, agenda, alertas |
-| Operações | filtradas por `assignedUserId` | filtradas pela unidade ativa |
-| Transição de status | conforme permissão | conforme permissão |
+|                     | Operator                                   | Owner                                                                 |
+| ------------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| Aba 1               | Início                                     | Visão Geral                                                           |
+| Home                | próprias operações, agenda do dia, alertas | KPIs do Analytics, volumes da unidade, prazo vencido, agenda, alertas |
+| Operações           | filtradas por `assignedUserId`             | filtradas pela unidade ativa                                          |
+| Transição de status | conforme permissão                         | conforme permissão                                                    |
 
 A interface esconde o que o backend recusaria (`PermissionGate`), mas **nunca
 substitui a validação do servidor**.
@@ -166,25 +166,25 @@ substitui a validação do servidor**.
 
 ## 5. Endpoints consumidos
 
-| Endpoint | Uso |
-| --- | --- |
-| `POST /identity/login` | autenticação (`client: MOBILE`) |
-| `POST /identity/refresh` | renovação com rotação |
-| `POST /identity/logout` | encerramento de sessão |
-| `GET /identity/me` | perfil |
-| `GET /organizations/current` | organização, plano e unidades |
-| `GET /organizations/current/subscription` | capabilities e status da assinatura |
-| `GET /operations` | listagem, filtros e contagens por status |
-| `GET /operations/:id` | detalhe (cliente, ativo, equipe, anexos, checklists) |
-| `GET /operations/:id/timeline` | linha do tempo |
-| `GET /operations/:id/history` | auditoria |
-| `PATCH /operations/:id/status` | transição de status |
-| `POST /operations/:id/attachments` | envio de evidências (multipart, pela fila) |
-| `GET /checklist-executions?operationId=` | checklists da operação |
-| `GET /ai-executions?operationId=` | assistência operacional |
-| `GET /scheduling/agenda` | agenda do dia |
-| `GET /analytics/dashboard` | KPIs do Owner |
-| `GET /notifications` | alertas não lidos |
+| Endpoint                                  | Uso                                                  |
+| ----------------------------------------- | ---------------------------------------------------- |
+| `POST /identity/login`                    | autenticação (`client: MOBILE`)                      |
+| `POST /identity/refresh`                  | renovação com rotação                                |
+| `POST /identity/logout`                   | encerramento de sessão                               |
+| `GET /identity/me`                        | perfil                                               |
+| `GET /organizations/current`              | organização, plano e unidades                        |
+| `GET /organizations/current/subscription` | capabilities e status da assinatura                  |
+| `GET /operations`                         | listagem, filtros e contagens por status             |
+| `GET /operations/:id`                     | detalhe (cliente, ativo, equipe, anexos, checklists) |
+| `GET /operations/:id/timeline`            | linha do tempo                                       |
+| `GET /operations/:id/history`             | auditoria                                            |
+| `PATCH /operations/:id/status`            | transição de status                                  |
+| `POST /operations/:id/attachments`        | envio de evidências (multipart, pela fila)           |
+| `GET /checklist-executions?operationId=`  | checklists da operação                               |
+| `GET /ai-executions?operationId=`         | assistência operacional                              |
+| `GET /scheduling/agenda`                  | agenda do dia                                        |
+| `GET /analytics/dashboard`                | KPIs do Owner                                        |
+| `GET /notifications`                      | alertas não lidos                                    |
 
 **Nenhuma métrica é calculada no app.** Onde há número, ou veio de um Read
 Model do Analytics, ou é o `meta.total` que o backend devolveu ao contar a
@@ -201,15 +201,15 @@ atualizar o app.
 
 Vale igual para o resto da execução em campo:
 
-| Decisão | Quem decide |
-| --- | --- |
-| Se a transição de status é válida | backend (`transitions`) |
-| Se o usuário pode transicionar | backend (`@Permissions`) — a UI só antecipa o que seria recusado |
-| Se o anexo é aceito (tipo, tamanho) | backend — o app checa 20 MB só para não gastar rede à toa |
-| Se o plano cobre o recurso | backend (`@Capabilities`, `@RequiresActivePlan`) |
-| Se a operação pertence ao tenant | backend (RLS) |
-| Progresso do checklist | backend |
-| Ordem da listagem | backend |
+| Decisão                             | Quem decide                                                      |
+| ----------------------------------- | ---------------------------------------------------------------- |
+| Se a transição de status é válida   | backend (`transitions`)                                          |
+| Se o usuário pode transicionar      | backend (`@Permissions`) — a UI só antecipa o que seria recusado |
+| Se o anexo é aceito (tipo, tamanho) | backend — o app checa 20 MB só para não gastar rede à toa        |
+| Se o plano cobre o recurso          | backend (`@Capabilities`, `@RequiresActivePlan`)                 |
+| Se a operação pertence ao tenant    | backend (RLS)                                                    |
+| Progresso do checklist              | backend                                                          |
+| Ordem da listagem                   | backend                                                          |
 
 O que é decidido no app é apresentação: o que cabe na tela, o que fica em
 cache, quando reenviar um upload, quando ler o GPS.
@@ -259,14 +259,14 @@ memória, no fluxo que a interface observa.
 
 ### Estados
 
-| Estado | Significado |
-| --- | --- |
-| `pending` | aguardando vez ou conexão |
-| `uploading` | em envio, com progresso |
-| `retrying` | falhou de forma recuperável; espera o backoff |
-| `completed` | aceita pelo backend |
-| `failed` | falha definitiva; exige ação |
-| `cancelled` | cancelada pelo usuário |
+| Estado      | Significado                                   |
+| ----------- | --------------------------------------------- |
+| `pending`   | aguardando vez ou conexão                     |
+| `uploading` | em envio, com progresso                       |
+| `retrying`  | falhou de forma recuperável; espera o backoff |
+| `completed` | aceita pelo backend                           |
+| `failed`    | falha definitiva; exige ação                  |
+| `cancelled` | cancelada pelo usuário                        |
 
 O `SyncIndicator` no shell mostra o estado agregado — o técnico sabe, sem abrir
 nada, se o que registrou já subiu.
@@ -279,13 +279,13 @@ servidor no momento em que acontece.
 
 ## 7. Offline
 
-| Recurso | Comportamento sem rede |
-| --- | --- |
-| Lista de operações | última página equivalente já consultada |
-| Detalhe da operação | último detalhe visitado |
-| Agenda | último dia consultado |
-| Evidências | capturadas normalmente e enfileiradas |
-| Mudança de status | **bloqueada** — exige rede |
+| Recurso             | Comportamento sem rede                  |
+| ------------------- | --------------------------------------- |
+| Lista de operações  | última página equivalente já consultada |
+| Detalhe da operação | último detalhe visitado                 |
+| Agenda              | último dia consultado                   |
+| Evidências          | capturadas normalmente e enfileiradas   |
+| Mudança de status   | **bloqueada** — exige rede              |
 
 Regras:
 
@@ -306,12 +306,12 @@ PR de sincronismo: trocar a implementação não muda quem os consome.
 
 Infraestrutura apenas — **sem mapa e sem navegação**, conforme o escopo.
 
-| Recurso | Situação |
-| --- | --- |
-| Posição atual (GPS) | ✓ `geolocator`, precisão média para poupar bateria |
-| Coordenadas do atendimento | ✓ quando presentes em `Operation.location` |
-| Distância | ✓ linha reta (Haversine) |
-| Tempo estimado | **indisponível** — ver abaixo |
+| Recurso                    | Situação                                           |
+| -------------------------- | -------------------------------------------------- |
+| Posição atual (GPS)        | ✓ `geolocator`, precisão média para poupar bateria |
+| Coordenadas do atendimento | ✓ quando presentes em `Operation.location`         |
+| Distância                  | ✓ linha reta (Haversine)                           |
+| Tempo estimado             | **indisponível** — ver abaixo                      |
 
 **Coordenadas.** `Operation.location` é `Json?` sem esquema no backend. O
 extrator aceita as grafias usuais (`latitude`/`lat`, `longitude`/`lng`/`lon`,
@@ -356,19 +356,19 @@ flutter build apk --debug          # ok
 flutter build ios --no-codesign    # ok
 ```
 
-| Arquivo | O que garante |
-| --- | --- |
-| `session_authenticator_test` | corrida de renovação, janela de rotação, expiração |
-| `orbit_api_client_test` | envelope, erros, request-id, token, 401 → refresh → repete |
-| `auth_controller_test` | login, restauração, logout, perfis, admin sem tenant, troca de unidade |
-| `operations_repository_test` | contratos, filtros aceitos, cache offline, 403, conflito de transição |
-| `upload_queue_test` | ordem serial, backoff, falha definitiva vs recuperável, cancelamento, persistência, retomada por conexão |
-| `evidence_capture_test` | cópia antes de enfileirar, tipo derivado do MIME, cancelamento da captura |
-| `location_service_test` | extração de coordenadas de JSON sem esquema, rejeição de valores inválidos, distância |
-| `login_screen_test` | validação, erro do backend, MFA sob demanda |
-| `operations_screen_test` | lista, vazio, offline, acesso negado, filtro |
-| `field_actions_test` | ações oferecidas, recusa do servidor apresentada, evidência pendente |
-| `orbit_logger_test` | ausência de segredo em log |
+| Arquivo                      | O que garante                                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `session_authenticator_test` | corrida de renovação, janela de rotação, expiração                                                       |
+| `orbit_api_client_test`      | envelope, erros, request-id, token, 401 → refresh → repete                                               |
+| `auth_controller_test`       | login, restauração, logout, perfis, admin sem tenant, troca de unidade                                   |
+| `operations_repository_test` | contratos, filtros aceitos, cache offline, 403, conflito de transição                                    |
+| `upload_queue_test`          | ordem serial, backoff, falha definitiva vs recuperável, cancelamento, persistência, retomada por conexão |
+| `evidence_capture_test`      | cópia antes de enfileirar, tipo derivado do MIME, cancelamento da captura                                |
+| `location_service_test`      | extração de coordenadas de JSON sem esquema, rejeição de valores inválidos, distância                    |
+| `login_screen_test`          | validação, erro do backend, MFA sob demanda                                                              |
+| `operations_screen_test`     | lista, vazio, offline, acesso negado, filtro                                                             |
+| `field_actions_test`         | ações oferecidas, recusa do servidor apresentada, evidência pendente                                     |
+| `orbit_logger_test`          | ausência de segredo em log                                                                               |
 
 ---
 

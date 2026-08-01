@@ -9,34 +9,44 @@ import {
   UpdateOrganizationDto,
 } from './dto/organization.dto';
 import { OrganizationService } from './organization.service';
+import { OrganizationReadModelMapper } from './organization.mapper';
 
 @ApiTags('Organizations')
 @Controller('organizations')
 export class OrganizationController {
-  constructor(private readonly organizations: OrganizationService) {}
+  constructor(
+    private readonly organizations: OrganizationService,
+    private readonly readModels: OrganizationReadModelMapper,
+  ) {}
 
   @Post()
-  create(
+  async create(
     @Req() request: IdentityRequest,
     @Body() input: CreateOrganizationDto,
   ) {
-    return this.organizations.create(request.identity!.id, input);
+    return this.readModels.context(
+      await this.organizations.create(request.identity!.id, input),
+    );
   }
 
   @Get('current')
   @RequiresActivePlan()
-  getCurrent(@Req() request: IdentityRequest) {
-    return this.organizations.getCurrent(this.organizationId(request));
+  async getCurrent(@Req() request: IdentityRequest) {
+    return this.readModels.context(
+      await this.organizations.getCurrent(this.organizationId(request)),
+    );
   }
 
   @Patch('current')
   @RequiresActivePlan()
   @Permissions('organization.update')
-  updateCurrent(
+  async updateCurrent(
     @Req() request: IdentityRequest,
     @Body() input: UpdateOrganizationDto,
   ) {
-    return this.organizations.update(this.organizationId(request), input);
+    return this.readModels.context(
+      await this.organizations.update(this.organizationId(request), input),
+    );
   }
 
   private organizationId(request: IdentityRequest): string {
