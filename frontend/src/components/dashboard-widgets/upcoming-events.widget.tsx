@@ -33,6 +33,15 @@ const PRIORITY_TONE: Readonly<
   CRITICAL: "destructive",
 };
 
+const EVENT_STATUS_LABELS: Readonly<Record<string, string>> = {
+  DRAFT: "Rascunho",
+  SCHEDULED: "Agendado",
+  CONFIRMED: "Confirmado",
+  IN_PROGRESS: "Em andamento",
+  COMPLETED: "Concluído",
+  CANCELLED: "Cancelado",
+};
+
 export function UpcomingEventsWidget({ widget, scheduling }: WidgetProps) {
   const total = scheduling.agenda.data?.summary.total;
 
@@ -61,7 +70,7 @@ export function UpcomingEventsWidget({ widget, scheduling }: WidgetProps) {
             items={selectUpcoming(data.days).map((event) => ({
               title: event.title,
               timestamp: formatDateTime(event.startsAt),
-              description: event.status,
+              description: EVENT_STATUS_LABELS[event.status] ?? event.status,
               tone: PRIORITY_TONE[event.priority] ?? "default",
             }))}
           />

@@ -2,7 +2,7 @@
 -- This migration is intentionally not executed by Codex.
 
 CREATE TABLE "scheduling_calendars" (
-  "id" UUID NOT NULL DEFAULT uuidv7(),
+  "id" UUID NOT NULL,
   "organization_id" UUID NOT NULL,
   "business_unit_id" UUID,
   "key" VARCHAR(100) NOT NULL,
@@ -43,7 +43,7 @@ CREATE INDEX "scheduling_calendars_scope_idx"
   );
 
 CREATE TABLE "scheduling_events" (
-  "id" UUID NOT NULL DEFAULT uuidv7(),
+  "id" UUID NOT NULL,
   "organization_id" UUID NOT NULL,
   "business_unit_id" UUID,
   "calendar_id" UUID NOT NULL,
@@ -116,7 +116,7 @@ CREATE INDEX "scheduling_events_source_idx"
   );
 
 CREATE TABLE "scheduling_recurrences" (
-  "id" UUID NOT NULL DEFAULT uuidv7(),
+  "id" UUID NOT NULL,
   "event_id" UUID NOT NULL,
   "frequency" VARCHAR(30) NOT NULL,
   "interval" INTEGER NOT NULL DEFAULT 1,
@@ -150,7 +150,7 @@ CREATE UNIQUE INDEX "scheduling_recurrences_event_id_key"
   ON "scheduling_recurrences"("event_id");
 
 CREATE TABLE "scheduling_resource_allocations" (
-  "id" UUID NOT NULL DEFAULT uuidv7(),
+  "id" UUID NOT NULL,
   "event_id" UUID NOT NULL,
   "user_id" UUID,
   "asset_id" UUID,
@@ -205,7 +205,7 @@ CREATE UNIQUE INDEX "scheduling_allocations_resource_unique_active"
   WHERE "deleted_at" IS NULL AND "status" = 'ALLOCATED';
 
 CREATE TABLE "scheduling_availability" (
-  "id" UUID NOT NULL DEFAULT uuidv7(),
+  "id" UUID NOT NULL,
   "organization_id" UUID NOT NULL,
   "business_unit_id" UUID,
   "user_id" UUID,
@@ -274,7 +274,7 @@ CREATE INDEX "scheduling_availability_resource_idx"
   );
 
 CREATE TABLE "scheduling_event_history" (
-  "id" UUID NOT NULL DEFAULT uuidv7(),
+  "id" UUID NOT NULL,
   "event_id" UUID NOT NULL,
   "user_id" UUID,
   "action" VARCHAR(80) NOT NULL,

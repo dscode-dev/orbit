@@ -17,11 +17,9 @@ Contratos compartilhados entre backend, web e mobile:
 cd mobile
 flutter pub get
 
-# Emulador Android (10.0.2.2 = localhost da máquina)
-flutter run --dart-define=ORBIT_API_URL=http://10.0.2.2:3001
-
-# Simulador iOS
-flutter run --dart-define=ORBIT_API_URL=http://localhost:3001
+# Desenvolvimento — a URL vem de config/local.json
+cp config/local.example.json config/local.json   # primeira vez
+flutter run --dart-define-from-file=config/local.json
 
 # Produção
 flutter build apk --dart-define=ORBIT_API_URL=https://api.orbit.app \
@@ -30,6 +28,38 @@ flutter build apk --dart-define=ORBIT_API_URL=https://api.orbit.app \
 
 A URL nunca é constante de código: chega por `--dart-define` e é lida em
 `core/config/environment.dart`.
+
+### Para onde apontar
+
+| Alvo | `ORBIT_API_URL` |
+| --- | --- |
+| Emulador Android | `http://10.0.2.2:3001` (o `localhost` da máquina, visto de dentro do emulador) |
+| Simulador iOS | `http://localhost:3001` |
+| **Aparelho físico, mesma rede** | `http://<ip-da-máquina>:3001` |
+
+`config/local.json` é **ignorado pelo git**: o IP é da máquina de quem
+desenvolve, não do projeto. O que está versionado é
+`config/local.example.json`.
+
+A API já escuta em `0.0.0.0` (`docker-compose.yml` publica `0.0.0.0:3001` e
+`main.ts` usa `HOST ?? '0.0.0.0'`), então não é preciso mexer no backend —
+basta o aparelho estar na mesma rede e o firewall do macOS liberar a porta.
+
+### HTTP em rede local
+
+Os dois sistemas bloqueiam HTTP em claro por padrão, e o bloqueio se manifesta
+como falha de conexão genérica — vale saber onde está tratado:
+
+| Sistema | Onde | Alcance |
+| --- | --- | --- |
+| Android | `android/app/src/debug/` (manifesto + `network_security_config.xml`) | **só debug**; o APK de release continua exigindo HTTPS |
+| iOS | `NSAllowsLocalNetworking` no `Info.plist` | só endereços de rede local; a internet continua sob HTTPS |
+
+No iOS 14+ o sistema pede autorização de rede local na primeira chamada. Se
+for negada, a permissão vive em *Ajustes › Orbit › Rede local*.
+
+**Nada disso libera HTTP para a internet.** Não usamos
+`NSAllowsArbitraryLoads` nem `usesCleartextTraffic` no manifesto principal.
 
 ---
 

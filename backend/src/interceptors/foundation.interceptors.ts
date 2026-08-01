@@ -1,6 +1,8 @@
 import {
   CallHandler,
   type ExecutionContext,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   type NestInterceptor,
@@ -83,8 +85,14 @@ export class LoggingInterceptor implements NestInterceptor {
       tap({
         next: () =>
           this.log(request, response.statusCode, performance.now() - startedAt),
-        error: () =>
-          this.log(request, response.statusCode, performance.now() - startedAt),
+        error: (error: unknown) =>
+          this.log(
+            request,
+            error instanceof HttpException
+              ? error.getStatus()
+              : HttpStatus.INTERNAL_SERVER_ERROR,
+            performance.now() - startedAt,
+          ),
       }),
     );
   }

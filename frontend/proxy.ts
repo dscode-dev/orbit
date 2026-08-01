@@ -139,6 +139,7 @@ export const config = {
     "/dashboard/:path*",
     "/operacoes/:path*",
     "/plataforma/:path*",
+    "/design-system/:path*",
     "/login",
     "/cadastro",
     "/recuperar-senha",

@@ -5,7 +5,7 @@ import type { DashboardWidgetDefinition } from './dashboard.read-models';
 const globalWidgets: DashboardWidgetDefinition[] = [
   {
     id: 'attention-center',
-    title: 'Attention Center',
+    title: 'Central de Atenção',
     description: 'Prioridades, alertas e pendências que exigem ação.',
     category: 'ATTENTION',
     order: 10,
@@ -19,7 +19,7 @@ const globalWidgets: DashboardWidgetDefinition[] = [
   },
   {
     id: 'executive-kpis',
-    title: 'Executive KPIs',
+    title: 'Indicadores Executivos',
     description: 'Indicadores executivos consolidados da organização.',
     category: 'EXECUTIVE',
     order: 20,
@@ -33,7 +33,7 @@ const globalWidgets: DashboardWidgetDefinition[] = [
   },
   {
     id: 'health-score',
-    title: 'Health Score',
+    title: 'Índice de Saúde',
     description: 'Visão sintética da saúde operacional.',
     category: 'EXECUTIVE',
     order: 30,
@@ -47,7 +47,7 @@ const globalWidgets: DashboardWidgetDefinition[] = [
   },
   {
     id: 'operational-trend',
-    title: 'Operational Trend',
+    title: 'Tendência Operacional',
     description: 'Evolução dos principais volumes operacionais.',
     category: 'OPERATIONS',
     order: 40,
@@ -61,7 +61,7 @@ const globalWidgets: DashboardWidgetDefinition[] = [
   },
   {
     id: 'team-performance',
-    title: 'Team Performance',
+    title: 'Desempenho da Equipe',
     description: 'Produtividade e cumprimento de SLA da equipe.',
     category: 'TEAM',
     order: 50,
@@ -75,7 +75,7 @@ const globalWidgets: DashboardWidgetDefinition[] = [
   },
   {
     id: 'recent-activity',
-    title: 'Recent Activity',
+    title: 'Atividades Recentes',
     description: 'Linha do tempo recente da organização.',
     category: 'ACTIVITY',
     order: 60,
@@ -89,7 +89,7 @@ const globalWidgets: DashboardWidgetDefinition[] = [
   },
   {
     id: 'upcoming-events',
-    title: 'Upcoming Events',
+    title: 'Próximos Eventos',
     description: 'Agenda consolidada de compromissos e vencimentos.',
     category: 'EVENTS',
     order: 70,
@@ -136,7 +136,7 @@ const segmentWidget = (
 const segmentWidgets: DashboardWidgetDefinition[] = [
   segmentWidget({
     id: 'hvac-pmoc-status',
-    title: 'PMOC Status',
+    title: 'Situação do PMOC',
     description: 'Conformidade, vencimentos e execução dos planos PMOC.',
     category: 'OPERATIONS',
     order: 110,
@@ -147,7 +147,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'hvac-equipment-health',
-    title: 'Equipment Health',
+    title: 'Saúde dos Equipamentos',
     description: 'Condição consolidada dos equipamentos monitorados.',
     category: 'ASSETS',
     order: 120,
@@ -169,7 +169,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'hvac-technicians',
-    title: 'Technicians',
+    title: 'Técnicos',
     description: 'Disponibilidade e produtividade técnica.',
     category: 'TEAM',
     order: 140,
@@ -180,7 +180,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'hvac-contracts',
-    title: 'Contracts',
+    title: 'Contratos',
     description: 'Cobertura e situação da carteira contratual.',
     category: 'COMMERCIAL',
     order: 150,
@@ -191,7 +191,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'weather-environmental-intelligence',
-    title: 'Weather & Environmental Intelligence',
+    title: 'Inteligência Climática e Ambiental',
     description: 'Clima, ambiente, impactos, riscos e recomendações.',
     category: 'ENVIRONMENT',
     order: 160,
@@ -204,7 +204,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'pharmacy-critical-stock',
-    title: 'Critical Stock',
+    title: 'Estoque Crítico',
     description: 'Itens abaixo do estoque de segurança.',
     category: 'INVENTORY',
     order: 210,
@@ -215,7 +215,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'pharmacy-expiring-products',
-    title: 'Expiring Products',
+    title: 'Produtos Próximos do Vencimento',
     description: 'Produtos próximos ao vencimento.',
     category: 'INVENTORY',
     order: 220,
@@ -226,7 +226,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'pharmacy-lots',
-    title: 'Lots',
+    title: 'Lotes',
     description: 'Rastreabilidade e situação dos lotes.',
     category: 'INVENTORY',
     order: 230,
@@ -237,7 +237,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'pharmacy-purchases',
-    title: 'Purchases',
+    title: 'Compras',
     description: 'Indicadores de compras e reposição.',
     category: 'COMMERCIAL',
     order: 240,
@@ -248,7 +248,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'pharmacy-dispensations',
-    title: 'Dispensations',
+    title: 'Dispensações',
     description: 'Volume e tendência das dispensações.',
     category: 'OPERATIONS',
     order: 250,
@@ -259,7 +259,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'pharmacy-abc-curve',
-    title: 'ABC Curve',
+    title: 'Curva ABC',
     description: 'Classificação de relevância dos produtos.',
     category: 'EXECUTIVE',
     order: 260,
@@ -271,7 +271,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'agro-fields-overview',
-    title: 'Fields Overview',
+    title: 'Visão Geral das Áreas',
     description: 'Visão consolidada das áreas produtivas.',
     category: 'OPERATIONS',
     order: 310,
@@ -282,7 +282,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'agro-crop-status',
-    title: 'Crop Status',
+    title: 'Situação das Culturas',
     description: 'Estágio e saúde das culturas.',
     category: 'OPERATIONS',
     order: 320,
@@ -293,7 +293,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'agro-machinery',
-    title: 'Machinery',
+    title: 'Maquinário',
     description: 'Disponibilidade e condição do maquinário.',
     category: 'ASSETS',
     order: 330,
@@ -304,7 +304,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'agro-inputs',
-    title: 'Inputs',
+    title: 'Insumos',
     description: 'Disponibilidade e consumo de insumos.',
     category: 'INVENTORY',
     order: 340,
@@ -315,7 +315,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'agro-irrigation',
-    title: 'Irrigation',
+    title: 'Irrigação',
     description: 'Eficiência, cobertura e alertas de irrigação.',
     category: 'OPERATIONS',
     order: 350,
@@ -326,7 +326,7 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
   }),
   segmentWidget({
     id: 'agro-production-forecast',
-    title: 'Production Forecast',
+    title: 'Previsão de Produção',
     description: 'Projeção produtiva e variação esperada.',
     category: 'INTELLIGENCE',
     order: 360,

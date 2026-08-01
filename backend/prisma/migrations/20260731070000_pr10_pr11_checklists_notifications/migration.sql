@@ -42,7 +42,7 @@ ALTER TABLE "notifications"
   ADD COLUMN "updated_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 CREATE TABLE "notification_preferences" (
-  "id" UUID NOT NULL DEFAULT uuidv7(),
+  "id" UUID NOT NULL,
   "organization_id" UUID NOT NULL,
   "user_id" UUID NOT NULL,
   "type" VARCHAR(80) NOT NULL,
@@ -66,7 +66,7 @@ CREATE INDEX "notification_preferences_user_id_enabled_idx"
   ON "notification_preferences"("user_id", "enabled");
 
 CREATE TABLE "notification_deliveries" (
-  "id" UUID NOT NULL DEFAULT uuidv7(),
+  "id" UUID NOT NULL,
   "notification_id" UUID NOT NULL,
   "recipient_user_id" UUID NOT NULL,
   "channel" VARCHAR(30) NOT NULL,
@@ -103,7 +103,7 @@ CREATE INDEX "notification_deliveries_recipient_user_id_created_at_idx"
   ON "notification_deliveries"("recipient_user_id", "created_at");
 
 CREATE TABLE "push_subscriptions" (
-  "id" UUID NOT NULL DEFAULT uuidv7(),
+  "id" UUID NOT NULL,
   "organization_id" UUID NOT NULL,
   "user_id" UUID NOT NULL,
   "endpoint" TEXT NOT NULL,

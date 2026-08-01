@@ -29,6 +29,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePlans, useRegister } from "@/hooks/api";
+import {
+  detectBrazilianDocumentType,
+  formatBrazilianDocument,
+  isValidBrazilianDocument,
+  normalizeBrazilianDocument,
+} from "@/lib/brazilian-document";
 import { cn } from "@/lib/utils";
 
 const schema = z
@@ -40,7 +46,9 @@ const schema = z
     confirmPassword: z.string(),
     organizationName: z.string().min(2, "Informe o nome da organização"),
     legalName: z.string().min(2, "Informe a razão social"),
-    documentNumber: z.string().min(11, "Informe um documento válido"),
+    documentNumber: z
+      .string()
+      .refine(isValidBrazilianDocument, "Informe um CPF ou CNPJ válido"),
     primarySegment: z.string().min(2, "Informe o segmento"),
     city: z.string().min(2, "Informe a cidade"),
     street: z.string().min(2, "Informe o endereço"),
@@ -214,10 +222,8 @@ export default function CadastroPage() {
       await createAccount.mutateAsync({
         ...payload,
         stateCode: payload.stateCode.toUpperCase(),
-        documentType:
-          payload.documentNumber.replace(/\D/g, "").length === 11
-            ? "CPF"
-            : "CNPJ",
+        documentNumber: normalizeBrazilianDocument(payload.documentNumber),
+        documentType: detectBrazilianDocumentType(payload.documentNumber)!,
         client: "WEB",
         businessUnitType: "HEADQUARTERS",
       });
@@ -433,11 +439,29 @@ export default function CadastroPage() {
                       <FieldError message={errors.legalName?.message} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="documentNumber">CPF ou CNPJ</Label>
+                      <Label htmlFor="documentNumber">
+                        CPF ou CNPJ
+                        {detectBrazilianDocumentType(
+                          watch("documentNumber") ?? "",
+                        )
+                          ? ` (${detectBrazilianDocumentType(watch("documentNumber") ?? "")})`
+                          : ""}
+                      </Label>
                       <Input
                         id="documentNumber"
                         inputMode="numeric"
-                        {...register("documentNumber")}
+                        autoComplete="off"
+                        placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                        maxLength={18}
+                        {...register("documentNumber", {
+                          onChange: (event) => {
+                            setValue(
+                              "documentNumber",
+                              formatBrazilianDocument(event.target.value),
+                              { shouldDirty: true, shouldValidate: true },
+                            );
+                          },
+                        })}
                       />
                       <FieldError message={errors.documentNumber?.message} />
                     </div>

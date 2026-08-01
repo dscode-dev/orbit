@@ -16,7 +16,7 @@ import { AlertTriangle, CircleAlert, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AnalyticsStatus } from "@/types/dashboard";
-import { STATUS_CLASSES, STATUS_LABELS } from "@/metrics";
+import { metricLabel, STATUS_CLASSES, STATUS_LABELS } from "@/metrics";
 import type { WidgetProps } from "./widget-registry";
 import { PanelFrame, PanelState } from "@/components/panels";
 
@@ -72,8 +72,8 @@ export function AttentionCenterWidget({ widget, analytics }: WidgetProps) {
                       className="glass space-y-2 rounded-xl p-4"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
-                          {priority.indicator}
+                        <span className="min-w-0 truncate text-sm text-muted-foreground">
+                          {metricLabel(priority.indicator)}
                         </span>
                         <CircleAlert
                           className={cn(

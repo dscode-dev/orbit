@@ -12,14 +12,17 @@ import {
   Settings,
   LifeBuoy,
   PanelLeftClose,
-  Palette,
   ChevronsUpDown,
   Sparkles,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { OrbitLogo } from "@/components/brand/orbit-logo";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export type NavItem = {
@@ -34,7 +37,7 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
     group: "Plataforma",
     items: [
       { label: "Visão geral", icon: LayoutGrid, to: "/dashboard" },
-      { label: "Operações", icon: Workflow },
+      { label: "Operações", icon: Workflow, to: "/operacoes" },
       { label: "Inventário", icon: Boxes, badge: "12" },
       { label: "Pessoas", icon: Users },
       { label: "Relatórios", icon: FileBarChart },
@@ -43,7 +46,6 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
   {
     group: "Sistema",
     items: [
-      { label: "Design System", icon: Palette, to: "/design-system" },
       { label: "Configurações", icon: Settings },
       { label: "Suporte", icon: LifeBuoy },
     ],
@@ -105,7 +107,11 @@ function SidebarItem({
       {content}
     </Link>
   ) : (
-    <button type="button" aria-label={item.label} className="block w-full text-left">
+    <button
+      type="button"
+      aria-label={item.label}
+      className="block w-full text-left"
+    >
       {content}
     </button>
   );
@@ -128,11 +134,13 @@ export function Sidebar({
   activeLabel?: string;
   footer?: ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const pathname = usePathname();
 
   const isActive = (item: NavItem) =>
-    item.to ? item.to === pathname && item.label === activeLabel : item.label === activeLabel;
+    item.to
+      ? item.to === pathname && item.label === activeLabel
+      : item.label === activeLabel;
 
   return (
     <motion.aside
@@ -140,7 +148,12 @@ export function Sidebar({
       transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
       className="sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar/80 backdrop-blur-xl lg:flex"
     >
-      <div className={cn("flex h-16 items-center gap-2 px-4", collapsed && "justify-center px-0")}>
+      <div
+        className={cn(
+          "flex h-16 items-center gap-2 px-4",
+          collapsed && "justify-center px-0",
+        )}
+      >
         <Link href="/" aria-label="Orbit — início">
           <OrbitLogo variant={collapsed ? "mark" : "full"} />
         </Link>
@@ -168,7 +181,10 @@ export function Sidebar({
         </div>
       ) : null}
 
-      <nav aria-label="Navegação principal" className="scroll-panel flex-1 space-y-6 px-3 py-2">
+      <nav
+        aria-label="Navegação principal"
+        className="scroll-panel flex-1 space-y-6 px-3 py-2"
+      >
         {navigation.map((group) => (
           <div key={group.group} className="space-y-1">
             {!collapsed ? (
@@ -211,11 +227,18 @@ export function Sidebar({
           variant="ghost"
           size="sm"
           onClick={() => setCollapsed((v) => !v)}
-          aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+          aria-label={
+            collapsed ? "Expandir menu lateral" : "Recolher menu lateral"
+          }
           aria-expanded={!collapsed}
           className="w-full justify-center text-muted-foreground"
         >
-          <PanelLeftClose className={cn("size-4 transition-transform", collapsed && "rotate-180")} />
+          <PanelLeftClose
+            className={cn(
+              "size-4 transition-transform",
+              collapsed && "rotate-180",
+            )}
+          />
           {!collapsed ? <span>Recolher</span> : null}
         </Button>
       </div>

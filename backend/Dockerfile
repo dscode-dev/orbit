@@ -16,6 +16,13 @@ COPY src ./src
 
 RUN npx prisma generate
 RUN npm run build
+
+FROM builder AS migrator
+
+CMD ["npx", "prisma", "migrate", "deploy"]
+
+FROM builder AS production-dependencies
+
 RUN npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runner
@@ -33,9 +40,9 @@ RUN apt-get update \
   && mkdir -p /app/storage/documents \
   && chown -R orbit:orbit /app
 
-COPY --from=builder --chown=orbit:orbit /app/node_modules ./node_modules
-COPY --from=builder --chown=orbit:orbit /app/dist ./dist
-COPY --from=builder --chown=orbit:orbit /app/package.json ./package.json
+COPY --from=production-dependencies --chown=orbit:orbit /app/node_modules ./node_modules
+COPY --from=production-dependencies --chown=orbit:orbit /app/dist ./dist
+COPY --from=production-dependencies --chown=orbit:orbit /app/package.json ./package.json
 
 USER orbit
 EXPOSE 3001

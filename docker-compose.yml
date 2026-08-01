@@ -34,6 +34,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+      HOST: ${API_HOST:-0.0.0.0}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
       JWT_ISSUER: ${JWT_ISSUER:-orbit-api}
@@ -52,14 +53,18 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@orbit.local}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:?PLATFORM_ADMIN_EMAIL is required}
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:?PLATFORM_ADMIN_PASSWORD is required}
+      PLATFORM_ADMIN_FIRST_NAME: ${PLATFORM_ADMIN_FIRST_NAME:?PLATFORM_ADMIN_FIRST_NAME is required}
+      PLATFORM_ADMIN_LAST_NAME: ${PLATFORM_ADMIN_LAST_NAME:?PLATFORM_ADMIN_LAST_NAME is required}
     ports:
-      - "${API_PORT:-3001}:3001"
+      - "0.0.0.0:${API_PORT:-3001}:3001"
     volumes:
       - operation_attachments:/app/storage/operations
       - generated_documents:/app/storage/documents
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -78,6 +83,24 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: migrator
+    image: orbit-api-migrator:${ORBIT_VERSION:-latest}
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - orbit_private
+    security_opt:
+      - no-new-privileges:true
+
   frontend:
     build:
       context: ./frontend
@@ -91,6 +114,7 @@ services:
       PORT: 3000
       HOSTNAME: 0.0.0.0
       ORBIT_API_URL: http://api:3001
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:

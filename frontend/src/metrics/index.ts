@@ -8,6 +8,7 @@ export {
   formatMetricValue,
   getMetric,
   isMetricVisible,
+  metricLabel,
   provenanceMarkFor,
   resolveMetric,
   sortByPriority,

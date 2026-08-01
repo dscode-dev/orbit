@@ -16,6 +16,7 @@ export const ROUTES = {
   operations: "/operacoes",
   /** Landing do Platform Administrator (painel será implementado adiante). */
   platform: "/plataforma",
+  designSystem: "/design-system",
 } as const;
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];
@@ -27,7 +28,10 @@ export const PROTECTED_PREFIXES: readonly string[] = [
 ];
 
 /** Áreas exclusivas do Platform Administrator. */
-export const PLATFORM_PREFIXES: readonly string[] = [ROUTES.platform];
+export const PLATFORM_PREFIXES: readonly string[] = [
+  ROUTES.platform,
+  ROUTES.designSystem,
+];
 
 /** Áreas exclusivas de visitantes — usuário autenticado é redirecionado. */
 export const GUEST_PREFIXES: readonly string[] = [

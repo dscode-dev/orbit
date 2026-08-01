@@ -35,7 +35,7 @@ function baseOptions(maxAge: number): CookieOptions {
   return {
     httpOnly: true,
     sameSite: "lax",
-    secure: serverEnv.isProduction,
+    secure: serverEnv.authCookieSecure,
     path: "/",
     maxAge,
   };

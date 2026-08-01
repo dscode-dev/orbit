@@ -18,38 +18,42 @@ import { OrbitLogo } from "@/components/brand/orbit-logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-
-
 const features = [
   {
     icon: Boxes,
     title: "Inventário em tempo real",
-    description: "Estoque, lotes e movimentações sincronizados em cada unidade operacional.",
+    description:
+      "Estoque, lotes e movimentações sincronizados em cada unidade operacional.",
   },
   {
     icon: Workflow,
     title: "Processos orquestrados",
-    description: "Fluxos configuráveis com aprovações, SLAs e trilha de auditoria completa.",
+    description:
+      "Fluxos configuráveis com aprovações, SLAs e trilha de auditoria completa.",
   },
   {
     icon: BarChart3,
     title: "Indicadores acionáveis",
-    description: "KPIs e relatórios prontos, com drill-down até o documento de origem.",
+    description:
+      "KPIs e relatórios prontos, com drill-down até o documento de origem.",
   },
   {
     icon: ShieldCheck,
     title: "Governança e permissões",
-    description: "Papéis granulares, segregação por workspace e log de tudo que acontece.",
+    description:
+      "Papéis granulares, segregação por workspace e log de tudo que acontece.",
   },
   {
     icon: Cpu,
     title: "Automação assistida",
-    description: "Copilot sugere ações e antecipa rupturas antes que virem problema.",
+    description:
+      "Copilot sugere ações e antecipa rupturas antes que virem problema.",
   },
   {
     icon: Layers,
     title: "Design system próprio",
-    description: "Interface consistente, acessível e pronta para novos módulos de negócio.",
+    description:
+      "Interface consistente, acessível e pronta para novos módulos de negócio.",
   },
 ];
 
@@ -66,19 +70,22 @@ function Header() {
         <Link href="/" aria-label="Orbit — início">
           <OrbitLogo />
         </Link>
-        <nav aria-label="Navegação" className="hidden items-center gap-6 md:flex">
-          <a href="#recursos" className="text-sm text-muted-foreground hover:text-foreground">
-            Recursos
-          </a>
-          <a href="#plataforma" className="text-sm text-muted-foreground hover:text-foreground">
-            Plataforma
-          </a>
-          <Link
-            href="/design-system"
+        <nav
+          aria-label="Navegação"
+          className="hidden items-center gap-6 md:flex"
+        >
+          <a
+            href="#recursos"
             className="text-sm text-muted-foreground hover:text-foreground"
           >
-            Design System
-          </Link>
+            Recursos
+          </a>
+          <a
+            href="#plataforma"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Plataforma
+          </a>
         </nav>
         <div className="flex items-center gap-2">
           <Button asChild variant="ghost" size="sm">
@@ -117,12 +124,14 @@ export default function LandingPage() {
               </Badge>
               <h1 className="mt-5 font-display text-4xl leading-[1.05] font-bold tracking-tight text-foreground sm:text-6xl">
                 O ERP de operações que gira{" "}
-                <span className="text-gradient-orbit">em torno do seu negócio</span>
+                <span className="text-gradient-orbit">
+                  em torno do seu negócio
+                </span>
               </h1>
               <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                Inventário, pessoas, processos e indicadores em uma única plataforma. Rápida,
-                clara e construída sobre um design system próprio — pronta para escalar com a sua
-                operação.
+                Inventário, pessoas, processos e indicadores em uma única
+                plataforma. Rápida, clara e construída sobre um design system
+                próprio — pronta para escalar com a sua operação.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Button asChild size="lg">
@@ -132,12 +141,19 @@ export default function LandingPage() {
                   </Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
-                  <Link href="/design-system">Ver design system</Link>
+                  <a href="#recursos">Conhecer recursos</a>
                 </Button>
               </div>
               <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2">
-                {["Implantação guiada", "Sem custo de setup", "Suporte em português"].map((i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                {[
+                  "Implantação guiada",
+                  "Sem custo de setup",
+                  "Suporte em português",
+                ].map((i) => (
+                  <li
+                    key={i}
+                    className="flex items-center gap-2 text-sm text-muted-foreground"
+                  >
                     <CheckCircle2 className="size-4 text-success" />
                     {i}
                   </li>
@@ -148,13 +164,21 @@ export default function LandingPage() {
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+              transition={{
+                duration: 0.5,
+                delay: 0.12,
+                ease: [0.22, 1, 0.36, 1],
+              }}
               className="mt-16 grid gap-4 sm:grid-cols-3"
             >
               {metrics.map((m) => (
                 <div key={m.label} className="glass-panel rounded-2xl p-6">
-                  <p className="font-display text-3xl font-bold text-foreground">{m.value}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{m.label}</p>
+                  <p className="font-display text-3xl font-bold text-foreground">
+                    {m.value}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {m.label}
+                  </p>
                 </div>
               ))}
             </motion.div>
@@ -162,13 +186,17 @@ export default function LandingPage() {
         </section>
 
         {/* Features */}
-        <section id="recursos" className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
+        <section
+          id="recursos"
+          className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6"
+        >
           <div className="max-w-2xl">
             <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
               Tudo que a operação precisa, em um só lugar
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Módulos que conversam entre si, sem planilhas paralelas e sem integrações frágeis.
+              Módulos que conversam entre si, sem planilhas paralelas e sem
+              integrações frágeis.
             </p>
           </div>
 
@@ -185,7 +213,9 @@ export default function LandingPage() {
                 <span className="bg-gradient-orbit inline-flex size-10 items-center justify-center rounded-xl text-primary-foreground">
                   <f.icon className="size-5" />
                 </span>
-                <h3 className="mt-4 text-base font-semibold text-foreground">{f.title}</h3>
+                <h3 className="mt-4 text-base font-semibold text-foreground">
+                  {f.title}
+                </h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {f.description}
                 </p>
@@ -202,8 +232,9 @@ export default function LandingPage() {
                 Uma base visual sólida para cada novo módulo
               </h2>
               <p className="mt-3 text-muted-foreground">
-                Tokens de cor, tipografia, motion e componentes documentados. Toda nova tela nasce
-                consistente, acessível e no ritmo da marca Orbit.
+                Tokens de cor, tipografia, motion e componentes documentados.
+                Toda nova tela nasce consistente, acessível e no ritmo da marca
+                Orbit.
               </p>
               <ul className="mt-6 space-y-3">
                 {[
@@ -211,15 +242,18 @@ export default function LandingPage() {
                   "Componentes shadcn/ui adaptados e documentados",
                   "Command palette, atalhos e navegação previsível",
                 ].map((i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-foreground">
+                  <li
+                    key={i}
+                    className="flex items-start gap-2 text-sm text-foreground"
+                  >
                     <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
                     {i}
                   </li>
                 ))}
               </ul>
               <Button asChild className="mt-8" variant="outline">
-                <Link href="/design-system">
-                  Explorar componentes
+                <Link href="/cadastro">
+                  Começar agora
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
@@ -233,7 +267,10 @@ export default function LandingPage() {
                   { label: "Itens críticos", value: "12" },
                   { label: "Ciclo médio", value: "3,2d" },
                 ].map((s) => (
-                  <div key={s.label} className="rounded-xl border border-border bg-card p-4">
+                  <div
+                    key={s.label}
+                    className="rounded-xl border border-border bg-card p-4"
+                  >
                     <p className="text-xs text-muted-foreground">{s.label}</p>
                     <p className="mt-1 font-mono text-xl font-semibold text-foreground">
                       {s.value}
@@ -242,10 +279,15 @@ export default function LandingPage() {
                 ))}
               </div>
               <div className="mt-4 rounded-xl border border-border bg-card p-4">
-                <p className="text-xs text-muted-foreground">Ocupação por unidade</p>
+                <p className="text-xs text-muted-foreground">
+                  Ocupação por unidade
+                </p>
                 <div className="mt-3 space-y-2">
                   {[82, 64, 41].map((v, i) => (
-                    <div key={i} className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      key={i}
+                      className="h-2 w-full overflow-hidden rounded-full bg-muted"
+                    >
                       <div
                         className="bg-gradient-orbit h-full rounded-full"
                         style={{ width: `${v}%` }}
@@ -265,7 +307,8 @@ export default function LandingPage() {
               Coloque sua operação em órbita
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm text-primary-foreground/85 sm:text-base">
-              Comece pelo acesso à plataforma e evolua módulo a módulo, no seu ritmo.
+              Comece pelo acesso à plataforma e evolua módulo a módulo, no seu
+              ritmo.
             </p>
             <Button asChild size="lg" variant="secondary" className="mt-8">
               <Link href="/login">
@@ -281,7 +324,8 @@ export default function LandingPage() {
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
           <OrbitLogo />
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Orbit Operations ERP. Todos os direitos reservados.
+            © {new Date().getFullYear()} Orbit Operations ERP. Todos os direitos
+            reservados.
           </p>
         </div>
       </footer>

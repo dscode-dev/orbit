@@ -43,6 +43,16 @@ export const serverEnv = {
   get isProduction(): boolean {
     return process.env.NODE_ENV === "production";
   },
+  /**
+   * Cookies Secure exigem HTTPS. Deploys locais em HTTP precisam desabilitar
+   * explicitamente essa flag; produção pública deve mantê-la habilitada.
+   */
+  get authCookieSecure(): boolean {
+    const configured = process.env.AUTH_COOKIE_SECURE?.trim().toLowerCase();
+    if (configured === "true") return true;
+    if (configured === "false") return false;
+    return process.env.NODE_ENV === "production";
+  },
 } as const;
 
 export const publicEnv = {

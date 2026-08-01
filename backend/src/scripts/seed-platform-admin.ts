@@ -3,14 +3,15 @@ import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { config } from 'dotenv';
 import { resolve } from 'node:path';
-import { generateUuidV7 } from '../src/utils';
+import { generateUuidV7 } from '../utils';
 
 config({ path: resolve(process.cwd(), '.env'), quiet: true });
 config({ path: resolve(process.cwd(), '../.env'), quiet: true });
 
 const required = (key: string): string => {
   const value = process.env[key]?.trim();
-  if (!value) throw new Error(`Required environment variable ${key} is missing`);
+  if (!value)
+    throw new Error(`Required environment variable ${key} is missing`);
   return value;
 };
 
@@ -19,7 +20,9 @@ const password = required('PLATFORM_ADMIN_PASSWORD');
 const firstName = required('PLATFORM_ADMIN_FIRST_NAME');
 const lastName = required('PLATFORM_ADMIN_LAST_NAME');
 if (password.length < 12) {
-  throw new Error('PLATFORM_ADMIN_PASSWORD must contain at least 12 characters');
+  throw new Error(
+    'PLATFORM_ADMIN_PASSWORD must contain at least 12 characters',
+  );
 }
 
 const prisma = new PrismaClient({

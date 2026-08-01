@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HTTP em claro liberado **apenas em debug**.
+
+  A API de desenvolvimento roda em HTTP na rede local (emulador em 10.0.2.2,
+  aparelho físico no IP da máquina). Desde o Android 9 o sistema bloqueia
+  cleartext por padrão, e o bloqueio aparece como falha de conexão genérica.
+
+  Este arquivo vive em `src/debug/`: não entra no APK de release, que continua
+  exigindo HTTPS.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

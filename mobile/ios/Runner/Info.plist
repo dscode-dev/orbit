@@ -74,5 +74,17 @@
 	<string>O Orbit usa o microfone ao gravar vídeos de evidência das operações.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>O Orbit usa sua localização para calcular a distância até o local do atendimento.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>O Orbit acessa a rede local para falar com o servidor da sua empresa quando ele está na mesma rede.</string>
+	<!--
+	  ATS: libera HTTP apenas para endereços de rede local (RFC 1918, link-local
+	  e .local). Chamadas à internet continuam exigindo HTTPS — não usamos
+	  NSAllowsArbitraryLoads, que derrubaria a exigência inteira.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

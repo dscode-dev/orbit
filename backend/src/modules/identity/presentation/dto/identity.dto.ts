@@ -10,6 +10,10 @@ import {
   MinLength,
 } from 'class-validator';
 import { BusinessUnitType } from '../../../../contracts';
+import {
+  detectBrazilianDocumentType,
+  normalizeBrazilianDocument,
+} from '../../../../utils';
 import { IsDocument, IsUUIDv7 } from '../../../../validators';
 
 const normalizeEmail = ({ value }: { value: unknown }): unknown =>
@@ -82,10 +86,19 @@ export class RegisterOrganizationDto {
   legalName!: string;
 
   @ApiProperty()
+  @Transform(
+    ({ value, obj }: { value: unknown; obj: Record<string, unknown> }) =>
+      typeof obj.documentNumber === 'string'
+        ? (detectBrazilianDocumentType(obj.documentNumber) ?? value)
+        : value,
+  )
   @IsIn(['CPF', 'CNPJ'])
   documentType!: string;
 
   @ApiProperty()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? normalizeBrazilianDocument(value) : value,
+  )
   @IsDocument()
   @IsString()
   @MinLength(11)

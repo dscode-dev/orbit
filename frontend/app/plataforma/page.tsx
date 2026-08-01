@@ -11,6 +11,7 @@
 import { Building2, ShieldCheck, Users } from "lucide-react";
 
 import { OrbitLogo } from "@/components/brand/orbit-logo";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -101,6 +102,11 @@ function PlatformLanding() {
             </CardContent>
           </Card>
         ))}
+      </div>
+      <div className="border-t border-border pt-6">
+        <Button asChild variant="outline">
+          <Link href="/design-system">Abrir Design System</Link>
+        </Button>
       </div>
     </main>
   );

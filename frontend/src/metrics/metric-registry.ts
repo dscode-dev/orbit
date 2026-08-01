@@ -229,6 +229,26 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     capability: "operations.read",
   }),
   define({
+    id: "operations.created",
+    label: "Operações criadas",
+    description: "Quantidade de operações criadas no período.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: Activity,
+    trendColor: higherIsBetter,
+    priority: 31,
+  }),
+  define({
+    id: "operations.completed",
+    label: "Operações concluídas",
+    description: "Quantidade de operações concluídas no período.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: CheckCircle2,
+    trendColor: higherIsBetter,
+    priority: 32,
+  }),
+  define({
     id: "pmoc.compliance",
     label: "PMOCs finalizados",
     description: "Relatórios PMOC finalizados sobre os gerados no período.",
@@ -238,6 +258,16 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     trendColor: higherIsBetter,
     priority: 40,
     capability: "reports.read",
+  }),
+  define({
+    id: "pmoc.generated",
+    label: "PMOCs gerados",
+    description: "Quantidade de documentos PMOC gerados no período.",
+    category: "PMOC",
+    unit: "count",
+    icon: ClipboardCheck,
+    trendColor: higherIsBetter,
+    priority: 41,
   }),
   define({
     id: "equipment.availability",
@@ -345,6 +375,19 @@ const CATEGORY_ICONS: Readonly<Record<MetricCategory, MetricIcon>> = {
 
 export function getMetric(id: string): MetricDefinition | undefined {
   return BY_ID.get(id);
+}
+
+/** Rótulo amigável para ids usados fora do contrato completo de KPI. */
+export function metricLabel(id: string): string {
+  const baseId = id.endsWith(".forecast") ? id.slice(0, -9) : id;
+  return BY_ID.get(baseId)?.label ?? humanizeMetricId(baseId);
+}
+
+function humanizeMetricId(id: string): string {
+  const value = id.split(".").at(-1) ?? id;
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export function allMetrics(): readonly MetricDefinition[] {

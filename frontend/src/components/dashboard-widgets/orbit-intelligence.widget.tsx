@@ -22,7 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AnalyticsDirection } from "@/types/dashboard";
-import { STATUS_CLASSES, STATUS_LABELS } from "@/metrics";
+import { metricLabel, STATUS_CLASSES, STATUS_LABELS } from "@/metrics";
 import { formatConfidence } from "@/lib/formatters";
 import type { WidgetProps } from "./widget-registry";
 import { PanelFrame, PanelState } from "@/components/panels";
@@ -46,7 +46,7 @@ export function OrbitIntelligenceWidget({ widget, analytics }: WidgetProps) {
       description={widget.description}
       actions={
         healthScore === undefined ? null : (
-          <Badge variant="secondary">Health {Math.round(healthScore)}</Badge>
+          <Badge variant="secondary">Saúde {Math.round(healthScore)}</Badge>
         )
       }
     >
@@ -73,8 +73,8 @@ export function OrbitIntelligenceWidget({ widget, analytics }: WidgetProps) {
                       key={priority.indicator}
                       className="flex items-center justify-between gap-2 text-sm"
                     >
-                      <span className="min-w-0 truncate font-mono text-xs">
-                        {priority.indicator}
+                      <span className="min-w-0 truncate text-sm">
+                        {metricLabel(priority.indicator)}
                       </span>
                       <span
                         className={cn(
@@ -119,8 +119,8 @@ export function OrbitIntelligenceWidget({ widget, analytics }: WidgetProps) {
                       key={trend.id}
                       className="flex items-center justify-between gap-2 text-sm"
                     >
-                      <span className="min-w-0 truncate font-mono text-xs">
-                        {trend.id}
+                      <span className="min-w-0 truncate text-sm">
+                        {metricLabel(trend.id)}
                       </span>
                       <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                         <Icon className="size-3.5" aria-hidden />
@@ -137,8 +137,8 @@ export function OrbitIntelligenceWidget({ widget, analytics }: WidgetProps) {
                       key={forecast.id}
                       className="flex items-center justify-between gap-2 text-xs text-muted-foreground"
                     >
-                      <span className="min-w-0 truncate font-mono">
-                        {forecast.id}
+                      <span className="min-w-0 truncate">
+                        Projeção de {metricLabel(forecast.id).toLowerCase()}
                       </span>
                       <span className="shrink-0">
                         {forecast.nextValue} ·{" "}

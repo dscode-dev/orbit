@@ -55,8 +55,10 @@ No password or credential hash is returned by any endpoint.
 
 ## First platform administrator seed
 
-Apply the generated migration manually first, then configure these values in
-`backend/.env` or the repository root `.env`:
+When running the API directly, apply the generated migration first. In Docker
+Compose, the one-shot `migrate` service executes `prisma migrate deploy` after
+PostgreSQL becomes healthy and the API starts only after it succeeds. Configure
+these values in `backend/.env` or the repository root `.env`:
 
 ```dotenv
 PLATFORM_ADMIN_EMAIL=admin@example.com
@@ -90,4 +92,16 @@ own active assignment during login bootstrap; only an already-authorized
 platform administrator can mutate assignments through application RLS.
 
 The migration was generated for manual application and is not executed by the
-application or seed.
+application or seed. The Docker Compose deployment flow now applies pending
+migrations through its dedicated `migrate` service.
+
+The production image runs the compiled seed with Node and does not depend on
+`ts-node`. After rebuilding and starting the stack, bootstrap the account with:
+
+```bash
+docker compose exec api npm run seed:platform-admin
+```
+
+The API listens on `API_HOST` (default `0.0.0.0`) and Compose publishes
+`0.0.0.0:${API_PORT:-3001}`, allowing access from the local network. Keep the
+host firewall and credentials configured appropriately for that exposure.
