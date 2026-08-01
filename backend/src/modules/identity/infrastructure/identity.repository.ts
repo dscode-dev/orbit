@@ -5,6 +5,10 @@ import { PrismaService } from '../../../database';
 const identityInclude = {
   credential: true,
   mfaFactors: { where: { verifiedAt: { not: null }, deletedAt: null } },
+  platformRoleAssignments: {
+    where: { revokedAt: null },
+    include: { role: true },
+  },
   organizationMemberships: {
     where: { status: 'ACTIVE', deletedAt: null },
     include: { role: true },
@@ -36,9 +40,29 @@ export class IdentityRepository {
     return this.findIdentity(id);
   }
 
+  hasActivePlatformRole(userId: string, roleKey: string): Promise<boolean> {
+    return this.prisma.$transaction(async (transaction) => {
+      await this.setLocal(transaction, 'app.user_id', userId);
+      const assignment = await transaction.platformRoleAssignment.findFirst({
+        where: {
+          userId,
+          revokedAt: null,
+          role: {
+            key: roleKey,
+            organizationId: null,
+            deletedAt: null,
+          },
+        },
+        select: { id: true },
+      });
+      return Boolean(assignment);
+    });
+  }
+
   private findIdentity(id: string): Promise<IdentityUser | null> {
     return this.prisma.$transaction(async (transaction) => {
       await this.setLocal(transaction, 'app.user_id', id);
+      await this.setLocal(transaction, 'app.is_platform_admin', 'false');
       const organization = await transaction.organizationMembership.findFirst({
         where: { userId: id, status: 'ACTIVE', deletedAt: null },
         select: { organizationId: true },

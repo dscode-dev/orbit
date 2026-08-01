@@ -4,15 +4,31 @@ import { PrismaService } from '../../../database';
 import { generateUuidV7 } from '../../../utils';
 import type { RegisterOrganizationDto } from '../presentation/dto/identity.dto';
 
+export type TenantProvisioningOptions = {
+  actorUserId?: string;
+  platformAdmin?: boolean;
+  organizationStatus?: string;
+  subscriptionStatus?: string;
+  subscriptionStartedAt?: Date;
+  currentPeriodEnd?: Date;
+  externalCustomerId?: string;
+  externalSubscriptionId?: string;
+};
+
 @Injectable()
 export class RegistrationRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  register(input: RegisterOrganizationDto, passwordHash: string, slug: string) {
+  register(
+    input: RegisterOrganizationDto,
+    passwordHash: string,
+    slug: string,
+    options: TenantProvisioningOptions = {},
+  ) {
     const userId = generateUuidV7();
     const organizationId = generateUuidV7();
     const businessUnitId = generateUuidV7();
-    const now = new Date();
+    const now = options.subscriptionStartedAt ?? new Date();
     const trialEndsAt = new Date(now);
     trialEndsAt.setUTCDate(trialEndsAt.getUTCDate() + 14);
 
@@ -22,7 +38,16 @@ export class RegistrationRepository {
       });
       if (!plan) return null;
 
-      await this.setLocal(transaction, 'app.user_id', userId);
+      await this.setLocal(
+        transaction,
+        'app.user_id',
+        options.actorUserId ?? userId,
+      );
+      await this.setLocal(
+        transaction,
+        'app.is_platform_admin',
+        String(options.platformAdmin ?? false),
+      );
       await this.setLocal(transaction, 'app.organization_id', organizationId);
       await this.setLocal(transaction, 'app.business_unit_id', businessUnitId);
       await this.setLocal(transaction, 'app.business_unit_ids', businessUnitId);
@@ -48,11 +73,13 @@ export class RegistrationRepository {
           slug,
           displayName: input.organizationName.trim(),
           primarySegment: input.primarySegment,
-          status: 'ACTIVE',
-          subscriptionStatus: 'TRIALING',
+          status: options.organizationStatus ?? 'ACTIVE',
+          subscriptionStatus: options.subscriptionStatus ?? 'TRIALING',
           subscriptionStartedAt: now,
           currentPeriodStart: now,
-          currentPeriodEnd: trialEndsAt,
+          currentPeriodEnd: options.currentPeriodEnd ?? trialEndsAt,
+          externalCustomerId: options.externalCustomerId,
+          externalSubscriptionId: options.externalSubscriptionId,
         },
       });
       const ownerRole = await transaction.role.create({
@@ -91,6 +118,23 @@ export class RegistrationRepository {
           roleId: ownerRole.id,
         },
       });
+      if (options.platformAdmin) {
+        await transaction.auditLog.create({
+          data: {
+            organizationId,
+            userId: options.actorUserId,
+            action: 'PLATFORM_TENANT_CREATED',
+            entityType: 'ORGANIZATION',
+            entityId: organizationId,
+            after: {
+              ownerUserId: userId,
+              planKey: plan.key,
+              status: options.organizationStatus ?? 'ACTIVE',
+              subscriptionStatus: options.subscriptionStatus ?? 'TRIALING',
+            },
+          },
+        });
+      }
       return { userId, organizationId, businessUnitId };
     });
   }

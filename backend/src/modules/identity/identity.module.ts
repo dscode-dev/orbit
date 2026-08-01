@@ -60,6 +60,6 @@ import { ProfileController } from './presentation/profile.controller';
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: RoleGuard },
   ],
-  exports: [IdentityTokenService, IdentityRepository],
+  exports: [IdentityTokenService, IdentityRepository, RegistrationRepository],
 })
 export class IdentityModule {}

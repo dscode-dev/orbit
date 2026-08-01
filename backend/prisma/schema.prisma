@@ -33,6 +33,7 @@ model User {
   sessions                Session[]
   ownedOrganizations      Organization[]                 @relation("OrganizationOwner")
   organizationMemberships OrganizationMembership[]
+  platformRoleAssignments PlatformRoleAssignment[]
   businessUnitMemberships BusinessUnitMembership[]
   operationAssignments    OperationUser[]                @relation("OperationAssignedUser")
   assignedOperations      OperationUser[]                @relation("OperationAssignedBy")
@@ -326,10 +327,30 @@ model Role {
   organizationMemberships OrganizationMembership[]
   businessUnitMemberships BusinessUnitMembership[]
   invitations             IdentityInvitation[]
+  platformAssignments     PlatformRoleAssignment[]
 
   @@unique([organizationId, key])
   @@index([organizationId, isSystem, deletedAt])
   @@map("roles")
+}
+
+/// Global roles are assigned independently from tenant memberships. A
+/// PLATFORM_ADMIN can therefore authenticate without belonging to a customer
+/// organization and receives RLS bypass only through its signed identity.
+model PlatformRoleAssignment {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  roleId    String    @map("role_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, roleId])
+  @@index([userId, revokedAt])
+  @@index([roleId, revokedAt])
+  @@map("platform_role_assignments")
 }
 
 model Module {

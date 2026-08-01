@@ -52,6 +52,16 @@ export class JwtAuthenticationGuard implements CanActivate {
       ) {
         throw new UnauthorizedException();
       }
+      if (
+        claims.roles.includes('PLATFORM_ADMIN') &&
+        !(await this.repository.hasActivePlatformRole(
+          claims.sub,
+          'PLATFORM_ADMIN',
+        ))
+      ) {
+        await this.repository.revokeSession(session.id);
+        throw new UnauthorizedException('Platform access was revoked');
+      }
       const identity: AuthenticatedIdentity = {
         id: claims.sub,
         sessionId: claims.sid,

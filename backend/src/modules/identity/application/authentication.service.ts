@@ -145,6 +145,10 @@ export class AuthenticationService {
     );
     const roles = new Set<string>();
     const permissions = new Set<string>();
+    user.platformRoleAssignments.forEach((assignment) => {
+      roles.add(assignment.role.key);
+      assignment.role.permissions.forEach((item) => permissions.add(item));
+    });
     if (organization) {
       roles.add(organization.role.key);
       organization.role.permissions.forEach((item) => permissions.add(item));
