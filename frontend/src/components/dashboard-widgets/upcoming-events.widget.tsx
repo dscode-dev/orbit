@@ -16,9 +16,9 @@ import { CalendarClock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Timeline } from "@/components/ui/timeline";
 import type { SchedulingOccurrenceReadModel } from "@/types/dashboard";
-import { formatDateTime } from "./format";
+import { formatDateTime } from "@/lib/formatters";
 import type { WidgetProps } from "./widget-registry";
-import { WidgetFrame, WidgetState } from "./widget-frame";
+import { PanelFrame, PanelState } from "@/components/panels";
 
 /** Quantos eventos futuros exibir. */
 const MAX_EVENTS = 8;
@@ -37,8 +37,8 @@ export function UpcomingEventsWidget({ widget, scheduling }: WidgetProps) {
   const total = scheduling.agenda.data?.summary.total;
 
   return (
-    <WidgetFrame
-      widgetId={widget.id}
+    <PanelFrame
+      panelId={widget.id}
       title={widget.title}
       description={widget.description}
       actions={
@@ -50,7 +50,7 @@ export function UpcomingEventsWidget({ widget, scheduling }: WidgetProps) {
         )
       }
     >
-      <WidgetState
+      <PanelState
         query={scheduling.agenda}
         loadingRows={4}
         emptyMessage="Nenhum evento agendado para os próximos dias."
@@ -66,8 +66,8 @@ export function UpcomingEventsWidget({ widget, scheduling }: WidgetProps) {
             }))}
           />
         )}
-      </WidgetState>
-    </WidgetFrame>
+      </PanelState>
+    </PanelFrame>
   );
 }
 

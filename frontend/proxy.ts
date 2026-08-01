@@ -137,6 +137,7 @@ function destinationForVisitor(
 export const config = {
   matcher: [
     "/dashboard/:path*",
+    "/operacoes/:path*",
     "/plataforma/:path*",
     "/login",
     "/cadastro",

@@ -19,6 +19,7 @@
  */
 import type { ComponentType } from "react";
 
+import type { PanelQuery } from "@/components/panels";
 import type {
   AgendaReadModel,
   AnalyticsDashboardReadModel,
@@ -35,26 +36,18 @@ import { createKpiDomainWidget } from "./kpi-domain.widget";
 import { OperationalTrendWidget } from "./operational-trend.widget";
 import { OrbitIntelligenceWidget } from "./orbit-intelligence.widget";
 import { UpcomingEventsWidget } from "./upcoming-events.widget";
-import { WidgetFrame, WidgetWithoutSource } from "./widget-frame";
-
-/** Resultado de uma consulta, no formato que os widgets consomem. */
-export interface WidgetQuery<TData> {
-  data: TData | undefined;
-  isPending: boolean;
-  error: unknown;
-  refetch: () => void;
-}
+import { PanelFrame, PanelWithoutSource } from "@/components/panels";
 
 /** Leituras compartilhadas por todos os widgets do painel. */
 export interface WidgetDataSources {
   analytics: {
-    dashboard: WidgetQuery<AnalyticsDashboardReadModel>;
-    health: WidgetQuery<AnalyticsHealthReadModel>;
-    intelligence: WidgetQuery<OrbitIntelligenceAnalyticsContext>;
-    environmentalImpact: WidgetQuery<EnvironmentalImpactReadModel>;
+    dashboard: PanelQuery<AnalyticsDashboardReadModel>;
+    health: PanelQuery<AnalyticsHealthReadModel>;
+    intelligence: PanelQuery<OrbitIntelligenceAnalyticsContext>;
+    environmentalImpact: PanelQuery<EnvironmentalImpactReadModel>;
   };
   scheduling: {
-    agenda: WidgetQuery<AgendaReadModel>;
+    agenda: PanelQuery<AgendaReadModel>;
   };
 }
 
@@ -115,13 +108,13 @@ const WITHOUT_SOURCE: Readonly<Record<string, string>> = {
 function createWithoutSourceWidget(reason: string): WidgetComponent {
   function WithoutSourceWidget({ widget }: WidgetProps) {
     return (
-      <WidgetFrame
-        widgetId={widget.id}
+      <PanelFrame
+        panelId={widget.id}
         title={widget.title}
         description={widget.description}
       >
-        <WidgetWithoutSource reason={reason} />
-      </WidgetFrame>
+        <PanelWithoutSource reason={reason} />
+      </PanelFrame>
     );
   }
   WithoutSourceWidget.displayName = "WithoutSourceWidget";

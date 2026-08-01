@@ -4,77 +4,64 @@
  * KPIs executivos — `GET /analytics/dashboard` (`metrics`).
  *
  * Cada indicador chega pronto do backend: valor, unidade, alvo, status,
- * direção, variação, origem e procedência. O widget só apresenta.
+ * direção, variação, origem e procedência. Toda a apresentação (rótulo,
+ * ícone, cor, formato, favorabilidade e marca de procedência) vem do Metric
+ * Registry — o componente não decide nada disso.
  */
-import { Activity, Gauge, TrendingUp, Users, Wrench } from "lucide-react";
-import type { ComponentType } from "react";
-
 import { StatCard } from "@/components/ui/stat-card";
 import { cn } from "@/lib/utils";
-import type { AnalyticsDomain, AnalyticsKpi } from "@/types/dashboard";
 import {
-  formatChange,
-  formatMetric,
+  MetricProvenanceMark,
+  presentMetric,
+  sortByPriority,
   STATUS_CLASSES,
   STATUS_LABELS,
-  toTrend,
-} from "./format";
-import { ProvenanceMark } from "./provenance";
+  type PresentedMetric,
+} from "@/metrics";
+import { PanelFrame, PanelState } from "@/components/panels";
 import type { WidgetProps } from "./widget-registry";
-import { WidgetFrame, WidgetState } from "./widget-frame";
-
-/** Ícone por domínio — o backend não define ícones. */
-const DOMAIN_ICONS: Readonly<
-  Record<AnalyticsDomain, ComponentType<{ className?: string }>>
-> = {
-  OPERATIONS: Activity,
-  PMOC: Gauge,
-  EQUIPMENT: Wrench,
-  TECHNICIANS: Users,
-  CONTRACTS: TrendingUp,
-  ENVIRONMENT: Gauge,
-};
 
 export function ExecutiveKpisWidget({ widget, analytics }: WidgetProps) {
   return (
-    <WidgetFrame
-      widgetId={widget.id}
+    <PanelFrame
+      panelId={widget.id}
       title={widget.title}
       description={widget.description}
     >
-      <WidgetState
+      <PanelState
         query={analytics.dashboard}
         loadingRows={4}
         isEmpty={(data) => data.metrics.length === 0}
       >
         {(data) => (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {data.metrics.map((metric) => (
-              <KpiTile key={metric.id} metric={metric} />
+            {sortByPriority(data.metrics).map((metric) => (
+              <KpiTile key={metric.id} metric={presentMetric(metric)} />
             ))}
           </div>
         )}
-      </WidgetState>
-    </WidgetFrame>
+      </PanelState>
+    </PanelFrame>
   );
 }
 
-function KpiTile({ metric }: { metric: AnalyticsKpi }) {
-  const Icon = DOMAIN_ICONS[metric.domain];
-  const target =
-    metric.target === undefined
-      ? undefined
-      : `meta ${formatMetric(metric.target, metric.unit)}`;
-
+function KpiTile({ metric }: { metric: PresentedMetric }) {
+  const Icon = metric.icon;
   return (
     <div className="space-y-1.5">
       <StatCard
         label={metric.label}
-        value={formatMetric(metric.value, metric.unit)}
-        delta={formatChange(metric.changePercent)}
-        trend={toTrend(metric.direction)}
-        hint={target}
-        icon={<Icon className="size-4" />}
+        value={metric.value}
+        delta={metric.change}
+        trend={
+          metric.trendTone === "positive"
+            ? "up"
+            : metric.trendTone === "negative"
+              ? "down"
+              : "neutral"
+        }
+        hint={metric.target ? `meta ${metric.target}` : undefined}
+        icon={<Icon className={cn("size-4", metric.iconColor)} />}
       />
       <div className="flex flex-wrap items-center gap-1.5 px-1">
         <span
@@ -85,7 +72,11 @@ function KpiTile({ metric }: { metric: AnalyticsKpi }) {
         >
           {STATUS_LABELS[metric.status]}
         </span>
-        <ProvenanceMark quality={metric.dataQuality} source={metric.source} />
+        <MetricProvenanceMark
+          quality={metric.provenance.quality}
+          mark={metric.provenance.mark}
+          source={metric.provenance.source}
+        />
       </div>
     </div>
   );

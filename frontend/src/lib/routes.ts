@@ -13,6 +13,7 @@ export const ROUTES = {
   resetPassword: "/redefinir-senha",
   invitation: "/convite",
   dashboard: "/dashboard",
+  operations: "/operacoes",
   /** Landing do Platform Administrator (painel será implementado adiante). */
   platform: "/plataforma",
 } as const;
@@ -20,7 +21,10 @@ export const ROUTES = {
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];
 
 /** Áreas de tenant — exigem sessão e organização. */
-export const PROTECTED_PREFIXES: readonly string[] = [ROUTES.dashboard];
+export const PROTECTED_PREFIXES: readonly string[] = [
+  ROUTES.dashboard,
+  ROUTES.operations,
+];
 
 /** Áreas exclusivas do Platform Administrator. */
 export const PLATFORM_PREFIXES: readonly string[] = [ROUTES.platform];

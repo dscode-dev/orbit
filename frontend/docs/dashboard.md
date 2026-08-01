@@ -1,5 +1,8 @@
 # Orbit V2 — Dashboard (Frontend PR-03)
 
+> A apresentação das métricas migrou para o [Metric Registry](./metric-registry.md)
+> na PR-04, e os primitivos de painel viraram `@/components/panels`.
+
 Integração do Dashboard com os Read Models reais de Dashboard, Analytics e
 Scheduling, sobre a infraestrutura das PRs anteriores
 ([`frontend-core.md`](./frontend-core.md), [`authentication.md`](./authentication.md)).

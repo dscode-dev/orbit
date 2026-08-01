@@ -8,20 +8,20 @@
  * equivalentes existem no Analytics, classificados por `domain`: cada widget
  * aqui filtra os indicadores do seu domínio em `GET /analytics/dashboard`.
  *
- * Quando o domínio não devolve nenhum indicador, o widget declara ausência de
- * dados em vez de exibir zeros.
+ * Apresentação vem inteira do Metric Registry.
  */
 import { cn } from "@/lib/utils";
-import type { AnalyticsDomain, AnalyticsKpi } from "@/types/dashboard";
 import {
-  formatChange,
-  formatMetric,
+  MetricProvenanceMark,
+  presentMetric,
+  sortByPriority,
   STATUS_CLASSES,
   STATUS_LABELS,
-} from "./format";
-import { ProvenanceMark } from "./provenance";
+  type PresentedMetric,
+} from "@/metrics";
+import { PanelFrame, PanelState } from "@/components/panels";
+import type { AnalyticsDomain, AnalyticsKpi } from "@/types/dashboard";
 import type { WidgetProps } from "./widget-registry";
-import { WidgetFrame, WidgetState } from "./widget-frame";
 
 export interface KpiDomainWidgetOptions {
   /** Domínio do Analytics que alimenta o widget. */
@@ -38,20 +38,22 @@ export interface KpiDomainWidgetOptions {
  */
 export function createKpiDomainWidget(options: KpiDomainWidgetOptions) {
   const select = (metrics: readonly AnalyticsKpi[]): readonly AnalyticsKpi[] =>
-    metrics.filter(
-      (metric) =>
-        metric.domain === options.domain &&
-        (!options.indicatorIds || options.indicatorIds.includes(metric.id)),
+    sortByPriority(
+      metrics.filter(
+        (metric) =>
+          metric.domain === options.domain &&
+          (!options.indicatorIds || options.indicatorIds.includes(metric.id)),
+      ),
     );
 
   function KpiDomainWidget({ widget, analytics }: WidgetProps) {
     return (
-      <WidgetFrame
-        widgetId={widget.id}
+      <PanelFrame
+        panelId={widget.id}
         title={widget.title}
         description={widget.description}
       >
-        <WidgetState
+        <PanelState
           query={analytics.dashboard}
           loadingRows={2}
           emptyMessage="O Analytics não publica indicadores para este domínio no período."
@@ -60,12 +62,15 @@ export function createKpiDomainWidget(options: KpiDomainWidgetOptions) {
           {(data) => (
             <ul className="space-y-4">
               {select(data.metrics).map((indicator) => (
-                <IndicatorRow key={indicator.id} indicator={indicator} />
+                <IndicatorRow
+                  key={indicator.id}
+                  metric={presentMetric(indicator)}
+                />
               ))}
             </ul>
           )}
-        </WidgetState>
-      </WidgetFrame>
+        </PanelState>
+      </PanelFrame>
     );
   }
 
@@ -73,38 +78,40 @@ export function createKpiDomainWidget(options: KpiDomainWidgetOptions) {
   return KpiDomainWidget;
 }
 
-function IndicatorRow({ indicator }: { indicator: AnalyticsKpi }) {
-  const change = formatChange(indicator.changePercent);
+function IndicatorRow({ metric }: { metric: PresentedMetric }) {
   return (
     <li className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-3">
         <span className="min-w-0 truncate text-sm text-muted-foreground">
-          {indicator.label}
+          {metric.label}
         </span>
         <span className="font-display shrink-0 text-xl font-semibold">
-          {formatMetric(indicator.value, indicator.unit)}
+          {metric.value}
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <span
           className={cn(
             "rounded-md px-1.5 py-0.5 text-[11px] font-medium",
-            STATUS_CLASSES[indicator.status],
+            STATUS_CLASSES[metric.status],
           )}
         >
-          {STATUS_LABELS[indicator.status]}
+          {STATUS_LABELS[metric.status]}
         </span>
-        {change ? (
-          <span className="text-[11px] text-muted-foreground">{change}</span>
-        ) : null}
-        {indicator.target === undefined ? null : (
+        {metric.change ? (
           <span className="text-[11px] text-muted-foreground">
-            meta {formatMetric(indicator.target, indicator.unit)}
+            {metric.change}
           </span>
-        )}
-        <ProvenanceMark
-          quality={indicator.dataQuality}
-          source={indicator.source}
+        ) : null}
+        {metric.target ? (
+          <span className="text-[11px] text-muted-foreground">
+            meta {metric.target}
+          </span>
+        ) : null}
+        <MetricProvenanceMark
+          quality={metric.provenance.quality}
+          mark={metric.provenance.mark}
+          source={metric.provenance.source}
         />
       </div>
     </li>

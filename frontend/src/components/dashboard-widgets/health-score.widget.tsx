@@ -9,16 +9,16 @@
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import type { HealthDimension } from "@/types/dashboard";
-import { STATUS_CLASSES, STATUS_LABELS } from "./format";
+import { STATUS_CLASSES, STATUS_LABELS } from "@/metrics";
 import type { WidgetProps } from "./widget-registry";
-import { WidgetFrame, WidgetState } from "./widget-frame";
+import { PanelFrame, PanelState } from "@/components/panels";
 
 export function HealthScoreWidget({ widget, analytics }: WidgetProps) {
   const status = analytics.health.data?.status;
 
   return (
-    <WidgetFrame
-      widgetId={widget.id}
+    <PanelFrame
+      panelId={widget.id}
       title={widget.title}
       description={widget.description}
       actions={
@@ -34,7 +34,7 @@ export function HealthScoreWidget({ widget, analytics }: WidgetProps) {
         ) : null
       }
     >
-      <WidgetState query={analytics.health} loadingRows={4}>
+      <PanelState query={analytics.health} loadingRows={4}>
         {(data) => (
           <div className="space-y-5">
             <div className="flex items-baseline gap-2">
@@ -50,8 +50,8 @@ export function HealthScoreWidget({ widget, analytics }: WidgetProps) {
             </div>
           </div>
         )}
-      </WidgetState>
-    </WidgetFrame>
+      </PanelState>
+    </PanelFrame>
   );
 }
 

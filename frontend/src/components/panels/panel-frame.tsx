@@ -1,15 +1,15 @@
 "use client";
 
 /**
- * Moldura comum dos widgets.
+ * Moldura comum de painel.
  *
- * Concentra o que todo widget precisa e nenhum deve reimplementar: cabeçalho,
- * estados de carregamento, erro, vazio e indisponibilidade, além do Error
- * Boundary local.
+ * Concentra o que todo painel de dado remoto precisa e nenhum deve
+ * reimplementar: cabeçalho, carregamento, erro, vazio, acesso negado e Error
+ * Boundary local. Vale para widgets do Dashboard e para as seções do
+ * Operations Workspace.
  *
- * Nenhuma regra de autorização vive aqui nem nos widgets: quem decide o que o
- * tenant enxerga é o `WidgetResolver` do backend (via `GET /dashboard`) e o
- * registry do frontend. A moldura apenas apresenta o resultado.
+ * Nenhuma regra de autorização vive aqui: o backend decide o que responde, e
+ * o 403 é apresentado como ausência de acesso.
  */
 import type { ReactNode } from "react";
 import { CircleOff, Lock, RefreshCw, TriangleAlert } from "lucide-react";
@@ -26,27 +26,34 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
-import { WidgetErrorBoundary } from "./widget-error-boundary";
-import type { WidgetQuery } from "./widget-registry";
+import { PanelErrorBoundary } from "./panel-error-boundary";
 
-export interface WidgetFrameProps {
-  widgetId: string;
+/** Resultado de uma consulta, no formato que os painéis consomem. */
+export interface PanelQuery<TData> {
+  data: TData | undefined;
+  isPending: boolean;
+  error: unknown;
+  refetch: () => void;
+}
+
+export interface PanelFrameProps {
+  panelId: string;
   title: string;
   description?: string;
-  /** Renderizado à direita do cabeçalho (marcas, filtros, contadores). */
+  /** Renderizado à direita do cabeçalho (marcas, filtros, contadores, ações). */
   actions?: ReactNode;
   className?: string;
   children: ReactNode;
 }
 
-export function WidgetFrame({
-  widgetId,
+export function PanelFrame({
+  panelId,
   title,
   description,
   actions,
   className,
   children,
-}: WidgetFrameProps) {
+}: PanelFrameProps) {
   return (
     <Card className={cn("glass-panel h-full", className)}>
       <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
@@ -61,33 +68,32 @@ export function WidgetFrame({
         ) : null}
       </CardHeader>
       <CardContent>
-        <WidgetErrorBoundary
-          widgetId={widgetId}
-          fallback={(error) => <WidgetRenderFailure error={error} />}
+        <PanelErrorBoundary
+          panelId={panelId}
+          fallback={(error) => <PanelRenderFailure error={error} />}
         >
           {children}
-        </WidgetErrorBoundary>
+        </PanelErrorBoundary>
       </CardContent>
     </Card>
   );
 }
 
 /**
- * Moldura para widgets de gráfico.
+ * Moldura para painéis de gráfico.
  *
  * Usa o `ChartWrapper` do Design System — que já é um card com cabeçalho — em
- * vez do `WidgetFrame`, evitando cartão dentro de cartão. O Error Boundary é
- * o mesmo.
+ * vez do `PanelFrame`, evitando cartão dentro de cartão.
  */
-export function WidgetChartFrame({
-  widgetId,
+export function PanelChartFrame({
+  panelId,
   title,
   description,
   actions,
   height = 300,
   className,
   children,
-}: WidgetFrameProps & { height?: number }) {
+}: PanelFrameProps & { height?: number }) {
   return (
     <ChartWrapper
       title={title}
@@ -96,12 +102,12 @@ export function WidgetChartFrame({
       height={height}
       className={className}
     >
-      <WidgetErrorBoundary
-        widgetId={widgetId}
-        fallback={(error) => <WidgetRenderFailure error={error} />}
+      <PanelErrorBoundary
+        panelId={panelId}
+        fallback={(error) => <PanelRenderFailure error={error} />}
       >
         {children}
-      </WidgetErrorBoundary>
+      </PanelErrorBoundary>
     </ChartWrapper>
   );
 }
@@ -109,36 +115,36 @@ export function WidgetChartFrame({
 /**
  * Máquina de estados de uma leitura.
  *
- * Carregando → erro → vazio → dados, em um único lugar. Os widgets recebem o
+ * Carregando → erro → vazio → dados, em um único lugar. Os painéis recebem o
  * dado já resolvido e não repetem a cadeia de condicionais.
  */
-export function WidgetState<TData>({
+export function PanelState<TData>({
   query,
   children,
   loadingRows,
   isEmpty,
   emptyMessage,
 }: {
-  query: WidgetQuery<TData>;
+  query: PanelQuery<TData>;
   loadingRows?: number;
-  /** Vazio semântico do widget (ex.: lista de indicadores sem itens). */
+  /** Vazio semântico do painel (ex.: lista sem itens). */
   isEmpty?: (data: TData) => boolean;
   emptyMessage?: string;
   children: (data: TData) => ReactNode;
 }) {
-  if (query.isPending) return <WidgetLoading rows={loadingRows} />;
+  if (query.isPending) return <PanelLoading rows={loadingRows} />;
   if (query.error) {
-    return <WidgetError error={query.error} onRetry={query.refetch} />;
+    return <PanelError error={query.error} onRetry={query.refetch} />;
   }
-  if (query.data === undefined) return <WidgetEmpty message={emptyMessage} />;
-  if (isEmpty?.(query.data)) return <WidgetEmpty message={emptyMessage} />;
+  if (query.data === undefined) return <PanelEmpty message={emptyMessage} />;
+  if (isEmpty?.(query.data)) return <PanelEmpty message={emptyMessage} />;
   return <>{children(query.data)}</>;
 }
 
-/** Estado de carregamento — mantém a altura do widget estável. */
-export function WidgetLoading({ rows = 3 }: { rows?: number }) {
+/** Carregamento — mantém a altura do painel estável. */
+export function PanelLoading({ rows = 3 }: { rows?: number }) {
   return (
-    <div className="space-y-3" role="status" aria-label="Carregando widget">
+    <div className="space-y-3" role="status" aria-label="Carregando">
       {Array.from({ length: rows }, (_, index) => (
         <Skeleton
           key={index}
@@ -149,9 +155,9 @@ export function WidgetLoading({ rows = 3 }: { rows?: number }) {
   );
 }
 
-/** Vazio legítimo: a consulta respondeu, mas não há dados no período. */
-export function WidgetEmpty({
-  message = "Nenhum dado no período selecionado.",
+/** Vazio legítimo: a consulta respondeu, mas não há dados. */
+export function PanelEmpty({
+  message = "Nenhum dado disponível.",
 }: {
   message?: string;
 }) {
@@ -170,7 +176,7 @@ export function WidgetEmpty({
  * capability — não é falha, é ausência de acesso, e não oferece "tentar
  * novamente".
  */
-export function WidgetError({
+export function PanelError({
   error,
   onRetry,
 }: {
@@ -179,16 +185,7 @@ export function WidgetError({
 }) {
   const apiError = error instanceof ApiError ? error : null;
 
-  if (apiError?.isForbidden) {
-    return (
-      <div className="flex min-h-24 flex-col items-center justify-center gap-2 text-center">
-        <Lock className="size-5 text-muted-foreground" aria-hidden />
-        <p className="text-sm text-muted-foreground">
-          Sua conta não tem acesso a este indicador.
-        </p>
-      </div>
-    );
-  }
+  if (apiError?.isForbidden) return <PanelAccessDenied />;
 
   return (
     <div className="flex min-h-24 flex-col items-center justify-center gap-3 text-center">
@@ -209,14 +206,26 @@ export function WidgetError({
   );
 }
 
+/** Acesso negado pelo backend (permissão, papel, plano ou capability). */
+export function PanelAccessDenied({
+  message = "Sua conta não tem acesso a esta informação.",
+}: {
+  message?: string;
+}) {
+  return (
+    <div className="flex min-h-24 flex-col items-center justify-center gap-2 text-center">
+      <Lock className="size-5 text-muted-foreground" aria-hidden />
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+
 /**
- * Widget sem Read Model real no backend.
+ * Painel sem fonte de dado real no backend.
  *
- * Existe porque alguns widgets resolvidos por `GET /dashboard` só têm dados
- * fixos no código do backend. Preferimos declarar a ausência a exibir número
- * inventado. Ver `docs/dashboard.md`.
+ * Declarar a ausência é preferível a exibir número inventado.
  */
-export function WidgetWithoutSource({ reason }: { reason: string }) {
+export function PanelWithoutSource({ reason }: { reason: string }) {
   return (
     <div className="flex min-h-24 flex-col items-center justify-center gap-2 text-center">
       <CircleOff className="size-5 text-muted-foreground" aria-hidden />
@@ -225,14 +234,14 @@ export function WidgetWithoutSource({ reason }: { reason: string }) {
   );
 }
 
-function WidgetRenderFailure({ error }: { error: Error }) {
+function PanelRenderFailure({ error }: { error: Error }) {
   return (
     <div className="flex min-h-24 flex-col items-center justify-center gap-2 text-center">
       <TriangleAlert className="size-5 text-destructive" aria-hidden />
-      <p className="text-sm font-medium">Widget indisponível</p>
+      <p className="text-sm font-medium">Painel indisponível</p>
       <p className="max-w-sm text-xs text-muted-foreground">
         {process.env.NODE_ENV === "production"
-          ? "Este painel não pôde ser exibido. O restante do dashboard continua funcionando."
+          ? "Este painel não pôde ser exibido. O restante da página continua funcionando."
           : error.message}
       </p>
     </div>

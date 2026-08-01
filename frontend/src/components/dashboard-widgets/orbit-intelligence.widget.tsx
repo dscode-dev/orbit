@@ -22,9 +22,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AnalyticsDirection } from "@/types/dashboard";
-import { formatConfidence, STATUS_CLASSES, STATUS_LABELS } from "./format";
+import { STATUS_CLASSES, STATUS_LABELS } from "@/metrics";
+import { formatConfidence } from "@/lib/formatters";
 import type { WidgetProps } from "./widget-registry";
-import { WidgetFrame, WidgetState } from "./widget-frame";
+import { PanelFrame, PanelState } from "@/components/panels";
 
 const DIRECTION_ICONS = {
   UP: ArrowUpRight,
@@ -39,8 +40,8 @@ export function OrbitIntelligenceWidget({ widget, analytics }: WidgetProps) {
   const healthScore = analytics.intelligence.data?.healthScore;
 
   return (
-    <WidgetFrame
-      widgetId={widget.id}
+    <PanelFrame
+      panelId={widget.id}
       title={widget.title}
       description={widget.description}
       actions={
@@ -49,7 +50,7 @@ export function OrbitIntelligenceWidget({ widget, analytics }: WidgetProps) {
         )
       }
     >
-      <WidgetState
+      <PanelState
         query={analytics.intelligence}
         loadingRows={4}
         emptyMessage="Nenhum sinal relevante no período."
@@ -150,8 +151,8 @@ export function OrbitIntelligenceWidget({ widget, analytics }: WidgetProps) {
             </section>
           </div>
         )}
-      </WidgetState>
-    </WidgetFrame>
+      </PanelState>
+    </PanelFrame>
   );
 }
 

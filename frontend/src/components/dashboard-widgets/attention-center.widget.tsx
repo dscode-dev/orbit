@@ -16,9 +16,9 @@ import { AlertTriangle, CircleAlert, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AnalyticsStatus } from "@/types/dashboard";
-import { formatMetric, STATUS_CLASSES, STATUS_LABELS } from "./format";
+import { STATUS_CLASSES, STATUS_LABELS } from "@/metrics";
 import type { WidgetProps } from "./widget-registry";
-import { WidgetFrame, WidgetState } from "./widget-frame";
+import { PanelFrame, PanelState } from "@/components/panels";
 
 /** Críticos primeiro. */
 const SEVERITY_ORDER: Readonly<Record<AnalyticsStatus, number>> = {
@@ -34,8 +34,8 @@ export function AttentionCenterWidget({ widget, analytics }: WidgetProps) {
     ).length ?? 0;
 
   return (
-    <WidgetFrame
-      widgetId={widget.id}
+    <PanelFrame
+      panelId={widget.id}
       title={widget.title}
       description={widget.description}
       actions={
@@ -46,7 +46,7 @@ export function AttentionCenterWidget({ widget, analytics }: WidgetProps) {
         ) : null
       }
     >
-      <WidgetState query={analytics.intelligence} loadingRows={3}>
+      <PanelState query={analytics.intelligence} loadingRows={3}>
         {(data) => {
           const priorities = [...data.priorities].sort(
             (left, right) =>
@@ -86,7 +86,7 @@ export function AttentionCenterWidget({ widget, analytics }: WidgetProps) {
                         />
                       </div>
                       <p className="font-display text-2xl font-semibold">
-                        {formatMetric(priority.value)}
+                        {priority.value}
                       </p>
                       <span
                         className={cn(
@@ -117,7 +117,7 @@ export function AttentionCenterWidget({ widget, analytics }: WidgetProps) {
             </div>
           );
         }}
-      </WidgetState>
-    </WidgetFrame>
+      </PanelState>
+    </PanelFrame>
   );
 }

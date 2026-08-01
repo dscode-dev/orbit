@@ -24,9 +24,9 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import type { AnalyticsForecast, AnalyticsTrend } from "@/types/dashboard";
-import { formatAxisDate, formatConfidence } from "./format";
+import { formatAxisDate, formatConfidence } from "@/lib/formatters";
 import type { WidgetProps } from "./widget-registry";
-import { WidgetChartFrame, WidgetState } from "./widget-frame";
+import { PanelChartFrame, PanelState } from "@/components/panels";
 
 const SERIES_COLORS = [
   "var(--color-chart-1)",
@@ -62,8 +62,8 @@ export function OperationalTrendWidget({ widget, analytics }: WidgetProps) {
   const forecasts = analytics.dashboard.data?.forecasts ?? [];
 
   return (
-    <WidgetChartFrame
-      widgetId={widget.id}
+    <PanelChartFrame
+      panelId={widget.id}
       title={widget.title}
       description={widget.description}
       height={320}
@@ -71,7 +71,7 @@ export function OperationalTrendWidget({ widget, analytics }: WidgetProps) {
         forecasts.length > 0 ? <ForecastSummary forecasts={forecasts} /> : null
       }
     >
-      <WidgetState
+      <PanelState
         query={analytics.dashboard}
         loadingRows={5}
         isEmpty={(data) =>
@@ -150,8 +150,8 @@ export function OperationalTrendWidget({ widget, analytics }: WidgetProps) {
             </AreaChart>
           </ResponsiveContainer>
         )}
-      </WidgetState>
-    </WidgetChartFrame>
+      </PanelState>
+    </PanelChartFrame>
   );
 }
 

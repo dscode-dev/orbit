@@ -14,31 +14,31 @@ import { CloudSun, Droplets, Thermometer, Wind } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { KpiCard } from "@/components/ui/stat-card";
 import type { EnvironmentalImpactReadModel } from "@/types/dashboard";
-import { formatMetric } from "./format";
-import { SimulatedSourceNotice } from "./provenance";
+import { presentValue, SimulatedSourceNotice } from "@/metrics";
 import type { WidgetProps } from "./widget-registry";
-import { WidgetFrame, WidgetState } from "./widget-frame";
+import { PanelFrame, PanelState } from "@/components/panels";
 
-const IMPACT_LABELS: Readonly<
-  Record<keyof EnvironmentalImpactReadModel["indicators"], string>
-> = {
-  coolingLoadIndex: "Carga térmica",
-  fieldWorkRiskIndex: "Risco em campo",
-  delayRiskPercent: "Risco de atraso",
-  equipmentStressIndex: "Estresse de equipamento",
+/** Chaves do contrato → ids registrados no Metric Registry. */
+type EnvironmentalIndicator = keyof EnvironmentalImpactReadModel["indicators"];
+
+const METRIC_ID: Readonly<Record<EnvironmentalIndicator, string>> = {
+  coolingLoadIndex: "environment.coolingLoadIndex",
+  fieldWorkRiskIndex: "environment.fieldWorkRiskIndex",
+  delayRiskPercent: "environment.delayRiskPercent",
+  equipmentStressIndex: "environment.equipmentStressIndex",
 };
 
 export function EnvironmentalWidget({ widget, analytics }: WidgetProps) {
   const source = analytics.environmentalImpact.data?.source;
 
   return (
-    <WidgetFrame
-      widgetId={widget.id}
+    <PanelFrame
+      panelId={widget.id}
       title={widget.title}
       description={widget.description}
       actions={source ? <SimulatedSourceNotice source={source} /> : null}
     >
-      <WidgetState query={analytics.environmentalImpact} loadingRows={4}>
+      <PanelState query={analytics.environmentalImpact} loadingRows={4}>
         {(data) => (
           <div className="space-y-5">
             <Alert>
@@ -52,21 +52,27 @@ export function EnvironmentalWidget({ widget, analytics }: WidgetProps) {
             </Alert>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {(
-                Object.keys(data.indicators) as Array<
-                  keyof EnvironmentalImpactReadModel["indicators"]
-                >
-              ).map((key) => (
-                <KpiCard
-                  key={key}
-                  label={IMPACT_LABELS[key]}
-                  value={formatMetric(
+              {(Object.keys(data.indicators) as EnvironmentalIndicator[]).map(
+                (key) => {
+                  /** Procedência do bloco: o contrato declara `MOCK_DERIVED`. */
+                  const metric = presentValue(
+                    METRIC_ID[key],
                     data.indicators[key],
-                    key === "delayRiskPercent" ? "%" : undefined,
-                  )}
-                  progress={Math.min(100, Math.max(0, data.indicators[key]))}
-                />
-              ))}
+                    { quality: "MOCK" },
+                  );
+                  return (
+                    <KpiCard
+                      key={key}
+                      label={metric.label}
+                      value={metric.value}
+                      progress={Math.min(
+                        100,
+                        Math.max(0, data.indicators[key]),
+                      )}
+                    />
+                  );
+                },
+              )}
             </div>
 
             <CurrentConditions environment={data.environment} />
@@ -79,8 +85,8 @@ export function EnvironmentalWidget({ widget, analytics }: WidgetProps) {
             ) : null}
           </div>
         )}
-      </WidgetState>
-    </WidgetFrame>
+      </PanelState>
+    </PanelFrame>
   );
 }
 
@@ -104,15 +110,15 @@ function CurrentConditions({
       <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <Thermometer className="size-3.5" aria-hidden />
-          {formatMetric(current.temperatureCelsius, "°C")}
+          {current.temperatureCelsius} °C
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Droplets className="size-3.5" aria-hidden />
-          {formatMetric(current.humidityPercent, "%")}
+          {current.humidityPercent}%
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Wind className="size-3.5" aria-hidden />
-          {formatMetric(current.windKilometersPerHour, "km/h")}
+          {current.windKilometersPerHour} km/h
         </span>
       </div>
     </div>

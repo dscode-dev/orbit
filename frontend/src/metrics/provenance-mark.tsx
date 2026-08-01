@@ -1,24 +1,11 @@
 "use client";
 
 /**
- * Sinalização de procedência dos indicadores.
+ * Marca visual de procedência.
  *
- * O backend classifica cada KPI em `dataQuality` (`AnalyticsKpi`):
- *
- * | Valor      | Significado                                          | Sinalização |
- * | ---------- | ---------------------------------------------------- | ----------- |
- * | `OBSERVED` | contado direto dos fatos do banco                    | nenhuma     |
- * | `DERIVED`  | calculado a partir de fatos observados               | nenhuma     |
- * | `PROXY`    | aproximação por outra entidade (ex.: clientes ativos como contratos) | discreta |
- * | `MOCK`     | valor não observado                                  | explícita   |
- *
- * `OBSERVED` e `DERIVED` são informações legítimas e não recebem marca visual
- * — poluiriam o painel. `PROXY` ganha uma marca discreta porque muda a
- * interpretação do número. `MOCK` recebe marca explícita: nunca pode parecer
- * observação real.
- *
- * A origem exata (`source`, ex.: `operation_users`) aparece no tooltip de
- * todos, para quem quiser auditar.
+ * O componente **não decide** se deve marcar — quem decide é o
+ * `dataQualityBehavior` da métrica no registry. Aqui só renderiza o que foi
+ * resolvido.
  */
 import { CircleDashed, FlaskConical } from "lucide-react";
 
@@ -30,6 +17,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { DataQuality } from "@/types/dashboard";
+import type { ProvenanceMark } from "./metric-registry";
 
 const DESCRIPTIONS: Readonly<Record<DataQuality, string>> = {
   OBSERVED: "Contagem direta dos registros da organização.",
@@ -46,23 +34,19 @@ const LABELS: Readonly<Record<DataQuality, string>> = {
   MOCK: "Não observado",
 };
 
-/** `true` quando a procedência precisa aparecer na interface. */
-export function needsProvenanceMark(quality: DataQuality): boolean {
-  return quality === "PROXY" || quality === "MOCK";
-}
-
-export function ProvenanceMark({
+export function MetricProvenanceMark({
   quality,
+  mark,
   source,
   className,
 }: {
   quality: DataQuality;
-  /** Origem técnica declarada pelo backend (`AnalyticsKpi.source`). */
+  mark: ProvenanceMark;
   source?: string;
   className?: string;
 }) {
-  if (!needsProvenanceMark(quality)) return null;
-  const Icon = quality === "MOCK" ? FlaskConical : CircleDashed;
+  if (mark === "none") return null;
+  const Icon = mark === "explicit" ? FlaskConical : CircleDashed;
 
   return (
     <Tooltip>
@@ -70,7 +54,7 @@ export function ProvenanceMark({
         <span
           className={cn(
             "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium",
-            quality === "MOCK"
+            mark === "explicit"
               ? "bg-warning/15 text-warning"
               : "bg-surface-strong text-muted-foreground",
             className,

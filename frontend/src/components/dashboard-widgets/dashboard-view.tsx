@@ -35,8 +35,8 @@ import {
   DASHBOARD_RANGE_LABELS,
   type DashboardRangeKey,
 } from "@/types/dashboard";
-import { formatDateTime } from "./format";
-import { WidgetError } from "./widget-frame";
+import { formatDateTime } from "@/lib/formatters";
+import { PanelError, toPanelQuery } from "@/components/panels";
 import {
   resolveWidgets,
   WIDGET_SPAN,
@@ -61,13 +61,13 @@ export function DashboardView() {
    */
   const sources: WidgetDataSources = {
     analytics: {
-      dashboard: toWidgetQuery(useAnalyticsDashboard(analyticsQuery)),
-      health: toWidgetQuery(useAnalyticsHealth(analyticsQuery)),
-      intelligence: toWidgetQuery(useOrbitIntelligence(analyticsQuery)),
-      environmentalImpact: toWidgetQuery(useEnvironmentalImpact()),
+      dashboard: toPanelQuery(useAnalyticsDashboard(analyticsQuery)),
+      health: toPanelQuery(useAnalyticsHealth(analyticsQuery)),
+      intelligence: toPanelQuery(useOrbitIntelligence(analyticsQuery)),
+      environmentalImpact: toPanelQuery(useEnvironmentalImpact()),
     },
     scheduling: {
-      agenda: toWidgetQuery(useAgenda()),
+      agenda: toPanelQuery(useAgenda()),
     },
   };
 
@@ -144,7 +144,7 @@ export function DashboardView() {
       {layout.isPending ? (
         <LayoutSkeleton />
       ) : layout.error ? (
-        <WidgetError
+        <PanelError
           error={layout.error}
           onRetry={() => void layout.refetch()}
         />
@@ -166,23 +166,6 @@ export function DashboardView() {
       )}
     </ContentContainer>
   );
-}
-
-/** Adapta o resultado do TanStack Query ao contrato consumido pelos widgets. */
-function toWidgetQuery<TData>(query: {
-  data: TData | undefined;
-  isPending: boolean;
-  error: unknown;
-  refetch: () => unknown;
-}) {
-  return {
-    data: query.data,
-    isPending: query.isPending,
-    error: query.error,
-    refetch: () => {
-      void query.refetch();
-    },
-  };
 }
 
 function LayoutSkeleton() {
