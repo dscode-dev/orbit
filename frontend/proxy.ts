@@ -138,6 +138,8 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/operacoes/:path*",
+    "/artefatos/:path*",
+    "/execucoes/:path*",
     "/plataforma/:path*",
     "/design-system/:path*",
     "/login",

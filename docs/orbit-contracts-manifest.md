@@ -80,12 +80,12 @@ clientes.
 
 ## 4. Origem dos DTOs
 
-| Conjunto                                         | Origem                                          | Web                                                                             | Mobile                                              |
-| ------------------------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Tipos e literais base                            | `backend/src/contracts/**`                      | **sincronizado** por `npm run contracts:sync` → `frontend/src/types/contracts/` | **espelhado à mão** em `mobile/lib/core/contracts/` |
-| Read Models (dashboards, analytics, scheduling)  | `backend/src/modules/*/[modulo].read-models.ts` | **sincronizado** (mesmo script)                                                 | espelhado à mão (recorte usado)                     |
-| Respostas de Operations, Identity, Organizations | Read Models públicos + mappers explícitos       | **sincronizado** por `contracts:sync`                                           | parser compatível em `mobile/lib/core/contracts/`   |
-| Artifact Templates                               | Read Models públicos + mapper explícito         | **sincronizado** por `contracts:sync`                                           | parser tolerante em `artifact_template_contracts.dart` |
+| Conjunto                                         | Origem                                          | Web                                                                             | Mobile                                                  |
+| ------------------------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Tipos e literais base                            | `backend/src/contracts/**`                      | **sincronizado** por `npm run contracts:sync` → `frontend/src/types/contracts/` | **espelhado à mão** em `mobile/lib/core/contracts/`     |
+| Read Models (dashboards, analytics, scheduling)  | `backend/src/modules/*/[modulo].read-models.ts` | **sincronizado** (mesmo script)                                                 | espelhado à mão (recorte usado)                         |
+| Respostas de Operations, Identity, Organizations | Read Models públicos + mappers explícitos       | **sincronizado** por `contracts:sync`                                           | parser compatível em `mobile/lib/core/contracts/`       |
+| Artifact Templates                               | Read Models públicos + mapper explícito         | **sincronizado** por `contracts:sync`                                           | parser tolerante em `artifact_template_contracts.dart`  |
 | Artifact Executions                              | Read Models públicos + mapper explícito         | **sincronizado** por `contracts:sync`                                           | parser tolerante em `artifact_execution_contracts.dart` |
 
 ### Consequência prática
@@ -173,6 +173,63 @@ backend (`DashboardRepository.read()` devolve dados escritos no código; só
 `context()` consulta o banco). O web o usa como autoridade de _layout_ e busca
 os números no Analytics. Qualquer cliente novo deve fazer o mesmo.
 
+### 6.4 Artifact Templates
+
+| Endpoint                                                       | Web                   | Mobile            |
+| -------------------------------------------------------------- | --------------------- | ----------------- |
+| `GET/POST /artifact-templates`                                 | contrato sincronizado | parser disponível |
+| `GET/PATCH/DELETE /artifact-templates/:id`                     | contrato sincronizado | parser disponível |
+| `GET/POST /artifact-templates/:id/versions`                    | contrato sincronizado | parser disponível |
+| `GET /artifact-templates/:id/versions/:version`                | contrato sincronizado | parser disponível |
+| `POST /artifact-templates/:id/{activate,deactivate,duplicate}` | contrato sincronizado | parser disponível |
+
+O contrato público é definido por `artifact-template.read-models.ts`; JSON do
+Prisma nunca é devolvido diretamente. Tipos de artefato, seção, campo e papel
+de assinatura são chaves de metadados extensíveis, não enums de cliente.
+
+Duas características moldam qualquer cliente que consuma este módulo:
+
+- **`PATCH /:id` altera apenas metadados** — nome, descrição, tipo, segmento,
+  visibilidade, etiquetas e ordenação. Não existe rota de edição de estrutura.
+- **Estrutura muda por versão nova e imutável** (`POST /:id/versions`), com o
+  número atribuído pelo backend sob `pg_advisory_xact_lock`.
+
+É daí que sai o comportamento do Artifact Studio: salvamento automático só onde
+a escrita é idempotente (propriedades), publicação explícita onde ela cria
+versão (estrutura). Templates com `organizationId` nulo são da plataforma e
+somente leitura para o tenant — editar exige duplicar.
+
+### 6.5 Artifact Executions
+
+| Endpoint                                    | Web                   | Mobile            |
+| ------------------------------------------- | --------------------- | ----------------- |
+| `GET/POST /artifact-executions`             | contrato sincronizado | parser disponível |
+| `GET/PATCH /artifact-executions/:id`        | contrato sincronizado | parser disponível |
+| `PATCH /artifact-executions/:id/status`     | contrato sincronizado | parser disponível |
+| `PUT /artifact-executions/:id/responses`    | contrato sincronizado | parser disponível |
+| `POST /artifact-executions/:id/attachments` | contrato sincronizado | parser disponível |
+| `POST /artifact-executions/:id/signatures`  | contrato sincronizado | parser disponível |
+| `GET /artifact-executions/:id/progress`     | contrato sincronizado | parser disponível |
+
+`ArtifactExecutionReadModel` contém um `ArtifactSnapshotReadModel` imutável.
+Clientes nunca reconstroem a execução consultando a versão ativa do template e
+nunca calculam progresso ou autorizam transições localmente.
+
+**`renderStatus`** (`NOT_RENDERED` · `PENDING` · `RENDERING` · `READY` ·
+`FAILED`) é publicado desde já para que os clientes tratem o ciclo completo de
+renderização sem mudança de contrato. Enquanto não existe motor de
+renderização, o backend responde sempre `NOT_RENDERED` — é declaração de
+ausência, não estado de espera.
+
+Duas propriedades úteis a qualquer cliente:
+
+- **Quase toda escrita devolve a execução inteira**, com `progressDetails`
+  recalculado. Dá para semear o cache com o retorno da mutação em vez de
+  reler.
+- **Os erros têm código estável** (`INVALID_ARTIFACT_EXECUTION_TRANSITION`,
+  `ARTIFACT_EXECUTION_INCOMPLETE`, `ARTIFACT_EXECUTION_NOT_EDITABLE`), o que
+  permite reagir a uma regra sem reproduzi-la.
+
 ---
 
 ## 7. Procedência dos indicadores
@@ -189,36 +246,6 @@ os números no Analytics. Qualquer cliente novo deve fazer o mesmo.
 Read Models inteiros também declaram procedência:
 `EnvironmentalImpactReadModel.source = 'MOCK_DERIVED'` e
 `WeatherEnvironmentalIntelligenceReadModel.source = 'MOCK'`.
-
-### 6.4 Artifact Templates
-
-| Endpoint | Web | Mobile |
-| --- | --- | --- |
-| `GET/POST /artifact-templates` | contrato sincronizado | parser disponível |
-| `GET/PATCH/DELETE /artifact-templates/:id` | contrato sincronizado | parser disponível |
-| `GET/POST /artifact-templates/:id/versions` | contrato sincronizado | parser disponível |
-| `GET /artifact-templates/:id/versions/:version` | contrato sincronizado | parser disponível |
-| `POST /artifact-templates/:id/{activate,deactivate,duplicate}` | contrato sincronizado | parser disponível |
-
-O contrato público é definido por `artifact-template.read-models.ts`; JSON do
-Prisma nunca é devolvido diretamente. Tipos de artefato, seção, campo e papel
-de assinatura são chaves de metadados extensíveis, não enums de cliente.
-
-### 6.5 Artifact Executions
-
-| Endpoint | Web | Mobile |
-| --- | --- | --- |
-| `GET/POST /artifact-executions` | contrato sincronizado | parser disponível |
-| `GET/PATCH /artifact-executions/:id` | contrato sincronizado | parser disponível |
-| `PATCH /artifact-executions/:id/status` | contrato sincronizado | parser disponível |
-| `PUT /artifact-executions/:id/responses` | contrato sincronizado | parser disponível |
-| `POST /artifact-executions/:id/attachments` | contrato sincronizado | parser disponível |
-| `POST /artifact-executions/:id/signatures` | contrato sincronizado | parser disponível |
-| `GET /artifact-executions/:id/progress` | contrato sincronizado | parser disponível |
-
-`ArtifactExecutionReadModel` contém um `ArtifactSnapshotReadModel` imutável.
-Clientes nunca reconstroem a execução consultando a versão ativa do template e
-nunca calculam progresso ou autorizam transições localmente.
 
 Onde isso vive: `frontend/src/metrics/metric-registry.ts` (web) e
 `ProvenanceChip` em `mobile/lib/core/widgets/section_states.dart`.
@@ -267,27 +294,32 @@ Estratégia completa de depreciação e catálogo de Read Models:
 
 Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 
-| Lacuna                                                   | Impacto                                                        |
-| -------------------------------------------------------- | -------------------------------------------------------------- |
-| Sem endpoint de **membros do tenant**                    | web e mobile não conseguem atribuir técnico (exige `userId`)   |
-| Sem **ordenação** em `OperationQueryDto`                 | nenhum cliente oferece ordenar a lista                         |
-| Sem **comentários** em operações                         | seção não existe em nenhum cliente                             |
-| Sem `operationId` em `EventQueryDto`                     | não há agenda vinculada à operação                             |
-| `Operation.location` é JSON **sem esquema**              | mobile só calcula distância quando o tenant gravou coordenadas |
-| `Credential.mustChangePassword` existe mas não é exposto | troca obrigatória de senha inerte no web                       |
-| Sem troca de **organização ativa**                       | multi-tenant preparado, mas inativo                            |
-| Sem severidade em `Notification`                         | mobile apresenta `type`, sem inventar gravidade                |
+| Lacuna                                                   | Impacto                                                                                   |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Sem endpoint de **membros do tenant**                    | web e mobile não conseguem atribuir técnico (exige `userId`)                              |
+| Sem **ordenação** em `OperationQueryDto`                 | nenhum cliente oferece ordenar a lista                                                    |
+| Sem **comentários** em operações                         | seção não existe em nenhum cliente                                                        |
+| Sem `operationId` em `EventQueryDto`                     | não há agenda vinculada à operação                                                        |
+| `Operation.location` é JSON **sem esquema**              | mobile só calcula distância quando o tenant gravou coordenadas                            |
+| `Credential.mustChangePassword` existe mas não é exposto | troca obrigatória de senha inerte no web                                                  |
+| Sem troca de **organização ativa**                       | multi-tenant preparado, mas inativo                                                       |
+| Sem severidade em `Notification`                         | mobile apresenta `type`, sem inventar gravidade                                           |
+| `POST /artifact-templates/:id/versions` responde **500** | `$queryRaw` sobre `pg_advisory_xact_lock` (retorna `void`); publicar versão está quebrado |
+| Sem nível de **agrupamento** dentro de seção             | o Studio modela grupos, mas o contrato só tem `sections[].fields[]`                       |
+| Sem `purpose` de geração de template em `ai-executions`  | não há contrato para geração de estrutura assistida por IA                                |
 
 ---
 
 ## 10. Onde encontrar cada coisa
 
-| Assunto                                         | Documento                                 |
-| ----------------------------------------------- | ----------------------------------------- |
-| BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`          |
-| Autenticação e sessão (web)                     | `frontend/docs/authentication.md`         |
-| Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`              |
-| Metric Registry (web)                           | `frontend/docs/metric-registry.md`        |
-| Operations Workspace (web)                      | `frontend/docs/operations-workspace.md`   |
-| Arquitetura, fila de uploads e offline (mobile) | `mobile/README.md`                        |
-| Administração da plataforma                     | `backend/docs/platform-administration.md` |
+| Assunto                                         | Documento                                       |
+| ----------------------------------------------- | ----------------------------------------------- |
+| BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`                |
+| Autenticação e sessão (web)                     | `frontend/docs/authentication.md`               |
+| Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`                    |
+| Metric Registry (web)                           | `frontend/docs/metric-registry.md`              |
+| Artifact Studio (web)                           | `frontend/docs/artifact-studio.md`              |
+| Artifact Execution Workspace (web)              | `frontend/docs/artifact-execution-workspace.md` |
+| Operations Workspace (web)                      | `frontend/docs/operations-workspace.md`         |
+| Arquitetura, fila de uploads e offline (mobile) | `mobile/README.md`                              |
+| Administração da plataforma                     | `backend/docs/platform-administration.md`       |

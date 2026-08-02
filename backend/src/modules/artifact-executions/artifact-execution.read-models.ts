@@ -89,6 +89,23 @@ export interface ArtifactExecutionProgressReadModel {
   canComplete: boolean;
 }
 
+/**
+ * Estado da renderização do artefato (PDF/HTML).
+ *
+ * Publicado desde já para que os clientes suportem o ciclo completo sem
+ * mudança de contrato quando o motor de renderização existir. Enquanto não
+ * existe, o backend responde sempre `NOT_RENDERED` — é a declaração honesta de
+ * "nada foi renderizado", e não um valor de espera.
+ */
+export const ARTIFACT_RENDER_STATUSES = [
+  'NOT_RENDERED',
+  'PENDING',
+  'RENDERING',
+  'READY',
+  'FAILED',
+] as const;
+export type ArtifactRenderStatus = (typeof ARTIFACT_RENDER_STATUSES)[number];
+
 export interface ArtifactExecutionListItemReadModel {
   id: string;
   organizationId: string;
@@ -102,6 +119,7 @@ export interface ArtifactExecutionListItemReadModel {
   code: string;
   title: string;
   status: string;
+  renderStatus: ArtifactRenderStatus;
   progress: number;
   scheduledStart: string | null;
   scheduledEnd: string | null;

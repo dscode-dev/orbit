@@ -14,6 +14,10 @@ export const ROUTES = {
   invitation: "/convite",
   dashboard: "/dashboard",
   operations: "/operacoes",
+  /** Artifact Studio — configuração dos Artifact Templates. */
+  artifacts: "/artefatos",
+  /** Artifact Execution Workspace — execução e acompanhamento. */
+  executions: "/execucoes",
   /** Landing do Platform Administrator (painel será implementado adiante). */
   platform: "/plataforma",
   designSystem: "/design-system",
@@ -25,6 +29,8 @@ export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];
 export const PROTECTED_PREFIXES: readonly string[] = [
   ROUTES.dashboard,
   ROUTES.operations,
+  ROUTES.artifacts,
+  ROUTES.executions,
 ];
 
 /** Áreas exclusivas do Platform Administrator. */

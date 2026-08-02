@@ -142,6 +142,11 @@ export class ArtifactExecutionReadModelMapper {
       code: source.code,
       title: source.title,
       status: source.status,
+      /**
+       * Ainda não há motor de renderização; o campo existe no contrato para
+       * que os clientes já tratem o ciclo completo.
+       */
+      renderStatus: 'NOT_RENDERED',
       progress: source.progress,
       scheduledStart: this.nullableDate(source.scheduledStart),
       scheduledEnd: this.nullableDate(source.scheduledEnd),

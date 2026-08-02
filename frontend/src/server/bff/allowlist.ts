@@ -12,6 +12,8 @@ export const ALLOWED_API_ROOTS: readonly string[] = [
   "ai-agents",
   "ai-executions",
   "analytics",
+  "artifact-executions",
+  "artifact-templates",
   "assets",
   "catalog",
   "checklist-executions",

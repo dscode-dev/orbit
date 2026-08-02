@@ -42,6 +42,16 @@ export const queryKeys = {
     stableParams(params),
   ],
 
+  /**
+   * Prefixo de **todas** as listagens de um recurso.
+   *
+   * `list(resource, params)` identifica uma consulta; `lists(resource)`
+   * alcança todas as combinações de filtro. É a key certa para invalidar
+   * depois de uma escrita que muda o que aparece na lista, sem derrubar o
+   * cache dos detalhes.
+   */
+  lists: (resource: string): QueryKey => [ORBIT_QUERY_SCOPE, resource, "list"],
+
   infinite: (resource: string, params?: QueryParams): QueryKey => [
     ORBIT_QUERY_SCOPE,
     resource,
