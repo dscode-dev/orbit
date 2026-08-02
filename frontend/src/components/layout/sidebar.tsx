@@ -52,7 +52,7 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
   {
     group: "Sistema",
     items: [
-      { label: "Configurações", icon: Settings },
+      { label: "Organização", icon: Settings, to: "/organizacao" },
       { label: "Suporte", icon: LifeBuoy },
     ],
   },
