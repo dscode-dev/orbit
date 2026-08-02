@@ -140,6 +140,8 @@ export const config = {
     "/operacoes/:path*",
     "/artefatos/:path*",
     "/execucoes/:path*",
+    "/agenda/:path*",
+    "/ativos/:path*",
     "/plataforma/:path*",
     "/design-system/:path*",
     "/login",

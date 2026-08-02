@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR-18 — Artifact Execution Engine.
+Última revisão: PR Frontend-08 (Asset Workspace).
 
 ---
 
@@ -294,19 +294,29 @@ Estratégia completa de depreciação e catálogo de Read Models:
 
 Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 
-| Lacuna                                                   | Impacto                                                                                   |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Sem endpoint de **membros do tenant**                    | web e mobile não conseguem atribuir técnico (exige `userId`)                              |
-| Sem **ordenação** em `OperationQueryDto`                 | nenhum cliente oferece ordenar a lista                                                    |
-| Sem **comentários** em operações                         | seção não existe em nenhum cliente                                                        |
-| Sem `operationId` em `EventQueryDto`                     | não há agenda vinculada à operação                                                        |
-| `Operation.location` é JSON **sem esquema**              | mobile só calcula distância quando o tenant gravou coordenadas                            |
-| `Credential.mustChangePassword` existe mas não é exposto | troca obrigatória de senha inerte no web                                                  |
-| Sem troca de **organização ativa**                       | multi-tenant preparado, mas inativo                                                       |
-| Sem severidade em `Notification`                         | mobile apresenta `type`, sem inventar gravidade                                           |
-| `POST /artifact-templates/:id/versions` responde **500** | `$queryRaw` sobre `pg_advisory_xact_lock` (retorna `void`); publicar versão está quebrado |
-| Sem nível de **agrupamento** dentro de seção             | o Studio modela grupos, mas o contrato só tem `sections[].fields[]`                       |
-| Sem `purpose` de geração de template em `ai-executions`  | não há contrato para geração de estrutura assistida por IA                                |
+| Lacuna                                                                 | Impacto                                                                                                |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Sem endpoint de **membros do tenant**                                  | web e mobile não conseguem atribuir técnico (exige `userId`)                                           |
+| Sem **ordenação** em `OperationQueryDto`                               | nenhum cliente oferece ordenar a lista                                                                 |
+| Sem **comentários** em operações                                       | seção não existe em nenhum cliente                                                                     |
+| Sem `operationId` em `EventQueryDto`                                   | não há agenda vinculada à operação                                                                     |
+| `Operation.location` é JSON **sem esquema**                            | mobile só calcula distância quando o tenant gravou coordenadas                                         |
+| `Credential.mustChangePassword` existe mas não é exposto               | troca obrigatória de senha inerte no web                                                               |
+| Sem troca de **organização ativa**                                     | multi-tenant preparado, mas inativo                                                                    |
+| Sem severidade em `Notification`                                       | mobile apresenta `type`, sem inventar gravidade                                                        |
+| `POST /artifact-templates/:id/versions` responde **500**               | `$queryRaw` sobre `pg_advisory_xact_lock` (retorna `void`); publicar versão está quebrado              |
+| Sem nível de **agrupamento** dentro de seção                           | o Studio modela grupos, mas o contrato só tem `sections[].fields[]`                                    |
+| Sem `purpose` de geração de template em `ai-executions`                | não há contrato para geração de estrutura assistida por IA                                             |
+| **`AgendaQueryDto` não aceita fuso** — a agenda agrupa em UTC          | evento noturno cai no dia errado fora de UTC; o web calcula a janela no fuso da unidade                |
+| Sem Read Model de evento, calendário e disponibilidade em `scheduling` | formas espelhadas do `include` do Prisma — quebram em runtime, não na compilação                       |
+| `OrganizationContextReadModel` sem `timezone`                          | o fuso da agenda vem da unidade; sem unidade, do navegador                                             |
+| `GET /scheduling/intelligence` é fixture (`source: 'MOCK'`)            | apresentado com marca de não observado; só `conflicts` é real                                          |
+| `EventQueryDto` sem filtro por `type` e sem busca textual              | a agenda não oferece esses filtros                                                                     |
+| Módulo `assets` sem Read Model e sem `criticality`                     | forma espelhada do Prisma; a tela não oferece filtro nem coluna de criticidade                         |
+| Analytics não aceita `assetId`                                         | indicadores do ativo saem do `meta.total` de consultas filtradas; MTBF e disponibilidade não têm fonte |
+| Sem histórico e sem inteligência com escopo de ativo                   | os painéis declaram a ausência                                                                         |
+| Anexos de execução não recebem binário — só `storageKey`               | o web registra metadados; envio e pré-visualização não existem                                         |
+| Sem leitura de auditoria e sem histórico de execução de artefato       | painel de histórico declara ausência                                                                   |
 
 ---
 
@@ -321,5 +331,8 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Artifact Studio (web)                           | `frontend/docs/artifact-studio.md`              |
 | Artifact Execution Workspace (web)              | `frontend/docs/artifact-execution-workspace.md` |
 | Operations Workspace (web)                      | `frontend/docs/operations-workspace.md`         |
+| Scheduling Workspace (web)                      | `frontend/docs/scheduling-workspace.md`         |
+| Asset Workspace (web)                           | `frontend/docs/asset-workspace.md`              |
+| Entity Registry (web)                           | `frontend/docs/entity-registry.md`              |
 | Arquitetura, fila de uploads e offline (mobile) | `mobile/README.md`                              |
 | Administração da plataforma                     | `backend/docs/platform-administration.md`       |

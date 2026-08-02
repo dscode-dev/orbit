@@ -194,6 +194,46 @@ function define(input: MetricInput): MetricDefinition {
  * é a chave de ligação entre backend e apresentação.
  */
 const DEFINITIONS: readonly MetricDefinition[] = [
+  /**
+   * Contadores do Asset Workspace.
+   *
+   * Não vêm do Analytics — vêm do `meta.total` que o backend devolve ao contar
+   * a própria consulta filtrada por `assetId`. São contagens observadas no
+   * banco; o registry cuida apenas da apresentação.
+   */
+  define({
+    id: "asset.operations.total",
+    label: "Operações no ativo",
+    description: "Ordens de serviço já vinculadas a este equipamento.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: Activity,
+    trendColor: higherIsBetter,
+    priority: 5,
+    capability: "operations.read",
+  }),
+  define({
+    id: "asset.operations.open",
+    label: "Em execução agora",
+    description: "Operações deste ativo com status IN_PROGRESS.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: Wrench,
+    trendColor: higherIsBetter,
+    priority: 6,
+    capability: "operations.read",
+  }),
+  define({
+    id: "asset.artifact_executions.total",
+    label: "Artefatos executados",
+    description: "PMOCs, relatórios e checklists preenchidos neste ativo.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: ClipboardCheck,
+    trendColor: higherIsBetter,
+    priority: 7,
+    capability: "artifact_executions.read",
+  }),
   define({
     id: "operations.total",
     label: "Operações criadas",

@@ -18,6 +18,10 @@ export const ROUTES = {
   artifacts: "/artefatos",
   /** Artifact Execution Workspace — execução e acompanhamento. */
   executions: "/execucoes",
+  /** Scheduling Workspace — agenda operacional. */
+  scheduling: "/agenda",
+  /** Asset Workspace — visão 360° do equipamento. */
+  assets: "/ativos",
   /** Landing do Platform Administrator (painel será implementado adiante). */
   platform: "/plataforma",
   designSystem: "/design-system",
@@ -31,6 +35,8 @@ export const PROTECTED_PREFIXES: readonly string[] = [
   ROUTES.operations,
   ROUTES.artifacts,
   ROUTES.executions,
+  ROUTES.scheduling,
+  ROUTES.assets,
 ];
 
 /** Áreas exclusivas do Platform Administrator. */

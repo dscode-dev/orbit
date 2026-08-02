@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   LayoutGrid,
+  CalendarDays,
   ClipboardCheck,
   LayoutTemplate,
   Boxes,
@@ -42,7 +43,8 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
       { label: "Operações", icon: Workflow, to: "/operacoes" },
       { label: "Artefatos", icon: LayoutTemplate, to: "/artefatos" },
       { label: "Execuções", icon: ClipboardCheck, to: "/execucoes" },
-      { label: "Inventário", icon: Boxes, badge: "12" },
+      { label: "Agenda", icon: CalendarDays, to: "/agenda" },
+      { label: "Ativos", icon: Boxes, to: "/ativos" },
       { label: "Pessoas", icon: Users },
       { label: "Relatórios", icon: FileBarChart },
     ],

@@ -11,7 +11,10 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import type { ArtifactRenderStatus } from "@/types/artifact-executions";
 
-const STATUS_LABELS: Readonly<Record<string, string>> = {
+/** Exportado para o Entity Registry referenciar — nunca copiar. */
+export const ARTIFACT_EXECUTION_STATUS_LABELS: Readonly<
+  Record<string, string>
+> = {
   DRAFT: "Rascunho",
   IN_PROGRESS: "Em execução",
   PAUSED: "Pausada",
@@ -32,7 +35,7 @@ const STATUS_CLASSES: Readonly<Record<string, string>> = {
 };
 
 export function executionStatusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
+  return ARTIFACT_EXECUTION_STATUS_LABELS[status] ?? status;
 }
 
 export function ExecutionStatusBadge({

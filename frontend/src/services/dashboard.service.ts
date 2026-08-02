@@ -19,8 +19,6 @@ import { apiClient } from "@/api/client";
 import { queryKeys, type QueryKey } from "@/api/query-keys";
 import type { QueryParams, RequestOptions } from "@/types/api";
 import type {
-  AgendaQuery,
-  AgendaReadModel,
   AnalyticsDashboardReadModel,
   AnalyticsHealthReadModel,
   AnalyticsQuery,
@@ -35,8 +33,6 @@ import type {
 
 const DASHBOARD_RESOURCE = "dashboard";
 const ANALYTICS_RESOURCE = "analytics";
-const SCHEDULING_RESOURCE = "scheduling";
-
 const asParams = (query: object | undefined): QueryParams | undefined =>
   query as QueryParams | undefined;
 
@@ -145,19 +141,11 @@ export const analyticsService = {
   },
 } as const;
 
-export const schedulingService = {
-  agenda: (
-    query: AgendaQuery,
-    options?: RequestOptions,
-  ): Promise<AgendaReadModel> =>
-    apiClient.get<AgendaReadModel>("/scheduling/agenda", {
-      ...options,
-      query: asParams(query),
-    }),
-
-  keys: {
-    module: (): QueryKey => queryKeys.module(SCHEDULING_RESOURCE),
-    agenda: (query: AgendaQuery): QueryKey =>
-      queryKeys.query(SCHEDULING_RESOURCE, "agenda", asParams(query)),
-  },
-} as const;
+/**
+ * Scheduling consumido pelo Dashboard.
+ *
+ * A superfície completa do módulo mora em `scheduling.service.ts` desde a
+ * PR-07; este reexporte mantém os imports existentes e evita duas definições
+ * do mesmo serviço.
+ */
+export { schedulingService } from "./scheduling.service";
