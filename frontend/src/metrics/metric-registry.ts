@@ -201,6 +201,35 @@ const DEFINITIONS: readonly MetricDefinition[] = [
    * a própria consulta filtrada por `assetId`. São contagens observadas no
    * banco; o registry cuida apenas da apresentação.
    */
+  /**
+   * Contadores do Customer Workspace.
+   *
+   * Vêm do `_count` que o repositório de clientes já calcula no `include` —
+   * contagem do banco, publicada no payload. O registry cuida só da
+   * apresentação.
+   */
+  define({
+    id: "customer.assets.total",
+    label: "Ativos do cliente",
+    description: "Equipamentos vinculados a este cliente.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: Wrench,
+    trendColor: higherIsBetter,
+    priority: 3,
+    capability: "assets.read",
+  }),
+  define({
+    id: "customer.operations.total",
+    label: "Operações do cliente",
+    description: "Ordens de serviço já executadas para este cliente.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: Activity,
+    trendColor: higherIsBetter,
+    priority: 4,
+    capability: "operations.read",
+  }),
   define({
     id: "asset.operations.total",
     label: "Operações no ativo",

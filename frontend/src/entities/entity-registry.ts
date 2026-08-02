@@ -271,7 +271,7 @@ const DEFINITIONS: readonly EntityDefinition[] = [
     description: "Contratantes dos serviços da organização.",
     icon: Handshake,
     color: "text-fuchsia-400",
-    basePath: "/clientes",
+    basePath: ROUTES.customers,
     capability: { read: "crm.read", manage: "crm.manage" },
     permissions: {
       read: "customers.read",
@@ -280,11 +280,7 @@ const DEFINITIONS: readonly EntityDefinition[] = [
     },
     badges: {},
     actions: [],
-    /**
-     * Sem tela de cliente até hoje — a entidade é registrada porque outras
-     * telas precisam do rótulo, do ícone e da capability para decidir o que
-     * mostrar. `href` ausente significa "não navegável".
-     */
+    href: (id) => `${ROUTES.customers}/${id}`,
   },
 ];
 

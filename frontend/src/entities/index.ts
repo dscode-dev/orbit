@@ -27,6 +27,11 @@ export {
   useEntityAccess,
 } from "./entity-components";
 export {
+  RelatedRecordsPanel,
+  type RelatedQuery,
+  type RelatedRow,
+} from "./related-records";
+export {
   ASSET_CATEGORY_LABELS,
   ASSET_IDENTIFIER_LABELS,
   ASSET_STATUS_LABELS,

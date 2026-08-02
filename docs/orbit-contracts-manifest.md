@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Frontend-09 (Organization Workspace).
+Última revisão: PR Frontend-10 (Customer Workspace).
 
 ---
 
@@ -319,6 +319,9 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | `timezone`, `locale`, `currency` e `status` de unidade são publicados mas **não editáveis**  | não há ativar/desativar unidade; `UpdateBusinessUnitDto` é `PartialType(CreateBusinessUnitDto)`        |
 | Sem listagem de **papéis** (`roleId` exigido no convite)                                     | convidar usuário não é oferecido na interface                                                          |
 | STARTER não concede `business_units.*`                                                       | administração de unidades inacessível no único plano semeado                                           |
+| `CustomerQueryDto` sem filtro por unidade, cidade ou responsável                             | a listagem de clientes não os oferece; cidade fica em `address` (JSON sem esquema)                     |
+| Sem Read Model de cliente; `deletedAt` exposto no payload                                    | forma espelhada do Prisma; campo interno vazando no contrato                                           |
+| Analytics não aceita `customerId`                                                            | receita, ticket médio e tempo de resposta não têm fonte                                                |
 | Anexos de execução não recebem binário — só `storageKey`                                     | o web registra metadados; envio e pré-visualização não existem                                         |
 | Sem leitura de auditoria e sem histórico de execução de artefato                             | painel de histórico declara ausência                                                                   |
 
@@ -340,5 +343,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Entity Registry (web)                           | `frontend/docs/entity-registry.md`              |
 | Organization Workspace (web)                    | `frontend/docs/organization-workspace.md`       |
 | Action Registry — preparação (web)              | `frontend/docs/action-registry.md`              |
+| Customer Workspace (web)                        | `frontend/docs/customer-workspace.md`           |
+| Registry Core — proposta (web)                  | `frontend/docs/registry-core.md`                |
 | Arquitetura, fila de uploads e offline (mobile) | `mobile/README.md`                              |
 | Administração da plataforma                     | `backend/docs/platform-administration.md`       |

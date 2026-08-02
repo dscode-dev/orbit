@@ -137,6 +137,9 @@ export interface AiExecution {
 
 export interface AiExecutionQuery {
   operationId?: string;
+  /** `AiExecutionQueryDto` também aceita cliente e relatório. */
+  customerId?: string;
+  reportId?: string;
   agentId?: string;
   status?: string;
   page?: number;

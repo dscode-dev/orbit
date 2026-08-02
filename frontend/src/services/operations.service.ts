@@ -149,5 +149,8 @@ export const operationIntelligenceService = {
     module: (): QueryKey => queryKeys.module(AI_RESOURCE),
     byOperation: (operationId: string): QueryKey =>
       queryKeys.list(AI_RESOURCE, { operationId }),
+    /** `AiExecutionQueryDto` aceita `customerId` — usado pelo Customer Workspace. */
+    byCustomer: (customerId: string): QueryKey =>
+      queryKeys.list(AI_RESOURCE, { customerId }),
   },
 } as const;

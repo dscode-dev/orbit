@@ -12,17 +12,7 @@
  * (`OperationQueryDto`, `EventQueryDto`, `ArtifactExecutionQueryDto`), e a
  * navegação para os respectivos Workspaces sai do registry.
  */
-import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
-
-import { PanelFrame, PanelState, toPanelQuery } from "@/components/panels";
-import { Button } from "@/components/ui/button";
-import {
-  EntityBadge,
-  EntityLink,
-  resolveEntity,
-  type EntityId,
-} from "@/entities";
+import { RelatedRecordsPanel } from "@/entities";
 import {
   useAssetExecutions,
   useAssetOperations,
@@ -31,108 +21,11 @@ import {
 import { formatDateTime } from "@/lib/formatters";
 import { ROUTES } from "@/lib/routes";
 
-interface RelatedRow {
-  readonly key: string;
-  /** Id do registro na entidade — é o que o `EntityLink` navega. */
-  readonly entityId: string;
-  readonly title: string;
-  readonly subtitle: string;
-  readonly status?: string;
-}
-
-interface RelatedQuery<TData> {
-  data: TData | undefined;
-  isPending: boolean;
-  error: unknown;
-  refetch: () => unknown;
-}
-
-/** Moldura comum: cabeçalho, estado da consulta, linhas e atalho. */
-function RelatedPanel<TData>({
-  entity,
-  panelId,
-  title,
-  description,
-  query,
-  toRows,
-  emptyMessage,
-  seeAllHref,
-}: {
-  entity: EntityId;
-  panelId: string;
-  title: string;
-  description: string;
-  query: RelatedQuery<TData>;
-  toRows: (data: TData) => readonly RelatedRow[];
-  emptyMessage: string;
-  seeAllHref: string;
-}) {
-  const definition = resolveEntity(entity);
-
-  return (
-    <PanelFrame
-      panelId={panelId}
-      title={title}
-      description={description}
-      actions={
-        <Button size="sm" variant="ghost" asChild>
-          <Link href={seeAllHref}>
-            Ver tudo
-            <ArrowUpRight className="size-3.5" />
-          </Link>
-        </Button>
-      }
-    >
-      <PanelState
-        query={toPanelQuery(query)}
-        loadingRows={3}
-        isEmpty={(data) => toRows(data).length === 0}
-        emptyMessage={emptyMessage}
-      >
-        {(data) => (
-          <ul className="space-y-2">
-            {toRows(data).map((row) => (
-              <li
-                key={row.key}
-                className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2"
-              >
-                <definition.icon
-                  className={`size-4 shrink-0 ${definition.color}`}
-                  aria-hidden
-                />
-                <div className="min-w-0 flex-1">
-                  <EntityLink
-                    entity={entity}
-                    id={row.entityId}
-                    className="text-sm font-medium"
-                  >
-                    <span className="truncate">{row.title}</span>
-                  </EntityLink>
-                  <p className="text-xs text-muted-foreground">
-                    {row.subtitle}
-                  </p>
-                </div>
-                {row.status ? (
-                  <EntityBadge
-                    entity={entity}
-                    group="status"
-                    value={row.status}
-                  />
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </PanelState>
-    </PanelFrame>
-  );
-}
-
 export function AssetOperationsSection({ assetId }: { assetId: string }) {
   const query = useAssetOperations(assetId);
 
   return (
-    <RelatedPanel
+    <RelatedRecordsPanel
       entity="operation"
       panelId="asset-operations"
       title="Operações"
@@ -161,7 +54,7 @@ export function AssetScheduleSection({ assetId }: { assetId: string }) {
   const query = useAssetSchedule(assetId);
 
   return (
-    <RelatedPanel
+    <RelatedRecordsPanel
       entity="scheduling-event"
       panelId="asset-schedule"
       title="Agenda futura"
@@ -186,7 +79,7 @@ export function AssetExecutionsSection({ assetId }: { assetId: string }) {
   const query = useAssetExecutions(assetId);
 
   return (
-    <RelatedPanel
+    <RelatedRecordsPanel
       entity="artifact-execution"
       panelId="asset-executions"
       title="Artefatos executados"
