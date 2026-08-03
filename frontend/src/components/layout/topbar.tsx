@@ -1,11 +1,12 @@
 "use client";
 
-import { Bell, Search, Menu, PanelsTopLeft, LogOut, UserRound } from "lucide-react";
+import { Search, Menu, PanelsTopLeft, LogOut, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OrbitLogo } from "@/components/brand/orbit-logo";
 import { cn } from "@/lib/utils";
 import {
@@ -41,7 +42,12 @@ export function Topbar({
         className,
       )}
     >
-      <Button variant="ghost" size="icon" aria-label="Abrir menu" className="lg:hidden">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Abrir menu"
+        className="lg:hidden"
+      >
         <Menu className="size-4" />
       </Button>
       <div className="lg:hidden">
@@ -63,11 +69,14 @@ export function Topbar({
         </kbd>
       </button>
 
-      <Button variant="ghost" size="icon" aria-label="Notificações" className="relative">
-        <Bell className="size-4" />
-        <span className="bg-gradient-orbit absolute top-2 right-2 size-2 rounded-full" />
-      </Button>
-      <Button variant="ghost" size="icon" aria-label="Alternar painéis" className="hidden sm:flex">
+      {/* Contador real de não lidas — ver components/notifications/notification-bell. */}
+      <NotificationBell />
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Alternar painéis"
+        className="hidden sm:flex"
+      >
         <PanelsTopLeft className="size-4" />
       </Button>
 
@@ -92,7 +101,10 @@ export function Topbar({
               <UserRound className="size-4" />
               Perfil
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={logout} className="text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              onSelect={logout}
+              className="text-destructive focus:text-destructive"
+            >
               <LogOut className="size-4" />
               Encerrar sessão
             </DropdownMenuItem>

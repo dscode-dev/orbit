@@ -27,47 +27,65 @@ import {
   UpdateContactDto,
   UpdateCustomerDto,
 } from './customer.dto';
+import { CustomerReadModelMapper } from './customer.mapper';
 import { CustomerService } from './customer.service';
 
 @ApiTags('Customers')
 @Controller('customers')
 @RequiresActivePlan()
 export class CustomerController {
-  constructor(private readonly customers: CustomerService) {}
+  constructor(
+    private readonly customers: CustomerService,
+    private readonly readModels: CustomerReadModelMapper,
+  ) {}
 
   @Get()
   @Capabilities('crm.read')
   @Permissions('customers.read')
-  list(@Req() request: IdentityRequest, @Query() query: CustomerQueryDto) {
-    return this.customers.list(this.organizationId(request), query);
+  async list(
+    @Req() request: IdentityRequest,
+    @Query() query: CustomerQueryDto,
+  ) {
+    return this.readModels.list(
+      await this.customers.list(this.organizationId(request), query),
+    );
   }
 
   @Get(':id')
   @Capabilities('crm.read')
   @Permissions('customers.read')
-  get(
+  async get(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
   ) {
-    return this.customers.get(id, this.organizationId(request));
+    return this.readModels.details(
+      await this.customers.get(id, this.organizationId(request)),
+    );
   }
 
   @Post()
   @Capabilities('crm.manage')
   @Permissions('customers.create')
-  create(@Req() request: IdentityRequest, @Body() input: CreateCustomerDto) {
-    return this.customers.create(this.organizationId(request), input);
+  async create(
+    @Req() request: IdentityRequest,
+    @Body() input: CreateCustomerDto,
+  ) {
+    return this.readModels.details(
+      await this.customers.create(this.organizationId(request), input),
+    );
   }
 
   @Patch(':id')
   @Capabilities('crm.manage')
   @Permissions('customers.update')
-  update(
+  async update(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
     @Body() input: UpdateCustomerDto,
   ) {
-    return this.customers.update(id, this.organizationId(request), input);
+    return this.readModels.details(
+      await this.customers.update(id, this.organizationId(request), input),
+    );
   }
 
   @Delete(':id')
@@ -84,42 +102,48 @@ export class CustomerController {
   @Get(':id/contacts')
   @Capabilities('crm.read')
   @Permissions('contacts.read')
-  contacts(
+  async contacts(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
   ) {
-    return this.customers.listContacts(id, this.organizationId(request));
+    return this.readModels.contacts(
+      await this.customers.listContacts(id, this.organizationId(request)),
+    );
   }
 
   @Post(':id/contacts')
   @Capabilities('crm.manage')
   @Permissions('contacts.create')
-  createContact(
+  async createContact(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
     @Body() input: CreateContactDto,
   ) {
-    return this.customers.createContact(
-      id,
-      this.organizationId(request),
-      input,
+    return this.readModels.contact(
+      await this.customers.createContact(
+        id,
+        this.organizationId(request),
+        input,
+      ),
     );
   }
 
   @Patch(':id/contacts/:contactId')
   @Capabilities('crm.manage')
   @Permissions('contacts.update')
-  updateContact(
+  async updateContact(
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Param('contactId', ParseUUIDv7Pipe) contactId: string,
     @Req() request: IdentityRequest,
     @Body() input: UpdateContactDto,
   ) {
-    return this.customers.updateContact(
-      contactId,
-      id,
-      this.organizationId(request),
-      input,
+    return this.readModels.contact(
+      await this.customers.updateContact(
+        contactId,
+        id,
+        this.organizationId(request),
+        input,
+      ),
     );
   }
 

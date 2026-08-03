@@ -5,6 +5,7 @@ import { BusinessUnitRepository } from './business-units/business-unit.repositor
 import { BusinessUnitService } from './business-units/business-unit.service';
 import { CustomerController } from './business-units/customers/customer.controller';
 import { CustomerRepository } from './business-units/customers/customer.repository';
+import { CustomerReadModelMapper } from './business-units/customers/customer.mapper';
 import { CustomerService } from './business-units/customers/customer.service';
 import { AssetController } from './business-units/equipaments/asset.controller';
 import { AssetRepository } from './business-units/equipaments/asset.repository';
@@ -32,6 +33,7 @@ import { OrganizationReadModelMapper } from './organization.mapper';
     AssetService,
     CustomerRepository,
     CustomerService,
+    CustomerReadModelMapper,
   ],
   exports: [
     OrganizationService,

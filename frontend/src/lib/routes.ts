@@ -26,6 +26,8 @@ export const ROUTES = {
   organization: "/organizacao",
   /** Customer Workspace — visão 360° do cliente. */
   customers: "/clientes",
+  /** Notification Center. */
+  notifications: "/notificacoes",
   /** Landing do Platform Administrator (painel será implementado adiante). */
   platform: "/plataforma",
   designSystem: "/design-system",
@@ -43,6 +45,7 @@ export const PROTECTED_PREFIXES: readonly string[] = [
   ROUTES.assets,
   ROUTES.organization,
   ROUTES.customers,
+  ROUTES.notifications,
 ];
 
 /** Áreas exclusivas do Platform Administrator. */

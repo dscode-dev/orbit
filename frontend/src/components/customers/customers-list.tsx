@@ -310,10 +310,10 @@ function CustomerRow({ customer }: { customer: Customer }) {
       <TableCell>
         <div className="flex flex-wrap gap-1">
           <Badge variant="secondary" className="text-[10px]">
-            {customer._count.assets} ativo(s)
+            {customer.counts.assets} ativo(s)
           </Badge>
           <Badge variant="secondary" className="text-[10px]">
-            {customer._count.operations} operação(ões)
+            {customer.counts.operations} operação(ões)
           </Badge>
         </div>
       </TableCell>

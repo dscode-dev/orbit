@@ -33,7 +33,7 @@ services:
     init: true
     environment:
       NODE_ENV: production
-      PORT: 3001
+      PORT: 5001
       HOST: ${API_HOST:-0.0.0.0}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
@@ -58,7 +58,7 @@ services:
       PLATFORM_ADMIN_FIRST_NAME: ${PLATFORM_ADMIN_FIRST_NAME:?PLATFORM_ADMIN_FIRST_NAME is required}
       PLATFORM_ADMIN_LAST_NAME: ${PLATFORM_ADMIN_LAST_NAME:?PLATFORM_ADMIN_LAST_NAME is required}
     ports:
-      - "0.0.0.0:${API_PORT:-3001}:3001"
+      - "0.0.0.0:${API_PORT:-5001}:5001"
     volumes:
       - operation_attachments:/app/storage/operations
       - generated_documents:/app/storage/documents
@@ -71,7 +71,7 @@ services:
           "CMD",
           "node",
           "-e",
-          "fetch('http://127.0.0.1:3001').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+          "fetch('http://127.0.0.1:5001').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
         ]
       interval: 15s
       timeout: 5s
@@ -113,7 +113,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
-      ORBIT_API_URL: http://api:3001/api/v1
+      ORBIT_API_URL: http://api:5001/api/v1
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"

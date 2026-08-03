@@ -482,11 +482,11 @@ export function IndicatorsSection({ customer }: { customer: Customer }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <Counter
           metricId="customer.assets.total"
-          value={customer._count.assets}
+          value={customer.counts.assets}
         />
         <Counter
           metricId="customer.operations.total"
-          value={customer._count.operations}
+          value={customer.counts.operations}
         />
       </div>
 

@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Frontend-10 (Customer Workspace).
+Última revisão: PR Frontend-11 (Notification Center).
 
 ---
 
@@ -87,6 +87,8 @@ clientes.
 | Respostas de Operations, Identity, Organizations | Read Models públicos + mappers explícitos       | **sincronizado** por `contracts:sync`                                           | parser compatível em `mobile/lib/core/contracts/`       |
 | Artifact Templates                               | Read Models públicos + mapper explícito         | **sincronizado** por `contracts:sync`                                           | parser tolerante em `artifact_template_contracts.dart`  |
 | Artifact Executions                              | Read Models públicos + mapper explícito         | **sincronizado** por `contracts:sync`                                           | parser tolerante em `artifact_execution_contracts.dart` |
+| CRM (clientes e contatos)                        | Read Model público + mapper explícito (PR-11)   | **sincronizado** por `contracts:sync`                                           | não consumido                                           |
+| Notifications                                    | registro do Prisma, sem Read Model              | **espelhado à mão** em `src/types/notifications.ts`                             | não consumido                                           |
 
 ### Consequência prática
 
@@ -99,6 +101,15 @@ Os módulos migrados não dependem mais da forma de retorno do Prisma:
   e Scheduling têm Read Models cuja fonte única é o backend.
 - **Mapeado**: controllers selecionam o contrato por mappers testáveis; campos
   adicionados ao Prisma não passam a existir na API por acidente.
+
+**O CRM entrou nesse grupo na PR-11.** Até então o controller devolvia o
+registro do Prisma, o que publicava `deletedAt` — marca de exclusão lógica — e
+`_count`, nome gerado pelo ORM. `CustomerReadModel` e `CustomerReadModelMapper`
+fecharam a fronteira; a regra de exclusão lógica **não mudou**, apenas deixou de
+atravessar a API. O teste `customer.mapper.spec.ts` fixa isso.
+
+**Notifications continua espelhado** — é o próximo candidato: `payload` sem
+esquema e ausência de Read Model são as duas fragilidades registradas na §9.
 
 ---
 
@@ -294,36 +305,39 @@ Estratégia completa de depreciação e catálogo de Read Models:
 
 Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 
-| Lacuna                                                                                       | Impacto                                                                                                |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Sem endpoint de **membros do tenant**                                                        | web e mobile não conseguem atribuir técnico (exige `userId`)                                           |
-| Sem **ordenação** em `OperationQueryDto`                                                     | nenhum cliente oferece ordenar a lista                                                                 |
-| Sem **comentários** em operações                                                             | seção não existe em nenhum cliente                                                                     |
-| Sem `operationId` em `EventQueryDto`                                                         | não há agenda vinculada à operação                                                                     |
-| `Operation.location` é JSON **sem esquema**                                                  | mobile só calcula distância quando o tenant gravou coordenadas                                         |
-| `Credential.mustChangePassword` existe mas não é exposto                                     | troca obrigatória de senha inerte no web                                                               |
-| Sem troca de **organização ativa**                                                           | multi-tenant preparado, mas inativo                                                                    |
-| Sem severidade em `Notification`                                                             | mobile apresenta `type`, sem inventar gravidade                                                        |
-| `POST /artifact-templates/:id/versions` responde **500**                                     | `$queryRaw` sobre `pg_advisory_xact_lock` (retorna `void`); publicar versão está quebrado              |
-| Sem nível de **agrupamento** dentro de seção                                                 | o Studio modela grupos, mas o contrato só tem `sections[].fields[]`                                    |
-| Sem `purpose` de geração de template em `ai-executions`                                      | não há contrato para geração de estrutura assistida por IA                                             |
-| **`AgendaQueryDto` não aceita fuso** — a agenda agrupa em UTC                                | evento noturno cai no dia errado fora de UTC; o web calcula a janela no fuso da unidade                |
-| Sem Read Model de evento, calendário e disponibilidade em `scheduling`                       | formas espelhadas do `include` do Prisma — quebram em runtime, não na compilação                       |
-| `OrganizationContextReadModel` sem `timezone`                                                | o fuso da agenda vem da unidade; sem unidade, do navegador                                             |
-| `GET /scheduling/intelligence` é fixture (`source: 'MOCK'`)                                  | apresentado com marca de não observado; só `conflicts` é real                                          |
-| `EventQueryDto` sem filtro por `type` e sem busca textual                                    | a agenda não oferece esses filtros                                                                     |
-| Módulo `assets` sem Read Model e sem `criticality`                                           | forma espelhada do Prisma; a tela não oferece filtro nem coluna de criticidade                         |
-| Analytics não aceita `assetId`                                                               | indicadores do ativo saem do `meta.total` de consultas filtradas; MTBF e disponibilidade não têm fonte |
-| Sem histórico e sem inteligência com escopo de ativo                                         | os painéis declaram a ausência                                                                         |
-| Sem contrato de **branding** — `UpdateOrganizationDto` aceita só nome, segmento e `settings` | branding vive em `settings` (JSON livre), por convenção do tenant                                      |
-| `timezone`, `locale`, `currency` e `status` de unidade são publicados mas **não editáveis**  | não há ativar/desativar unidade; `UpdateBusinessUnitDto` é `PartialType(CreateBusinessUnitDto)`        |
-| Sem listagem de **papéis** (`roleId` exigido no convite)                                     | convidar usuário não é oferecido na interface                                                          |
-| STARTER não concede `business_units.*`                                                       | administração de unidades inacessível no único plano semeado                                           |
-| `CustomerQueryDto` sem filtro por unidade, cidade ou responsável                             | a listagem de clientes não os oferece; cidade fica em `address` (JSON sem esquema)                     |
-| Sem Read Model de cliente; `deletedAt` exposto no payload                                    | forma espelhada do Prisma; campo interno vazando no contrato                                           |
-| Analytics não aceita `customerId`                                                            | receita, ticket médio e tempo de resposta não têm fonte                                                |
-| Anexos de execução não recebem binário — só `storageKey`                                     | o web registra metadados; envio e pré-visualização não existem                                         |
-| Sem leitura de auditoria e sem histórico de execução de artefato                             | painel de histórico declara ausência                                                                   |
+| Lacuna                                                                                                                               | Impacto                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Sem endpoint de **membros do tenant**                                                                                                | web e mobile não conseguem atribuir técnico (exige `userId`)                                           |
+| Sem **ordenação** em `OperationQueryDto`                                                                                             | nenhum cliente oferece ordenar a lista                                                                 |
+| Sem **comentários** em operações                                                                                                     | seção não existe em nenhum cliente                                                                     |
+| Sem `operationId` em `EventQueryDto`                                                                                                 | não há agenda vinculada à operação                                                                     |
+| `Operation.location` é JSON **sem esquema**                                                                                          | mobile só calcula distância quando o tenant gravou coordenadas                                         |
+| `Credential.mustChangePassword` existe mas não é exposto                                                                             | troca obrigatória de senha inerte no web                                                               |
+| Sem troca de **organização ativa**                                                                                                   | multi-tenant preparado, mas inativo                                                                    |
+| Sem severidade em `Notification`                                                                                                     | mobile apresenta `type`, sem inventar gravidade                                                        |
+| `POST /artifact-templates/:id/versions` responde **500**                                                                             | `$queryRaw` sobre `pg_advisory_xact_lock` (retorna `void`); publicar versão está quebrado              |
+| Sem nível de **agrupamento** dentro de seção                                                                                         | o Studio modela grupos, mas o contrato só tem `sections[].fields[]`                                    |
+| Sem `purpose` de geração de template em `ai-executions`                                                                              | não há contrato para geração de estrutura assistida por IA                                             |
+| **`AgendaQueryDto` não aceita fuso** — a agenda agrupa em UTC                                                                        | evento noturno cai no dia errado fora de UTC; o web calcula a janela no fuso da unidade                |
+| Sem Read Model de evento, calendário e disponibilidade em `scheduling`                                                               | formas espelhadas do `include` do Prisma — quebram em runtime, não na compilação                       |
+| `OrganizationContextReadModel` sem `timezone`                                                                                        | o fuso da agenda vem da unidade; sem unidade, do navegador                                             |
+| `GET /scheduling/intelligence` é fixture (`source: 'MOCK'`)                                                                          | apresentado com marca de não observado; só `conflicts` é real                                          |
+| `EventQueryDto` sem filtro por `type` e sem busca textual                                                                            | a agenda não oferece esses filtros                                                                     |
+| Módulo `assets` sem Read Model e sem `criticality`                                                                                   | forma espelhada do Prisma; a tela não oferece filtro nem coluna de criticidade                         |
+| Analytics não aceita `assetId`                                                                                                       | indicadores do ativo saem do `meta.total` de consultas filtradas; MTBF e disponibilidade não têm fonte |
+| Sem histórico e sem inteligência com escopo de ativo                                                                                 | os painéis declaram a ausência                                                                         |
+| Sem contrato de **branding** — `UpdateOrganizationDto` aceita só nome, segmento e `settings`                                         | branding vive em `settings` (JSON livre), por convenção do tenant                                      |
+| `timezone`, `locale`, `currency` e `status` de unidade são publicados mas **não editáveis**                                          | não há ativar/desativar unidade; `UpdateBusinessUnitDto` é `PartialType(CreateBusinessUnitDto)`        |
+| Sem listagem de **papéis** (`roleId` exigido no convite)                                                                             | convidar usuário não é oferecido na interface                                                          |
+| STARTER não concede `business_units.*`                                                                                               | administração de unidades inacessível no único plano semeado                                           |
+| `CustomerQueryDto` sem filtro por unidade, cidade ou responsável                                                                     | a listagem de clientes não os oferece; cidade fica em `address` (JSON sem esquema)                     |
+| ~~Sem Read Model de cliente; `deletedAt` exposto~~                                                                                   | **corrigido na PR-11**: `CustomerReadModel` + mapper; `deletedAt` e `_count` não são mais publicados   |
+| **Realtime de notificações inalcançável pelo web** — o gateway Socket.IO exige token no handshake, e o web só tem cookies `HttpOnly` | a central usa polling configurável; o mobile pode usar o gateway                                       |
+| `NotificationQueryDto` sem busca textual; sem arquivar, fixar ou prioridade                                                          | a central não oferece esses conceitos                                                                  |
+| Sem Read Model de notificação; `payload` sem esquema                                                                                 | forma espelhada; a Resource Reference é lida com tolerância                                            |
+| Analytics não aceita `customerId`                                                                                                    | receita, ticket médio e tempo de resposta não têm fonte                                                |
+| Anexos de execução não recebem binário — só `storageKey`                                                                             | o web registra metadados; envio e pré-visualização não existem                                         |
+| Sem leitura de auditoria e sem histórico de execução de artefato                                                                     | painel de histórico declara ausência                                                                   |
 
 ---
 
@@ -345,5 +359,6 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Action Registry — preparação (web)              | `frontend/docs/action-registry.md`              |
 | Customer Workspace (web)                        | `frontend/docs/customer-workspace.md`           |
 | Registry Core — proposta (web)                  | `frontend/docs/registry-core.md`                |
+| Notification Center (web)                       | `frontend/docs/notification-center.md`          |
 | Arquitetura, fila de uploads e offline (mobile) | `mobile/README.md`                              |
 | Administração da plataforma                     | `backend/docs/platform-administration.md`       |

@@ -1,15 +1,17 @@
 /**
  * Contratos do módulo CRM (clientes e contatos).
  *
- * Os **literais** (`CustomerType`, `CustomerStatus`) vêm dos contratos
- * sincronizados. A forma do cliente é **espelhada**: o módulo não publica Read
- * Model — o controller devolve o registro do Prisma com `contacts` e `_count`.
+ * As formas de leitura são **sincronizadas** desde a PR-11: o backend passou a
+ * publicar `CustomerReadModel` e um mapper, em vez de devolver o registro do
+ * Prisma. Foi a correção que tirou `deletedAt` — e também `_count`, o nome do
+ * ORM — do contrato público. A exclusão lógica não mudou; ela apenas deixou de
+ * atravessar a API.
  *
- * Duas coisas que essa leitura já entrega e que valem notar:
+ * Duas coisas que essa leitura entrega e que valem notar:
  *
  * - **`contacts` vem embutido**, ordenado por `isPrimary desc, name asc` — não
  *   é preciso uma segunda consulta para exibi-los;
- * - **`_count` traz `assets` e `operations` contados no banco**. São
+ * - **`counts` traz `assets` e `operations` contados no banco**. São
  *   indicadores observados, publicados pelo backend; a tela não os soma.
  *
  * O que o contrato **não** tem: unidade de negócio (o cliente é da
@@ -17,54 +19,30 @@
  * JSON livre) e responsável pela conta.
  */
 import type { CustomerStatus, CustomerType } from "./contracts";
+import type {
+  CustomerContactReadModel,
+  CustomerCountsReadModel,
+  CustomerReadModel,
+} from "./contracts/modules/organizations/business-units/customers/customer.read-models";
 
 export type { CustomerStatus, CustomerType };
 
-export interface CustomerContact {
-  id: string;
-  organizationId: string;
-  businessUnitId: string | null;
-  customerId: string;
-  name: string;
-  role: string | null;
-  email: string | null;
-  phone: string | null;
-  isPrimary: boolean;
-  notes: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+export type CustomerContact = CustomerContactReadModel;
+export type CustomerCounts = CustomerCountsReadModel;
 
 /**
- * Contagens que o backend calcula no `include` da consulta.
- *
- * `assets` e `operations` excluem registros removidos — o recorte é do
- * repositório, não da tela.
+ * `type` e `status` chegam como `string` no Read Model — o backend os valida
+ * por `@IsIn`, e o literal sincronizado é a leitura correta deles no cliente.
  */
-export interface CustomerCounts {
-  assets: number;
-  operations: number;
-}
-
-export interface Customer {
-  id: string;
-  organizationId: string;
+export type Customer = Omit<
+  CustomerReadModel,
+  "type" | "status" | "address"
+> & {
   type: CustomerType;
-  legalName: string;
-  tradeName: string | null;
-  documentType: string | null;
-  documentNumber: string | null;
-  email: string | null;
-  phone: string | null;
-  notes: string | null;
+  status: CustomerStatus;
   /** JSON livre — o backend não define esquema de endereço. */
   address: Record<string, unknown> | null;
-  status: CustomerStatus;
-  createdAt: string;
-  updatedAt: string;
-  contacts: readonly CustomerContact[];
-  _count: CustomerCounts;
-}
+};
 
 /**
  * `GET /customers` (`CustomerQueryDto`).
@@ -99,14 +77,18 @@ export interface UpdateCustomerInput extends Partial<CreateCustomerInput> {
   status?: CustomerStatus;
 }
 
-/** `POST /customers/:id/contacts` (`CreateContactDto`). */
+/**
+ * `POST /customers/:id/contacts` (`CreateContactDto`).
+ *
+ * Sem `notes`: o modelo `Contact` não tem essa coluna, e o `ValidationPipe`
+ * usa `forbidNonWhitelisted` — enviá-la viraria 400.
+ */
 export interface CreateContactInput {
   name: string;
   role?: string;
   email?: string;
   phone?: string;
   isPrimary?: boolean;
-  notes?: string;
   businessUnitId?: string;
 }
 
