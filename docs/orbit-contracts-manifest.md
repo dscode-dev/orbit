@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Frontend-13 (Artifact Studio V2 & Execution Center).
+Última revisão: PR Backend-19 (Artifact Storage & Manifest).
 
 ---
 
@@ -88,6 +88,7 @@ clientes.
 | Artifact Templates                               | Read Models públicos + mapper explícito         | **sincronizado** por `contracts:sync`                                           | parser tolerante em `artifact_template_contracts.dart`  |
 | Artifact Executions                              | Read Models públicos + mapper explícito         | **sincronizado** por `contracts:sync`                                           | parser tolerante em `artifact_execution_contracts.dart` |
 | CRM (clientes e contatos)                        | Read Model público + mapper explícito (PR-11)   | **sincronizado** por `contracts:sync`                                           | não consumido                                           |
+| Artifact Manifest & Storage                      | Read Models públicos + mappers explícitos       | **sincronizado** por `contracts:sync`                                           | espelhado em `artifact_manifest_contracts.dart`         |
 | Notifications                                    | registro do Prisma, sem Read Model              | **espelhado à mão** em `src/types/notifications.ts`                             | não consumido                                           |
 
 ### Consequência prática
@@ -336,7 +337,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | `NotificationQueryDto` sem busca textual; sem arquivar, fixar ou prioridade                                                          | a central não oferece esses conceitos                                                                                    |
 | Sem Read Model de notificação; `payload` sem esquema                                                                                 | forma espelhada; a Resource Reference é lida com tolerância                                                              |
 | Analytics não aceita `customerId`                                                                                                    | receita, ticket médio e tempo de resposta não têm fonte                                                                  |
-| Anexos de execução não recebem binário — só `storageKey`                                                                             | o web registra metadados; envio e pré-visualização não existem                                                           |
+| ~~Anexos de execução não recebem binário — só `storageKey`~~                                                                         | **corrigido na PR-19**: `POST /attachments/upload-url` reserva o objeto e devolve URL de upload assinada                 |
 | Sem leitura de auditoria e sem histórico de execução de artefato                                                                     | painel de histórico declara ausência                                                                                     |
 | Analytics **sem domínio de execução de artefato**                                                                                    | os KPIs do Execution Center vêm de contagens por fila (`meta.total`)                                                     |
 | Sem progresso agregado de execuções                                                                                                  | nenhum "progresso global" é exibido; o progresso é por execução                                                          |
@@ -357,6 +358,12 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Sem endpoint de **troca de responsável** de operação                                                                                 | reatribuir é atribuir e depois desatribuir                                                                               |
 | Operação **não passa pelo motor de agenda**                                                                                          | a janela prevista é informativa; nenhum conflito é avaliado                                                              |
 | Sem campo nem filtro de **autorização** em `Operation`                                                                               | a preferência é gravada em `settings` e o backend ainda não a aplica — avisado na tela                                   |
+| Sem motor de renderização — `renderStatus` é sempre `NOT_RENDERED`                                                                   | o Manifest guarda o documento; gerar conteúdo é da próxima PR                                                            |
+| Sem fila ou job assíncrono para renderização                                                                                         | a emissão do manifest é síncrona                                                                                         |
+| Sem comparação (diff) entre revisões de manifest                                                                                     | o contrato publica o necessário; o diff não foi implementado                                                             |
+| Sem assinatura digital do documento emitido                                                                                          | `contentHash` é o valor que ela cobrirá                                                                                  |
+| Azure Blob e Google Cloud Storage não implementados                                                                                  | a configuração os recusa explicitamente em vez de fingir suporte                                                         |
+| Sem política de retenção de objeto                                                                                                   | `remove` é recusado no provider S3: documento emitido não some por ação da aplicação                                     |
 
 ---
 
@@ -383,5 +390,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Template Type Registry (web)                    | `frontend/docs/template-type-registry.md`       |
 | Artifact Studio V2 (web)                        | `frontend/docs/artifact-studio-v2.md`           |
 | Execution Center (web)                          | `frontend/docs/execution-center.md`             |
+| Artifact Manifest (backend)                     | `backend/docs/artifact-manifest.md`             |
+| Storage Provider e URLs assinadas (backend)     | `backend/docs/artifact-storage.md`              |
 | Arquitetura, fila de uploads e offline (mobile) | `mobile/README.md`                              |
 | Administração da plataforma                     | `backend/docs/platform-administration.md`       |

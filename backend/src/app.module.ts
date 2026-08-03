@@ -18,6 +18,8 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PlatformAdministrationModule } from './modules/platform-administration/platform-administration.module';
 import { ArtifactTemplateModule } from './modules/artifact-templates/artifact-template.module';
+import { ArtifactManifestModule } from './modules/artifact-manifests/artifact-manifest.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-execution.module';
 
 @Module({
@@ -39,6 +41,8 @@ import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-
     PlatformAdministrationModule,
     ArtifactTemplateModule,
     ArtifactExecutionModule,
+    StorageModule,
+    ArtifactManifestModule,
   ],
   controllers: [AppController],
   providers: [AppService],

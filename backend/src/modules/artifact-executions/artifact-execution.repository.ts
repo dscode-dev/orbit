@@ -339,6 +339,19 @@ export class ArtifactExecutionRepository {
         await tx.artifactExecutionResponse.findFirstOrThrow({
           where: { id: input.responseId, executionId: id },
         });
+      /**
+       * Ligação com o Storage (PR-19).
+       *
+       * Quando `storageKey` é o identificador de um arquivo reservado por
+       * `POST /attachments/upload-url`, o anexo passa a apontar para ele. Um
+       * valor livre — o contrato sempre permitiu — continua aceito, e o anexo
+       * fica sem objeto gerenciado, exatamente como antes desta PR.
+       */
+      const file = await tx.storageFile.findFirst({
+        where: { id: input.storageKey, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+
       await tx.artifactExecutionAttachment.create({
         data: {
           organizationId,
@@ -351,6 +364,7 @@ export class ArtifactExecutionRepository {
           mimeType: input.mimeType,
           sizeBytes: BigInt(input.sizeBytes),
           storageKey: input.storageKey,
+          fileId: file?.id ?? null,
           checksum: input.checksum?.toLowerCase(),
           metadata: this.json(input.metadata),
         },
@@ -363,7 +377,11 @@ export class ArtifactExecutionRepository {
         'ARTIFACT_ATTACHMENT_REGISTERED',
         id,
         null,
-        { storageKey: input.storageKey, kind: input.kind },
+        {
+          storageKey: input.storageKey,
+          kind: input.kind,
+          managed: Boolean(file),
+        },
       );
       return tx.artifactExecution.findUniqueOrThrow({
         where: { id },

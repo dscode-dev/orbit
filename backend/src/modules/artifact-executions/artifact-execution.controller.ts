@@ -18,7 +18,12 @@ import {
   Capabilities,
   RequiresActivePlan,
 } from '../subscription-plans/plan-access';
+import { ArtifactAttachmentService } from './artifact-attachment.service';
 import { ArtifactExecutionService } from './artifact-execution.service';
+import {
+  ArtifactAttachmentDownloadQueryDto,
+  ReserveArtifactAttachmentDto,
+} from './dto/artifact-attachment.dto';
 import {
   ArtifactExecutionQueryDto,
   ChangeArtifactExecutionStatusDto,
@@ -33,7 +38,10 @@ import {
 @Controller('artifact-executions')
 @RequiresActivePlan()
 export class ArtifactExecutionController {
-  constructor(private readonly executions: ArtifactExecutionService) {}
+  constructor(
+    private readonly executions: ArtifactExecutionService,
+    private readonly attachments: ArtifactAttachmentService,
+  ) {}
 
   @Get()
   @Capabilities('artifact_executions.read')
@@ -127,6 +135,46 @@ export class ArtifactExecutionController {
       this.organizationId(req),
       this.actorId(req),
       input,
+    );
+  }
+
+  /**
+   * Reserva do objeto do anexo — **aditiva**.
+   *
+   * O registro do anexo continua igual; esta rota apenas diz para onde enviar
+   * o binário. Sem ela, o anexo era metadado de um arquivo que a plataforma
+   * nunca recebia.
+   */
+  @Post(':id/attachments/upload-url')
+  @Capabilities('artifact_executions.execute')
+  @Permissions('artifact_executions.execute')
+  reserveAttachment(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() req: IdentityRequest,
+    @Body() input: ReserveArtifactAttachmentDto,
+  ) {
+    return this.attachments.reserveUpload(
+      id,
+      { organizationId: this.organizationId(req), actorId: this.actorId(req) },
+      input,
+    );
+  }
+
+  /** URL assinada de leitura do anexo — **aditiva**. */
+  @Get(':id/attachments/:attachmentId/download')
+  @Capabilities('artifact_executions.read')
+  @Permissions('artifact_executions.read')
+  downloadAttachment(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Param('attachmentId', ParseUUIDv7Pipe) attachmentId: string,
+    @Req() req: IdentityRequest,
+    @Query() query: ArtifactAttachmentDownloadQueryDto,
+  ) {
+    return this.attachments.signDownload(
+      id,
+      attachmentId,
+      { organizationId: this.organizationId(req), actorId: this.actorId(req) },
+      query.operation,
     );
   }
 

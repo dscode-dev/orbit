@@ -63,6 +63,9 @@ model User {
   artifactResponses             ArtifactExecutionResponse[]    @relation("ArtifactResponseAnsweredBy")
   artifactAttachments           ArtifactExecutionAttachment[]  @relation("ArtifactAttachmentUploadedBy")
   artifactSignatures            ArtifactExecutionSignature[]   @relation("ArtifactSignatureUser")
+  storageFilesCreated           StorageFile[]                  @relation("StorageFileCreatedBy")
+  artifactManifestsIssued       ArtifactManifest[]             @relation("ArtifactManifestIssuedBy")
+  artifactManifestsCreated      ArtifactManifest[]             @relation("ArtifactManifestCreatedBy")
 
   @@index([status, deletedAt])
   @@map("users")
@@ -208,6 +211,8 @@ model Organization {
   artifactAttachments      ArtifactExecutionAttachment[]
   artifactSignatures       ArtifactExecutionSignature[]
   artifactInsights         ArtifactExecutionInsight[]
+  storageFiles             StorageFile[]
+  artifactManifests        ArtifactManifest[]
   reports                  Report[]
   checklistTemplates       ChecklistTemplate[]
   checklistExecutions      ChecklistExecution[]
@@ -282,6 +287,8 @@ model BusinessUnit {
   schedulingAvailability SchedulingAvailability[]
   invitations            IdentityInvitation[]
   artifactExecutions     ArtifactExecution[]
+  storageFiles           StorageFile[]
+  artifactManifests      ArtifactManifest[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -758,6 +765,7 @@ model ArtifactTemplate {
   checklistTemplates ChecklistTemplate[]
   snapshots          ArtifactSnapshot[]
   executions         ArtifactExecution[]
+  manifests          ArtifactManifest[]
 
   @@unique([organizationId, key])
   @@index([organizationId, status, visibility, deletedAt])
@@ -813,6 +821,7 @@ model ArtifactSnapshot {
   template     ArtifactTemplate        @relation(fields: [templateId], references: [id], onDelete: Restrict)
   version      ArtifactTemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
   executions   ArtifactExecution[]
+  manifests    ArtifactManifest[]
 
   @@index([organizationId, templateId, templateVersion])
   @@index([templateVersionId])
@@ -862,6 +871,7 @@ model ArtifactExecution {
   attachments  ArtifactExecutionAttachment[]
   signatures   ArtifactExecutionSignature[]
   insights     ArtifactExecutionInsight[]
+  manifests    ArtifactManifest[]
 
   @@unique([organizationId, code])
   @@index([organizationId, businessUnitId, status, createdAt])
@@ -922,6 +932,8 @@ model ArtifactExecutionAttachment {
   mimeType       String                     @map("mime_type") @db.VarChar(160)
   sizeBytes      BigInt                     @map("size_bytes")
   storageKey     String                     @unique @map("storage_key") @db.VarChar(500)
+  /// Objeto no Storage. Nulo nos anexos anteriores à PR-19.
+  fileId         String?                    @map("file_id") @db.Uuid
   checksum       String?                    @db.Char(64)
   metadata       Json                       @default("{}") @db.JsonB
   createdAt      DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -930,8 +942,10 @@ model ArtifactExecutionAttachment {
   execution      ArtifactExecution          @relation(fields: [executionId], references: [id], onDelete: Cascade)
   response       ArtifactExecutionResponse? @relation(fields: [responseId], references: [id], onDelete: Cascade)
   uploadedBy     User                       @relation("ArtifactAttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  file           StorageFile?               @relation(fields: [fileId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, executionId, createdAt])
+  @@index([fileId])
   @@index([responseId])
   @@map("artifact_execution_attachments")
 }
@@ -977,6 +991,93 @@ model ArtifactExecutionInsight {
 
   @@index([organizationId, executionId, kind, resolvedAt])
   @@map("artifact_execution_insights")
+}
+
+/// Objeto binário guardado por um provider de armazenamento.
+///
+/// É a única representação de arquivo da plataforma: manifests e anexos
+/// apontam para cá em vez de guardarem chave e bucket próprios. `objectKey` e
+/// `bucket` são internos — nenhum Read Model os publica.
+model StorageFile {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  businessUnitId String?   @map("business_unit_id") @db.Uuid
+  provider       String    @db.VarChar(40)
+  bucket         String    @db.VarChar(160)
+  objectKey      String    @map("object_key") @db.VarChar(1024)
+  fileName       String    @map("file_name") @db.VarChar(255)
+  mimeType       String    @map("mime_type") @db.VarChar(160)
+  sizeBytes      BigInt    @map("size_bytes")
+  /// SHA-256 do conteúdo. Nulo enquanto um upload assinado não foi confirmado.
+  sha256         String?   @db.Char(64)
+  /// PENDING enquanto só existe a URL de upload; AVAILABLE após confirmação.
+  status         String    @default("PENDING") @db.VarChar(20)
+  metadata       Json      @default("{}") @db.JsonB
+  createdById    String?   @map("created_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit?                 @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  createdBy    User?                         @relation("StorageFileCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  manifests    ArtifactManifest[]
+  attachments  ArtifactExecutionAttachment[]
+
+  @@unique([provider, bucket, objectKey])
+  @@index([organizationId, status, createdAt])
+  @@map("storage_files")
+}
+
+/// Documento oficialmente emitido pela plataforma.
+///
+/// Uma execução pode ter várias revisões; **uma só fica ativa**, garantido por
+/// índice único parcial. O manifest não gera conteúdo: o futuro Rendering
+/// Engine entrega o arquivo e o registra aqui.
+model ArtifactManifest {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  businessUnitId  String    @map("business_unit_id") @db.Uuid
+  executionId     String    @map("execution_id") @db.Uuid
+  snapshotId      String    @map("snapshot_id") @db.Uuid
+  templateId      String    @map("template_id") @db.Uuid
+  templateVersion Int       @map("template_version")
+  revision        Int
+  status          String    @default("DRAFT") @db.VarChar(20)
+  /// Identificador do renderer que produziu o conteúdo.
+  renderer        String    @db.VarChar(80)
+  rendererVersion String?   @map("renderer_version") @db.VarChar(40)
+  format          String    @default("PDF") @db.VarChar(20)
+  /// SHA-256 do arquivo emitido. Nulo enquanto a revisão é rascunho.
+  contentHash     String?   @map("content_hash") @db.Char(64)
+  /// SHA-256 da fonte (snapshot + respostas) no momento da emissão.
+  sourceHash      String    @map("source_hash") @db.Char(64)
+  fileId          String?   @map("file_id") @db.Uuid
+  isActive        Boolean   @default(false) @map("is_active")
+  issuedAt        DateTime? @map("issued_at") @db.Timestamptz(3)
+  issuedById      String?   @map("issued_by_id") @db.Uuid
+  supersededAt    DateTime? @map("superseded_at") @db.Timestamptz(3)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokedReason   String?   @map("revoked_reason") @db.VarChar(500)
+  metadata        Json      @default("{}") @db.JsonB
+  createdById     String    @map("created_by_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit      @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  execution    ArtifactExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  snapshot     ArtifactSnapshot  @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  template     ArtifactTemplate  @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  file         StorageFile?      @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  issuedBy     User?             @relation("ArtifactManifestIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
+  createdBy    User              @relation("ArtifactManifestCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([executionId, revision])
+  @@index([organizationId, executionId, revision])
+  @@index([organizationId, status, issuedAt])
+  @@map("artifact_manifests")
 }
 
 model ChecklistExecution {

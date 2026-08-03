@@ -85,9 +85,7 @@ export class CustomerReadModelMapper {
       status: source.status,
       createdAt: this.date(source.createdAt),
       updatedAt: this.date(source.updatedAt),
-      contacts: (source.contacts ?? []).map((contact) =>
-        this.contact(contact),
-      ),
+      contacts: (source.contacts ?? []).map((contact) => this.contact(contact)),
       counts: this.counts(source._count),
     };
   }
