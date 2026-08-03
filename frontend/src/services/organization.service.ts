@@ -23,6 +23,7 @@ import type {
   Integration,
   Organization,
   OrganizationEntitlements,
+  OrganizationMember,
   OrganizationPlan,
   PlanUsageRecord,
   UpdateBusinessUnitInput,
@@ -44,6 +45,19 @@ export const organizationService = {
   /** Metadados. `settings` é JSON livre — é onde branding vive hoje. */
   update: (input: UpdateOrganizationInput): Promise<Organization> =>
     apiClient.patch<Organization>("/organizations/current", input),
+
+  /**
+   * Membros da organização.
+   *
+   * Leitura pura, no mesmo escopo de `GET /organizations/current`. É a única
+   * fonte de identificadores de usuário do tenant — sem ela não há como
+   * atribuir uma operação a alguém.
+   */
+  members: (options?: RequestOptions): Promise<readonly OrganizationMember[]> =>
+    apiClient.get<readonly OrganizationMember[]>(
+      "/organizations/current/members",
+      options,
+    ),
 
   entitlements: (options?: RequestOptions): Promise<OrganizationEntitlements> =>
     apiClient.get<OrganizationEntitlements>(
@@ -99,6 +113,7 @@ export const organizationService = {
   keys: {
     module: (): QueryKey => queryKeys.module(RESOURCE),
     current: (): QueryKey => queryKeys.query(RESOURCE, "current"),
+    members: (): QueryKey => queryKeys.query(RESOURCE, "members"),
     entitlements: (): QueryKey => queryKeys.query(RESOURCE, "subscription"),
     usage: (): QueryKey => queryKeys.query(RESOURCE, "usage"),
     plans: (): QueryKey => queryKeys.query(PLANS_RESOURCE, "catalog"),

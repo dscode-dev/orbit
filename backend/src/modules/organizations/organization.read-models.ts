@@ -40,6 +40,27 @@ export interface OrganizationPlanReadModel {
   isActive: boolean;
 }
 
+/**
+ * Membro da organização.
+ *
+ * Recorte mínimo para atribuir trabalho a alguém: identificação, contato e
+ * papel. Nada de credencial, verificação de e-mail, último acesso ou marca de
+ * exclusão — atribuir uma operação não precisa disso, e publicar seria expor
+ * mais do que a finalidade exige.
+ */
+export interface OrganizationMemberReadModel {
+  userId: string;
+  displayName: string;
+  email: string;
+  avatarUrl: string | null;
+  status: string;
+  /** Papel na organização, como o backend o define. */
+  role: { id: string; key: string; name: string };
+  joinedAt: string;
+  /** `true` para o dono da organização. */
+  isOwner: boolean;
+}
+
 export interface OrganizationContextReadModel {
   id: string;
   ownerUserId: string;

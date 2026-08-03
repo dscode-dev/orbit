@@ -20,15 +20,18 @@
 import type { ComponentType } from "react";
 
 import type { PanelQuery } from "@/components/panels";
+import type { MonthComparison } from "@/lib/analytics/month-comparison";
 import type {
   AgendaReadModel,
   AnalyticsDashboardReadModel,
   AnalyticsHealthReadModel,
   EnvironmentalImpactReadModel,
+  KpiReadModel,
   OrbitIntelligenceAnalyticsContext,
   ResolvedDashboardWidget,
 } from "@/types/dashboard";
 import { AttentionCenterWidget } from "./attention-center.widget";
+import { ComparativeRadarWidget } from "./comparative-radar.widget";
 import { EnvironmentalWidget } from "./environmental.widget";
 import { ExecutiveKpisWidget } from "./executive-kpis.widget";
 import { HealthScoreWidget } from "./health-score.widget";
@@ -48,6 +51,18 @@ export interface WidgetDataSources {
   };
   scheduling: {
     agenda: PanelQuery<AgendaReadModel>;
+  };
+  /**
+   * Comparação mês a mês.
+   *
+   * Duas leituras do mesmo endpoint de KPIs, uma por janela. Fica no conjunto
+   * compartilhado — e não dentro do widget — para que o botão de atualizar do
+   * painel também as renove, como faz com as demais fontes.
+   */
+  comparison: {
+    current: PanelQuery<KpiReadModel>;
+    previous: PanelQuery<KpiReadModel>;
+    windows: MonthComparison;
   };
 }
 
@@ -74,6 +89,16 @@ export const WIDGET_SPAN: Readonly<
  * plataforma, não um erro.
  */
 const WITHOUT_SOURCE: Readonly<Record<string, string>> = {
+  /**
+   * Saúde Financeira.
+   *
+   * A plataforma não tem domínio financeiro: não existe modelo de lançamento,
+   * receita, despesa ou previsão no Prisma, nem endpoint que os publique. Não
+   * há contrato disponível para consumir parcialmente — nem saldo, nem
+   * evolução mensal. Ver `docs/ux-improvements.md`.
+   */
+  "financial-health":
+    "Saldo, receitas, despesas e previsto dependem de um módulo financeiro que ainda não existe no backend — não há modelo nem endpoint. Nenhum número é estimado aqui.",
   "team-performance":
     "Produtividade por técnico ainda não é publicada pelo Analytics — apenas a contagem de técnicos alocados, no widget de técnicos.",
   "recent-activity":
@@ -129,6 +154,7 @@ function createWithoutSourceWidget(reason: string): WidgetComponent {
  */
 const REGISTRY: Readonly<Record<string, WidgetComponent>> = {
   "attention-center": AttentionCenterWidget,
+  "operations-comparative-radar": ComparativeRadarWidget,
   "executive-kpis": ExecutiveKpisWidget,
   "health-score": HealthScoreWidget,
   "operational-trend": OperationalTrendWidget,

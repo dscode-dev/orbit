@@ -7,13 +7,14 @@
  * artefato, segmento, status, visibilidade e uma tag. Nada é filtrado no
  * cliente — a paginação é do servidor.
  *
- * `artifactType` e `segment` são campos de texto, não listas: o backend os
+ * `segment` é campo de texto, não lista: o backend o
  * valida por formato, não por enum, e cada organização define os seus. Uma
  * lista fechada aqui esconderia os tipos que o tenant já usa.
  */
 import { Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { allTemplateTypes } from "@/artifacts";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -79,18 +80,34 @@ export function TemplatesFilters({
         </div>
       </div>
 
+      {/*
+       * Tipo de artefato — catálogo do registry, com escape para texto livre.
+       *
+       * O backend aceita qualquer classificação no formato válido, então o
+       * campo continua aceitando digitação; o `datalist` oferece os tipos do
+       * catálogo em vez de deixar quem filtra adivinhar o identificador.
+       */}
       <div className="space-y-2">
         <Label htmlFor="templates-type">Tipo de artefato</Label>
         <Input
           id="templates-type"
+          list="templates-type-options"
           value={value.artifactType ?? ""}
           onChange={(event) =>
             onChange({
               artifactType: toTypeIdentifier(event.target.value) || undefined,
             })
           }
-          placeholder="Ex.: RELATORIO"
+          placeholder="Todos"
+          className="font-mono text-sm"
         />
+        <datalist id="templates-type-options">
+          {allTemplateTypes().map((type) => (
+            <option key={type.id} value={type.id}>
+              {type.name}
+            </option>
+          ))}
+        </datalist>
       </div>
 
       <div className="space-y-2">

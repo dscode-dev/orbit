@@ -79,6 +79,39 @@ export function useArtifactTemplateVersion(id: string, version: number | null) {
   );
 }
 
+/**
+ * Template oficial de um tipo de artefato.
+ *
+ * O catálogo oficial é composto de templates **globais** — `organizationId`
+ * nulo — e o repositório do backend já os devolve na mesma listagem que traz
+ * os da organização. Não há endpoint de catálogo: a busca é a listagem
+ * filtrada por `artifactType`, e o oficial é o item sem organização.
+ *
+ * Serve a dois usos: oferecer "começar do oficial" ao criar, e "restaurar do
+ * oficial" em uma cópia que se afastou demais.
+ */
+export function useOfficialTemplate(artifactType: string | undefined) {
+  const query = useArtifactTemplatesList(
+    { artifactType, limit: 50, page: 1 },
+    { enabled: Boolean(artifactType) },
+  );
+
+  const official = (query.data?.data ?? []).find(
+    (template) => template.organizationId === null,
+  );
+
+  return { ...query, official };
+}
+
+/** Estrutura corrente do template oficial, carregada sob demanda. */
+export function useOfficialTemplateDetail(id: string | undefined) {
+  return useApiQuery(
+    artifactTemplatesService.keys.detail(id ?? ""),
+    ({ signal }) => artifactTemplatesService.get(id as string, { signal }),
+    { ...ARTIFACT_TEMPLATES_REFRESH.detail, enabled: Boolean(id) },
+  );
+}
+
 export function useCreateArtifactTemplate() {
   return useApiMutation(
     (input: CreateArtifactTemplateInput) =>

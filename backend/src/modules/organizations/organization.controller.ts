@@ -37,6 +37,23 @@ export class OrganizationController {
     );
   }
 
+  /**
+   * Membros da organização.
+   *
+   * Existe porque atribuir e reatribuir trabalho exige conhecer as pessoas:
+   * `POST /operations/:id/assignments` recebe um `userId` que, até aqui,
+   * nenhuma rota publicava. É leitura pura, do mesmo escopo de
+   * `GET /organizations/current`, e por isso segue a mesma autorização.
+   */
+  @Get('current/members')
+  @RequiresActivePlan()
+  async members(@Req() request: IdentityRequest) {
+    const { members, ownerUserId } = await this.organizations.listMembers(
+      this.organizationId(request),
+    );
+    return this.readModels.members(members, ownerUserId);
+  }
+
   @Patch('current')
   @RequiresActivePlan()
   @Permissions('organization.update')

@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { ContentContainer } from "@/components/layout/page-primitives";
-import { OperationsList } from "@/components/operations/operations-list";
+import { OperationsTabs } from "@/components/operations/operations-tabs";
 import {
   RequireActiveSubscription,
   RequireAuth,
@@ -10,8 +10,9 @@ import {
 /**
  * Lista de operações.
  *
- * Server Component: compõe guards e shell, sem estado nem dados. A lista é
- * Client Component porque filtros, paginação e seleção são interação.
+ * Server Component: compõe guards e shell, sem estado nem dados. As abas, a
+ * lista e as ações são Client Components porque filtros, paginação, seleção e
+ * diálogos são interação.
  *
  * Não há prefetch no servidor: a consulta depende da unidade ativa e dos
  * filtros, ambos escolhas do cliente. Buscar no servidor duplicaria a
@@ -32,11 +33,12 @@ export default function OperationsPage() {
                   Operações
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  Ordens de serviço da unidade ativa, com filtros aplicados pelo
+                  Ordens de serviço da unidade ativa: criação, reagendamento,
+                  atribuição e acompanhamento, com filtros aplicados pelo
                   backend.
                 </p>
               </header>
-              <OperationsList />
+              <OperationsTabs />
             </ContentContainer>
           </AppShell>
         </RequireCapability>

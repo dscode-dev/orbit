@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ContentContainer } from "@/components/layout/page-primitives";
 import { PanelLoading } from "@/components/panels";
-import { SchedulingWorkspace } from "@/components/scheduling/scheduling-workspace";
+import { SchedulingTabs } from "@/components/scheduling/scheduling-tabs";
 import {
   RequireActiveSubscription,
   RequireAuth,
@@ -13,8 +13,9 @@ import {
 /**
  * Scheduling Workspace.
  *
- * Server Component: compõe guards e shell, sem estado nem dados. O workspace é
- * Client Component — período, visão, filtros e diálogos são interação.
+ * Server Component: compõe guards e shell, sem estado nem dados. As abas e o
+ * workspace são Client Components — período, visão, filtros e diálogos são
+ * interação.
  *
  * Não há prefetch no servidor: a janela de consulta depende do fuso da unidade
  * ativa e do período escolhido, ambos decididos no cliente. Buscar no servidor
@@ -35,13 +36,13 @@ export default function SchedulingPage() {
                   Agenda
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  Operações, visitas, manutenções, compromissos e bloqueios da
-                  unidade ativa.
+                  Operações, visitas, manutenções, compromissos, bloqueios e
+                  lembretes da unidade ativa.
                 </p>
               </header>
             </ContentContainer>
             <Suspense fallback={<PanelLoading rows={8} />}>
-              <SchedulingWorkspace />
+              <SchedulingTabs />
             </Suspense>
           </AppShell>
         </RequireCapability>

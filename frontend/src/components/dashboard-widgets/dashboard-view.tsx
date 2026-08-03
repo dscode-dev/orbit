@@ -25,8 +25,10 @@ import {
   useAnalyticsQuery,
   useDashboardLayout,
   useEnvironmentalImpact,
+  useMonthComparison,
   useOrbitIntelligence,
 } from "@/hooks/dashboard/use-dashboard";
+import { useSchedulingTimeZone } from "@/components/scheduling/use-scheduling-timezone";
 import { useSession } from "@/providers/session-provider";
 import { useActiveScope } from "@/providers/use-active-scope";
 import { cn } from "@/lib/utils";
@@ -48,8 +50,17 @@ export function DashboardView() {
   const session = useSession();
   const scope = useActiveScope();
   const analyticsQuery = useAnalyticsQuery(range);
+  /**
+   * Fuso da unidade ativa.
+   *
+   * As janelas de comparação começam no primeiro dia do mês **na unidade**;
+   * em UTC a fronteira cairia três horas antes e jogaria o início do mês para
+   * o mês anterior. O resolvedor é o mesmo da agenda — não há um segundo.
+   */
+  const { timeZone } = useSchedulingTimeZone();
 
   const layout = useDashboardLayout(range);
+  const comparison = useMonthComparison(timeZone);
 
   /**
    * Leituras compartilhadas.
@@ -68,6 +79,11 @@ export function DashboardView() {
     },
     scheduling: {
       agenda: toPanelQuery(useAgenda()),
+    },
+    comparison: {
+      current: toPanelQuery(comparison.current),
+      previous: toPanelQuery(comparison.previous),
+      windows: comparison.windows,
     },
   };
 
@@ -134,6 +150,8 @@ export function DashboardView() {
               void sources.analytics.health.refetch();
               void sources.analytics.intelligence.refetch();
               void sources.scheduling.agenda.refetch();
+              void sources.comparison.current.refetch();
+              void sources.comparison.previous.refetch();
             }}
           >
             <RefreshCw className="size-4" />

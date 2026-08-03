@@ -117,6 +117,37 @@ export class OrganizationRepository {
     );
   }
 
+  /**
+   * Membros ativos e suspensos da organização.
+   *
+   * Associações removidas (`deletedAt`) ficam de fora — quem saiu não pode
+   * receber trabalho novo. O status da associação é publicado para que o
+   * cliente distinga quem está ativo de quem está suspenso sem inferir nada.
+   */
+  listMembers(organizationId: string) {
+    return this.rls.run((transaction) =>
+      transaction.organizationMembership.findMany({
+        where: { organizationId, deletedAt: null },
+        select: {
+          userId: true,
+          status: true,
+          joinedAt: true,
+          user: {
+            select: {
+              id: true,
+              displayName: true,
+              email: true,
+              avatarUrl: true,
+              status: true,
+            },
+          },
+          role: { select: { id: true, key: true, name: true } },
+        },
+        orderBy: { user: { displayName: 'asc' } },
+      }),
+    );
+  }
+
   updateCurrent(id: string, data: Prisma.OrganizationUpdateInput) {
     return this.rls.run((transaction) =>
       transaction.organization.update({

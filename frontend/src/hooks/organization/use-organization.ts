@@ -45,6 +45,8 @@ export const ORGANIZATION_REFRESH = {
   entitlements: { staleTime: MINUTE },
   usage: { staleTime: 30_000 },
   businessUnits: { staleTime: MINUTE },
+  /** Quadro de pessoas muda por convite e desligamento, não por operação. */
+  members: { staleTime: 5 * MINUTE },
   integrations: { staleTime: MINUTE },
   plans: { staleTime: 10 * MINUTE },
 } as const;
@@ -54,6 +56,21 @@ export function useOrganization() {
     organizationService.keys.current(),
     ({ signal }) => organizationService.current({ signal }),
     ORGANIZATION_REFRESH.current,
+  );
+}
+
+/**
+ * Membros da organização.
+ *
+ * Única fonte de identificadores de usuário do tenant — é o que permite
+ * atribuir e reatribuir uma operação. Somente leitura: convidar, remover e
+ * trocar papel não têm endpoint.
+ */
+export function useOrganizationMembers() {
+  return useApiQuery(
+    organizationService.keys.members(),
+    ({ signal }) => organizationService.members({ signal }),
+    ORGANIZATION_REFRESH.members,
   );
 }
 

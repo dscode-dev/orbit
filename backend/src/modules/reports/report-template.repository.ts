@@ -78,7 +78,8 @@ export class ReportTemplateRepository {
     },
   ) {
     return this.rls.run(async (transaction) => {
-      await transaction.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${source.organizationId}:${source.key}`}))`;
+      /** `void` não é desserializável por `$queryRaw` — ver artifact-template.repository. */
+      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${source.organizationId}:${source.key}`}))`;
       const latest = await transaction.reportTemplate.aggregate({
         where: {
           organizationId: source.organizationId,

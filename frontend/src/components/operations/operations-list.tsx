@@ -8,6 +8,17 @@
  * operações estão marcadas, porque o backend ainda não expõe endpoint de ação
  * em lote.
  *
+ * ## Centro de gestão (PR-12)
+ *
+ * A lista deixou de ser só leitura: criar, editar, reagendar, reatribuir,
+ * alterar prioridade, mudar status e excluir acontecem aqui, sem abrir a
+ * operação. Cada ação chama um endpoint que já existia — ver
+ * `operation-actions.tsx`.
+ *
+ * Os acessos rápidos a cliente, equipamento e execuções de artefato usam o
+ * **Entity Registry**: nenhuma rota é montada à mão nesta tela, e uma entidade
+ * sem tela registrada simplesmente não vira link.
+ *
  * **Ordenação**: `OperationQueryDto` não aceita parâmetro de ordenação. O
  * backend ordena por `scheduledStart asc, createdAt desc`. Ordenar no cliente
  * reordenaria apenas a página atual e daria uma impressão falsa de ordem
@@ -16,7 +27,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ListFilter } from "lucide-react";
+import { ArrowRight, ListFilter, Plus } from "lucide-react";
 
 import { PanelError, PanelLoading } from "@/components/panels";
 import { EmptyState } from "@/components/feedback/states";
@@ -31,7 +42,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EntityLink } from "@/entities/entity-components";
+import { useSchedulingTimeZone } from "@/components/scheduling/use-scheduling-timezone";
 import { useOperationsList } from "@/hooks/operations/use-operations";
+import { useSession } from "@/providers/session-provider";
 import { formatDateTime } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/routes";
@@ -41,18 +55,28 @@ import {
   operationPriorityLabel,
   OperationStatusBadge,
 } from "./operation-badges";
+import { OperationActions } from "./operation-actions";
+import { OperationFormDialog } from "./operation-form.dialog";
 import { OperationsFilters } from "./operations-filters";
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 400;
 
 export function OperationsList() {
+  const session = useSession();
+  const { timeZone } = useSchedulingTimeZone();
   const [filters, setFilters] = useState<OperationQuery>({
     page: 1,
     limit: PAGE_SIZE,
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [editing, setEditing] = useState<Operation | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+
+  const canCreate =
+    session.hasPermission("operations.create") &&
+    session.hasCapability("operations.manage");
 
   /** Busca só viaja depois que o usuário para de digitar. */
   useEffect(() => {
@@ -126,10 +150,24 @@ export function OperationsList() {
             <Badge variant="secondary">{selected.size} selecionadas</Badge>
           ) : null}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Ordenado por agendamento e data de criação (ordem definida pelo
-          backend)
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-xs text-muted-foreground">
+            Ordenado por agendamento e data de criação (ordem definida pelo
+            backend)
+          </p>
+          {canCreate ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              <Plus className="size-4" />
+              Nova operação
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {query.isPending ? (
@@ -158,7 +196,8 @@ export function OperationsList() {
                 <TableHead>Cliente</TableHead>
                 <TableHead>Agendamento</TableHead>
                 <TableHead>Equipe</TableHead>
-                <TableHead className="w-10" />
+                <TableHead>Acesso rápido</TableHead>
+                <TableHead className="w-20" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -167,7 +206,12 @@ export function OperationsList() {
                   key={operation.id}
                   operation={operation}
                   selected={selected.has(operation.id)}
+                  timeZone={timeZone}
                   onToggle={() => toggleOne(operation.id)}
+                  onEdit={() => {
+                    setEditing(operation);
+                    setFormOpen(true);
+                  }}
                 />
               ))}
             </TableBody>
@@ -208,6 +252,16 @@ export function OperationsList() {
           </Button>
         </div>
       ) : null}
+
+      <OperationFormDialog
+        open={formOpen}
+        editing={editing}
+        timeZone={timeZone}
+        onOpenChange={(open) => {
+          setFormOpen(open);
+          if (!open) setEditing(null);
+        }}
+      />
     </div>
   );
 }
@@ -215,11 +269,15 @@ export function OperationsList() {
 function OperationRow({
   operation,
   selected,
+  timeZone,
   onToggle,
+  onEdit,
 }: {
   operation: Operation;
   selected: boolean;
+  timeZone: string;
   onToggle: () => void;
+  onEdit: () => void;
 }) {
   const assignees = operation.users;
   return (
@@ -260,11 +318,42 @@ function OperationRow({
             : `${assignees[0].user.displayName} +${assignees.length - 1}`}
       </TableCell>
       <TableCell>
-        <Button asChild variant="ghost" size="icon" aria-label="Abrir operação">
-          <Link href={`${ROUTES.operations}/${operation.id}`}>
-            <ArrowRight className="size-4" />
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-1.5 text-xs">
+          {operation.customer ? (
+            <EntityLink entity="customer" id={operation.customer.id}>
+              {operation.customer.tradeName ?? operation.customer.legalName}
+            </EntityLink>
+          ) : null}
+          {operation.asset ? (
+            <EntityLink entity="asset" id={operation.asset.id}>
+              {operation.asset.name}
+            </EntityLink>
+          ) : null}
+          {operation.checklistExecutions.length > 0 ? (
+            <span className="text-muted-foreground">
+              {operation.checklistExecutions.length} checklist(s)
+            </span>
+          ) : null}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center justify-end gap-0.5">
+          <OperationActions
+            operation={operation}
+            timeZone={timeZone}
+            onEdit={onEdit}
+          />
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            aria-label="Abrir operação"
+          >
+            <Link href={`${ROUTES.operations}/${operation.id}`}>
+              <ArrowRight className="size-4" />
+            </Link>
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );

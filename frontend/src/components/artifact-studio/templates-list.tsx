@@ -7,6 +7,11 @@
  * plataforma, na mesma página — é o comportamento do repositório, não uma
  * junção feita aqui.
  *
+ * Os templates **oficiais** do Orbit são os globais (`organizationId` nulo):
+ * chegam nesta mesma listagem, sem endpoint extra, e são somente leitura. A
+ * ação oferecida neles é **duplicar** — é assim que a organização os
+ * personaliza sem nunca perder o original.
+ *
  * **Ordenação**: `ArtifactTemplateQueryDto` não aceita parâmetro de ordenação;
  * o backend ordena por `sortOrder asc, name asc`. Ordenar no cliente
  * reordenaria só a página atual, então a ordem do servidor é declarada e as
@@ -35,6 +40,7 @@ import type {
   ArtifactTemplateListItem,
   ArtifactTemplateQuery,
 } from "@/types/artifact-templates";
+import { TemplateTypeLabel } from "@/artifacts";
 import { CreateTemplateDialog } from "./create-template-dialog";
 import { DuplicateTemplateDialog } from "./duplicate-template-dialog";
 import {
@@ -221,7 +227,12 @@ function TemplateRow({
       </TableCell>
       <TableCell>
         <div className="space-y-1">
-          <span className="text-sm">{template.artifactType}</span>
+          {/* Rótulo, ícone e cor vêm do Template Type Registry. */}
+          <TemplateTypeLabel
+            artifactType={template.artifactType}
+            className="text-sm"
+            showCategory
+          />
           {template.segment ? (
             <p className="text-xs text-muted-foreground">{template.segment}</p>
           ) : null}

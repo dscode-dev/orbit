@@ -13,6 +13,7 @@
  */
 import { useMemo } from "react";
 
+import { buildMonthComparison } from "@/lib/analytics/month-comparison";
 import { useActiveScope } from "@/providers/use-active-scope";
 import {
   analyticsService,
@@ -101,6 +102,52 @@ export function useAnalyticsHealth(query: AnalyticsQuery) {
     ({ signal }) => analyticsService.health(query, { signal }),
     REFRESH_POLICY.health,
   );
+}
+
+/**
+ * Comparação mês a mês.
+ *
+ * Duas leituras do **mesmo** endpoint, com janelas diferentes. É o backend
+ * quem conta e classifica cada indicador em cada período; aqui só se escolhe
+ * o recorte e se guarda o rótulo de cada janela.
+ *
+ * A referência é quantizada no dia — sem isso, cada render produziria uma
+ * query key nova e um refetch.
+ */
+export function useMonthComparison(timeZone: string) {
+  const { businessUnitId } = useActiveScope();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const windows = useMemo(
+    () => buildMonthComparison(new Date(`${today}T12:00:00Z`), timeZone),
+    [today, timeZone],
+  );
+
+  const currentQuery = useMemo<AnalyticsQuery>(
+    () => ({
+      from: windows.thisMonth.from,
+      to: windows.thisMonth.to,
+      granularity: "MONTH",
+      businessUnitId: businessUnitId ?? undefined,
+    }),
+    [windows, businessUnitId],
+  );
+
+  const previousQuery = useMemo<AnalyticsQuery>(
+    () => ({
+      from: windows.lastMonth.from,
+      to: windows.lastMonth.to,
+      granularity: "MONTH",
+      businessUnitId: businessUnitId ?? undefined,
+    }),
+    [windows, businessUnitId],
+  );
+
+  return {
+    windows,
+    current: useAnalyticsKpis(currentQuery),
+    previous: useAnalyticsKpis(previousQuery),
+  };
 }
 
 export function useAnalyticsKpis(query: AnalyticsQuery) {

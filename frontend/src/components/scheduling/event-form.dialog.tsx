@@ -23,6 +23,27 @@
  * O formulário monta a **regra**; expandir é do `RecurrenceEngine`. Por isso
  * não há preview de ocorrências futuras: seria o frontend adivinhando o que o
  * servidor vai calcular.
+ *
+ * ## Correção do seletor de calendário (PR-12)
+ *
+ * O seletor não funcionava, por duas causas independentes:
+ *
+ * 1. **Organização sem nenhum calendário.** `CreateEventDto.calendarId` é
+ *    obrigatório e nada cria um calendário no cadastro da organização — nem o
+ *    backend, nem qualquer tela. O seletor abria vazio, o botão ficava
+ *    desabilitado e não havia saída. Verificado no banco: duas das três
+ *    organizações existentes têm zero calendários. Agora, quando a lista está
+ *    vazia, o próprio diálogo oferece criar o primeiro calendário
+ *    (`POST /scheduling/calendars`, endpoint que já existia e que nenhuma tela
+ *    consumia) para quem tem `scheduling.calendars.create`.
+ *
+ * 2. **Diálogo aberto antes de os calendários chegarem.** O estado inicial
+ *    escolhia o calendário padrão uma única vez, na montagem. Abrindo o
+ *    diálogo com a consulta ainda em voo, `calendarId` ficava vazio **para
+ *    sempre**, mesmo depois de a lista carregar. Agora a escolha padrão é
+ *    adotada quando a lista chega, por ajuste durante a renderização — o
+ *    mesmo padrão do Artifact Studio, já que `set-state-in-effect` é erro
+ *    neste repositório.
  */
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
@@ -68,6 +89,7 @@ import {
   type SchedulingEventStatus,
   type SchedulingPriority,
 } from "@/types/scheduling";
+import { CalendarSetup } from "./calendar-setup";
 import { eventStatusLabel } from "./event-badges";
 
 /** Origem dos eventos nascidos na agenda — `sourceModule` é obrigatório. */
@@ -158,6 +180,25 @@ function EventForm({
   );
   const [acknowledgeConflicts, setAcknowledgeConflicts] = useState(false);
 
+  /**
+   * Adoção tardia do calendário padrão.
+   *
+   * Se o diálogo abriu antes de `GET /scheduling/calendars` responder, o
+   * estado inicial nasceu sem calendário. Ajuste durante a renderização — sem
+   * efeito, sem render em cascata — para adotar o padrão assim que a lista
+   * chega. Só age quando ainda não há escolha: o que o usuário selecionou
+   * nunca é sobrescrito.
+   */
+  const fallbackCalendar = defaultCalendarOf(calendars);
+  if (!form.calendarId && fallbackCalendar) {
+    setForm((current) => ({
+      ...current,
+      calendarId: fallbackCalendar.id,
+      businessUnitId:
+        current.businessUnitId || (fallbackCalendar.businessUnitId ?? ""),
+    }));
+  }
+
   const edit = (patch: Partial<FormState>) =>
     setForm((current) => ({ ...current, ...patch }));
 
@@ -197,6 +238,17 @@ function EventForm({
         </DialogDescription>
       </DialogHeader>
 
+      {calendars.length === 0 ? (
+        <CalendarSetup
+          timeZone={timeZone}
+          businessUnitId={
+            session.businessUnits.find((unit) => unit.isPrimary)?.id
+          }
+          isFirst
+          onCreated={(calendar) => edit({ calendarId: calendar.id })}
+        />
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="event-title">Título</Label>
@@ -212,10 +264,15 @@ function EventForm({
           <Label htmlFor="event-calendar">Calendário</Label>
           <Select
             value={form.calendarId}
+            disabled={calendars.length === 0}
             onValueChange={(value) => edit({ calendarId: value })}
           >
             <SelectTrigger id="event-calendar">
-              <SelectValue placeholder="Selecione" />
+              <SelectValue
+                placeholder={
+                  calendars.length === 0 ? "Nenhum disponível" : "Selecione"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               {calendars.map((calendar) => (
@@ -502,6 +559,13 @@ function RecurrenceFields({
   );
 }
 
+/** Calendário padrão da organização, ou o primeiro da lista. */
+function defaultCalendarOf(
+  calendars: readonly SchedulingCalendar[],
+): SchedulingCalendar | undefined {
+  return calendars.find((calendar) => calendar.isDefault) ?? calendars[0];
+}
+
 function initialState(
   editing: SchedulingEventDetail | null,
   calendars: readonly SchedulingCalendar[],
@@ -529,8 +593,7 @@ function initialState(
     };
   }
 
-  const defaultCalendar =
-    calendars.find((calendar) => calendar.isDefault) ?? calendars[0];
+  const defaultCalendar = defaultCalendarOf(calendars);
 
   return {
     calendarId: defaultCalendar?.id ?? "",

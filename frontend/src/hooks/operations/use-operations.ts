@@ -25,7 +25,9 @@ import {
 import type {
   AssignOperationUserInput,
   ChangeOperationStatusInput,
+  CreateOperationInput,
   OperationQuery,
+  UpdateOperationInput,
 } from "@/types/operations";
 
 const MINUTE = 60_000;
@@ -122,6 +124,30 @@ function affectedKeys(id: string) {
     operationsService.keys.history(id),
     queryKeys.module("operations"),
   ];
+}
+
+export function useCreateOperation() {
+  return useApiMutation(
+    (input: CreateOperationInput) => operationsService.create(input),
+    { invalidate: [queryKeys.module("operations")] },
+  );
+}
+
+export function useUpdateOperation(id: string) {
+  return useApiMutation(
+    (input: UpdateOperationInput) => operationsService.update(id, input),
+    {
+      /** Edições da mesma operação não disputam a última palavra. */
+      scope: { id: `operations:${id}` },
+      invalidate: affectedKeys(id),
+    },
+  );
+}
+
+export function useRemoveOperation() {
+  return useApiMutation((id: string) => operationsService.remove(id), {
+    invalidate: [queryKeys.module("operations")],
+  });
 }
 
 export function useChangeOperationStatus(id: string) {

@@ -22,10 +22,8 @@ import {
   type StudioSectionNode,
   type StudioSignatureNode,
 } from "@/lib/artifact-studio";
-import {
-  ARTIFACT_LIMITS,
-  SUGGESTED_FIELD_TYPES,
-} from "@/types/artifact-templates";
+import { REGISTERED_FIELD_TYPES } from "@/components/artifact-executions/fields/registry";
+import { ARTIFACT_LIMITS } from "@/types/artifact-templates";
 import { JsonField } from "./json-field";
 
 export interface NodeInspectorProps {
@@ -333,9 +331,24 @@ function FieldInspector({
         label="Tipo de campo"
         value={node.type}
         disabled={readOnly}
-        suggestions={SUGGESTED_FIELD_TYPES}
+        suggestions={REGISTERED_FIELD_TYPES}
         onChange={(type) => onPatch({ type })}
       />
+
+      {/*
+       * Aviso de tipo sem renderizador.
+       *
+       * As sugestões vêm do **Field Registry** — os tipos que a execução sabe
+       * desenhar. Um tipo fora dele é aceito pelo backend e cai no
+       * renderizador genérico em campo. Dizer isso agora evita a descoberta
+       * durante a execução.
+       */}
+      {node.type && !REGISTERED_FIELD_TYPES.includes(node.type) ? (
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+          Nenhum renderizador registrado para <code>{node.type}</code>. O campo
+          será exibido pelo tratamento genérico na execução.
+        </p>
+      ) : null}
 
       <div className="space-y-2">
         <Label htmlFor="field-description">Descrição</Label>

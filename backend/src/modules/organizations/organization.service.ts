@@ -54,6 +54,13 @@ export class OrganizationService {
     return organization;
   }
 
+  /** Membros da organização, com o dono identificado pelo próprio registro. */
+  async listMembers(organizationId: string) {
+    const organization = await this.getCurrent(organizationId);
+    const members = await this.repository.listMembers(organizationId);
+    return { members, ownerUserId: organization.ownerUserId };
+  }
+
   async update(organizationId: string, input: UpdateOrganizationDto) {
     await this.getCurrent(organizationId);
     return this.repository.updateCurrent(organizationId, {

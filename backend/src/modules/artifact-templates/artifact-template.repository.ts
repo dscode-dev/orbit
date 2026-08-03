@@ -132,7 +132,16 @@ export class ArtifactTemplateRepository {
     input: CreateArtifactTemplateVersionDto,
   ) {
     return this.rls.run(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${organizationId}:${templateId}`}))`;
+      /**
+       * `$executeRaw`, não `$queryRaw`.
+       *
+       * `pg_advisory_xact_lock` retorna `void`, e o `$queryRaw` tenta
+       * desserializar a coluna do resultado: "Failed to deserialize column of
+       * type 'void'". A trava funcionava, mas a chamada estourava — publicar
+       * versão respondia **500** desde a PR-17. `$executeRaw` executa sem ler
+       * resultado, que é o que um lock precisa.
+       */
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${organizationId}:${templateId}`}))`;
       const template = await tx.artifactTemplate.findFirstOrThrow({
         where: { id: templateId, organizationId, deletedAt: null },
       });

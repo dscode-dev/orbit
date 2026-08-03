@@ -18,6 +18,19 @@
  *
  * A interface antecipa os três para não deixar alguém editar por vinte minutos
  * até levar 403 ao publicar — mas quem decide continua sendo o servidor.
+ *
+ * ## Templates oficiais (PR-13)
+ *
+ * O catálogo oficial do Orbit vive como template **global** e é somente
+ * leitura por política do backend — é isso que garante que o oficial nunca se
+ * perca. Editar é **duplicar**, e a duplicata pertence à organização.
+ *
+ * Numa cópia, **Restaurar do oficial** traz a estrutura corrente do global
+ * para o editor. Nada é sobrescrito no servidor: vira alteração pendente, e a
+ * publicação continua sendo um ato explícito que cria uma versão nova.
+ *
+ * O tipo do artefato é resolvido pelo **Template Type Registry** — nenhuma
+ * comparação com `artifactType` acontece nesta tela.
  */
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -29,6 +42,7 @@ import {
   LayoutTemplate,
   PenLine,
   RefreshCw,
+  RotateCcw,
   Settings2,
   History,
 } from "lucide-react";
@@ -42,7 +56,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useArtifactTemplate,
   useArtifactTemplateLifecycle,
+  useOfficialTemplate,
+  useOfficialTemplateDetail,
 } from "@/hooks/artifact-templates/use-artifact-templates";
+import { TemplateTypeBadge } from "@/artifacts";
 import {
   fieldNode,
   inspectDocument,
@@ -124,6 +141,17 @@ function StudioWorkspace({
     session.hasCapability("artifact_templates.manage");
   const readOnly = platformOwned || !canManage;
 
+  /**
+   * Oficial correspondente ao tipo deste template.
+   *
+   * Só interessa em cópias editáveis: num template global, ele é o próprio.
+   */
+  const officialList = useOfficialTemplate(
+    platformOwned ? undefined : template.artifactType,
+  );
+  const officialId = officialList.official?.id;
+  const official = useOfficialTemplateDetail(readOnly ? undefined : officialId);
+
   const problems = useMemo(
     () => inspectDocument(studio.document),
     [studio.document],
@@ -192,10 +220,13 @@ function StudioWorkspace({
             <Badge variant="secondary">v{template.currentVersion}</Badge>
             {platformOwned ? <PlatformTemplateBadge /> : null}
           </div>
-          <p className="font-mono text-xs text-muted-foreground">
-            {template.key} · {template.artifactType}
-            {template.segment ? ` · ${template.segment}` : ""}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <TemplateTypeBadge artifactType={template.artifactType} />
+            <p className="font-mono text-xs text-muted-foreground">
+              {template.key}
+              {template.segment ? ` · ${template.segment}` : ""}
+            </p>
+          </div>
           <p className="text-xs text-muted-foreground">
             Atualizado em {formatDateTime(template.updatedAt)}
           </p>
@@ -215,6 +246,16 @@ function StudioWorkspace({
             <Copy className="size-4" />
             Duplicar
           </Button>
+          {!readOnly && official.data ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => studio.loadVersion(official.data.current)}
+            >
+              <RotateCcw className="size-4" />
+              Restaurar do oficial
+            </Button>
+          ) : null}
           {template.status === "ACTIVE" ? (
             <Button
               variant="outline"
@@ -400,6 +441,7 @@ function StudioWorkspace({
                 isDirty={studio.isDirty}
                 readOnly={readOnly}
                 onPublished={onRefresh}
+                onLoadVersion={studio.loadVersion}
               />
             </div>
           </StudioBoundary>

@@ -3,6 +3,7 @@ import type { BusinessUnitType } from '../../contracts';
 import type {
   BusinessUnitReadModel,
   OrganizationContextReadModel,
+  OrganizationMemberReadModel,
   OrganizationPlanReadModel,
 } from './organization.read-models';
 
@@ -68,6 +69,20 @@ interface OrganizationSource {
   businessUnits: readonly BusinessUnitSource[];
 }
 
+interface MemberSource {
+  userId: string;
+  status: string;
+  joinedAt: DateValue;
+  user: {
+    id: string;
+    displayName: string;
+    email: string;
+    avatarUrl: string | null;
+    status: string;
+  };
+  role: { id: string; key: string; name: string };
+}
+
 @Injectable()
 export class OrganizationReadModelMapper {
   context(source: OrganizationSource): OrganizationContextReadModel {
@@ -119,6 +134,41 @@ export class OrganizationReadModelMapper {
       status: source.status,
       createdAt: this.date(source.createdAt),
       updatedAt: this.date(source.updatedAt),
+    };
+  }
+
+  /**
+   * Membros da organização.
+   *
+   * `ownerUserId` entra como parâmetro porque quem é dono é atributo da
+   * organização, não da associação — sem ele o cliente teria de cruzar duas
+   * respostas para saber a mesma coisa.
+   */
+  members(
+    sources: readonly MemberSource[],
+    ownerUserId: string,
+  ): readonly OrganizationMemberReadModel[] {
+    return sources.map((source) => this.member(source, ownerUserId));
+  }
+
+  member(
+    source: MemberSource,
+    ownerUserId: string,
+  ): OrganizationMemberReadModel {
+    return {
+      userId: source.userId,
+      displayName: source.user.displayName,
+      email: source.user.email,
+      avatarUrl: source.user.avatarUrl,
+      /** Status da associação, não da conta: quem saiu não recebe trabalho. */
+      status: source.status,
+      role: {
+        id: source.role.id,
+        key: source.role.key,
+        name: source.role.name,
+      },
+      joinedAt: this.date(source.joinedAt),
+      isOwner: source.userId === ownerUserId,
     };
   }
 

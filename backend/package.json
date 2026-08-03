@@ -19,7 +19,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed:platform-admin": "node dist/src/scripts/seed-platform-admin.js",
-    "seed:platform-admin:dev": "ts-node src/scripts/seed-platform-admin.ts"
+    "seed:platform-admin:dev": "ts-node src/scripts/seed-platform-admin.ts",
+    "seed:artifact-templates": "node dist/src/scripts/seed-artifact-templates.js",
+    "seed:artifact-templates:dev": "ts-node src/scripts/seed-artifact-templates.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

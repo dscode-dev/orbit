@@ -38,6 +38,7 @@ import {
 } from "@/lib/artifact-studio";
 import { ROUTES } from "@/lib/routes";
 import { ARTIFACT_LIMITS } from "@/types/artifact-templates";
+import { allTemplateTypes, TemplateTypeCard } from "@/artifacts";
 import { MutationError } from "./mutation-error";
 
 export function CreateTemplateDialog() {
@@ -146,19 +147,40 @@ export function CreateTemplateDialog() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="template-type">Tipo de artefato</Label>
-            <Input
-              id="template-type"
-              value={artifactType}
-              onChange={(event) =>
-                setArtifactType(toTypeIdentifier(event.target.value))
-              }
-              maxLength={ARTIFACT_LIMITS.typeMaxLength}
-              placeholder="RELATORIO"
-            />
-            <p className="text-xs text-muted-foreground">
-              Classificação livre — o backend valida o formato, não uma lista.
-            </p>
+            <Label>Tipo de artefato</Label>
+            <div className="grid max-h-56 gap-1.5 overflow-y-auto pr-1">
+              {allTemplateTypes().map((type) => (
+                <TemplateTypeCard
+                  key={type.id}
+                  type={type}
+                  selected={artifactType === type.id}
+                  onSelect={() => setArtifactType(type.id)}
+                />
+              ))}
+            </div>
+
+            <details className="rounded-lg border border-border px-3 py-2">
+              <summary className="cursor-pointer text-xs text-muted-foreground">
+                Outro tipo
+              </summary>
+              <div className="mt-2 space-y-2">
+                <Input
+                  id="template-type"
+                  value={artifactType}
+                  onChange={(event) =>
+                    setArtifactType(toTypeIdentifier(event.target.value))
+                  }
+                  maxLength={ARTIFACT_LIMITS.typeMaxLength}
+                  placeholder="RELATORIO"
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  O backend aceita qualquer classificação no formato válido. Um
+                  tipo fora do catálogo aparece com o identificador humanizado
+                  até ser registrado.
+                </p>
+              </div>
+            </details>
           </div>
 
           <div className="space-y-2">

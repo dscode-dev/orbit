@@ -7,17 +7,15 @@
  * nem "lista de campos". Um tipo de nó novo aparece aqui sem alterar o
  * componente: ele já sabe desenhar filhos.
  *
- * **Sem arrastar e soltar** nesta PR, por decisão de escopo. Mover é ação
- * explícita (subir/descer), o que também é o caminho acessível por teclado e
- * por leitor de tela — teria que existir de qualquer forma ao lado do arrastar.
+ * **Sem arrastar e soltar.** Mover é ação explícita (subir/descer), que também
+ * é o caminho acessível por teclado e por leitor de tela — teria que existir de
+ * qualquer forma ao lado do arrastar.
+ *
+ * O punho de arrastar que ficava à esquerda de cada nó foi removido na PR-13:
+ * ele sugeria um gesto que não existia. No lugar entra a **posição** do nó, que
+ * é informação real — e é ela que vira `order` no contrato.
  */
-import {
-  ChevronDown,
-  ChevronUp,
-  GripVertical,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -147,10 +145,12 @@ function TreeNode({
         )}
         style={{ marginLeft: depth * 16 }}
       >
-        <GripVertical
-          className="size-4 shrink-0 text-muted-foreground/50"
+        <span
+          className="w-5 shrink-0 text-center font-mono text-xs text-muted-foreground"
           aria-hidden
-        />
+        >
+          {index + 1}
+        </span>
         <button
           type="button"
           onClick={() => onSelect(node.nodeId)}

@@ -30,6 +30,7 @@ import { schedulingService } from "@/services/scheduling.service";
 import type {
   AddSchedulingAllocationInput,
   CreateSchedulingAvailabilityInput,
+  CreateSchedulingCalendarInput,
   CreateSchedulingEventInput,
   SchedulingAvailabilityQuery,
   SchedulingEventQuery,
@@ -138,6 +139,22 @@ function useSchedulingInvalidation() {
   const queryClient = useQueryClient();
   return () =>
     queryClient.invalidateQueries({ queryKey: queryKeys.module(RESOURCE) });
+}
+
+/**
+ * Criação de calendário.
+ *
+ * `POST /scheduling/calendars` existe desde a PR-07 e nenhuma tela o
+ * consumia — motivo pelo qual organizações sem calendário não conseguiam
+ * agendar nada (`calendarId` é obrigatório em `CreateEventDto`).
+ */
+export function useCreateSchedulingCalendar() {
+  const invalidate = useSchedulingInvalidation();
+  return useApiMutation(
+    (input: CreateSchedulingCalendarInput) =>
+      schedulingService.createCalendar(input),
+    { onSuccess: invalidate },
+  );
 }
 
 export function useCreateSchedulingEvent() {

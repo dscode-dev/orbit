@@ -24,6 +24,15 @@
  * onde vieram os dados. É o que permitirá reaproveitá-las no aplicativo móvel
  * com cache offline, sem tocar em nenhuma grade.
  *
+ * ## Dois arranjos, um workspace
+ *
+ * `layout="workspace"` é a visão de trabalho: grade e, ao lado, os painéis de
+ * análise que o backend publica (conflitos, disponibilidade, inteligência).
+ * `layout="calendar"` é a visão de calendário: a mesma grade ocupando a
+ * largura inteira, sem a coluna de análise, para quem quer só enxergar a
+ * semana. **Nenhum componente é duplicado** — muda a moldura, não a fonte nem
+ * as visões.
+ *
  * ## O que **não** acontece aqui
  *
  * Recorrência não é expandida, conflito não é detectado, disponibilidade não é
@@ -63,6 +72,7 @@ import type {
   SchedulingEventDetail,
   SchedulingEventQuery,
 } from "@/types/scheduling";
+import { CalendarSetup } from "./calendar-setup";
 import { EventDetailSheet } from "./event-detail.sheet";
 import { EventFormDialog } from "./event-form.dialog";
 import { AvailabilityPanel } from "./panels/availability.panel";
@@ -78,12 +88,21 @@ import { ListView } from "./views/list-view";
 import { MonthView } from "./views/month-view";
 import { TimeGrid } from "./views/time-grid";
 
-export function SchedulingWorkspace() {
+export type SchedulingLayout = "workspace" | "calendar";
+
+export function SchedulingWorkspace({
+  layout = "workspace",
+  initialView = "WEEK",
+}: {
+  layout?: SchedulingLayout;
+  initialView?: SchedulingView;
+} = {}) {
   const session = useSession();
   const { businessUnitId } = useActiveScope();
   const { timeZone, origin: timeZoneOrigin } = useSchedulingTimeZone();
 
-  const [view, setView] = useState<SchedulingView>("WEEK");
+  const showAnalysisPanels = layout === "workspace";
+  const [view, setView] = useState<SchedulingView>(initialView);
   const [reference, setReference] = useState(() => new Date());
   const [filters, setFilters] = useState<SchedulingFiltersValue>({});
   const [labels, setLabels] = useState<{ customer?: string; asset?: string }>(
@@ -99,7 +118,8 @@ export function SchedulingWorkspace() {
   const canManage =
     session.hasPermission("scheduling.events.create") &&
     session.hasCapability("scheduling.manage");
-  const canSeeIntelligence = session.hasCapability("scheduling.intelligence");
+  const canSeeIntelligence =
+    showAnalysisPanels && session.hasCapability("scheduling.intelligence");
 
   const window = useMemo(
     () => buildViewWindow(view, reference, timeZone),
@@ -141,10 +161,10 @@ export function SchedulingWorkspace() {
   const calendars = useSchedulingCalendars(query.businessUnitId);
   const occurrences = useSchedulingOccurrences(query);
   const conflicts = useSchedulingConflicts(query);
-  const availability = useSchedulingAvailability({
-    businessUnitId: query.businessUnitId,
-    userId: filters.userId,
-  });
+  const availability = useSchedulingAvailability(
+    { businessUnitId: query.businessUnitId, userId: filters.userId },
+    showAnalysisPanels,
+  );
   const intelligence = useSchedulingIntelligence(query, canSeeIntelligence);
 
   const days = useMemo(
@@ -195,6 +215,14 @@ export function SchedulingWorkspace() {
         onCreate={() => openCreate()}
       />
 
+      {calendars.data?.length === 0 ? (
+        <CalendarSetup
+          timeZone={timeZone}
+          businessUnitId={query.businessUnitId}
+          isFirst
+        />
+      ) : null}
+
       <SchedulingFilters
         value={filters}
         calendars={calendars.data ?? []}
@@ -212,7 +240,13 @@ export function SchedulingWorkspace() {
         }}
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,340px)]">
+      <div
+        className={
+          showAnalysisPanels
+            ? "grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,340px)]"
+            : "grid gap-6"
+        }
+      >
         <div className="min-w-0 space-y-4">
           {occurrences.isPending ? (
             <PanelLoading rows={8} />
@@ -277,17 +311,19 @@ export function SchedulingWorkspace() {
           )}
         </div>
 
-        <div className="min-w-0 space-y-6">
-          <ConflictsPanel
-            query={conflicts}
-            timeZone={timeZone}
-            onSelectEvent={setSelectedEventId}
-          />
-          <AvailabilityPanel query={availability} canManage={canManage} />
-          {canSeeIntelligence ? (
-            <IntelligencePanel query={intelligence} timeZone={timeZone} />
-          ) : null}
-        </div>
+        {showAnalysisPanels ? (
+          <div className="min-w-0 space-y-6">
+            <ConflictsPanel
+              query={conflicts}
+              timeZone={timeZone}
+              onSelectEvent={setSelectedEventId}
+            />
+            <AvailabilityPanel query={availability} canManage={canManage} />
+            {canSeeIntelligence ? (
+              <IntelligencePanel query={intelligence} timeZone={timeZone} />
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <EventDetailSheet

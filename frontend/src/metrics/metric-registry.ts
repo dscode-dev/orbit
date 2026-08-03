@@ -79,6 +79,19 @@ export interface MetricDefinition {
   priority: number;
   /** Quando definida, a métrica só aparece se o plano conceder a capability. */
   capability?: string;
+  /**
+   * A métrica muda quando a janela consultada muda.
+   *
+   * Nem todo indicador do Analytics responde ao período: disponibilidade dos
+   * equipamentos e contratos ativos são contados **sem filtro de data**
+   * (`AnalyticsRepository.snapshot` consulta `assets` e `customers` sem
+   * recorte temporal), então perguntá-los para dois meses devolve o mesmo
+   * número duas vezes. Colocá-los num gráfico de comparação sugeriria uma
+   * estabilidade que não foi medida.
+   *
+   * Só quem tem esta marca entra em comparações período a período.
+   */
+  comparable?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -263,6 +276,69 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     priority: 7,
     capability: "artifact_executions.read",
   }),
+  /**
+   * Contadores do Execution Center.
+   *
+   * **Não vêm do Analytics** — ele não tem domínio de execução de artefato.
+   * Vêm do `meta.total` que o backend devolve ao contar a própria consulta
+   * filtrada por `status`: uma contagem do banco, feita no servidor, uma por
+   * fila. O registry cuida só da apresentação.
+   */
+  define({
+    id: "executions.total",
+    label: "Execuções",
+    description: "Execuções de artefato na unidade ativa.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: ClipboardCheck,
+    trendColor: higherIsBetter,
+    priority: 8,
+    capability: "artifact_executions.read",
+  }),
+  define({
+    id: "executions.in_progress",
+    label: "Em andamento",
+    description: "Execuções com preenchimento em curso.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: Activity,
+    trendColor: higherIsBetter,
+    priority: 8.1,
+    capability: "artifact_executions.read",
+  }),
+  define({
+    id: "executions.paused",
+    label: "Pausadas",
+    description: "Execuções interrompidas antes da conclusão.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: Timer,
+    trendColor: lowerIsBetter,
+    priority: 8.2,
+    capability: "artifact_executions.read",
+  }),
+  define({
+    id: "executions.under_review",
+    label: "Aguardando revisão",
+    description: "Execuções submetidas e ainda não aprovadas.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: ClipboardCheck,
+    trendColor: lowerIsBetter,
+    priority: 8.3,
+    capability: "artifact_executions.read",
+  }),
+  define({
+    id: "executions.completed",
+    label: "Concluídas",
+    description: "Execuções finalizadas.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: CheckCircle2,
+    trendColor: higherIsBetter,
+    priority: 8.4,
+    capability: "artifact_executions.read",
+  }),
   define({
     id: "operations.total",
     label: "Operações criadas",
@@ -273,6 +349,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     trendColor: higherIsBetter,
     priority: 10,
     capability: "operations.read",
+    comparable: true,
   }),
   define({
     id: "operations.completion_rate",
@@ -284,6 +361,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     trendColor: higherIsBetter,
     priority: 20,
     capability: "operations.read",
+    comparable: true,
   }),
   define({
     id: "operations.sla_compliance",
@@ -296,6 +374,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     trendColor: higherIsBetter,
     priority: 30,
     capability: "operations.read",
+    comparable: true,
   }),
   define({
     id: "operations.created",
@@ -327,6 +406,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     trendColor: higherIsBetter,
     priority: 40,
     capability: "reports.read",
+    comparable: true,
   }),
   define({
     id: "pmoc.generated",
@@ -359,6 +439,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     trendColor: higherIsBetter,
     priority: 60,
     capability: "operations.read",
+    comparable: true,
   }),
   define({
     id: "technicians.active",
@@ -370,6 +451,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     trendColor: higherIsBetter,
     priority: 70,
     capability: "operations.read",
+    comparable: true,
   }),
   define({
     id: "contracts.active_proxy",

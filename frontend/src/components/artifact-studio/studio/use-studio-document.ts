@@ -14,6 +14,12 @@
  * Havendo alteração pendente — alguém publicou em outra aba, por exemplo — o
  * editor **não** descarta o trabalho: sinaliza e deixa a escolha para quem
  * está editando.
+ *
+ * **Carregar outra versão.** Versões são imutáveis e não há rota de reversão:
+ * restaurar é publicar uma versão nova com o conteúdo de uma anterior. Por
+ * isso `loadVersion` traz a estrutura para o editor **sem** mover a âncora — o
+ * documento passa a divergir da versão corrente, que é exatamente o estado que
+ * habilita publicar.
  */
 import { useCallback, useMemo, useState } from "react";
 
@@ -58,6 +64,14 @@ export interface StudioDocumentState {
   identifiersIn: (tree: StudioTreeName) => readonly string[];
   /** Descarta a edição e reancora na versão corrente do servidor. */
   reset: () => void;
+  /**
+   * Traz a estrutura de outra versão para o editor, mantendo a âncora.
+   *
+   * Serve para restaurar uma versão anterior e para trazer o conteúdo do
+   * template oficial — em ambos os casos o resultado é uma edição pendente,
+   * publicada como versão nova pelo backend.
+   */
+  loadVersion: (version: ArtifactTemplateVersion) => void;
 }
 
 export function useStudioDocument(
@@ -157,6 +171,11 @@ export function useStudioDocument(
     identifiersIn: (tree) => usedIdentifiers(document[tree]),
 
     reset: () => rebase(version),
+
+    loadVersion: (source) => {
+      setDocument(documentFromVersion(source));
+      setSelectedNodeId(null);
+    },
   };
 }
 

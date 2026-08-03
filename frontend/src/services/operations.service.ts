@@ -16,11 +16,13 @@ import type {
   ChangeOperationStatusInput,
   ChecklistExecution,
   ChecklistExecutionQuery,
+  CreateOperationInput,
   Operation,
   OperationAttachment,
   OperationHistoryEntry,
   OperationQuery,
   OperationTimeline,
+  UpdateOperationInput,
 } from "@/types/operations";
 
 const RESOURCE = "operations";
@@ -46,6 +48,15 @@ export const operationsService = {
 
   get: (id: string, options?: RequestOptions): Promise<Operation> =>
     apiClient.get<Operation>(item(id), options),
+
+  create: (input: CreateOperationInput): Promise<Operation> =>
+    apiClient.post<Operation>("/operations", input),
+
+  update: (id: string, input: UpdateOperationInput): Promise<Operation> =>
+    apiClient.patch<Operation>(item(id), input),
+
+  /** Exclusão lógica no backend; a listagem deixa de trazer o registro. */
+  remove: (id: string): Promise<void> => apiClient.delete<void>(item(id)),
 
   history: (
     id: string,

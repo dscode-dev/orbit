@@ -3,6 +3,40 @@ import { ConflictException, EntityNotFoundException } from '../../exceptions';
 import type { DashboardWidgetDefinition } from './dashboard.read-models';
 
 const globalWidgets: DashboardWidgetDefinition[] = [
+  /**
+   * Radar comparativo.
+   *
+   * `order: 5` e `size: 'MEDIUM'` o colocam à esquerda da Central de Atenção
+   * (`order: 10`, `LARGE`): 4 + 8 fecham exatamente a linha de 12 colunas.
+   *
+   * O Read Model deste widget é o genérico de segmento — como já acontece com
+   * os indicadores executivos, quem serve os números é o Analytics, consultado
+   * pelo cliente uma vez por janela de comparação. Por isso o widget exige
+   * `analytics.read`: sem essa permissão ele só exibiria um cartão de erro.
+   */
+  {
+    id: 'operations-comparative-radar',
+    title: 'Radar comparativo',
+    description: 'Indicadores operacionais do mês atual contra o mês anterior.',
+    category: 'OPERATIONS',
+    order: 5,
+    size: 'MEDIUM',
+    tags: ['global', 'operations', 'kpi', 'comparison'],
+    supportedSegments: [],
+    /**
+     * Sem exigência de módulo.
+     *
+     * `requiredModules` é conferido contra as `moduleTags` do plano, e o plano
+     * STARTER — o único ativo hoje — não tem nenhuma. Exigir `operations` aqui
+     * esconderia o radar de todo mundo, como já acontece com a Tendência
+     * Operacional e o Desempenho da Equipe.
+     */
+    requiredModules: [],
+    requiredPlans: [],
+    /** Consome o Analytics; sem a permissão, só exibiria um cartão de erro. */
+    requiredPermissions: ['analytics.read'],
+    readModel: 'operations-comparative-radar',
+  },
   {
     id: 'attention-center',
     title: 'Central de Atenção',
@@ -30,6 +64,32 @@ const globalWidgets: DashboardWidgetDefinition[] = [
     requiredPlans: [],
     requiredPermissions: ['dashboard.read'],
     readModel: 'executive-kpis',
+  },
+  /**
+   * Saúde Financeira.
+   *
+   * **A plataforma ainda não tem domínio financeiro**: não existe modelo de
+   * lançamento, receita, despesa ou previsão no Prisma, nem endpoint que os
+   * publique. O widget está registrado assim mesmo, e o cliente declara a
+   * ausência em vez de exibir número inventado — o mesmo tratamento que os
+   * widgets de estoque e de produção agrícola já recebem.
+   *
+   * Quando o módulo existir, este registro passa a apontar para o Read Model
+   * real sem mudar posição nem tamanho no painel.
+   */
+  {
+    id: 'financial-health',
+    title: 'Saúde Financeira',
+    description: 'Saldo, receitas, despesas, previsto e evolução mensal.',
+    category: 'EXECUTIVE',
+    order: 25,
+    size: 'LARGE',
+    tags: ['global', 'financial'],
+    supportedSegments: [],
+    requiredModules: [],
+    requiredPlans: [],
+    requiredPermissions: ['dashboard.read'],
+    readModel: 'financial-health',
   },
   {
     id: 'health-score',

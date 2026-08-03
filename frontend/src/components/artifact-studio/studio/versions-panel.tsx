@@ -10,10 +10,12 @@
  *
  * Versões são imutáveis — não há rota de edição nem de exclusão de versão.
  * Reverter, quando for preciso, é publicar uma versão nova com o conteúdo de
- * uma anterior.
+ * uma anterior. É o que **Carregar no editor** faz: traz a estrutura da versão
+ * escolhida para a área de edição, onde ela vira uma alteração pendente. Nada
+ * é sobrescrito no servidor até alguém publicar.
  */
 import { useState } from "react";
-import { GitBranch, History, Upload } from "lucide-react";
+import { GitBranch, History, RotateCcw, Upload } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +28,10 @@ import {
 } from "@/hooks/artifact-templates/use-artifact-templates";
 import { serializeDocument, type StudioDocument } from "@/lib/artifact-studio";
 import { formatDateTime } from "@/lib/formatters";
-import { ARTIFACT_LIMITS } from "@/types/artifact-templates";
+import {
+  ARTIFACT_LIMITS,
+  type ArtifactTemplateVersion,
+} from "@/types/artifact-templates";
 import { cn } from "@/lib/utils";
 import { MutationError } from "../mutation-error";
 
@@ -37,6 +42,7 @@ export function VersionsPanel({
   isDirty,
   readOnly,
   onPublished,
+  onLoadVersion,
 }: {
   templateId: string;
   currentVersion: number;
@@ -44,6 +50,8 @@ export function VersionsPanel({
   isDirty: boolean;
   readOnly: boolean;
   onPublished: () => void;
+  /** Traz a estrutura de uma versão anterior para o editor. */
+  onLoadVersion: (version: ArtifactTemplateVersion) => void;
 }) {
   const versions = useArtifactTemplateVersions(templateId);
   const publish = useCreateArtifactTemplateVersion(templateId);
@@ -158,14 +166,27 @@ export function VersionsPanel({
                   <p className="mt-1 text-sm">
                     {version.changeSummary ?? "Sem resumo informado."}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {version.sections.length} seção(ões) ·{" "}
-                    {version.sections.reduce(
-                      (total, section) => total + section.fields.length,
-                      0,
-                    )}{" "}
-                    campo(s) · {version.signatureSlots.length} assinatura(s)
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {version.sections.length} seção(ões) ·{" "}
+                      {version.sections.reduce(
+                        (total, section) => total + section.fields.length,
+                        0,
+                      )}{" "}
+                      campo(s) · {version.signatureSlots.length} assinatura(s)
+                    </p>
+                    {readOnly ? null : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => onLoadVersion(version)}
+                      >
+                        <RotateCcw className="size-3.5" />
+                        Carregar no editor
+                      </Button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

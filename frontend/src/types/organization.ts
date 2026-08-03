@@ -15,16 +15,28 @@
  *   "property timezone should not exist");
  * - **status de unidade editável** — `status` é publicado no Read Model, mas
  *   `UpdateBusinessUnitDto` não o aceita;
- * - **listagem de usuários e de papéis** — nenhum endpoint.
+ * - **gestão de papéis** — não há endpoint para criar, editar ou trocar o
+ *   papel de um membro. A listagem de membros passou a existir na PR-12
+ *   (`GET /organizations/current/members`), mas é somente leitura.
  */
 import type {
   BusinessUnitReadModel,
   OrganizationContextReadModel,
+  OrganizationMemberReadModel,
   OrganizationPlanReadModel,
 } from "./contracts/modules/organizations/organization.read-models";
 import type { BusinessUnitType } from "./contracts";
 
 export type Organization = OrganizationContextReadModel;
+/**
+ * Membro da organização (`GET /organizations/current/members`).
+ *
+ * Endpoint criado na PR-12: atribuir e reatribuir trabalho exige conhecer as
+ * pessoas, e `POST /operations/:id/assignments` recebe um `userId` que
+ * nenhuma rota publicava.
+ */
+export type OrganizationMember = OrganizationMemberReadModel;
+
 export type BusinessUnit = BusinessUnitReadModel;
 export type OrganizationPlan = OrganizationPlanReadModel;
 

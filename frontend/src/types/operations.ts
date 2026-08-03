@@ -54,6 +54,41 @@ export interface OperationQuery {
   limit?: number;
 }
 
+/**
+ * `POST /operations` (`CreateOperationDto`).
+ *
+ * `businessUnitId`, `code`, `kind` e `title` são obrigatórios no DTO. Os
+ * limites de tamanho são os do `class-validator`, replicados em
+ * `OPERATION_LIMITS` para retorno imediato na tela — a recusa continua sendo
+ * do servidor.
+ */
+export interface CreateOperationInput {
+  businessUnitId: string;
+  customerId?: string;
+  assetId?: string;
+  code: string;
+  kind: OperationKind;
+  title: string;
+  description?: string;
+  priority?: OperationPriority;
+  scheduledStart?: string;
+  scheduledEnd?: string;
+  location?: Record<string, unknown>;
+  data?: Record<string, unknown>;
+}
+
+/** `PATCH /operations/:id` (`UpdateOperationDto` — `PartialType`). */
+export type UpdateOperationInput = Partial<CreateOperationInput>;
+
+/** Limites declarados pelo `class-validator` no `CreateOperationDto`. */
+export const OPERATION_LIMITS = {
+  codeMinLength: 2,
+  codeMaxLength: 60,
+  titleMinLength: 2,
+  titleMaxLength: 220,
+  statusReasonMaxLength: 500,
+} as const;
+
 /** `PATCH /operations/:id/status` (`ChangeOperationStatusDto`). */
 export interface ChangeOperationStatusInput {
   status: OperationStatus;

@@ -73,7 +73,7 @@ describe('CustomerReadModelMapper', () => {
     const result = mapper.details(source);
 
     expect(result.createdAt).toBe('2026-08-01T12:00:00.000Z');
-    expect(result.contacts[0].createdAt).toBe('2026-08-01T12:00:00.000Z');
+    expect(result.contacts[0]?.createdAt).toBe('2026-08-01T12:00:00.000Z');
   });
 
   it('tolera ausência de contatos e de contagens', () => {
@@ -108,7 +108,7 @@ describe('CustomerReadModelMapper', () => {
   });
 
   it('não expõe deletedAt ao mapear um contato isolado', () => {
-    const result = mapper.contact(source.contacts[0]);
+    const result = mapper.contact(source.contacts[0]!);
 
     expect(result).not.toHaveProperty('deletedAt');
     expect(result.name).toBe('Marina Duarte');

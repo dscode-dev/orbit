@@ -5,15 +5,13 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   LayoutGrid,
-  CalendarDays,
-  ClipboardCheck,
-  Handshake,
-  LayoutTemplate,
-  Boxes,
+  Bell,
   FileBarChart,
-  Workflow,
+  Package,
   Settings,
-  LifeBuoy,
+  SlidersHorizontal,
+  UserCircle,
+  Users,
   PanelLeftClose,
   ChevronsUpDown,
   Sparkles,
@@ -26,6 +24,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { getEntity, type EntityId } from "@/entities/entity-registry";
+import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 export type NavItem = {
@@ -35,25 +35,76 @@ export type NavItem = {
   badge?: string;
 };
 
+/**
+ * Item derivado do Entity Registry.
+ *
+ * Rótulo, ícone e rota base de uma entidade já têm dono — o registry. Repetir
+ * aqui criaria duas verdades: renomear "Ativos" no registry deixaria o menu
+ * desatualizado e, pior, quebraria o realce do item ativo, que compara o
+ * rótulo do menu com o `activeLabel` da página (também vindo do registry).
+ */
+const fromEntity = (id: EntityId): NavItem => {
+  const entity = getEntity(id);
+  return {
+    label: entity.labelPlural,
+    icon: entity.icon,
+    to: entity.basePath,
+  };
+};
+
+/**
+ * Item ainda sem tela.
+ *
+ * O `SidebarItem` já renderiza um botão inerte quando não há `to` — era o caso
+ * de "Relatórios" e "Suporte" antes desta PR. A diferença é a marca **em
+ * breve**: um item que não leva a lugar nenhum precisa dizer isso, em vez de
+ * parecer quebrado.
+ */
+const planned = (label: string, icon: NavItem["icon"]): NavItem => ({
+  label,
+  icon,
+  badge: "em breve",
+});
+
+/**
+ * Navegação por categoria de trabalho.
+ *
+ * Os grupos separam o que a pessoa faz: executar o dia (Operação), cuidar da
+ * carteira (Comercial), configurar o que é preenchido em campo (Documentos) e
+ * administrar a conta (Administração). Nada aqui muda aparência, animação ou
+ * componente — só a organização dos itens.
+ */
 export const defaultNavigation: { group: string; items: NavItem[] }[] = [
   {
-    group: "Plataforma",
+    group: "Operação",
     items: [
-      { label: "Visão geral", icon: LayoutGrid, to: "/dashboard" },
-      { label: "Operações", icon: Workflow, to: "/operacoes" },
-      { label: "Artefatos", icon: LayoutTemplate, to: "/artefatos" },
-      { label: "Execuções", icon: ClipboardCheck, to: "/execucoes" },
-      { label: "Agenda", icon: CalendarDays, to: "/agenda" },
-      { label: "Ativos", icon: Boxes, to: "/ativos" },
-      { label: "Clientes", icon: Handshake, to: "/clientes" },
-      { label: "Relatórios", icon: FileBarChart },
+      { label: "Visão geral", icon: LayoutGrid, to: ROUTES.dashboard },
+      fromEntity("scheduling-event"),
+      fromEntity("operation"),
+      fromEntity("artifact-execution"),
+      planned("Relatórios", FileBarChart),
     ],
   },
   {
-    group: "Sistema",
+    group: "Comercial",
     items: [
-      { label: "Organização", icon: Settings, to: "/organizacao" },
-      { label: "Suporte", icon: LifeBuoy },
+      fromEntity("customer"),
+      fromEntity("asset"),
+      planned("Produtos & Serviços", Package),
+    ],
+  },
+  {
+    group: "Documentos",
+    items: [fromEntity("artifact-template")],
+  },
+  {
+    group: "Administração",
+    items: [
+      { label: "Organização", icon: Settings, to: ROUTES.organization },
+      planned("Usuários", Users),
+      { label: "Notificações", icon: Bell, to: ROUTES.notifications },
+      planned("Configurações", SlidersHorizontal),
+      planned("Perfil", UserCircle),
     ],
   },
 ];
