@@ -38,25 +38,48 @@ import {
 import { formatDateTime } from "@/lib/formatters";
 import { ROUTES } from "@/lib/routes";
 import type { TeamMember } from "@/types/workforce";
+import { MemberActions } from "./member-actions";
+import { MemberCertificationsSection } from "./member-certifications.section";
+import { MemberSpecialtiesSection } from "./member-specialties.section";
 import { WorkloadCards } from "./workload-cards";
 
 export function MemberSheet({
   member,
   onOpenChange,
+  onEdit,
 }: {
   member: TeamMember | null;
   onOpenChange: (open: boolean) => void;
+  onEdit?: (member: TeamMember) => void;
 }) {
   return (
     <Sheet open={member !== null} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
-        {member ? <Body member={member} /> : null}
+        {member ? (
+          <Body
+            member={member}
+            onEdit={
+              onEdit
+                ? () => {
+                    onOpenChange(false);
+                    onEdit(member);
+                  }
+                : undefined
+            }
+          />
+        ) : null}
       </SheetContent>
     </Sheet>
   );
 }
 
-function Body({ member }: { member: TeamMember }) {
+function Body({
+  member,
+  onEdit,
+}: {
+  member: TeamMember;
+  onEdit?: () => void;
+}) {
   const roles = useTeamRoles();
   const role = roles.data?.find((item) => item.id === member.role.id);
 
@@ -78,7 +101,13 @@ function Body({ member }: { member: TeamMember }) {
       </SheetHeader>
 
       <div className="space-y-6 px-4 pb-6">
+        <MemberActions member={member} onEdit={onEdit} />
+
         <WorkloadCards userId={member.userId} />
+
+        <MemberSpecialtiesSection userId={member.userId} />
+
+        <MemberCertificationsSection userId={member.userId} />
 
         <section className="space-y-3">
           <h3 className="text-sm font-medium">Papel e permissões efetivas</h3>

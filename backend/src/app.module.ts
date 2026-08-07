@@ -8,6 +8,7 @@ import { IdentityModule } from './modules/identity/identity.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { TechnicalCatalogsModule } from './modules/technical-catalogs/technical-catalogs.module';
+import { WorkforceModule } from './modules/workforce/workforce.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SignaturesModule } from './modules/signatures/signatures.module';
@@ -31,6 +32,7 @@ import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-
     IdentityModule,
     OrganizationsModule,
     TechnicalCatalogsModule,
+    WorkforceModule,
     IntegrationsModule,
     OperationsModule,
     ReportsModule,

@@ -115,8 +115,8 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
       { label: "Organização", icon: Settings, to: ROUTES.organization },
       fromEntity("team-member"),
       { label: "Notificações", icon: Bell, to: ROUTES.notifications },
-      planned("Configurações", SlidersHorizontal),
-      planned("Perfil", UserCircle),
+      { label: "Configurações", icon: SlidersHorizontal, to: ROUTES.settings },
+      { label: "Perfil", icon: UserCircle, to: ROUTES.profile },
     ],
   },
 ];

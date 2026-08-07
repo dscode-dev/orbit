@@ -11,16 +11,26 @@
  * quem faz parte, com que papel, em que unidade, e o que cada um tem para
  * fazer.
  *
- * ## Quatro abas, quatro origens
+ * ## Oito abas, e de onde vem cada uma
  *
  * ```
- * GET /organizations/current/members    usuários e técnicos
+ * GET /organizations/current/members    usuários e técnicos (paginado)
  * GET /organizations/current/roles      papéis e permissões
- * GET /identity/invitations             convites
+ * GET /identity/invitations             convites (paginado)
+ * GET /workforce/specialties            catálogo de especialidades
+ * GET /workforce/certifications         habilitações e vencimentos
+ * GET /workforce/teams                  equipes
+ * GET /workforce/locations              últimas posições reportadas
+ * GET /scheduling/availability          escalas — já existia
  * GET /operations?assignedUserId=       carga por pessoa
  * GET /artifact-executions?responsibleUserId=
  * GET /scheduling/events?userId=
  * ```
+ *
+ * **Escalas não ganharam modelo novo.** `SchedulingAvailability` já tinha tudo
+ * — tipo, dia, horário, fuso e vigência — e é o que o motor de agenda consulta
+ * ao detectar conflito. Um modelo paralelo divergiria na primeira folga
+ * cadastrada só num deles.
  *
  * Cada aba tem `TabBoundary` próprio: uma falha em Papéis não derruba
  * Usuários.
@@ -32,9 +42,14 @@ import { PanelFrame } from "@/components/panels";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabBoundary } from "@/workspace";
 import { WorkforceKpis } from "./workforce-kpis";
+import { CertificationsTab } from "./tabs/certifications.tab";
 import { InvitationsTab } from "./tabs/invitations.tab";
+import { LocationsTab } from "./tabs/locations.tab";
 import { MembersTab } from "./tabs/members.tab";
 import { RolesTab } from "./tabs/roles.tab";
+import { ShiftsTab } from "./tabs/shifts.tab";
+import { SpecialtiesTab } from "./tabs/specialties.tab";
+import { TeamsTab } from "./tabs/teams.tab";
 import { TechniciansTab } from "./tabs/technicians.tab";
 
 export function WorkforceWorkspace() {
@@ -48,6 +63,11 @@ export function WorkforceWorkspace() {
         <TabsList>
           <TabsTrigger value="usuarios">Usuários</TabsTrigger>
           <TabsTrigger value="tecnicos">Técnicos</TabsTrigger>
+          <TabsTrigger value="equipes">Equipes</TabsTrigger>
+          <TabsTrigger value="especialidades">Especialidades</TabsTrigger>
+          <TabsTrigger value="certificacoes">Certificações</TabsTrigger>
+          <TabsTrigger value="escalas">Escalas</TabsTrigger>
+          <TabsTrigger value="mapa">Localização</TabsTrigger>
           <TabsTrigger value="convites">Convites</TabsTrigger>
           <TabsTrigger value="papeis">Papéis</TabsTrigger>
           <TabsTrigger value="inteligencia">Inteligência</TabsTrigger>
@@ -62,6 +82,36 @@ export function WorkforceWorkspace() {
         <TabsContent value="tecnicos">
           <TabBoundary id="workforce-technicians" label="a equipe técnica">
             <TechniciansTab />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="equipes">
+          <TabBoundary id="workforce-teams" label="as equipes">
+            <TeamsTab />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="especialidades">
+          <TabBoundary id="workforce-specialties" label="as especialidades">
+            <SpecialtiesTab />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="certificacoes">
+          <TabBoundary id="workforce-certifications" label="as certificações">
+            <CertificationsTab />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="escalas">
+          <TabBoundary id="workforce-shifts" label="as escalas">
+            <ShiftsTab />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="mapa">
+          <TabBoundary id="workforce-locations" label="a localização">
+            <LocationsTab />
           </TabBoundary>
         </TabsContent>
 

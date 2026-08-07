@@ -206,7 +206,11 @@ export class OrganizationReadModelMapper {
   }
 
   roles(sources: readonly RoleSource[]): readonly OrganizationRoleReadModel[] {
-    return sources.map((source) => ({
+    return sources.map((source) => this.role(source));
+  }
+
+  role(source: RoleSource): OrganizationRoleReadModel {
+    return {
       id: source.id,
       key: source.key,
       name: source.name,
@@ -215,7 +219,7 @@ export class OrganizationReadModelMapper {
       isSystem: source.isSystem,
       isOrganizationOwned: source.organizationId !== null,
       memberCount: source._count.organizationMemberships,
-    }));
+    };
   }
 
   private plan(source: PlanSource): OrganizationPlanReadModel {

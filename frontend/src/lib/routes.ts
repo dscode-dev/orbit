@@ -28,6 +28,10 @@ export const ROUTES = {
   catalog: "/catalogo",
   /** Workforce Management — equipe, convites e papéis. */
   team: "/equipe",
+  /** Settings Workspace — governança da plataforma. */
+  settings: "/configuracoes",
+  /** Profile Workspace — a própria conta. */
+  profile: "/perfil",
   /** Organization Workspace — administração da empresa. */
   organization: "/organizacao",
   /** Customer Workspace — visão 360° do cliente. */
@@ -52,6 +56,8 @@ export const PROTECTED_PREFIXES: readonly string[] = [
   ROUTES.assets,
   ROUTES.catalog,
   ROUTES.team,
+  ROUTES.settings,
+  ROUTES.profile,
   ROUTES.organization,
   ROUTES.customers,
   ROUTES.notifications,

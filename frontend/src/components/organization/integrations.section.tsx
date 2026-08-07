@@ -15,7 +15,8 @@
  * lista o que a organização configurou, não o que poderia configurar. O que a
  * tela mostra sobre disponibilidade é o limite do plano, no painel de plano.
  */
-import { Plug, RefreshCw, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Plug, RefreshCw, TriangleAlert } from "lucide-react";
 
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { PanelFrame, PanelState, toPanelQuery } from "@/components/panels";
@@ -26,6 +27,7 @@ import {
   useValidateIntegration,
 } from "@/hooks/organization/use-organization";
 import { formatDateTime } from "@/lib/formatters";
+import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import type { Integration } from "@/types/organization";
 
@@ -157,36 +159,40 @@ function IntegrationRow({
  * É a mesma lacuna que impede atribuir técnico a uma operação e nomear a
  * equipe de uma execução, registrada desde a PR-01 do aplicativo móvel.
  */
+/**
+ * Atalho para o Workforce Management.
+ *
+ * ## Esta seção declarava lacunas que não existem mais
+ *
+ * Até a PR-17 ela dizia que não havia endpoint para listar membros nem papéis
+ * — verdade quando foi escrita. `GET /organizations/current/members` chegou na
+ * PR-12 e `GET /organizations/current/roles` na PR-17, e a PR-18 acrescentou
+ * edição de membro e CRUD de papéis.
+ *
+ * O painel agora aponta para o Workspace que administra tudo isso, em vez de
+ * repetir a listagem — e em vez de continuar declarando uma ausência que já
+ * foi preenchida.
+ */
 export function UsersSection() {
   return (
     <PanelFrame
       panelId="organization-users"
-      title="Usuários"
-      description="Membros, papéis e permissões"
+      title="Equipe"
+      description="Membros, papéis, convites e permissões"
     >
-      <PanelWithoutSourceMessage />
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          A equipe é administrada no Workspace próprio: quem faz parte, com que
+          papel, em que unidade, convites pendentes e o que cada pessoa tem para
+          fazer.
+        </p>
+        <Button variant="outline" size="sm" asChild>
+          <Link href={ROUTES.team}>
+            Abrir Equipe
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+      </div>
     </PanelFrame>
-  );
-}
-
-function PanelWithoutSourceMessage() {
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Não há endpoint que liste os membros da organização. `/identity/me`
-        cobre apenas o próprio usuário e `/platform-admin/users` é global,
-        restrito ao administrador da plataforma.
-      </p>
-      <p className="text-sm text-muted-foreground">
-        Convidar alguém existe (<code>POST /identity/invitations</code>), mas
-        exige o <code>roleId</code> — e nenhuma rota lista os papéis da
-        organização. Um campo de UUID cru não seria uma funcionalidade.
-      </p>
-      <p className="text-xs text-muted-foreground">
-        Falta no backend: <code>GET /organizations/current/members</code> e{" "}
-        <code>GET /identity/roles</code> ou equivalentes. A mesma lacuna impede
-        atribuir técnico a uma operação e nomear a equipe de uma execução.
-      </p>
-    </div>
   );
 }

@@ -15,6 +15,7 @@ import { Permissions, Public } from '../../../decorators';
 import { ForbiddenException } from '../../../exceptions';
 import { InvitationService } from '../application/invitation.service';
 import type { IdentityRequest } from '../infrastructure/jwt-authentication.guard';
+import { PaginationHelper } from '../../../database/helpers/database.helpers';
 import { ParseUUIDv7Pipe } from '../../../pipes';
 import {
   AcceptInvitationDto,
@@ -40,12 +41,19 @@ export class InvitationController {
    */
   @Get()
   @Permissions('identity.invitations.create')
-  async list(@Req() request: IdentityRequest, @Query() query: InvitationQueryDto) {
-    const invitations = await this.invitations.list(
+  async list(
+    @Req() request: IdentityRequest,
+    @Query() query: InvitationQueryDto,
+  ) {
+    const { data, total } = await this.invitations.list(
       this.organizationId(request),
-      query.status,
+      query,
     );
-    return invitations.map((invitation) => this.readModels.item(invitation));
+    return PaginationHelper.result(
+      data.map((invitation) => this.readModels.item(invitation)),
+      total,
+      { page: query.page, limit: query.limit },
+    );
   }
 
   @Post()

@@ -107,6 +107,47 @@ export class IdentityRepository {
       .then(() => undefined);
   }
 
+  findCredential(userId: string) {
+    return this.prisma.credential.findUnique({ where: { userId } });
+  }
+
+  /**
+   * Troca a senha de quem já está autenticado.
+   *
+   * **Revoga todas as sessões**, exceto a atual — é o mesmo comportamento do
+   * reset por e-mail, e pelo mesmo motivo: se a senha mudou, quem estava com
+   * a antiga não deve continuar dentro. A sessão atual sobrevive para que a
+   * pessoa não seja expulsa da tela em que acabou de agir.
+   */
+  changePassword(
+    userId: string,
+    passwordHash: string,
+    keepSessionId?: string,
+  ): Promise<void> {
+    return this.prisma
+      .$transaction(async (transaction) => {
+        await transaction.credential.update({
+          where: { userId },
+          data: {
+            passwordHash,
+            passwordUpdatedAt: new Date(),
+            mustChangePassword: false,
+            failedAttempts: 0,
+            lockedUntil: null,
+          },
+        });
+        await transaction.session.updateMany({
+          where: {
+            userId,
+            revokedAt: null,
+            ...(keepSessionId ? { id: { not: keepSessionId } } : {}),
+          },
+          data: { revokedAt: new Date() },
+        });
+      })
+      .then(() => undefined);
+  }
+
   markAuthenticated(userId: string, credentialId: string): Promise<void> {
     return this.prisma
       .$transaction([
@@ -297,7 +338,18 @@ export class IdentityRepository {
    * vencido apareceria como pendente até alguém tentar criar outro, e a tela
    * ofereceria "reenviar" para algo que o `accept` já recusa.
    */
-  listInvitations(organizationId: string, status?: string) {
+  listInvitations(
+    organizationId: string,
+    query: { status?: string; search?: string; skip: number; take: number },
+  ) {
+    const where: Prisma.IdentityInvitationWhereInput = {
+      organizationId,
+      status: query.status,
+      ...(query.search
+        ? { normalizedEmail: { contains: query.search, mode: 'insensitive' } }
+        : {}),
+    };
+
     return this.prisma.$transaction(async (transaction) => {
       await this.setLocal(transaction, 'app.organization_id', organizationId);
       await transaction.identityInvitation.updateMany({
@@ -308,17 +360,24 @@ export class IdentityRepository {
         },
         data: { status: 'EXPIRED' },
       });
-      return transaction.identityInvitation.findMany({
-        where: { organizationId, status },
-        include: {
-          role: { select: { id: true, key: true, name: true } },
-          businessUnit: {
-            select: { id: true, legalName: true, tradeName: true },
+
+      const [data, total] = await Promise.all([
+        transaction.identityInvitation.findMany({
+          where,
+          include: {
+            role: { select: { id: true, key: true, name: true } },
+            businessUnit: {
+              select: { id: true, legalName: true, tradeName: true },
+            },
+            invitedBy: { select: { id: true, displayName: true } },
           },
-          invitedBy: { select: { id: true, displayName: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+          orderBy: { createdAt: 'desc' },
+          skip: query.skip,
+          take: query.take,
+        }),
+        transaction.identityInvitation.count({ where }),
+      ]);
+      return { data, total };
     });
   }
 

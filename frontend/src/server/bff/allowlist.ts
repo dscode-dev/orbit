@@ -32,6 +32,7 @@ export const ALLOWED_API_ROOTS: readonly string[] = [
   "report-templates",
   "reports",
   "scheduling",
+  "workforce",
 ];
 
 /**

@@ -33,6 +33,7 @@ import {
   FilterBar,
   FilterSelect,
   ListState,
+  Pagination,
   ResultSummary,
   SearchField,
   useListController,
@@ -49,12 +50,16 @@ interface TechnicianFilters {
 }
 
 export function TechniciansTab() {
-  const members = useTeamMembers();
+  const list = useListController<TechnicianFilters>({ limit: 10 });
+  const members = useTeamMembers({
+    page: list.query.page,
+    limit: list.query.limit,
+  });
   const roles = useTeamRoles();
-  const list = useListController<TechnicianFilters>();
   const [selected, setSelected] = useState<TeamMember | null>(null);
 
-  const all = useMemo(() => members.data ?? [], [members.data]);
+  const all = useMemo(() => members.data?.data ?? [], [members.data]);
+  const meta = members.data?.meta;
 
   const filtered = useMemo(() => {
     const term = list.query.search?.toLowerCase() ?? "";
@@ -102,21 +107,7 @@ export function TechniciansTab() {
         />
       </FilterBar>
 
-      <ResultSummary
-        meta={
-          members.data
-            ? {
-                page: 1,
-                limit: all.length || 1,
-                total: filtered.length,
-                totalPages: 1,
-                hasNextPage: false,
-                hasPreviousPage: false,
-              }
-            : undefined
-        }
-        noun="pessoa"
-      />
+      <ResultSummary meta={meta} noun="pessoa" />
 
       <ListState
         isPending={members.isPending}
@@ -171,6 +162,13 @@ export function TechniciansTab() {
           </div>
         )}
       </ListState>
+
+      <Pagination
+        meta={meta}
+        onPrevious={list.previousPage}
+        onNext={list.nextPage}
+        isFetching={members.isFetching}
+      />
 
       <MemberSheet
         member={selected}

@@ -6,13 +6,18 @@
  * `notifications.manage` e pertencem a quem produz notificação, não à central
  * que as lê — não são consumidas aqui.
  *
- * Preferências e push (`/preferences`, `/push-subscriptions`) também ficam de
- * fora: são configuração de canal, não a central. Estão documentadas como
- * superfície disponível.
+ * Preferências (`/preferences`) e push (`/push-subscriptions`) são
+ * configuração de canal, não a central que lê — e por isso vivem no Workspace
+ * de Configurações. Ficam neste service porque o recurso é o mesmo; o que
+ * muda é quem as consome.
  */
 import { apiClient } from "@/api/client";
 import { queryKeys, type QueryKey } from "@/api/query-keys";
 import type { QueryParams, RequestOptions } from "@/types/api";
+import type {
+  NotificationPreference,
+  UpdateNotificationPreferenceInput,
+} from "@/types/settings";
 import type {
   NotificationListResult,
   NotificationQuery,
@@ -50,6 +55,27 @@ export const notificationsService = {
   markAllRead: (): Promise<unknown> =>
     apiClient.patch<unknown>(`${BASE_PATH}/read-all`),
 
+  /**
+   * Preferências de notificação.
+   *
+   * `@@unique([organizationId, userId, type])`: são pessoais **dentro de uma
+   * organização**. O `PATCH` faz upsert de um tipo por vez — não substitui o
+   * conjunto.
+   */
+  preferences: (options?: RequestOptions): Promise<NotificationPreference[]> =>
+    apiClient.get<NotificationPreference[]>(
+      `${BASE_PATH}/preferences`,
+      options,
+    ),
+
+  setPreference: (
+    input: UpdateNotificationPreferenceInput,
+  ): Promise<NotificationPreference> =>
+    apiClient.patch<NotificationPreference>(
+      `${BASE_PATH}/preferences`,
+      input,
+    ),
+
   keys: {
     module: (): QueryKey => queryKeys.module(RESOURCE),
     lists: (): QueryKey => queryKeys.lists(RESOURCE),
@@ -58,5 +84,6 @@ export const notificationsService = {
     detail: (id: string): QueryKey => queryKeys.detail(RESOURCE, id),
     /** Consulta dedicada do contador, com `limit: 1`. */
     unread: (): QueryKey => queryKeys.query(RESOURCE, "unread"),
+    preferences: (): QueryKey => queryKeys.query(RESOURCE, "preferences"),
   },
 } as const;

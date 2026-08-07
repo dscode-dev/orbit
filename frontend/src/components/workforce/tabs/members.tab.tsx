@@ -3,16 +3,11 @@
 /**
  * Usuários da organização.
  *
- * ## Busca e filtros são locais — e por quê
+ * ## Paginado pelo servidor
  *
- * `GET /organizations/current/members` **não é paginado e não aceita
- * parâmetros**: devolve a organização inteira, ordenada por nome. Não há
- * `?search=` para chamar.
- *
- * Filtrar aqui é, portanto, recorte de uma lista que já está inteira na mão —
- * não é substituir um filtro de servidor, nem paginar no cliente aquilo que o
- * servidor pagina. A tela declara isso, e quando o endpoint aceitar consulta,
- * o `useListController` já está no lugar para passá-la adiante.
+ * `GET /organizations/current/members` pagina (`MemberQueryDto`). Busca por
+ * nome e filtro por papel ainda são locais — o DTO não os aceita —, e a tela
+ * diz isso: são recorte da **página carregada**, não da organização.
  *
  * ## Permissões efetivas
  *
@@ -45,12 +40,20 @@ import {
   FilterBar,
   FilterSelect,
   ListState,
+  Pagination,
   ResultSummary,
   SearchField,
   optionsFrom,
   useListController,
 } from "@/workspace";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { InviteMemberDialog } from "../invite-member.dialog";
+import { MemberFormDialog } from "../member-form.dialog";
 import { MemberSheet } from "../member.sheet";
 
 interface MemberFilters {
@@ -62,15 +65,20 @@ interface MemberFilters {
 }
 
 export function MembersTab() {
-  const members = useTeamMembers();
+  const list = useListController<MemberFilters>({ limit: 20 });
+  const members = useTeamMembers({
+    page: list.query.page,
+    limit: list.query.limit,
+  });
   const roles = useTeamRoles();
-  const list = useListController<MemberFilters>();
 
   const invite = useAction("team-member.create");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selected, setSelected] = useState<TeamMember | null>(null);
+  const [editing, setEditing] = useState<TeamMember | null>(null);
 
-  const all = useMemo(() => members.data ?? [], [members.data]);
+  const all = useMemo(() => members.data?.data ?? [], [members.data]);
+  const meta = members.data?.meta;
 
   const filtered = useMemo(() => {
     const term = list.query.search?.toLowerCase() ?? "";
@@ -103,20 +111,13 @@ export function MembersTab() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ResultSummary
-          meta={
-            members.data
-              ? {
-                  page: 1,
-                  limit: all.length || 1,
-                  total: filtered.length,
-                  totalPages: 1,
-                  hasNextPage: false,
-                  hasPreviousPage: false,
-                }
-              : undefined
-          }
+          meta={meta}
           noun="pessoa"
-          note="O backend devolve a equipe inteira, ordenada por nome — sem paginação."
+          note={
+            list.isFiltered
+              ? "Busca e papel recortam esta página — o endpoint ainda não os aceita."
+              : "Ordenado por nome (ordem definida pelo backend)"
+          }
         />
         {invite.allowed ? (
           <Button size="sm" onClick={() => setInviteOpen(true)}>
@@ -132,7 +133,7 @@ export function MembersTab() {
           value={list.searchTerm}
           onChange={list.setSearchTerm}
           placeholder="Nome ou e-mail"
-          hint="Busca sobre a lista já recebida — o endpoint de membros não aceita consulta."
+          hint="Busca sobre a página carregada — o endpoint de membros não aceita texto."
         />
         <FilterSelect
           id="team-members-role"
@@ -181,6 +182,7 @@ export function MembersTab() {
                   <TableHead>Unidades</TableHead>
                   <TableHead>Situação</TableHead>
                   <TableHead>Desde</TableHead>
+                  <TableHead className="w-12" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -223,6 +225,13 @@ export function MembersTab() {
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDateTime(member.joinedAt)}
                     </TableCell>
+                    <TableCell>
+                      <MemberRowActions
+                        member={member}
+                        onOpen={() => setSelected(member)}
+                        onEdit={() => setEditing(member)}
+                      />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -231,6 +240,13 @@ export function MembersTab() {
         )}
       </ListState>
 
+      <Pagination
+        meta={meta}
+        onPrevious={list.previousPage}
+        onNext={list.nextPage}
+        isFetching={members.isFetching}
+      />
+
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
 
       <MemberSheet
@@ -238,7 +254,58 @@ export function MembersTab() {
         onOpenChange={(open) => {
           if (!open) setSelected(null);
         }}
+        onEdit={setEditing}
+      />
+
+      <MemberFormDialog
+        member={editing}
+        onOpenChange={(open) => {
+          if (!open) setEditing(null);
+        }}
       />
     </div>
+  );
+}
+
+/**
+ * Ações de linha.
+ *
+ * O **dono não é editável**: `ownerUserId` é atributo da organização, e o
+ * servidor recusa (400). A tela reflete a mesma condição em vez de oferecer um
+ * botão que voltaria erro.
+ */
+function MemberRowActions({
+  member,
+  onOpen,
+  onEdit,
+}: {
+  member: TeamMember;
+  onOpen: () => void;
+  onEdit: () => void;
+}) {
+  const edit = useAction("team-member.update");
+  const editable = edit.allowed && !member.isOwner;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Ações de ${member.displayName}`}
+        >
+          <span aria-hidden>⋯</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={onOpen}>Detalhes</DropdownMenuItem>
+        {editable ? (
+          <DropdownMenuItem onSelect={onEdit}>
+            <edit.definition.icon className="size-4" />
+            Papel e situação
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

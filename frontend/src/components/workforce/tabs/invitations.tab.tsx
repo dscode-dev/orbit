@@ -3,6 +3,12 @@
 /**
  * Convites.
  *
+ * ## Paginado e filtrado pelo servidor
+ *
+ * `InvitationQueryDto` aceita `status`, `search`, `page` e `limit` — busca e
+ * recorte são do backend, e a tela só passa adiante o que o
+ * `useListController` reúne.
+ *
  * ## Prazo é do servidor
  *
  * `expiresAt` vem publicado, e a listagem marca como `EXPIRED` os pendentes
@@ -19,7 +25,7 @@
  * uma vez, por e-mail. Reexpô-lo daria a qualquer gestor a capacidade de
  * aceitar o convite no lugar da pessoa.
  */
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { MailPlus, Send, UserPlus } from "lucide-react";
 
 import { MutationError } from "@/components/artifact-studio/mutation-error";
@@ -52,6 +58,7 @@ import {
   FilterBar,
   FilterSelect,
   ListState,
+  Pagination,
   ResultSummary,
   SearchField,
   optionsFrom,
@@ -86,12 +93,8 @@ function remaining(expiresAt: string): string {
 }
 
 export function InvitationsTab() {
-  const list = useListController<InvitationFilters>();
-
-  /** O status é filtro real do servidor; a busca por e-mail é local. */
-  const query = useTeamInvitations(
-    list.query.status ? { status: list.query.status } : undefined,
-  );
+  const list = useListController<InvitationFilters>({ limit: 20 });
+  const query = useTeamInvitations(list.query);
 
   const invite = useAction("team-member.create");
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -99,29 +102,14 @@ export function InvitationsTab() {
   const resend = useResendInvitation();
   const revoke = useRevokeInvitation();
 
-  const all = useMemo(() => query.data ?? [], [query.data]);
-  const filtered = useMemo(() => {
-    const term = list.query.search?.toLowerCase() ?? "";
-    if (!term) return all;
-    return all.filter((item) => item.email.toLowerCase().includes(term));
-  }, [all, list.query.search]);
+  const invitations = query.data?.data ?? [];
+  const meta = query.data?.meta;
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ResultSummary
-          meta={
-            query.data
-              ? {
-                  page: 1,
-                  limit: all.length || 1,
-                  total: filtered.length,
-                  totalPages: 1,
-                  hasNextPage: false,
-                  hasPreviousPage: false,
-                }
-              : undefined
-          }
+          meta={meta}
           noun="convite"
           note="Convites vencidos são marcados pelo servidor ao listar."
         />
@@ -139,7 +127,7 @@ export function InvitationsTab() {
           value={list.searchTerm}
           onChange={list.setSearchTerm}
           placeholder="E-mail convidado"
-          hint="Busca sobre a lista recebida — o endpoint filtra por status, não por texto."
+          hint="A busca é do servidor, sobre o e-mail convidado."
         />
         <FilterSelect
           id="invitations-status"
@@ -158,7 +146,7 @@ export function InvitationsTab() {
         isPending={query.isPending}
         error={query.error}
         onRetry={() => void query.refetch()}
-        items={filtered}
+        items={invitations}
         empty={{
           icon: <MailPlus className="size-5" />,
           title: list.isFiltered
@@ -207,6 +195,13 @@ export function InvitationsTab() {
           </div>
         )}
       </ListState>
+
+      <Pagination
+        meta={meta}
+        onPrevious={list.previousPage}
+        onNext={list.nextPage}
+        isFetching={query.isFetching}
+      />
 
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
     </div>

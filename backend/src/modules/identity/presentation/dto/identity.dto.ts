@@ -1,12 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsEmail,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   Length,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 import { BusinessUnitType, InvitationStatus } from '../../../../contracts';
@@ -187,6 +190,29 @@ export class ResetPasswordDto {
   password!: string;
 }
 
+/**
+ * Troca da própria senha.
+ *
+ * `currentPassword` é obrigatória: sem ela, uma sessão sequestrada trocaria a
+ * senha e expulsaria o dono da conta. É a diferença entre este fluxo e o de
+ * recuperação por e-mail, que existe para quem **não** tem a senha atual.
+ *
+ * O comprimento mínimo é o mesmo do cadastro e do reset — a política de senha
+ * é uma só na plataforma.
+ */
+export class ChangePasswordDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  currentPassword!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(12)
+  @MaxLength(128)
+  newPassword!: string;
+}
+
 export class UpdateProfileDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -247,6 +273,29 @@ export class InvitationQueryDto {
   @IsOptional()
   @IsIn(Object.values(InvitationStatus))
   status?: InvitationStatus;
+
+  /** Busca por e-mail convidado. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsString()
+  @MaxLength(320)
+  search?: string;
+
+  @ApiPropertyOptional({ default: 1 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @ApiPropertyOptional({ default: 20 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit = 20;
 }
 
 export class AcceptInvitationDto {

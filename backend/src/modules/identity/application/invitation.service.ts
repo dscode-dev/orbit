@@ -64,8 +64,16 @@ export class InvitationService {
    *
    * Reenviar gera um token novo, e é por isso que o antigo deixa de valer.
    */
-  list(organizationId: string, status?: string) {
-    return this.repository.listInvitations(organizationId, status);
+  list(
+    organizationId: string,
+    query: { status?: string; search?: string; page: number; limit: number },
+  ) {
+    return this.repository.listInvitations(organizationId, {
+      status: query.status,
+      search: query.search,
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    });
   }
 
   /**

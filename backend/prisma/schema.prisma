@@ -47,6 +47,11 @@ model User {
   createdSchedulingEvents       SchedulingEvent[]              @relation("SchedulingEventCreatedBy")
   schedulingAllocations         SchedulingResourceAllocation[]
   schedulingAvailability        SchedulingAvailability[]
+  specialties                   MemberSpecialty[]
+  certifications                MemberCertification[]
+  teamMemberships               TeamMembership[]
+  ledTeams                      Team[]                         @relation("TeamLeader")
+  locations                     MemberLocation[]
   schedulingHistory             SchedulingEventHistory[]
   notificationPreferences       NotificationPreference[]
   notificationDeliveries        NotificationDelivery[]
@@ -228,6 +233,12 @@ model Organization {
   schedulingAvailability   SchedulingAvailability[]
   invitations              IdentityInvitation[]
   businessUnitMemberships  BusinessUnitMembership[]
+  specialties              Specialty[]
+  memberSpecialties        MemberSpecialty[]
+  memberCertifications     MemberCertification[]
+  teams                    Team[]
+  teamMemberships          TeamMembership[]
+  memberLocations          MemberLocation[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -291,6 +302,8 @@ model BusinessUnit {
   storageFiles           StorageFile[]
   artifactManifests      ArtifactManifest[]
   backgroundJobs         BackgroundJob[]
+
+  teams Team[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -1033,6 +1046,8 @@ model StorageFile {
   manifests    ArtifactManifest[]
   attachments  ArtifactExecutionAttachment[]
 
+  memberCertifications MemberCertification[]
+
   @@unique([provider, bucket, objectKey])
   @@index([organizationId, status, createdAt])
   @@map("storage_files")
@@ -1642,4 +1657,164 @@ model BackgroundJob {
   @@index([queue, status, availableAt])
   @@index([organizationId, queue, status])
   @@map("background_jobs")
+}
+
+// -----------------------------------------------------------------------------
+// WORKFORCE
+//
+// Domínio de gestão de equipe. Complementa `OrganizationMembership`, que
+// responde "quem faz parte e com que papel", com o que a operação de campo
+// precisa saber: o que a pessoa sabe fazer, o que ela está habilitada a fazer,
+// com quem trabalha e onde esteve.
+//
+// Não substitui autenticação: nada aqui participa de login ou autorização.
+// -----------------------------------------------------------------------------
+
+/// Catálogo de especialidades da organização ("Refrigeração", "Elétrica").
+/// É catálogo, e não texto livre no membro, para que duas pessoas com a mesma
+/// especialidade sejam encontráveis pela mesma chave.
+model Specialty {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String    @db.VarChar(120)
+  slug           String    @db.VarChar(120)
+  description    String?   @db.Text
+  /// Classe de cor sobre tokens do Design System, escolhida pela organização.
+  color          String?   @db.VarChar(40)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members      MemberSpecialty[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, deletedAt])
+  @@map("specialties")
+}
+
+/// Especialidade de uma pessoa, com o nível declarado pela organização.
+model MemberSpecialty {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  specialtyId    String    @map("specialty_id") @db.Uuid
+  /// JUNIOR | PLENO | SENIOR | ESPECIALISTA — declarado, não calculado.
+  level          String    @default("PLENO") @db.VarChar(30)
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialty    Specialty    @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, specialtyId])
+  @@index([organizationId, specialtyId, deletedAt])
+  @@index([organizationId, userId, deletedAt])
+  @@map("member_specialties")
+}
+
+/// Certificação de uma pessoa (NR-35, NR-10, curso de fabricante).
+///
+/// `expiresAt` é o que torna a certificação operacionalmente útil: quem escala
+/// trabalho precisa saber quem está com a habilitação vencida. O vencimento é
+/// comparado pelo **servidor**, ao listar.
+model MemberCertification {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  name           String    @db.VarChar(180)
+  issuer         String?   @db.VarChar(180)
+  /// Número do certificado, como emitido.
+  credentialId   String?   @map("credential_id") @db.VarChar(120)
+  issuedAt       DateTime? @map("issued_at") @db.Date
+  expiresAt      DateTime? @map("expires_at") @db.Date
+  /// Arquivo do certificado no Storage Provider (PR-19). Opcional.
+  fileId         String?   @map("file_id") @db.Uuid
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file         StorageFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, userId, deletedAt])
+  @@index([organizationId, expiresAt, deletedAt])
+  @@map("member_certifications")
+}
+
+/// Equipe operacional. Agrupa pessoas para escala e atribuição.
+model Team {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  businessUnitId String?   @map("business_unit_id") @db.Uuid
+  leaderUserId   String?   @map("leader_user_id") @db.Uuid
+  name           String    @db.VarChar(140)
+  slug           String    @db.VarChar(140)
+  description    String?   @db.Text
+  color          String?   @db.VarChar(40)
+  status         String    @default("ACTIVE") @db.VarChar(40)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit?    @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  leader       User?            @relation("TeamLeader", fields: [leaderUserId], references: [id], onDelete: SetNull)
+  members      TeamMembership[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status, deletedAt])
+  @@map("teams")
+}
+
+model TeamMembership {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  teamId         String    @map("team_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  /// Papel dentro da equipe (texto livre: "líder técnico", "auxiliar").
+  role           String?   @db.VarChar(80)
+  joinedAt       DateTime  @default(now()) @map("joined_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([organizationId, userId, deletedAt])
+  @@map("team_memberships")
+}
+
+/// Posição reportada por uma pessoa em campo.
+///
+/// Escrita **apenas pela própria pessoa** (`POST /workforce/me/location`), a
+/// partir do aplicativo de campo: ninguém publica a posição de outro. O
+/// histórico é mantido porque a última posição sozinha não responde "onde ele
+/// esteve durante a visita".
+model MemberLocation {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  latitude       Decimal  @db.Decimal(10, 7)
+  longitude      Decimal  @db.Decimal(10, 7)
+  /// Raio de incerteza em metros, como o dispositivo reportou.
+  accuracy       Decimal? @db.Decimal(10, 2)
+  /// Origem: MOBILE | WEB | MANUAL — para o consumidor saber o que confiar.
+  source         String   @default("MOBILE") @db.VarChar(30)
+  /// Quando o dispositivo mediu, que pode ser antes de quando enviou.
+  recordedAt     DateTime @map("recorded_at") @db.Timestamptz(3)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, recordedAt])
+  @@index([organizationId, recordedAt])
+  @@map("member_locations")
 }

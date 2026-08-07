@@ -8,12 +8,9 @@
  * - **`technicians.active` e `technicians.assignment_coverage`** vêm do
  *   **Analytics** — são indicadores de verdade, publicados pelo `KpiEngine`,
  *   com unidade, direção e procedência.
- * - **Pessoas e convites pendentes** são contagens: `length` da lista de
- *   membros e da lista de convites, que o backend devolve inteiras e sem
- *   paginação. Não há `meta.total` para citar aqui.
- *
- * A segunda categoria só é legítima porque a resposta **é** a coleção
- * completa. Contar uma página e chamar de total seria outra coisa.
+ * - **Pessoas e convites pendentes** são o `meta.total` da paginação: os dois
+ *   endpoints passaram a paginar, então o total é uma contagem do banco, não o
+ *   tamanho de uma lista carregada.
  *
  * ## O que não existe
  *
@@ -44,9 +41,18 @@ const ANALYTICS_METRIC_IDS = [
 ] as const;
 
 export function WorkforceKpis() {
-  const members = useTeamMembers();
+  /**
+   * `limit: 1` porque só interessa o `meta.total`.
+   *
+   * Agora que os dois endpoints paginam, o total é **do servidor** — antes era
+   * o tamanho da lista completa, que só era legítimo porque a resposta era a
+   * coleção inteira. Trazer uma página inteira para contar seria desperdício.
+   */
+  const members = useTeamMembers({ page: 1, limit: 1 });
   const invitations = useTeamInvitations({
     status: InvitationStatus.PENDING,
+    page: 1,
+    limit: 1,
   });
   /**
    * Janela de 30 dias — a mesma faixa padrão do Dashboard.
@@ -69,14 +75,14 @@ export function WorkforceKpis() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           metricId="team.members.total"
-          value={members.data?.length}
+          value={members.data?.meta.total}
           isPending={members.isPending}
           failed={Boolean(members.error)}
           showDescription
         />
         <MetricCard
           metricId="team.invitations.pending"
-          value={invitations.data?.length}
+          value={invitations.data?.meta.total}
           isPending={invitations.isPending}
           failed={Boolean(invitations.error)}
           showDescription
@@ -91,8 +97,8 @@ export function WorkforceKpis() {
 
       <p className="text-xs text-muted-foreground">
         Técnicos ativos e cobertura de atribuição vêm do Analytics. Pessoas e
-        convites são a contagem das listas que o backend devolve inteiras —
-        nada é somado a partir de uma página.
+        convites são o total publicado pelo servidor na paginação — nada é
+        somado a partir de uma página.
       </p>
     </div>
   );

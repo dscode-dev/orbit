@@ -17,7 +17,11 @@ import { MfaService } from '../application/mfa.service';
 import { ProfileService } from '../application/profile.service';
 import type { IdentityRequest } from '../infrastructure/jwt-authentication.guard';
 import { IdentityReadModelMapper } from '../identity.mapper';
-import { EnableMfaDto, UpdateProfileDto } from './dto/identity.dto';
+import {
+  ChangePasswordDto,
+  EnableMfaDto,
+  UpdateProfileDto,
+} from './dto/identity.dto';
 
 @ApiTags('Identity Profile')
 @Controller('identity/me')
@@ -43,6 +47,26 @@ export class ProfileController {
   ) {
     return this.readModels.profile(
       await this.profiles.update(request.identity!.id, input),
+    );
+  }
+
+  /**
+   * Troca da própria senha.
+   *
+   * Revoga as demais sessões e mantém a atual — se a senha mudou, quem estava
+   * com a antiga não deve continuar dentro, mas quem acabou de trocá-la não
+   * deve ser expulso da tela.
+   */
+  @Post('password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  changePassword(
+    @Req() request: IdentityRequest,
+    @Body() input: ChangePasswordDto,
+  ) {
+    return this.profiles.changePassword(
+      request.identity!.id,
+      input,
+      request.identity!.sessionId,
     );
   }
 

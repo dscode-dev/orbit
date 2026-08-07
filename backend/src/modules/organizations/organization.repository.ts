@@ -12,6 +12,18 @@ const organizationView = {
   },
 } satisfies Prisma.OrganizationInclude;
 
+/** Projeção única do papel — o que `listRoles`, `createRole` e `updateRole` devolvem. */
+const ROLE_VIEW = {
+  id: true,
+  key: true,
+  name: true,
+  description: true,
+  permissions: true,
+  isSystem: true,
+  organizationId: true,
+  _count: { select: { organizationMemberships: true } },
+} satisfies Prisma.RoleSelect;
+
 @Injectable()
 export class OrganizationRepository {
   constructor(
@@ -137,16 +149,7 @@ export class OrganizationRepository {
     return this.rls.run((transaction) =>
       transaction.role.findMany({
         where: { organizationId, deletedAt: null },
-        select: {
-          id: true,
-          key: true,
-          name: true,
-          description: true,
-          permissions: true,
-          isSystem: true,
-          organizationId: true,
-          _count: { select: { organizationMemberships: true } },
-        },
+        select: ROLE_VIEW,
         orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
       }),
     );
@@ -173,10 +176,103 @@ export class OrganizationRepository {
     );
   }
 
-  listMembers(organizationId: string) {
+  findMembership(organizationId: string, userId: string) {
+    return this.rls.run((transaction) =>
+      transaction.organizationMembership.findFirst({
+        where: { organizationId, userId, deletedAt: null },
+      }),
+    );
+  }
+
+  updateMembership(
+    id: string,
+    data: { roleId?: string; status?: string },
+  ) {
+    return this.rls.run((transaction) =>
+      transaction.organizationMembership.update({
+        where: { id },
+        data,
+        select: {
+          userId: true,
+          status: true,
+          joinedAt: true,
+          user: {
+            select: {
+              id: true,
+              displayName: true,
+              email: true,
+              avatarUrl: true,
+              status: true,
+            },
+          },
+          role: { select: { id: true, key: true, name: true } },
+        },
+      }),
+    );
+  }
+
+  findRole(id: string, organizationId: string) {
+    return this.rls.run((transaction) =>
+      transaction.role.findFirst({
+        where: { id, organizationId, deletedAt: null },
+      }),
+    );
+  }
+
+  createRole(data: Prisma.RoleUncheckedCreateInput) {
+    return this.rls.run((transaction) =>
+      transaction.role.create({
+        data,
+        select: ROLE_VIEW,
+      }),
+    );
+  }
+
+  updateRole(id: string, data: Prisma.RoleUpdateInput) {
+    return this.rls.run((transaction) =>
+      transaction.role.update({ where: { id }, data, select: ROLE_VIEW }),
+    );
+  }
+
+  /** Quantas pessoas ainda dependem deste papel — o servidor recusa remover. */
+  roleDependencies(id: string) {
+    return this.rls.run(async (transaction) => {
+      const [members, invitations] = await Promise.all([
+        transaction.organizationMembership.count({
+          where: { roleId: id, deletedAt: null },
+        }),
+        transaction.identityInvitation.count({
+          where: { roleId: id, status: 'PENDING' },
+        }),
+      ]);
+      return { members, invitations };
+    });
+  }
+
+  softDeleteRole(id: string): Promise<void> {
+    return this.rls
+      .run((transaction) =>
+        transaction.role.update({
+          where: { id },
+          data: { deletedAt: new Date() },
+        }),
+      )
+      .then(() => undefined);
+  }
+
+  countMembers(organizationId: string) {
+    return this.rls.run((transaction) =>
+      transaction.organizationMembership.count({
+        where: { organizationId, deletedAt: null },
+      }),
+    );
+  }
+
+  listMembers(organizationId: string, pagination?: { skip: number; take: number }) {
     return this.rls.run((transaction) =>
       transaction.organizationMembership.findMany({
         where: { organizationId, deletedAt: null },
+        ...(pagination ?? {}),
         select: {
           userId: true,
           status: true,

@@ -67,6 +67,14 @@ export interface WorkspacePageProps {
    * painel dentro da tela, que é como o backend também decide.
    */
   readonly permission?: string;
+  /**
+   * Exige assinatura ativa.
+   *
+   * `false` no Perfil: a conta é da pessoa, não da organização — se o plano
+   * vencer, ela ainda precisa poder trocar a própria senha e encerrar sessões.
+   * Cobrança da empresa não tranca a segurança de quem trabalha nela.
+   */
+  readonly subscription?: boolean;
   /** Rótulo do item ativo no menu; por padrão, o título. */
   readonly activeLabel?: string;
   /** Trilha no topo; por padrão, o título. */
@@ -107,6 +115,7 @@ export function WorkspacePage({
   description,
   capability,
   permission,
+  subscription = true,
   activeLabel,
   breadcrumb,
   action,
@@ -173,15 +182,26 @@ export function WorkspacePage({
     </AppShell>
   );
 
+  /**
+   * Sem exigência declarada, `RequireCapability` receberia string vazia e
+   * bloquearia — nenhuma sessão tem a capability `""`. Uma tela que não exige
+   * nada precisa dizer isso explicitamente.
+   */
+  const guarded = permission ? (
+    <RequirePermission permission={permission}>{shell}</RequirePermission>
+  ) : required ? (
+    <RequireCapability capability={required}>{shell}</RequireCapability>
+  ) : (
+    shell
+  );
+
   return (
     <RequireAuth>
-      <RequireActiveSubscription>
-        {permission ? (
-          <RequirePermission permission={permission}>{shell}</RequirePermission>
-        ) : (
-          <RequireCapability capability={required}>{shell}</RequireCapability>
-        )}
-      </RequireActiveSubscription>
+      {subscription ? (
+        <RequireActiveSubscription>{guarded}</RequireActiveSubscription>
+      ) : (
+        guarded
+      )}
     </RequireAuth>
   );
 }

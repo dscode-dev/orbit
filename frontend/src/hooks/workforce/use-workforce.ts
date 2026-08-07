@@ -21,6 +21,8 @@
  */
 import { useQueryClient } from "@tanstack/react-query";
 
+import { queryKeys } from "@/api/query-keys";
+
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery } from "@/hooks/api/use-api-query";
 import { CACHE, MINUTE, every } from "@/hooks/api/cache-policy";
@@ -30,10 +32,37 @@ import { schedulingService } from "@/services/scheduling.service";
 import { workforceService } from "@/services/workforce.service";
 import type { ArtifactExecutionQuery } from "@/types/artifact-executions";
 import type { OperationQuery } from "@/types/operations";
-import type { CreateInvitationInput, InvitationQuery } from "@/types/workforce";
+import type {
+  AddTeamMemberInput,
+  AssignSpecialtyInput,
+  CertificationQuery,
+  CreateCertificationInput,
+  CreateInvitationInput,
+  CreateRoleInput,
+  CreateSpecialtyInput,
+  CreateTeamInput,
+  InvitationQuery,
+  MemberQuery,
+  UpdateCertificationInput,
+  UpdateMemberInput,
+  UpdateRoleInput,
+  UpdateSpecialtyInput,
+  UpdateTeamInput,
+} from "@/types/workforce";
 
 export const WORKFORCE_REFRESH = {
+  members: CACHE.stable,
   roles: CACHE.catalog,
+  specialties: CACHE.catalog,
+  certifications: CACHE.stable,
+  teams: CACHE.stable,
+  /**
+   * Posição envelhece por natureza.
+   *
+   * `live` revalida a cada minuto enquanto a tela está aberta — é o que faz
+   * "onde a equipe está" continuar respondendo à pergunta ao longo do tempo.
+   */
+  locations: CACHE.live,
   /** Convite expira sozinho; a lista revalida para o prazo não ficar velho. */
   invitations: every(CACHE.stable, 5 * MINUTE),
   related: CACHE.fresh,
@@ -47,19 +76,79 @@ const SCHEDULE_HORIZON_DAYS = 30;
 /* ------------------------------------------------------------------ */
 
 /**
- * Membros da organização.
+ * Membros da organização, paginados.
  *
- * Reexporta `useOrganizationMembers` em vez de reimplementá-lo: a consulta já
- * existia, com a mesma key e a mesma política. Um segundo hook sobre o mesmo
- * endpoint criaria duas cadências para o mesmo dado.
+ * `GET /organizations/current/members` passou a paginar; a key inclui a
+ * consulta, então páginas diferentes não se sobrescrevem no cache.
+ *
+ * `useOrganizationMembers` (sem paginação) continua existindo para quem só
+ * precisa resolver um nome — o `UserReference` é o caso — e usa a chamada sem
+ * parâmetros, que o backend atende com a primeira página.
  */
-export { useOrganizationMembers as useTeamMembers } from "@/hooks/organization/use-organization";
+export function useTeamMembers(query?: MemberQuery) {
+  return useApiQuery(
+    workforceService.keys.members(query),
+    ({ signal }) => workforceService.members(query, { signal }),
+    { ...WORKFORCE_REFRESH.members, placeholderData: (previous) => previous },
+  );
+}
 
 export function useTeamRoles() {
   return useApiQuery(
     workforceService.keys.roles(),
     ({ signal }) => workforceService.roles({ signal }),
     WORKFORCE_REFRESH.roles,
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Workforce — especialidades, certificações, equipes, geolocalização   */
+/* ------------------------------------------------------------------ */
+
+export function useSpecialties() {
+  return useApiQuery(
+    workforceService.keys.specialties(),
+    ({ signal }) => workforceService.specialties({ signal }),
+    WORKFORCE_REFRESH.specialties,
+  );
+}
+
+export function useMemberSpecialties(userId?: string) {
+  return useApiQuery(
+    workforceService.keys.memberSpecialties(userId),
+    ({ signal }) => workforceService.memberSpecialties(userId, { signal }),
+    WORKFORCE_REFRESH.specialties,
+  );
+}
+
+export function useCertifications(query?: CertificationQuery) {
+  return useApiQuery(
+    workforceService.keys.certifications(query),
+    ({ signal }) => workforceService.certifications(query, { signal }),
+    WORKFORCE_REFRESH.certifications,
+  );
+}
+
+export function useTeams() {
+  return useApiQuery(
+    workforceService.keys.teams(),
+    ({ signal }) => workforceService.teams({ signal }),
+    WORKFORCE_REFRESH.teams,
+  );
+}
+
+/**
+ * Últimas posições da equipe.
+ *
+ * `withinMinutes` é recorte do **servidor**: uma coordenada de ontem não
+ * responde "onde a equipe está agora", e é o backend que decide o que entra na
+ * janela.
+ */
+export function useMemberLocations(withinMinutes = 240) {
+  return useApiQuery(
+    workforceService.keys.locations(withinMinutes),
+    ({ signal }) => workforceService.locations(withinMinutes, { signal }),
+    WORKFORCE_REFRESH.locations,
   );
 }
 
@@ -213,5 +302,199 @@ export function useRevokeInvitation() {
   return useApiMutation(
     (id: string) => workforceService.revokeInvitation(id),
     { onSuccess: invalidate },
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Escritas — membros e papéis                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Alterar membro derruba a lista de membros **e** a de papéis.
+ *
+ * A de papéis porque `memberCount` muda quando alguém troca de papel — sem
+ * isso, a aba Papéis mostraria a contagem antiga até a próxima navegação.
+ */
+function useMemberInvalidation() {
+  const queryClient = useQueryClient();
+  return async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.module("organizations-members"),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: workforceService.keys.members(),
+      }),
+      queryClient.invalidateQueries({ queryKey: workforceService.keys.roles() }),
+    ]);
+  };
+}
+
+export function useUpdateMember(userId: string) {
+  const invalidate = useMemberInvalidation();
+  return useApiMutation(
+    (input: UpdateMemberInput) => workforceService.updateMember(userId, input),
+    { onSuccess: invalidate, scope: { id: `member:${userId}` } },
+  );
+}
+
+function useRoleInvalidation() {
+  const queryClient = useQueryClient();
+  return async () => {
+    await queryClient.invalidateQueries({
+      queryKey: workforceService.keys.roles(),
+    });
+  };
+}
+
+export function useCreateRole() {
+  const invalidate = useRoleInvalidation();
+  return useApiMutation(
+    (input: CreateRoleInput) => workforceService.createRole(input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useUpdateRole(id: string) {
+  const invalidate = useRoleInvalidation();
+  return useApiMutation(
+    (input: UpdateRoleInput) => workforceService.updateRole(id, input),
+    { onSuccess: invalidate, scope: { id: `role:${id}` } },
+  );
+}
+
+export function useRemoveRole() {
+  const invalidate = useRoleInvalidation();
+  return useApiMutation((id: string) => workforceService.removeRole(id), {
+    onSuccess: invalidate,
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Escritas — workforce                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Uma invalidação para o módulo inteiro.
+ *
+ * Especialidade, certificação e equipe se cruzam: vincular uma especialidade
+ * muda o `memberCount` do catálogo, e mexer numa equipe muda o que a lista de
+ * equipes mostra. Derrubar o módulo é mais simples e mais correto que mapear
+ * cada dependência — e o custo é baixo, porque são listas pequenas.
+ */
+function useWorkforceInvalidation() {
+  const queryClient = useQueryClient();
+  return async () => {
+    await queryClient.invalidateQueries({
+      queryKey: workforceService.keys.workforceModule(),
+    });
+  };
+}
+
+export function useCreateSpecialty() {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation(
+    (input: CreateSpecialtyInput) => workforceService.createSpecialty(input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useUpdateSpecialty(id: string) {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation(
+    (input: UpdateSpecialtyInput) =>
+      workforceService.updateSpecialty(id, input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useRemoveSpecialty() {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation((id: string) => workforceService.removeSpecialty(id), {
+    onSuccess: invalidate,
+  });
+}
+
+export function useAssignSpecialty(userId: string) {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation(
+    (input: AssignSpecialtyInput) =>
+      workforceService.assignSpecialty(userId, input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useUnassignSpecialty(userId: string) {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation(
+    (specialtyId: string) =>
+      workforceService.unassignSpecialty(userId, specialtyId),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useCreateCertification(userId: string) {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation(
+    (input: CreateCertificationInput) =>
+      workforceService.createCertification(userId, input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useUpdateCertification(id: string) {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation(
+    (input: UpdateCertificationInput) =>
+      workforceService.updateCertification(id, input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useRemoveCertification() {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation(
+    (id: string) => workforceService.removeCertification(id),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useCreateTeam() {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation(
+    (input: CreateTeamInput) => workforceService.createTeam(input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useUpdateTeam(id: string) {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation(
+    (input: UpdateTeamInput) => workforceService.updateTeam(id, input),
+    { onSuccess: invalidate, scope: { id: `team:${id}` } },
+  );
+}
+
+export function useRemoveTeam() {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation((id: string) => workforceService.removeTeam(id), {
+    onSuccess: invalidate,
+  });
+}
+
+export function useAddTeamMember(teamId: string) {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation(
+    (input: AddTeamMemberInput) =>
+      workforceService.addTeamMember(teamId, input),
+    { onSuccess: invalidate, scope: { id: `team:${teamId}` } },
+  );
+}
+
+export function useRemoveTeamMember(teamId: string) {
+  const invalidate = useWorkforceInvalidation();
+  return useApiMutation(
+    (userId: string) => workforceService.removeTeamMember(teamId, userId),
+    { onSuccess: invalidate, scope: { id: `team:${teamId}` } },
   );
 }

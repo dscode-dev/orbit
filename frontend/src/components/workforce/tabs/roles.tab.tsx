@@ -3,12 +3,16 @@
 /**
  * Papéis e o que cada um concede.
  *
- * ## Somente leitura, e por quê
+ * ## Editáveis, exceto os de sistema
  *
- * `Role.permissions` é semeado pela plataforma e **nenhuma rota o escreve**.
- * `isSystem` marca os papéis que a organização nem deveria poder editar. O
- * Stage 1 pede explicitamente "não editar papéis caso o backend ainda não
- * suporte" — e ele não suporta.
+ * A organização cria e edita os próprios papéis. `isSystem` marca os que a
+ * plataforma semeou, e o **servidor recusa** alterá-los (400) — alterar as
+ * permissões de um papel de sistema mudaria o seu significado para além desta
+ * organização.
+ *
+ * Remover também é recusado enquanto houver membro ou convite pendente
+ * apontando para o papel: uma pessoa ficaria sem permissões, e um convite não
+ * teria o que conceder ao ser aceito.
  *
  * ## Permissões e capabilities são coisas diferentes
  *
@@ -26,15 +30,22 @@
  * vocabulário que o backend usa para nomear módulos. Agrupar por ele é
  * **apresentação**: nenhuma permissão é inventada, só ordenada.
  */
-import { useMemo } from "react";
-import { ShieldCheck } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 
+import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { Badge } from "@/components/ui/badge";
-import { useTeamRoles } from "@/hooks/workforce/use-workforce";
+import { Button } from "@/components/ui/button";
+import { useAction } from "@/actions";
+import {
+  useRemoveRole,
+  useTeamRoles,
+} from "@/hooks/workforce/use-workforce";
 import { useSession } from "@/providers/session-provider";
 import { cn } from "@/lib/utils";
 import type { TeamRole } from "@/types/workforce";
 import { ListState } from "@/workspace";
+import { RoleFormDialog } from "../role-form.dialog";
 
 /** Agrupa permissões pelo prefixo, que é o módulo que o backend nomeia. */
 function byModule(
@@ -57,12 +68,27 @@ export function RolesTab() {
   const query = useTeamRoles();
   const roles = useMemo(() => query.data ?? [], [query.data]);
 
+  const manage = useAction("team-member.update");
+  const remove = useRemoveRole();
+  const [editing, setEditing] = useState<TeamRole | null>(null);
+  const [creating, setCreating] = useState(false);
+
   return (
     <div className="space-y-5">
-      <p className="text-sm text-muted-foreground">
-        Papéis são somente leitura: as permissões são semeadas pela plataforma e
-        não há rota de escrita. O papel de cada pessoa é definido no convite.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          O papel define as permissões de quem o tem. Papéis de sistema não são
+          editáveis.
+        </p>
+        {manage.allowed ? (
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus className="size-4" />
+            Novo papel
+          </Button>
+        ) : null}
+      </div>
+
+      <MutationError error={remove.error} />
 
       <ListState
         isPending={query.isPending}
@@ -79,18 +105,49 @@ export function RolesTab() {
         {(rows) => (
           <div className="grid gap-4 lg:grid-cols-2">
             {rows.map((role) => (
-              <RoleCard key={role.id} role={role} />
+              <RoleCard
+                key={role.id}
+                role={role}
+                onEdit={() => setEditing(role)}
+                onRemove={() => remove.mutate(role.id)}
+                removing={remove.isPending && remove.variables === role.id}
+              />
             ))}
           </div>
         )}
       </ListState>
+
+      <RoleFormDialog
+        role={editing}
+        open={creating || editing !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreating(false);
+            setEditing(null);
+          }
+        }}
+      />
     </div>
   );
 }
 
-function RoleCard({ role }: { role: TeamRole }) {
+function RoleCard({
+  role,
+  onEdit,
+  onRemove,
+  removing,
+}: {
+  role: TeamRole;
+  onEdit: () => void;
+  onRemove: () => void;
+  removing: boolean;
+}) {
   const session = useSession();
+  const manage = useAction("team-member.update");
   const modules = useMemo(() => byModule(role.permissions), [role.permissions]);
+
+  /** Papel de sistema é protegido pelo servidor; a tela reflete a condição. */
+  const editable = manage.allowed && !role.isSystem;
 
   return (
     <article className="glass-panel space-y-4 rounded-xl p-4">
@@ -109,6 +166,24 @@ function RoleCard({ role }: { role: TeamRole }) {
         </div>
         {role.description ? (
           <p className="text-sm text-muted-foreground">{role.description}</p>
+        ) : null}
+
+        {editable ? (
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Pencil className="size-4" />
+              Editar
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={removing}
+              onClick={onRemove}
+            >
+              <Trash2 className="size-4" />
+              Excluir
+            </Button>
+          </div>
         ) : null}
       </header>
 
