@@ -237,6 +237,86 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     capability: "assets.read",
   }),
   /**
+   * Contadores da equipe.
+   *
+   * São o tamanho das listas que o backend devolve **inteiras** —
+   * `GET /organizations/current/members` e `GET /identity/invitations` não são
+   * paginados. Contar uma página e chamar de total seria outra coisa; aqui a
+   * resposta é a coleção completa.
+   */
+  define({
+    id: "team.members.total",
+    label: "Pessoas na equipe",
+    description: "Membros ativos e inativos da organização.",
+    category: "TECHNICIANS",
+    unit: "count",
+    icon: Users,
+    priority: 1,
+    capability: "organization.read",
+  }),
+  define({
+    id: "team.invitations.pending",
+    label: "Convites aguardando",
+    description: "Convites enviados que ainda não foram aceitos.",
+    category: "TECHNICIANS",
+    unit: "count",
+    icon: CalendarClock,
+    /** Subir aqui não é bom: gente convidada que não entrou. */
+    trendColor: lowerIsBetter,
+    priority: 2,
+    capability: "organization.read",
+  }),
+  /**
+   * Carga de trabalho de uma pessoa.
+   *
+   * `meta.total` de consultas filtradas por `assignedUserId` e
+   * `responsibleUserId` — contagem do servidor. **Não é produtividade**: o
+   * Analytics publica indicadores de técnicos da organização
+   * (`technicians.active`, `technicians.assignment_coverage`), e nada por
+   * pessoa. Carga é quanto há para fazer; produtividade seria quanto se fez
+   * por tempo, e isso ninguém mediu.
+   */
+  define({
+    id: "member.operations.assigned",
+    label: "Operações atribuídas",
+    description: "Ordens de serviço em que esta pessoa está na equipe.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: Activity,
+    priority: 1,
+    capability: "operations.read",
+  }),
+  define({
+    id: "member.operations.in_progress",
+    label: "Operações em andamento",
+    description: "Atribuídas a esta pessoa e com status IN_PROGRESS.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: Timer,
+    priority: 2,
+    capability: "operations.read",
+  }),
+  define({
+    id: "member.executions.total",
+    label: "Execuções sob responsabilidade",
+    description: "Artefatos em que esta pessoa é a responsável.",
+    category: "PMOC",
+    unit: "count",
+    icon: ClipboardCheck,
+    priority: 3,
+    capability: "artifact_executions.read",
+  }),
+  define({
+    id: "member.executions.in_progress",
+    label: "Execuções em andamento",
+    description: "Sob responsabilidade desta pessoa e ainda abertas.",
+    category: "PMOC",
+    unit: "count",
+    icon: Timer,
+    priority: 4,
+    capability: "artifact_executions.read",
+  }),
+  /**
    * Contadores do Catálogo.
    *
    * Não vêm do Analytics: `AnalyticsDomain` não tem catálogo, e

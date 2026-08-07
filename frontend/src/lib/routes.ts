@@ -26,6 +26,8 @@ export const ROUTES = {
   assets: "/ativos",
   /** Catalog Workspace — produtos, serviços e peças. */
   catalog: "/catalogo",
+  /** Workforce Management — equipe, convites e papéis. */
+  team: "/equipe",
   /** Organization Workspace — administração da empresa. */
   organization: "/organizacao",
   /** Customer Workspace — visão 360° do cliente. */
@@ -49,6 +51,7 @@ export const PROTECTED_PREFIXES: readonly string[] = [
   ROUTES.scheduling,
   ROUTES.assets,
   ROUTES.catalog,
+  ROUTES.team,
   ROUTES.organization,
   ROUTES.customers,
   ROUTES.notifications,

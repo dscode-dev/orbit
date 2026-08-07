@@ -32,6 +32,7 @@ import {
   Handshake,
   LayoutTemplate,
   PackageSearch,
+  UsersRound,
   Workflow,
   type LucideProps,
 } from "lucide-react";
@@ -43,6 +44,10 @@ import { ARTIFACT_EXECUTION_STATUS_LABELS } from "@/components/artifact-executio
 import { SCHEDULING_STATUS_LABELS } from "@/components/scheduling/event-badges";
 import { ASSET_STATUS_LABELS, ASSET_CATEGORY_LABELS } from "./asset-labels";
 import { CATALOG_KIND_LABELS, CATALOG_STATUS_LABELS } from "./catalog-labels";
+import {
+  INVITATION_STATUS_LABELS,
+  MEMBER_STATUS_LABELS,
+} from "./workforce-labels";
 
 export type EntityIcon = ComponentType<LucideProps>;
 
@@ -55,6 +60,7 @@ export type EntityIcon = ComponentType<LucideProps>;
 export const ENTITY_IDS = [
   "asset",
   "catalog-item",
+  "team-member",
   "operation",
   "customer",
   "artifact-template",
@@ -104,6 +110,19 @@ const OPERATION_STATUS_CLASSES: Readonly<Record<string, string>> = {
   PAUSED: "bg-amber-500/15 text-amber-400",
   COMPLETED: "bg-emerald-500/15 text-emerald-400",
   CANCELLED: "bg-surface-strong text-muted-foreground",
+};
+
+const MEMBER_STATUS_CLASSES: Readonly<Record<string, string>> = {
+  ACTIVE: "bg-emerald-500/15 text-emerald-400",
+  INACTIVE: "bg-surface-strong text-muted-foreground",
+  SUSPENDED: "bg-amber-500/15 text-amber-400",
+};
+
+const INVITATION_STATUS_CLASSES: Readonly<Record<string, string>> = {
+  PENDING: "bg-amber-500/15 text-amber-400",
+  ACCEPTED: "bg-emerald-500/15 text-emerald-400",
+  EXPIRED: "bg-surface-strong text-muted-foreground",
+  REVOKED: "bg-destructive/15 text-destructive",
 };
 
 const CATALOG_STATUS_CLASSES: Readonly<Record<string, string>> = {
@@ -289,6 +308,52 @@ const DEFINITIONS: readonly EntityDefinition[] = [
      * nada a mais. `href` leva ao Workspace.
      */
     href: () => ROUTES.catalog,
+  },
+  {
+    /**
+     * Membro da equipe.
+     *
+     * **Não substitui autenticação.** A entidade descreve a pessoa como
+     * integrante da organização — papel, unidade, o que tem para fazer — e não
+     * a conta: senha, sessão e MFA continuam em `identity/me`, administrados
+     * por cada um.
+     *
+     * A capability de leitura é `organization.read`, a mesma de
+     * `GET /organizations/current`, porque é dali que a lista de membros vem.
+     */
+    id: "team-member",
+    label: "Membro",
+    labelPlural: "Equipe",
+    description:
+      "Pessoas da organização: papéis, unidades, convites e carga de trabalho.",
+    icon: UsersRound,
+    color: "text-indigo-400",
+    basePath: ROUTES.team,
+    capability: { read: "organization.read", manage: "organization.update" },
+    permissions: {
+      read: "organization.read",
+      create: "identity.invitations.create",
+    },
+    badges: {
+      status: {
+        label: "Situação",
+        labels: MEMBER_STATUS_LABELS,
+        classes: MEMBER_STATUS_CLASSES,
+      },
+      invitation: {
+        label: "Convite",
+        labels: INVITATION_STATUS_LABELS,
+        classes: INVITATION_STATUS_CLASSES,
+      },
+    },
+    /**
+     * Não há rota por pessoa.
+     *
+     * O detalhe abre em painel lateral dentro do Workspace — e não existe
+     * `GET /users/:id` para um tenant: o que se sabe de alguém vem da listagem
+     * de membros. `href` leva ao Workspace.
+     */
+    href: () => ROUTES.team,
   },
   {
     id: "customer",

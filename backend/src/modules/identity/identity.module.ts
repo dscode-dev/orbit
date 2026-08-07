@@ -5,6 +5,7 @@ import { PermissionGuard, RoleGuard } from '../../guards';
 import { EnvironmentProvider } from '../../providers';
 import { AuthenticationService } from './application/authentication.service';
 import { InvitationService } from './application/invitation.service';
+import { InvitationReadModels } from './presentation/invitation.read-models';
 import { MfaService } from './application/mfa.service';
 import { PasswordRecoveryService } from './application/password-recovery.service';
 import { ProfileService } from './application/profile.service';
@@ -49,6 +50,7 @@ import { ProfileController } from './presentation/profile.controller';
     AuthenticationService,
     PasswordRecoveryService,
     InvitationService,
+    InvitationReadModels,
     ProfileService,
     MfaService,
     RegistrationService,

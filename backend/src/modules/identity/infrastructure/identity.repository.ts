@@ -289,6 +289,81 @@ export class IdentityRepository {
     return this.prisma.identityInvitation.findUnique({ where: { tokenHash } });
   }
 
+  /**
+   * Convites da organização.
+   *
+   * Marca como `EXPIRED` os pendentes cujo prazo passou **antes** de listar —
+   * a mesma limpeza que `createInvitation` já fazia. Sem isso, um convite
+   * vencido apareceria como pendente até alguém tentar criar outro, e a tela
+   * ofereceria "reenviar" para algo que o `accept` já recusa.
+   */
+  listInvitations(organizationId: string, status?: string) {
+    return this.prisma.$transaction(async (transaction) => {
+      await this.setLocal(transaction, 'app.organization_id', organizationId);
+      await transaction.identityInvitation.updateMany({
+        where: {
+          organizationId,
+          status: 'PENDING',
+          expiresAt: { lte: new Date() },
+        },
+        data: { status: 'EXPIRED' },
+      });
+      return transaction.identityInvitation.findMany({
+        where: { organizationId, status },
+        include: {
+          role: { select: { id: true, key: true, name: true } },
+          businessUnit: {
+            select: { id: true, legalName: true, tradeName: true },
+          },
+          invitedBy: { select: { id: true, displayName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+  }
+
+  findInvitationById(id: string, organizationId: string) {
+    return this.prisma.$transaction(async (transaction) => {
+      await this.setLocal(transaction, 'app.organization_id', organizationId);
+      return transaction.identityInvitation.findFirst({
+        where: { id, organizationId },
+      });
+    });
+  }
+
+  /** Renova prazo e token de um convite pendente. */
+  refreshInvitation(
+    id: string,
+    organizationId: string,
+    data: { tokenHash: string; expiresAt: Date },
+  ) {
+    return this.prisma.$transaction(async (transaction) => {
+      await this.setLocal(transaction, 'app.organization_id', organizationId);
+      return transaction.identityInvitation.update({
+        where: { id },
+        data: { ...data, status: 'PENDING' },
+      });
+    });
+  }
+
+  /**
+   * Cancela um convite.
+   *
+   * `REVOKED`, não remoção: o registro de que alguém foi convidado e o convite
+   * foi retirado é informação de auditoria.
+   */
+  revokeInvitation(id: string, organizationId: string): Promise<void> {
+    return this.prisma
+      .$transaction(async (transaction) => {
+        await this.setLocal(transaction, 'app.organization_id', organizationId);
+        return transaction.identityInvitation.update({
+          where: { id },
+          data: { status: 'REVOKED' },
+        });
+      })
+      .then(() => undefined);
+  }
+
   acceptInvitation(
     invitationId: string,
     input: {

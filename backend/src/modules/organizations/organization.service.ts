@@ -57,8 +57,20 @@ export class OrganizationService {
   /** Membros da organização, com o dono identificado pelo próprio registro. */
   async listMembers(organizationId: string) {
     const organization = await this.getCurrent(organizationId);
-    const members = await this.repository.listMembers(organizationId);
-    return { members, ownerUserId: organization.ownerUserId };
+    const [members, unitMemberships] = await Promise.all([
+      this.repository.listMembers(organizationId),
+      this.repository.listBusinessUnitMemberships(organizationId),
+    ]);
+    return {
+      members,
+      unitMemberships,
+      ownerUserId: organization.ownerUserId,
+    };
+  }
+
+  async listRoles(organizationId: string) {
+    await this.getCurrent(organizationId);
+    return this.repository.listRoles(organizationId);
   }
 
   async update(organizationId: string, input: UpdateOrganizationDto) {

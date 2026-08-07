@@ -101,6 +101,22 @@ export type ProductKind = (typeof ProductKind)[keyof typeof ProductKind];
  * O literal formaliza os dois valores que o repositório já usava em texto:
  * `ACTIVE` no `findAvailableProduct` e `INACTIVE` no `softDeleteProduct`.
  */
+/**
+ * Ciclo de vida de um convite.
+ *
+ * Os quatro valores que `IdentityInvitation.status` já usava em texto:
+ * `PENDING` ao criar, `ACCEPTED` no `accept`, `EXPIRED` na limpeza por prazo e
+ * `REVOKED` no cancelamento.
+ */
+export const InvitationStatus = literal({
+  PENDING: 'PENDING',
+  ACCEPTED: 'ACCEPTED',
+  EXPIRED: 'EXPIRED',
+  REVOKED: 'REVOKED',
+});
+export type InvitationStatus =
+  (typeof InvitationStatus)[keyof typeof InvitationStatus];
+
 export const ProductStatus = literal({
   ACTIVE: 'ACTIVE',
   INACTIVE: 'INACTIVE',

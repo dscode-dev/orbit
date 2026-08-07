@@ -11,7 +11,6 @@ import {
   Settings,
   SlidersHorizontal,
   UserCircle,
-  Users,
   PanelLeftClose,
   ChevronsUpDown,
   Sparkles,
@@ -114,7 +113,7 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
     group: "Administração",
     items: [
       { label: "Organização", icon: Settings, to: ROUTES.organization },
-      planned("Usuários", Users),
+      fromEntity("team-member"),
       { label: "Notificações", icon: Bell, to: ROUTES.notifications },
       planned("Configurações", SlidersHorizontal),
       planned("Perfil", UserCircle),

@@ -5,6 +5,7 @@ import type {
   OrganizationContextReadModel,
   OrganizationMemberReadModel,
   OrganizationPlanReadModel,
+  OrganizationRoleReadModel,
 } from './organization.read-models';
 
 type DateValue = Date | string;
@@ -83,6 +84,22 @@ interface MemberSource {
   role: { id: string; key: string; name: string };
 }
 
+interface UnitMembershipSource {
+  userId: string;
+  businessUnit: { id: string; legalName: string; tradeName: string | null };
+}
+
+interface RoleSource {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  permissions: readonly string[];
+  isSystem: boolean;
+  organizationId: string | null;
+  _count: { organizationMemberships: number };
+}
+
 @Injectable()
 export class OrganizationReadModelMapper {
   context(source: OrganizationSource): OrganizationContextReadModel {
@@ -147,13 +164,28 @@ export class OrganizationReadModelMapper {
   members(
     sources: readonly MemberSource[],
     ownerUserId: string,
+    unitMemberships: readonly UnitMembershipSource[] = [],
   ): readonly OrganizationMemberReadModel[] {
-    return sources.map((source) => this.member(source, ownerUserId));
+    /**
+     * Agrupa as unidades por pessoa uma vez, em vez de varrer a lista inteira
+     * para cada membro.
+     */
+    const byUser = new Map<string, UnitMembershipSource['businessUnit'][]>();
+    for (const membership of unitMemberships) {
+      const units = byUser.get(membership.userId) ?? [];
+      units.push(membership.businessUnit);
+      byUser.set(membership.userId, units);
+    }
+
+    return sources.map((source) =>
+      this.member(source, ownerUserId, byUser.get(source.userId) ?? []),
+    );
   }
 
   member(
     source: MemberSource,
     ownerUserId: string,
+    businessUnits: readonly UnitMembershipSource['businessUnit'][] = [],
   ): OrganizationMemberReadModel {
     return {
       userId: source.userId,
@@ -167,9 +199,23 @@ export class OrganizationReadModelMapper {
         key: source.role.key,
         name: source.role.name,
       },
+      businessUnits: businessUnits.map((unit) => ({ ...unit })),
       joinedAt: this.date(source.joinedAt),
       isOwner: source.userId === ownerUserId,
     };
+  }
+
+  roles(sources: readonly RoleSource[]): readonly OrganizationRoleReadModel[] {
+    return sources.map((source) => ({
+      id: source.id,
+      key: source.key,
+      name: source.name,
+      description: source.description,
+      permissions: [...source.permissions],
+      isSystem: source.isSystem,
+      isOrganizationOwned: source.organizationId !== null,
+      memberCount: source._count.organizationMemberships,
+    }));
   }
 
   private plan(source: PlanSource): OrganizationPlanReadModel {

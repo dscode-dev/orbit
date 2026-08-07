@@ -9,7 +9,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { BusinessUnitType } from '../../../../contracts';
+import { BusinessUnitType, InvitationStatus } from '../../../../contracts';
 import {
   detectBrazilianDocumentType,
   normalizeBrazilianDocument,
@@ -239,6 +239,14 @@ export class CreateInvitationDto {
   @IsOptional()
   @IsUUIDv7()
   businessUnitId?: string;
+}
+
+export class InvitationQueryDto {
+  /** Sem filtro devolve todos os estados, o que é o padrão da aba. */
+  @ApiPropertyOptional({ enum: Object.values(InvitationStatus) })
+  @IsOptional()
+  @IsIn(Object.values(InvitationStatus))
+  status?: InvitationStatus;
 }
 
 export class AcceptInvitationDto {

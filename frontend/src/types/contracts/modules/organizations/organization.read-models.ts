@@ -62,9 +62,42 @@ export interface OrganizationMemberReadModel {
   status: string;
   /** Papel na organização, como o backend o define. */
   role: { id: string; key: string; name: string };
+  /**
+   * Unidades que a pessoa atende.
+   *
+   * Vem de `BusinessUnitMembership`, que já existia e nunca era publicada.
+   * Lista vazia significa acesso em nível de organização — não é ausência de
+   * dado, é o escopo mais amplo.
+   */
+  businessUnits: readonly {
+    id: string;
+    legalName: string;
+    tradeName: string | null;
+  }[];
   joinedAt: string;
   /** `true` para o dono da organização. */
   isOwner: boolean;
+}
+
+/**
+ * Papel e o que ele concede.
+ *
+ * `permissions` é a lista que o backend usa para autorizar — publicada para
+ * que a interface possa **mostrar** o que cada papel permite, não para decidir
+ * nada com ela. Quem autoriza continua sendo o servidor.
+ */
+export interface OrganizationRoleReadModel {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  permissions: readonly string[];
+  /** `true` para papéis de plataforma, que a organização não edita. */
+  isSystem: boolean;
+  /** `false` quando o papel é global, compartilhado por todas as organizações. */
+  isOrganizationOwned: boolean;
+  /** Quantas pessoas têm este papel nesta organização. */
+  memberCount: number;
 }
 
 export interface OrganizationContextReadModel {

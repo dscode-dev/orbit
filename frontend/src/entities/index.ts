@@ -30,6 +30,10 @@ export {
   type RelatedRow,
 } from "./related-records";
 export {
+  INVITATION_STATUS_LABELS,
+  MEMBER_STATUS_LABELS,
+} from "./workforce-labels";
+export {
   CATALOG_KIND_LABELS,
   CATALOG_STATUS_LABELS,
 } from "./catalog-labels";

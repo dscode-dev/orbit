@@ -45,8 +45,10 @@ import {
   RefreshCw,
   Send,
   Share2,
+  ShieldCheck,
   Trash2,
   Undo2,
+  UserPlus,
   type LucideProps,
 } from "lucide-react";
 
@@ -297,6 +299,79 @@ const DEFINITIONS: readonly ActionDefinition[] = [
       body: "O servidor recusa se houver subcategorias ou itens vinculados. Nesse caso, mova-os antes.",
       confirmLabel: "Excluir",
     },
+  }),
+
+  /* ---------------------------------------------------------------- */
+  /* Equipe                                                            */
+  /* ---------------------------------------------------------------- */
+  define({
+    id: "team-member.create",
+    entity: "team-member",
+    label: "Convidar pessoa",
+    description:
+      "Envia um convite por e-mail. A pessoa define a própria senha ao aceitar.",
+    icon: UserPlus,
+    category: "create",
+    permission: "identity.invitations.create",
+  }),
+  define({
+    id: "team-member.resend-invitation",
+    entity: "team-member",
+    label: "Reenviar convite",
+    description: "Gera um link novo. O anterior deixa de valer.",
+    icon: Send,
+    category: "workflow",
+    permission: "identity.invitations.create",
+  }),
+  define({
+    id: "team-member.revoke-invitation",
+    entity: "team-member",
+    label: "Cancelar convite",
+    icon: Trash2,
+    category: "destructive",
+    permission: "identity.invitations.create",
+    confirm: {
+      title: "Cancelar este convite?",
+      body: "O link deixa de funcionar imediatamente. O registro permanece para auditoria, e a pessoa pode ser convidada de novo depois.",
+      confirmLabel: "Cancelar convite",
+    },
+  }),
+  /**
+   * Editar membro e trocar papel não existem em contrato.
+   *
+   * Não há `PATCH /organizations/current/members/:id`, e `roleId` só é
+   * informado no convite. `available: false` declara a ausência em vez de
+   * esconder a ação — quando a rota existir, vira `true` e nada mais muda.
+   */
+  define({
+    id: "team-member.update",
+    entity: "team-member",
+    label: "Editar membro",
+    icon: Pencil,
+    category: "edit",
+    available: false,
+    unavailableReason:
+      "O backend não publica edição de membro: nome, e-mail e avatar são do perfil, que cada pessoa administra em identity/me.",
+  }),
+  define({
+    id: "team-member.change-role",
+    entity: "team-member",
+    label: "Trocar papel",
+    icon: ShieldCheck,
+    category: "workflow",
+    available: false,
+    unavailableReason:
+      "Não há rota para alterar o papel de um membro. O papel é definido no convite e só muda por lá.",
+  }),
+  define({
+    id: "team-member.deactivate",
+    entity: "team-member",
+    label: "Desativar membro",
+    icon: PowerOff,
+    category: "workflow",
+    available: false,
+    unavailableReason:
+      "A coluna de situação da associação existe e é publicada, mas nenhuma rota a escreve.",
   }),
 
   /* ---------------------------------------------------------------- */

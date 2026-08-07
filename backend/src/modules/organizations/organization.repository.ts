@@ -124,6 +124,55 @@ export class OrganizationRepository {
    * receber trabalho novo. O status da associação é publicado para que o
    * cliente distinga quem está ativo de quem está suspenso sem inferir nada.
    */
+  /**
+   * Papéis da organização.
+   *
+   * **Só os próprios.** Papéis globais (`organizationId: null`) são de
+   * plataforma — hoje apenas `PLATFORM_ADMIN`, atribuído por
+   * `PlatformRoleAssignment`, uma tabela que nada tem a ver com a associação
+   * de um tenant. Listá-lo aqui mostraria ao gestor um papel que ele não pode
+   * conceder e que não descreve ninguém da equipe dele.
+   */
+  listRoles(organizationId: string) {
+    return this.rls.run((transaction) =>
+      transaction.role.findMany({
+        where: { organizationId, deletedAt: null },
+        select: {
+          id: true,
+          key: true,
+          name: true,
+          description: true,
+          permissions: true,
+          isSystem: true,
+          organizationId: true,
+          _count: { select: { organizationMemberships: true } },
+        },
+        orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+      }),
+    );
+  }
+
+  /**
+   * Unidades de cada pessoa.
+   *
+   * `BusinessUnitMembership` já existia e nunca foi publicada. Sem ela, a
+   * equipe aparece como uma lista plana e não há como saber quem atende qual
+   * unidade — que é a primeira pergunta de quem escala trabalho.
+   */
+  listBusinessUnitMemberships(organizationId: string) {
+    return this.rls.run((transaction) =>
+      transaction.businessUnitMembership.findMany({
+        where: { organizationId, deletedAt: null },
+        select: {
+          userId: true,
+          businessUnit: {
+            select: { id: true, legalName: true, tradeName: true },
+          },
+        },
+      }),
+    );
+  }
+
   listMembers(organizationId: string) {
     return this.rls.run((transaction) =>
       transaction.organizationMembership.findMany({

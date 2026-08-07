@@ -48,10 +48,26 @@ export class OrganizationController {
   @Get('current/members')
   @RequiresActivePlan()
   async members(@Req() request: IdentityRequest) {
-    const { members, ownerUserId } = await this.organizations.listMembers(
-      this.organizationId(request),
+    const { members, unitMemberships, ownerUserId } =
+      await this.organizations.listMembers(this.organizationId(request));
+    return this.readModels.members(members, ownerUserId, unitMemberships);
+  }
+
+  /**
+   * Papéis disponíveis para a organização.
+   *
+   * Publica o que cada papel **concede** (`permissions`), para que a interface
+   * possa mostrar por que alguém pode ou não fazer algo. É leitura do mesmo
+   * escopo de `GET /organizations/current`: nenhum papel é criado ou alterado
+   * por aqui — o modelo tem `isSystem`, e edição de papel não existe em
+   * contrato nenhum.
+   */
+  @Get('current/roles')
+  @RequiresActivePlan()
+  async roles(@Req() request: IdentityRequest) {
+    return this.readModels.roles(
+      await this.organizations.listRoles(this.organizationId(request)),
     );
-    return this.readModels.members(members, ownerUserId);
   }
 
   @Patch('current')
