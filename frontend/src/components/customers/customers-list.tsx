@@ -203,7 +203,7 @@ function CustomerRow({ customer }: { customer: Customer }) {
       <TableCell>
         <div className="flex flex-wrap gap-1">
           <Badge variant="secondary" className="text-[10px]">
-            {customer.counts.assets} ativo(s)
+            {customer.counts.assets} equipamento(s)
           </Badge>
           <Badge variant="secondary" className="text-[10px]">
             {customer.counts.operations} operação(ões)

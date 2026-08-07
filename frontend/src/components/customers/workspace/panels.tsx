@@ -8,7 +8,6 @@
  */
 import { useState } from "react";
 import {
-  Building2,
   Lightbulb,
   Mail,
   MapPin,
@@ -26,10 +25,7 @@ import { Label } from "@/components/ui/label";
 import { RelatedRecordsPanel } from "@/entities";
 import {
   useCreateContact,
-  useCustomerAssets,
-  useCustomerExecutions,
   useCustomerIntelligence,
-  useCustomerOperations,
   useCustomerSchedule,
   useRemoveContact,
 } from "@/hooks/customers/use-customers";
@@ -334,66 +330,6 @@ function ContactForm({
 /* Vínculos                                                            */
 /* ------------------------------------------------------------------ */
 
-export function CustomerAssetsSection({ customerId }: { customerId: string }) {
-  const query = useCustomerAssets(customerId);
-
-  return (
-    <RelatedRecordsPanel
-      entity="asset"
-      panelId="customer-assets"
-      title="Ativos"
-      description="Equipamentos deste cliente"
-      query={query}
-      emptyMessage="Nenhum ativo vinculado a este cliente."
-      seeAllHref={ROUTES.assets}
-      toRows={(page) =>
-        page.data.map((asset) => ({
-          key: asset.id,
-          entityId: asset.id,
-          title: asset.name,
-          subtitle: [asset.manufacturer, asset.model, asset.location]
-            .filter(Boolean)
-            .join(" · "),
-          status: asset.status,
-        }))
-      }
-    />
-  );
-}
-
-export function CustomerOperationsSection({
-  customerId,
-}: {
-  customerId: string;
-}) {
-  const query = useCustomerOperations(customerId);
-
-  return (
-    <RelatedRecordsPanel
-      entity="operation"
-      panelId="customer-operations"
-      title="Operações"
-      description="Ordens de serviço deste cliente"
-      query={query}
-      emptyMessage="Nenhuma operação registrada para este cliente."
-      seeAllHref={ROUTES.operations}
-      toRows={(page) =>
-        page.data.map((operation) => ({
-          key: operation.id,
-          entityId: operation.id,
-          title: operation.title,
-          subtitle: `${operation.code}${
-            operation.scheduledStart
-              ? ` · ${formatDateTime(operation.scheduledStart)}`
-              : ""
-          }`,
-          status: operation.status,
-        }))
-      }
-    />
-  );
-}
-
 export function CustomerScheduleSection({
   customerId,
 }: {
@@ -417,35 +353,6 @@ export function CustomerScheduleSection({
           title: occurrence.title,
           subtitle: `${formatDateTime(occurrence.startsAt)} · ${occurrence.type}`,
           status: occurrence.status,
-        }))
-      }
-    />
-  );
-}
-
-export function CustomerExecutionsSection({
-  customerId,
-}: {
-  customerId: string;
-}) {
-  const query = useCustomerExecutions(customerId);
-
-  return (
-    <RelatedRecordsPanel
-      entity="artifact-execution"
-      panelId="customer-executions"
-      title="Artefatos executados"
-      description="PMOCs, relatórios e checklists deste cliente"
-      query={query}
-      emptyMessage="Nenhum artefato executado para este cliente."
-      seeAllHref={ROUTES.executions}
-      toRows={(page) =>
-        page.data.map((execution) => ({
-          key: execution.id,
-          entityId: execution.id,
-          title: execution.title,
-          subtitle: `${execution.code} · ${execution.progress}% concluído`,
-          status: execution.status,
         }))
       }
     />
@@ -643,32 +550,6 @@ function IntelligenceOutput({ output }: { output: unknown }) {
 /* ------------------------------------------------------------------ */
 /* Histórico                                                           */
 /* ------------------------------------------------------------------ */
-
-/**
- * Histórico do cliente.
- *
- * O modelo `Customer` não tem tabela de eventos, e não há endpoint de
- * auditoria. Os painéis de operações, agenda e artefatos mostram os registros
- * vinculados; uma linha do tempo do relacionamento depende de o backend
- * publicá-la.
- */
-export function HistorySection() {
-  return (
-    <PanelFrame
-      panelId="customer-history"
-      title="Histórico"
-      description="Eventos do relacionamento ao longo do tempo"
-    >
-      <div className="flex min-h-24 flex-col items-center justify-center gap-2 text-center">
-        <Building2 className="size-5 text-muted-foreground" aria-hidden />
-        <p className="max-w-md text-sm text-muted-foreground">
-          Não há tabela de histórico do cliente nem endpoint de auditoria. O que
-          existe de datado são os registros vinculados, nos painéis acima.
-        </p>
-      </div>
-    </PanelFrame>
-  );
-}
 
 function Entry({
   label,

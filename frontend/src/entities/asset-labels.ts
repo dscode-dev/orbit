@@ -1,5 +1,5 @@
 /**
- * Rótulos dos literais de ativo.
+ * Rótulos dos literais de equipamento (recurso `assets` no backend).
  *
  * Ficam aqui, e não em um componente, porque o Entity Registry precisa deles e
  * o registry não deve depender de árvore de componentes. `AssetStatus` e

@@ -26,8 +26,11 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Cloud,
+  Cog,
   Gauge,
   Handshake,
+  Package,
+  PackageX,
   Thermometer,
   Timer,
   Users,
@@ -224,7 +227,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
    */
   define({
     id: "customer.assets.total",
-    label: "Ativos do cliente",
+    label: "Equipamentos do cliente",
     description: "Equipamentos vinculados a este cliente.",
     category: "OPERATIONS",
     unit: "count",
@@ -232,6 +235,60 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     trendColor: higherIsBetter,
     priority: 3,
     capability: "assets.read",
+  }),
+  /**
+   * Contadores do Catálogo.
+   *
+   * Não vêm do Analytics: `AnalyticsDomain` não tem catálogo, e
+   * `/analytics/kpis` nem aceita o parâmetro. São `meta.total` de consultas
+   * filtradas por `kind` e `status` — contagem do banco, feita pelo servidor.
+   *
+   * `CONTRACTS` é a categoria mais próxima do que o catálogo é: o que a
+   * organização se compromete a entregar. Não existe domínio de catálogo no
+   * contrato, e inventar um aqui criaria um vocabulário que o backend não
+   * reconhece.
+   */
+  define({
+    id: "catalog.products.total",
+    label: "Produtos",
+    description: "Itens físicos cadastrados no catálogo.",
+    category: "CONTRACTS",
+    unit: "count",
+    icon: Package,
+    priority: 1,
+    capability: "catalog.read",
+  }),
+  define({
+    id: "catalog.services.total",
+    label: "Serviços",
+    description: "Serviços oferecidos, com preço e unidade de cobrança.",
+    category: "CONTRACTS",
+    unit: "count",
+    icon: Wrench,
+    priority: 2,
+    capability: "catalog.read",
+  }),
+  define({
+    id: "catalog.parts.total",
+    label: "Peças",
+    description: "Peças de reposição usadas em manutenção.",
+    category: "CONTRACTS",
+    unit: "count",
+    icon: Cog,
+    priority: 3,
+    capability: "catalog.read",
+  }),
+  define({
+    id: "catalog.unavailable.total",
+    label: "Fora de circulação",
+    description: "Itens que existem no histórico mas não são mais oferecidos.",
+    category: "CONTRACTS",
+    unit: "count",
+    icon: PackageX,
+    /** Subir aqui não é bom: significa catálogo encolhendo. */
+    trendColor: lowerIsBetter,
+    priority: 4,
+    capability: "catalog.read",
   }),
   define({
     id: "customer.operations.total",
@@ -246,7 +303,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
   }),
   define({
     id: "asset.operations.total",
-    label: "Operações no ativo",
+    label: "Operações no equipamento",
     description: "Ordens de serviço já vinculadas a este equipamento.",
     category: "OPERATIONS",
     unit: "count",
@@ -258,7 +315,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
   define({
     id: "asset.operations.open",
     label: "Em execução agora",
-    description: "Operações deste ativo com status IN_PROGRESS.",
+    description: "Operações deste equipamento com status IN_PROGRESS.",
     category: "OPERATIONS",
     unit: "count",
     icon: Wrench,
@@ -269,7 +326,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
   define({
     id: "asset.artifact_executions.total",
     label: "Artefatos executados",
-    description: "PMOCs, relatórios e checklists preenchidos neste ativo.",
+    description: "PMOCs, relatórios e checklists preenchidos neste equipamento.",
     category: "OPERATIONS",
     unit: "count",
     icon: ClipboardCheck,
@@ -422,7 +479,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
   define({
     id: "equipment.availability",
     label: "Disponibilidade dos equipamentos",
-    description: "Ativos em estado ativo sobre o total cadastrado.",
+    description: "Equipamentos em estado ativo sobre o total cadastrado.",
     category: "EQUIPMENT",
     unit: "percent",
     icon: Wrench,

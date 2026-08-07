@@ -18,6 +18,7 @@ import { ExternalLink } from "lucide-react";
 import { PanelFrame, PanelState, toPanelQuery } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
 import { useOperation } from "@/hooks/operations/use-operations";
+import { UserReference } from "@/components/identity/user-reference";
 import { formatDateTime } from "@/lib/formatters";
 import { ROUTES } from "@/lib/routes";
 import type { ArtifactExecution } from "@/types/artifact-executions";
@@ -201,13 +202,14 @@ function UnresolvedLinks({ execution }: { execution: ArtifactExecution }) {
  * o identificador abreviado é o máximo verdadeiro; inventar "Usuário" seria
  * pior que não dizer nada.
  */
-export function UserReference({ userId }: { userId: string }) {
-  return (
-    <span className="font-mono text-xs" title={userId}>
-      {userId.slice(0, 8)}
-    </span>
-  );
-}
+/**
+ * Reexportado de `@/components/identity`.
+ *
+ * O componente resolvia o id para os oito primeiros caracteres do uuid; agora
+ * ele resolve o nome real pelo contrato de membros da organização. O nome
+ * daqui permanece porque três telas já o importam deste caminho.
+ */
+export { UserReference } from "@/components/identity/user-reference";
 
 function Entry({
   label,

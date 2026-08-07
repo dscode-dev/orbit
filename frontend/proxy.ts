@@ -143,6 +143,7 @@ export const config = {
     "/documentos/:path*",
     "/agenda/:path*",
     "/ativos/:path*",
+    "/catalogo/:path*",
     "/organizacao/:path*",
     "/clientes/:path*",
     "/notificacoes/:path*",

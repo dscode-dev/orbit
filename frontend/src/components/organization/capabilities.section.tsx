@@ -39,7 +39,7 @@ import type { OrganizationPlan } from "@/types/organization";
 const MODULE_LABELS: Readonly<Record<string, string>> = {
   operations: "Operações",
   scheduling: "Agenda",
-  assets: "Ativos",
+  assets: "Equipamentos",
   crm: "Clientes",
   catalog: "Catálogo",
   analytics: "Analytics",

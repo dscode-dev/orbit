@@ -24,6 +24,7 @@
  * ícone, cor, badges e quais ações oferecer. Não há `switch` de entidade
  * nesta árvore.
  */
+import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 
@@ -31,7 +32,12 @@ import { ContentContainer } from "@/components/layout/page-primitives";
 import { PanelError, PanelLoading } from "@/components/panels";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EntityBadge, useEntityAccess } from "@/entities";
+import { useAction } from "@/actions";
+import { MutationError } from "@/components/artifact-studio/mutation-error";
+import { EntityBadge, entityHref, useEntityAccess } from "@/entities";
+import { useUpdateAsset } from "@/hooks/assets/use-assets";
+import { AssetStatus } from "@/types/contracts";
+import { AssetFormDialog } from "../asset-form.dialog";
 import { useAsset } from "@/hooks/assets/use-assets";
 import { formatDateTime } from "@/lib/formatters";
 import { ROUTES } from "@/lib/routes";
@@ -92,15 +98,39 @@ function WorkspaceBody({
   onRefresh: () => void;
 }) {
   const { definition } = useEntityAccess("asset");
+  const edit = useAction("asset.update");
+  const activate = useAction("asset.activate");
+  const deactivate = useAction("asset.deactivate");
+
+  const [formOpen, setFormOpen] = useState(false);
+  const update = useUpdateAsset(asset.id);
+
+  const inactive = asset.status === AssetStatus.INACTIVE;
+  const toggle = inactive ? activate : deactivate;
+
+  /**
+   * A volta é para o **cliente**, quando ele existe.
+   *
+   * É a consolidação em ato: o equipamento pertence a quem o contratou, e a
+   * navegação natural é voltar para lá. Sem cliente vinculado — o contrato
+   * permite `customerId` nulo — resta a listagem geral, que continua existindo
+   * como rota mesmo fora do menu.
+   */
+  const back = asset.customer
+    ? {
+        href: entityHref("customer", asset.customer.id) ?? ROUTES.customers,
+        label: asset.customer.tradeName ?? asset.customer.legalName,
+      }
+    : { href: ROUTES.assets, label: definition.labelPlural };
 
   return (
     <ContentContainer size="wide" className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 space-y-2">
           <Button variant="ghost" size="sm" asChild className="-ml-2">
-            <Link href={ROUTES.assets}>
+            <Link href={back.href}>
               <ArrowLeft className="size-4" />
-              {definition.labelPlural}
+              {back.label}
             </Link>
           </Button>
           <div className="flex flex-wrap items-center gap-2">
@@ -127,11 +157,38 @@ function WorkspaceBody({
           </p>
         </div>
 
-        <Button variant="ghost" size="sm" onClick={onRefresh}>
-          <RefreshCw className="size-4" />
-          Atualizar
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {toggle.allowed ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={update.isPending}
+              onClick={() =>
+                update.mutate({
+                  status: inactive ? AssetStatus.ACTIVE : AssetStatus.INACTIVE,
+                })
+              }
+            >
+              <toggle.definition.icon className="size-4" />
+              {toggle.label}
+            </Button>
+          ) : null}
+
+          {edit.allowed ? (
+            <Button variant="outline" size="sm" onClick={() => setFormOpen(true)}>
+              <edit.definition.icon className="size-4" />
+              {edit.label}
+            </Button>
+          ) : null}
+
+          <Button variant="ghost" size="sm" onClick={onRefresh}>
+            <RefreshCw className="size-4" />
+            Atualizar
+          </Button>
+        </div>
       </header>
+
+      <MutationError error={update.error} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
         <div className="min-w-0 space-y-6">
@@ -149,6 +206,12 @@ function WorkspaceBody({
           <IntelligenceSection />
         </div>
       </div>
+
+      <AssetFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        editing={asset}
+      />
     </ContentContainer>
   );
 }

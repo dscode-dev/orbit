@@ -90,6 +90,23 @@ export const ProductKind = literal({
 });
 export type ProductKind = (typeof ProductKind)[keyof typeof ProductKind];
 
+/**
+ * Disponibilidade de um item do catálogo.
+ *
+ * A coluna `products.status` existe desde a criação do modelo e já era
+ * publicada no Read Model, mas nenhum contrato a aceitava — nem para escrever,
+ * nem para filtrar. Retirar um item de circulação só era possível apagando-o
+ * (soft delete), o que some com o registro e com o histórico.
+ *
+ * O literal formaliza os dois valores que o repositório já usava em texto:
+ * `ACTIVE` no `findAvailableProduct` e `INACTIVE` no `softDeleteProduct`.
+ */
+export const ProductStatus = literal({
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
+});
+export type ProductStatus = (typeof ProductStatus)[keyof typeof ProductStatus];
+
 export const AssetCategory = literal({
   EQUIPMENT: 'EQUIPMENT',
   VEHICLE: 'VEHICLE',

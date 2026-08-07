@@ -79,6 +79,7 @@ export class CatalogRepository {
       kind: query.kind,
       categoryId: query.categoryId,
       businessUnitId: query.businessUnitId,
+      status: query.status,
       ...(query.search
         ? {
             OR: [

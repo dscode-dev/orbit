@@ -31,6 +31,7 @@ import {
   ClipboardCheck,
   Handshake,
   LayoutTemplate,
+  PackageSearch,
   Workflow,
   type LucideProps,
 } from "lucide-react";
@@ -41,6 +42,7 @@ import { OPERATION_STATUS_LABELS } from "@/types/operations";
 import { ARTIFACT_EXECUTION_STATUS_LABELS } from "@/components/artifact-executions/execution-badges";
 import { SCHEDULING_STATUS_LABELS } from "@/components/scheduling/event-badges";
 import { ASSET_STATUS_LABELS, ASSET_CATEGORY_LABELS } from "./asset-labels";
+import { CATALOG_KIND_LABELS, CATALOG_STATUS_LABELS } from "./catalog-labels";
 
 export type EntityIcon = ComponentType<LucideProps>;
 
@@ -52,6 +54,7 @@ export type EntityIcon = ComponentType<LucideProps>;
  */
 export const ENTITY_IDS = [
   "asset",
+  "catalog-item",
   "operation",
   "customer",
   "artifact-template",
@@ -103,6 +106,11 @@ const OPERATION_STATUS_CLASSES: Readonly<Record<string, string>> = {
   CANCELLED: "bg-surface-strong text-muted-foreground",
 };
 
+const CATALOG_STATUS_CLASSES: Readonly<Record<string, string>> = {
+  ACTIVE: "bg-emerald-500/15 text-emerald-400",
+  INACTIVE: "bg-surface-strong text-muted-foreground",
+};
+
 const ASSET_STATUS_CLASSES: Readonly<Record<string, string>> = {
   ACTIVE: "bg-emerald-500/15 text-emerald-400",
   MAINTENANCE: "bg-amber-500/15 text-amber-400",
@@ -113,10 +121,20 @@ const ASSET_STATUS_CLASSES: Readonly<Record<string, string>> = {
 const DEFINITIONS: readonly EntityDefinition[] = [
   {
     id: "asset",
-    label: "Ativo",
-    labelPlural: "Ativos",
+    /**
+     * `asset` é o nome **técnico**, e continua sendo: é o recurso do backend
+     * (`/assets`), a capability (`assets.read`) e o parâmetro de consulta que
+     * três outros módulos aceitam. Renomear o contrato por motivo visual
+     * quebraria tudo isso sem ganho nenhum.
+     *
+     * O que o usuário lê é **Equipamento** — o vocabulário do HVAC-R, e o que
+     * a operação de campo de fato manuseia. É por isto que o registry existe:
+     * um lugar onde o nome técnico e o nome humano se encontram.
+     */
+    label: "Equipamento",
+    labelPlural: "Equipamentos",
     description:
-      "Equipamentos, veículos, ferramentas e instalações da organização.",
+      "Máquinas, condensadoras, evaporadoras e instalações sob contrato.",
     icon: Boxes,
     color: "text-sky-400",
     basePath: ROUTES.assets,
@@ -226,6 +244,51 @@ const DEFINITIONS: readonly EntityDefinition[] = [
     },
     badges: {},
     href: (id) => `${ROUTES.artifacts}/${id}`,
+  },
+  {
+    /**
+     * Item do catálogo — produto, serviço ou peça.
+     *
+     * Uma entidade só, e não duas, porque o backend tem uma tabela só: `kind`
+     * distingue `PRODUCT`, `SERVICE` e `PART` dentro de `products`. Registrar
+     * "produto" e "serviço" como entidades separadas criaria dois donos para
+     * o mesmo recurso, duas rotas para o mesmo detalhe e duas listas de ações
+     * idênticas — exatamente o que o registry existe para impedir.
+     *
+     * O Workspace apresenta abas separadas porque quem cadastra pensa nelas
+     * como coisas diferentes; o contrato continua sendo um.
+     */
+    id: "catalog-item",
+    label: "Item do catálogo",
+    labelPlural: "Produtos & Serviços",
+    description:
+      "Produtos, serviços e peças oferecidos pela organização — a fonte oficial de preço e descrição.",
+    icon: PackageSearch,
+    color: "text-teal-400",
+    basePath: ROUTES.catalog,
+    capability: { read: "catalog.read", manage: "catalog.manage" },
+    permissions: {
+      read: "catalog.read",
+      create: "catalog.products.create",
+      update: "catalog.products.update",
+      delete: "catalog.products.delete",
+    },
+    badges: {
+      status: {
+        label: "Disponibilidade",
+        labels: CATALOG_STATUS_LABELS,
+        classes: CATALOG_STATUS_CLASSES,
+      },
+      kind: { label: "Tipo", labels: CATALOG_KIND_LABELS },
+    },
+    /**
+     * Não há rota por item.
+     *
+     * O detalhe abre em painel lateral dentro do Workspace — é um cadastro
+     * curto, e uma página inteira para ele seria uma navegação a mais sem
+     * nada a mais. `href` leva ao Workspace.
+     */
+    href: () => ROUTES.catalog,
   },
   {
     id: "customer",

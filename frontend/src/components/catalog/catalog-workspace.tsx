@@ -1,0 +1,152 @@
+"use client";
+
+/**
+ * Catalog Workspace — a fonte oficial de produtos e serviços.
+ *
+ * ## Uma tabela, cinco abas
+ *
+ * Produtos, serviços e peças são o **mesmo registro** com `kind` diferente
+ * dentro de `products`. As abas existem porque quem cadastra pensa neles como
+ * coisas distintas; o contrato continua sendo um, e `kind` é filtro do
+ * servidor.
+ *
+ * É por isso que **não há Catalog Registry**: um registry resolve "o que este
+ * identificador significa", e aqui não há identificador para resolver — há uma
+ * entidade (`catalog-item`) no Entity Registry, com as suas ações no Action
+ * Registry. Criar um registry para dois valores de `kind` seria cerimônia.
+ *
+ * ## Fonte oficial
+ *
+ * O catálogo é onde preço, descrição e unidade de medida vivem. Nenhum outro
+ * módulo os redeclara: quando Operações, Orçamentos ou Vendas precisarem de um
+ * item, o caminho é `GET /catalog/products` com o filtro adequado — não uma
+ * cópia local.
+ *
+ * ## O que não existe, e está declarado
+ *
+ * Estoque, duração de serviço, Analytics de catálogo e IA por item não têm
+ * contrato. Cada ausência aparece onde seria consumida, com o motivo — em vez
+ * de sumir da tela ou virar número inventado.
+ */
+import { PackageSearch } from "lucide-react";
+
+import { ContentContainer } from "@/components/layout/page-primitives";
+import { PanelFrame } from "@/components/panels";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProductKind } from "@/types/contracts";
+import { TabBoundary } from "@/workspace";
+import { CatalogKpis } from "./catalog-kpis";
+import { CatalogCategoriesTab } from "./tabs/categories.tab";
+import { CatalogItemsTab } from "./tabs/items.tab";
+import { CatalogStockTab } from "./tabs/stock.tab";
+
+export function CatalogWorkspace() {
+  return (
+    <ContentContainer size="wide" className="space-y-6">
+      <TabBoundary id="catalog-kpis" label="os indicadores">
+        <CatalogKpis />
+      </TabBoundary>
+
+      <Tabs defaultValue="produtos" className="space-y-5">
+        <TabsList>
+          <TabsTrigger value="produtos">Produtos</TabsTrigger>
+          <TabsTrigger value="servicos">Serviços</TabsTrigger>
+          <TabsTrigger value="pecas">Peças</TabsTrigger>
+          <TabsTrigger value="categorias">Categorias</TabsTrigger>
+          <TabsTrigger value="estoque">Estoque</TabsTrigger>
+          <TabsTrigger value="inteligencia">Inteligência</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="produtos">
+          <TabBoundary id="catalog-products" label="os produtos">
+            <CatalogItemsTab
+              kind={ProductKind.PRODUCT}
+              noun="produto"
+              emptyTitle="Nenhum produto cadastrado"
+              emptyDescription="Produtos são os itens físicos que a organização vende ou aplica em campo."
+            />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="servicos">
+          <TabBoundary id="catalog-services" label="os serviços">
+            <CatalogItemsTab
+              kind={ProductKind.SERVICE}
+              noun="serviço"
+              emptyTitle="Nenhum serviço cadastrado"
+              emptyDescription="Serviços trazem preço e unidade de cobrança — e são o que as operações passarão a referenciar."
+            />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="pecas">
+          <TabBoundary id="catalog-parts" label="as peças">
+            <CatalogItemsTab
+              kind={ProductKind.PART}
+              noun="peça"
+              emptyTitle="Nenhuma peça cadastrada"
+              emptyDescription="Peças de reposição usadas em manutenção. O contrato já as distingue de produtos (`kind: PART`)."
+            />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="categorias">
+          <TabBoundary id="catalog-categories" label="as categorias">
+            <CatalogCategoriesTab />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="estoque">
+          <TabBoundary id="catalog-stock" label="o estoque">
+            <CatalogStockTab />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="inteligencia">
+          <TabBoundary id="catalog-intelligence" label="a inteligência">
+            <IntelligenceTab />
+          </TabBoundary>
+        </TabsContent>
+      </Tabs>
+    </ContentContainer>
+  );
+}
+
+/**
+ * Orbit Intelligence — a ausência, declarada.
+ *
+ * `AiExecutionQueryDto` aceita `operationId` e `customerId`; **não aceita
+ * `productId`** — verificado: `400 property productId should not exist`. Não
+ * há execução de IA vinculada a um item de catálogo.
+ *
+ * Mostrar aqui a IA da organização, filtrada por nada, sugeriria que a análise
+ * é sobre este item. Nenhuma análise é gerada localmente.
+ */
+function IntelligenceTab() {
+  return (
+    <PanelFrame
+      panelId="catalog-intelligence"
+      title="Orbit Intelligence"
+      description="Análises sobre o catálogo"
+    >
+      <div className="flex min-h-32 flex-col items-center justify-center gap-3 text-center">
+        <PackageSearch className="size-6 text-muted-foreground" aria-hidden />
+        <div className="max-w-lg space-y-2">
+          <p className="text-sm font-medium">
+            Não há IA vinculada ao catálogo
+          </p>
+          <p className="text-sm text-muted-foreground">
+            As execuções de IA aceitam operação e cliente como escopo, mas não
+            um item de catálogo. Quando o contrato aceitar, esta aba passa a
+            consumi-lo.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Nenhuma análise é gerada aqui — mostrar a IA da organização como se
+            fosse deste catálogo seria atribuir a ela uma conclusão que ela não
+            tirou.
+          </p>
+        </div>
+      </div>
+    </PanelFrame>
+  );
+}

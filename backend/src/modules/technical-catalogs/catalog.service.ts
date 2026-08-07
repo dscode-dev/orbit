@@ -153,6 +153,7 @@ export class CatalogService {
         costPrice: input.costPrice,
         taxData: input.taxData as Prisma.InputJsonValue | undefined,
         metadata: input.metadata as Prisma.InputJsonValue | undefined,
+        status: input.status,
       });
     } catch (error) {
       this.rethrowConflict(error, 'Product SKU already exists');

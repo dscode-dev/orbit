@@ -37,8 +37,11 @@ import {
   Download,
   Eye,
   FileOutput,
+  FolderTree,
   Pencil,
   Plus,
+  Power,
+  PowerOff,
   RefreshCw,
   Send,
   Share2,
@@ -115,12 +118,12 @@ function define(
 
 const DEFINITIONS: readonly ActionDefinition[] = [
   /* ---------------------------------------------------------------- */
-  /* Ativos                                                            */
+  /* Equipamentos (recurso `assets` no backend)                        */
   /* ---------------------------------------------------------------- */
   define({
     id: "asset.create",
     entity: "asset",
-    label: "Novo ativo",
+    label: "Novo equipamento",
     icon: Plus,
     category: "create",
     permission: "assets.create",
@@ -135,6 +138,33 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     permission: "assets.update",
     capability: "assets.manage",
   }),
+  /**
+   * Ativar e desativar são `PATCH /assets/:id` com `status`.
+   *
+   * `UpdateAssetDto` aceita o campo — é a única forma suportada de mudar o
+   * estado, e não existe endpoint dedicado. Declaradas como ações próprias
+   * porque é assim que o usuário pensa nelas; a exigência é a mesma da edição.
+   */
+  define({
+    id: "asset.activate",
+    entity: "asset",
+    label: "Reativar",
+    description: "Volta o equipamento para ACTIVE.",
+    icon: Power,
+    category: "workflow",
+    permission: "assets.update",
+    capability: "assets.manage",
+  }),
+  define({
+    id: "asset.deactivate",
+    entity: "asset",
+    label: "Desativar",
+    description: "Marca o equipamento como INACTIVE. O histórico permanece.",
+    icon: PowerOff,
+    category: "workflow",
+    permission: "assets.update",
+    capability: "assets.manage",
+  }),
   define({
     id: "asset.delete",
     entity: "asset",
@@ -144,8 +174,8 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     permission: "assets.delete",
     capability: "assets.manage",
     confirm: {
-      title: "Excluir este ativo?",
-      body: "O ativo deixa de aparecer nas listagens. O histórico de operações e execuções permanece.",
+      title: "Excluir este equipamento?",
+      body: "O equipamento deixa de aparecer nas listagens. O histórico de operações e execuções permanece.",
       confirmLabel: "Excluir",
     },
   }),
@@ -170,6 +200,103 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     category: "edit",
     permission: "operations.update",
     capability: "operations.manage",
+  }),
+
+  /* ---------------------------------------------------------------- */
+  /* Catálogo — produtos, serviços e peças                             */
+  /* ---------------------------------------------------------------- */
+  define({
+    id: "catalog-item.create",
+    entity: "catalog-item",
+    label: "Novo item",
+    description: "Produto, serviço ou peça oferecido pela organização.",
+    icon: Plus,
+    category: "create",
+    permission: "catalog.products.create",
+    capability: "catalog.manage",
+  }),
+  define({
+    id: "catalog-item.update",
+    entity: "catalog-item",
+    label: "Editar",
+    icon: Pencil,
+    category: "edit",
+    permission: "catalog.products.update",
+    capability: "catalog.manage",
+  }),
+  /**
+   * Disponibilizar e retirar de circulação.
+   *
+   * São `PATCH /catalog/products/:id` com `status`. Um item indisponível
+   * continua existindo e continua referenciado por registros anteriores —
+   * é a diferença entre "não oferecemos mais isto" e "isto nunca existiu".
+   */
+  define({
+    id: "catalog-item.activate",
+    entity: "catalog-item",
+    label: "Disponibilizar",
+    description: "Volta a oferecer o item.",
+    icon: Power,
+    category: "workflow",
+    permission: "catalog.products.update",
+    capability: "catalog.manage",
+  }),
+  define({
+    id: "catalog-item.deactivate",
+    entity: "catalog-item",
+    label: "Retirar de circulação",
+    description: "O item deixa de ser oferecido, mas permanece no histórico.",
+    icon: PowerOff,
+    category: "workflow",
+    permission: "catalog.products.update",
+    capability: "catalog.manage",
+  }),
+  define({
+    id: "catalog-item.delete",
+    entity: "catalog-item",
+    label: "Excluir",
+    icon: Trash2,
+    category: "destructive",
+    permission: "catalog.products.delete",
+    capability: "catalog.manage",
+    confirm: {
+      title: "Excluir este item do catálogo?",
+      body: "Ele some das listagens. Para apenas parar de oferecê-lo, use \"Retirar de circulação\" — assim o registro permanece.",
+      confirmLabel: "Excluir",
+    },
+  }),
+  define({
+    id: "catalog-item.create-category",
+    entity: "catalog-item",
+    label: "Nova categoria",
+    icon: FolderTree,
+    category: "create",
+    surfaces: ["primary"],
+    permission: "catalog.categories.create",
+    capability: "catalog.manage",
+  }),
+  define({
+    id: "catalog-item.update-category",
+    entity: "catalog-item",
+    label: "Editar categoria",
+    icon: Pencil,
+    category: "edit",
+    permission: "catalog.categories.update",
+    capability: "catalog.manage",
+  }),
+  define({
+    id: "catalog-item.delete-category",
+    entity: "catalog-item",
+    label: "Excluir categoria",
+    icon: Trash2,
+    category: "destructive",
+    permission: "catalog.categories.delete",
+    capability: "catalog.manage",
+    confirm: {
+      title: "Excluir esta categoria?",
+      body: "O servidor recusa se houver subcategorias ou itens vinculados. Nesse caso, mova-os antes.",
+      confirmLabel: "Excluir",
+    },
   }),
 
   /* ---------------------------------------------------------------- */

@@ -8,7 +8,6 @@ import {
   Bell,
   FileBarChart,
   FileStack,
-  Package,
   Settings,
   SlidersHorizontal,
   UserCircle,
@@ -90,9 +89,21 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
   {
     group: "Comercial",
     items: [
+      /**
+       * Equipamentos não é item de menu.
+       *
+       * Eles pertencem a quem contratou o serviço, e a entrada é o cliente —
+       * a aba **Equipamentos** do Customer Workspace. Um item paralelo aqui
+       * sugeriria um parque instalado sem dono, que é o oposto de como a
+       * operação funciona.
+       *
+       * A rota (`/ativos` e `/ativos/:id`) **continua existindo**: deep link,
+       * QR Code lido em campo e navegação contextual dependem dela, e a
+       * paleta de comandos ainda leva à listagem geral quando é isso que se
+       * procura.
+       */
       fromEntity("customer"),
-      fromEntity("asset"),
-      planned("Produtos & Serviços", Package),
+      fromEntity("catalog-item"),
     ],
   },
   {

@@ -29,6 +29,9 @@ import { customersService } from "@/services/customers.service";
 import { operationsService } from "@/services/operations.service";
 import { operationIntelligenceService } from "@/services/operations.service";
 import { schedulingService } from "@/services/scheduling.service";
+import type { ArtifactExecutionQuery } from "@/types/artifact-executions";
+import type { AssetQuery } from "@/types/assets";
+import type { OperationQuery } from "@/types/operations";
 import type {
   CreateContactInput,
   CreateCustomerInput,
@@ -52,8 +55,6 @@ export const CUSTOMERS_REFRESH = {
 
 /** Horizonte da agenda futura do cliente, em dias. */
 const SCHEDULE_HORIZON_DAYS = 90;
-/** Quantos registros relacionados cada painel mostra. */
-export const RELATED_PAGE_SIZE = 5;
 
 export function useCustomersList(query: CustomerQuery) {
   return useApiQuery(
@@ -72,24 +73,6 @@ export function useCustomer(id: string) {
     customersService.keys.detail(id),
     ({ signal }) => customersService.get(id, { signal }),
     CUSTOMERS_REFRESH.detail,
-  );
-}
-
-export function useCustomerAssets(customerId: string) {
-  const query = { customerId, limit: RELATED_PAGE_SIZE, page: 1 } as const;
-  return useApiQuery(
-    assetsService.keys.list(query),
-    ({ signal }) => assetsService.list(query, { signal }),
-    CUSTOMERS_REFRESH.related,
-  );
-}
-
-export function useCustomerOperations(customerId: string) {
-  const query = { customerId, limit: RELATED_PAGE_SIZE, page: 1 } as const;
-  return useApiQuery(
-    operationsService.keys.list(query),
-    ({ signal }) => operationsService.list(query, { signal }),
-    CUSTOMERS_REFRESH.related,
   );
 }
 
@@ -118,15 +101,6 @@ export function useCustomerSchedule(customerId: string) {
   );
 }
 
-export function useCustomerExecutions(customerId: string) {
-  const query = { customerId, limit: RELATED_PAGE_SIZE, page: 1 } as const;
-  return useApiQuery(
-    artifactExecutionsService.keys.list(query),
-    ({ signal }) => artifactExecutionsService.list(query, { signal }),
-    CUSTOMERS_REFRESH.related,
-  );
-}
-
 /**
  * Orbit Intelligence do cliente.
  *
@@ -134,6 +108,63 @@ export function useCustomerExecutions(customerId: string) {
  * entidade com fonte de IA de verdade**. O serviço é o mesmo que a operação
  * usa; só muda o filtro.
  */
+/* ------------------------------------------------------------------ */
+/* Abas do Workspace V2 — listas paginadas por cliente                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * As abas reutilizam as **mesmas chaves** dos módulos donos.
+ *
+ * `assetsService.keys.list({ customerId, … })` é a mesma key que a listagem
+ * geral de equipamentos produziria com aquele filtro. Duas telas pedindo o
+ * mesmo recorte compartilham uma consulta — o TanStack Query deduplica por
+ * key, e a aba não inventa um cache paralelo.
+ *
+ * `customerId` já está dentro da key porque entra nos parâmetros da consulta;
+ * `businessUnitId` entra quando a tela o informa. A troca de unidade ou de
+ * organização descarta tudo isso de uma vez (`RequestContextProvider`), então
+ * escopo nunca vaza entre tenants.
+ */
+
+/** Equipamentos do cliente, paginados — aba Equipamentos. */
+export function useCustomerAssetsList(
+  customerId: string,
+  query: Omit<AssetQuery, "customerId">,
+) {
+  const scoped: AssetQuery = { ...query, customerId };
+  return useApiQuery(
+    assetsService.keys.list(scoped),
+    ({ signal }) => assetsService.list(scoped, { signal }),
+    { ...CUSTOMERS_REFRESH.related, placeholderData: (previous) => previous },
+  );
+}
+
+/** Operações do cliente, paginadas — aba Operações. */
+export function useCustomerOperationsList(
+  customerId: string,
+  query: Omit<OperationQuery, "customerId">,
+) {
+  const scoped: OperationQuery = { ...query, customerId };
+  return useApiQuery(
+    operationsService.keys.list(scoped),
+    ({ signal }) => operationsService.list(scoped, { signal }),
+    { ...CUSTOMERS_REFRESH.related, placeholderData: (previous) => previous },
+  );
+}
+
+/** Execuções do cliente, paginadas — abas Execuções e Documentos. */
+export function useCustomerExecutionsList(
+  customerId: string,
+  query: Omit<ArtifactExecutionQuery, "customerId">,
+) {
+  const scoped: ArtifactExecutionQuery = { ...query, customerId };
+  return useApiQuery(
+    artifactExecutionsService.keys.list(scoped),
+    ({ signal }) => artifactExecutionsService.list(scoped, { signal }),
+    { ...CUSTOMERS_REFRESH.related, placeholderData: (previous) => previous },
+  );
+}
+
 export function useCustomerIntelligence(customerId: string, enabled = true) {
   const query = { customerId, limit: 10, page: 1 };
   return useApiQuery(

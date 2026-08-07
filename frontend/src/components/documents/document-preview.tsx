@@ -37,9 +37,8 @@ import {
   RendererLabel,
   resolveFormat,
 } from "@/documents";
-import { useApiQuery } from "@/hooks/api/use-api-query";
+import { useSignedUrl } from "@/hooks/documents/use-signed-url";
 import { formatDateTime } from "@/lib/formatters";
-import { documentsService } from "@/services/documents.service";
 import type {
   ArtifactManifestSummary,
   SignedUrlOperation,
@@ -58,20 +57,15 @@ export function DocumentPreview({
   );
 
   /**
-   * A URL é uma leitura, não uma mutação.
+   * A URL se renova antes de vencer.
    *
-   * Pedir de novo é seguro e barato, e o cache com `staleTime` curto evita
-   * assinar a cada render — mas nunca serve uma URL vencida por muito tempo.
+   * O prazo vem do `expiresAt` publicado pelo backend, não de um `staleTime`
+   * escolhido a esmo — ver `useSignedUrl`. Um visualizador que fica aberto
+   * continua funcionando.
    */
-  const signed = useApiQuery(
-    [...documentsService.keys.manifest(manifestId), "url", operation],
-    ({ signal }) =>
-      documentsService.signedUrl(manifestId, operation, { signal }),
-    {
-      staleTime: 30_000,
-      enabled: summary.status !== "REVOKED" && Boolean(summary.contentHash),
-    },
-  );
+  const signed = useSignedUrl(manifestId, operation, {
+    enabled: summary.status !== "REVOKED" && Boolean(summary.contentHash),
+  });
 
   const canDownload = useAction("artifact-execution.download-document").allowed;
   const share = useAction("artifact-execution.share-document");
@@ -177,9 +171,10 @@ export function DocumentPreview({
             title={`Documento ${summary.revision}`}
           />
           <p className="text-xs text-muted-foreground">
-            Acesso temporário, válido até {formatDateTime(signed.data.expiresAt)}
-            . A URL é assinada pelo backend — o armazenamento nunca é acessado
-            diretamente.
+            Acesso temporário, renovado automaticamente enquanto esta tela
+            estiver aberta — o atual vale até{" "}
+            {formatDateTime(signed.data.expiresAt)}. A URL é assinada pelo
+            backend; o armazenamento nunca é acessado diretamente.
           </p>
         </div>
       ) : null}

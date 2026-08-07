@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Listagem de ativos.
+ * Listagem geral de equipamentos.
  *
  * **Filtros.** `AssetQueryDto` aceita busca, unidade, cliente, categoria e
  * status — e só isso. A busca do servidor cobre nome, identificador, número de
@@ -11,7 +11,7 @@
  * **Criticidade não existe no contrato** — não há campo no modelo `Asset` nem
  * parâmetro na consulta. A coluna e o filtro não são oferecidos, em vez de
  * derivar criticidade de status ou de `specifications`, que é JSON livre do
- * tenant. Ver `docs/asset-workspace.md`.
+ * tenant. Ver `docs/customer-equipment.md`.
  *
  * **Ordenação** é do backend (`name asc, id asc`) e está declarada na tela: o
  * contrato não aceita parâmetro de ordenação, e reordenar a página atual daria
@@ -108,7 +108,7 @@ export function AssetsList() {
 
       <ResultSummary
         meta={meta}
-        noun="ativo"
+        noun="equipamento"
         note="Ordenado por nome (ordem definida pelo backend)"
       />
 
@@ -119,7 +119,7 @@ export function AssetsList() {
         items={assets}
         empty={{
           icon: <Boxes className="size-5" />,
-          title: "Nenhum ativo encontrado",
+          title: "Nenhum equipamento encontrado",
           description: "Ajuste a busca ou os filtros para ver mais resultados.",
         }}
       >
@@ -128,7 +128,7 @@ export function AssetsList() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Ativo</TableHead>
+                  <TableHead>Equipamento</TableHead>
                   <TableHead>Categoria</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Fabricante e modelo</TableHead>

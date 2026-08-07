@@ -34,4 +34,5 @@ export {
   type ListMeta,
 } from "./list-primitives";
 export { MetricCard, type MetricCardProps } from "./metric-card";
+export { TabBoundary } from "./tab-boundary";
 export { WorkspacePage, type WorkspacePageProps } from "./workspace-page";

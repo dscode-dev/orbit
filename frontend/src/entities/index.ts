@@ -30,6 +30,10 @@ export {
   type RelatedRow,
 } from "./related-records";
 export {
+  CATALOG_KIND_LABELS,
+  CATALOG_STATUS_LABELS,
+} from "./catalog-labels";
+export {
   ASSET_CATEGORY_LABELS,
   ASSET_IDENTIFIER_LABELS,
   ASSET_STATUS_LABELS,

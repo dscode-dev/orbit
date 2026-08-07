@@ -13,7 +13,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { ProductKind } from '../../contracts';
+import { ProductKind, ProductStatus } from '../../contracts';
 import { IsUUIDv7 } from '../../validators';
 
 const trim = ({ value }: { value: unknown }): unknown =>
@@ -41,6 +41,16 @@ export class CatalogQueryDto {
   @IsOptional()
   @IsUUIDv7()
   businessUnitId?: string;
+
+  /**
+   * Filtra por disponibilidade.
+   *
+   * Ausente devolve ativos e inativos — o comportamento anterior, preservado.
+   */
+  @ApiPropertyOptional({ enum: Object.values(ProductStatus) })
+  @IsOptional()
+  @IsIn(Object.values(ProductStatus))
+  status?: ProductStatus;
 
   @ApiPropertyOptional({ default: 1 })
   @Type(() => Number)
@@ -145,6 +155,19 @@ export class CreateProductDto {
 }
 
 export class UpdateProductDto extends PartialType(CreateProductDto) {
+  /**
+   * Ativa ou desativa o item sem removê-lo.
+   *
+   * Um item inativo continua existindo, continua listável e continua
+   * referenciado por registros anteriores — apenas deixa de ser oferecido
+   * (`findAvailableProduct` já exigia `status: 'ACTIVE'`). É a diferença
+   * entre "não vendemos mais isto" e "isto nunca existiu".
+   */
+  @ApiPropertyOptional({ enum: Object.values(ProductStatus) })
+  @IsOptional()
+  @IsIn(Object.values(ProductStatus))
+  status?: ProductStatus;
+
   @ApiPropertyOptional({
     description:
       'Remove business-unit scope and make the product organization-wide.',

@@ -63,5 +63,13 @@ export const assetsService = {
     list: (query?: AssetQuery): QueryKey =>
       queryKeys.list(RESOURCE, asParams(query)),
     detail: (id: string): QueryKey => queryKeys.detail(RESOURCE, id),
+    /**
+     * Resolução por identificador físico (QR Code, etiqueta, NFC).
+     *
+     * Key própria porque a chave de busca é o identificador, não o id — dois
+     * espaços de nomes diferentes que não devem colidir no cache.
+     */
+    resolve: (identifier: string): QueryKey =>
+      queryKeys.query(RESOURCE, "resolve", { identifier }),
   },
 } as const;

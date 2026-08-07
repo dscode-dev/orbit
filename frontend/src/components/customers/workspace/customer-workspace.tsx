@@ -1,26 +1,38 @@
 "use client";
 
 /**
- * Customer Workspace — composição.
+ * Customer Workspace V2 — o cliente como entrada da operação.
  *
- * Visão de 360° do cliente, com **seis fontes independentes**:
+ * ## A consolidação
+ *
+ * O parque instalado deixou de ser um módulo paralelo. Quem contratou o
+ * serviço é o cliente; os **equipamentos** são dele, e é a partir dele que se
+ * chega a eles. "Equipamentos" saiu do menu principal e virou uma aba daqui —
+ * a rota individual continua existindo, para deep link e QR Code.
+ *
+ * ## Seis fontes independentes
  *
  * ```
  * GET /customers/:id                   geral · endereço · contatos · contagens
- * GET /assets?customerId=              ativos
+ * GET /assets?customerId=              equipamentos
  * GET /operations?customerId=          operações
  * GET /scheduling/events?customerId=   agenda futura
- * GET /artifact-executions?customerId= artefatos
+ * GET /artifact-executions?customerId= execuções e documentos
  * GET /ai-executions?customerId=       Orbit Intelligence
  * ```
  *
  * `customerId` é filtro real nos cinco contratos cruzados — nada é recortado
  * no cliente, e todos os serviços já existiam.
  *
- * Cada painel tem consulta e `PanelFrame` próprios, com Error Boundary local.
- * Como as fontes são de módulos diferentes, com capabilities diferentes, um
- * 403 aparece como ausência de acesso **naquele painel**: sem `assets.read` o
- * painel de ativos fecha e o restante segue funcionando.
+ * ## Abas e isolamento
+ *
+ * Cada aba tem consulta própria e **Error Boundary próprio**. As fontes são de
+ * módulos diferentes, com capabilities diferentes: sem `assets.read` a aba de
+ * equipamentos declara a ausência de acesso e as outras seguem funcionando.
+ *
+ * A aba só monta quando aberta — trocar de aba não recarrega as anteriores,
+ * porque a Query Layer mantém o cache, e abrir a tela não dispara as seis
+ * consultas de uma vez.
  *
  * O cabeçalho e a navegação resolvem tudo pelo **Entity Registry** — não há
  * `switch` de entidade nesta árvore.
@@ -33,27 +45,32 @@ import { PanelError, PanelLoading } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEntityAccess } from "@/entities";
 import { useCustomer } from "@/hooks/customers/use-customers";
 import { formatDateTime } from "@/lib/formatters";
 import { ROUTES } from "@/lib/routes";
 import { useSession } from "@/providers/session-provider";
 import type { Customer } from "@/types/customers";
+import { TabBoundary } from "@/workspace";
 import {
   CustomerStatusBadge,
   customerTypeLabel,
 } from "../customer-presentation";
 import {
   ContactsSection,
-  CustomerAssetsSection,
-  CustomerExecutionsSection,
-  CustomerOperationsSection,
   CustomerScheduleSection,
-  HistorySection,
   IndicatorsSection,
   IntelligenceSection,
   OverviewSection,
 } from "./panels";
+import { EquipmentTab } from "./tabs/equipment.tab";
+import { HistoryTab } from "./tabs/history.tab";
+import {
+  DocumentsTab,
+  ExecutionsTab,
+  OperationsTab,
+} from "./tabs/records.tabs";
 
 export function CustomerWorkspace({ customerId }: { customerId: string }) {
   const query = useCustomer(customerId);
@@ -143,25 +160,83 @@ function WorkspaceBody({
         </Button>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
-        <div className="min-w-0 space-y-6">
-          <OverviewSection customer={customer} />
-          <ContactsSection customer={customer} canManage={canManage} />
-          <CustomerAssetsSection customerId={customer.id} />
-          <CustomerOperationsSection customerId={customer.id} />
-          <CustomerScheduleSection customerId={customer.id} />
-          <CustomerExecutionsSection customerId={customer.id} />
-          <HistorySection />
-        </div>
+      <Tabs defaultValue="geral" className="space-y-5">
+        <TabsList>
+          <TabsTrigger value="geral">Visão geral</TabsTrigger>
+          <TabsTrigger value="equipamentos">
+            Equipamentos
+            <Badge variant="secondary" className="ml-1.5">
+              {customer.counts.assets}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="operacoes">
+            Operações
+            <Badge variant="secondary" className="ml-1.5">
+              {customer.counts.operations}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="execucoes">Execuções</TabsTrigger>
+          <TabsTrigger value="documentos">Documentos</TabsTrigger>
+          <TabsTrigger value="historico">Histórico</TabsTrigger>
+        </TabsList>
 
-        <div className="min-w-0 space-y-6">
-          <IndicatorsSection customer={customer} />
-          <IntelligenceSection
-            customerId={customer.id}
-            enabled={canReadIntelligence}
-          />
-        </div>
-      </div>
+        {/*
+          Uma fronteira de erro por aba.
+
+          As abas leem módulos diferentes; uma falha de renderização em
+          Documentos não deve derrubar Visão geral. As contagens dos crachás
+          vêm do próprio `GET /customers/:id` (`counts`), calculadas no banco —
+          nada é somado aqui.
+        */}
+        <TabsContent value="geral">
+          <TabBoundary id="customer-overview" label="a visão geral">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+              <div className="min-w-0 space-y-6">
+                <OverviewSection customer={customer} />
+                <ContactsSection customer={customer} canManage={canManage} />
+                <CustomerScheduleSection customerId={customer.id} />
+              </div>
+              <div className="min-w-0 space-y-6">
+                <IndicatorsSection customer={customer} />
+                <IntelligenceSection
+                  customerId={customer.id}
+                  enabled={canReadIntelligence}
+                />
+              </div>
+            </div>
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="equipamentos">
+          <TabBoundary id="customer-equipment" label="os equipamentos">
+            <EquipmentTab customerId={customer.id} />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="operacoes">
+          <TabBoundary id="customer-operations" label="as operações">
+            <OperationsTab customerId={customer.id} />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="execucoes">
+          <TabBoundary id="customer-executions" label="as execuções">
+            <ExecutionsTab customerId={customer.id} />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="documentos">
+          <TabBoundary id="customer-documents" label="os documentos">
+            <DocumentsTab customerId={customer.id} />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="historico">
+          <TabBoundary id="customer-history" label="o histórico">
+            <HistoryTab />
+          </TabBoundary>
+        </TabsContent>
+      </Tabs>
     </ContentContainer>
   );
 }
