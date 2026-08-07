@@ -1,0 +1,156 @@
+"use client";
+
+/**
+ * Estado da renderização e solicitação.
+ *
+ * ## O estado é do backend
+ *
+ * `renderStatus` é lido, nunca escrito: nenhuma rota o aceita como entrada. A
+ * tela mostra o que o servidor decidiu e, enquanto há trabalho em curso,
+ * acompanha pelo `refetchInterval` do Query Layer — que se desliga sozinho
+ * quando o estado para de mudar. Sem polling próprio, sem WebSocket simulado.
+ *
+ * ## Solicitar
+ *
+ * O botão aparece quando o **registry** diz que o estado permite pedir e quando
+ * o plano e o papel liberam a ação. Quem autoriza de fato é o backend: um 409
+ * (execução em estado que não emite documento) ou 403 aparece como veio.
+ *
+ * Os renderizadores oferecidos vêm do backend, não de uma lista inventada.
+ */
+import { useState } from "react";
+import { RefreshCw } from "lucide-react";
+
+import { MutationError } from "@/components/artifact-studio/mutation-error";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  RenderStatusBadge,
+  documentAction,
+  isDocumentActionEnabled,
+  resolveRenderStatus,
+  resolveRenderer,
+} from "@/documents";
+import {
+  useAvailableRenderers,
+  useRequestRender,
+} from "@/hooks/documents/use-documents";
+import type { useRenderState } from "@/hooks/documents/use-documents";
+import { formatDateTime } from "@/lib/formatters";
+import { useSession } from "@/providers/session-provider";
+
+export function RenderPanel({
+  executionId,
+  query,
+}: {
+  executionId: string;
+  query: ReturnType<typeof useRenderState>;
+}) {
+  const session = useSession();
+  const request = useRequestRender(executionId);
+  const { renderers, isPending: loadingRenderers } = useAvailableRenderers();
+  const [renderer, setRenderer] = useState<string>("");
+
+  if (query.isPending) return <Skeleton className="h-24 rounded-xl" />;
+
+  const state = query.data;
+  if (!state) return null;
+
+  const definition = resolveRenderStatus(state.renderStatus);
+  const action = documentAction("render");
+  const canRender =
+    action !== undefined &&
+    isDocumentActionEnabled(action, session) &&
+    definition.canRequest;
+
+  const chosen = renderer || renderers[0] || "";
+
+  return (
+    <div className="space-y-3 rounded-xl border border-border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <RenderStatusBadge status={state.renderStatus} />
+          <p className="text-xs text-muted-foreground">
+            {definition.description}
+          </p>
+        </div>
+
+        {state.completedAt ? (
+          <p className="text-xs text-muted-foreground">
+            Concluído em {formatDateTime(state.completedAt)}
+          </p>
+        ) : null}
+      </div>
+
+      {state.error ? (
+        <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs">
+          {state.error}
+        </p>
+      ) : null}
+
+      {definition.inFlight ? (
+        <p className="text-xs text-muted-foreground">
+          Acompanhando o servidor — a tela se atualiza sozinha e para quando o
+          documento ficar pronto.
+        </p>
+      ) : null}
+
+      {canRender ? (
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-48 space-y-2">
+            <Label htmlFor="render-renderer">Renderizador</Label>
+            <Select
+              value={chosen}
+              disabled={loadingRenderers || renderers.length === 0}
+              onValueChange={setRenderer}
+            >
+              <SelectTrigger id="render-renderer">
+                <SelectValue
+                  placeholder={
+                    loadingRenderers ? "Carregando…" : "Nenhum disponível"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {renderers.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {resolveRenderer(id).label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            disabled={!chosen || request.isPending}
+            onClick={() => request.mutate({ renderer: chosen })}
+          >
+            <RefreshCw className="size-4" />
+            {request.isPending
+              ? "Solicitando…"
+              : state.renderStatus === "READY"
+                ? "Renderizar de novo"
+                : "Renderizar"}
+          </Button>
+        </div>
+      ) : null}
+
+      <MutationError error={request.error} />
+
+      {state.renderStatus === "READY" ? (
+        <p className="text-xs text-muted-foreground">
+          Renderizar de novo cria a revisão seguinte; a anterior permanece no
+          histórico.
+        </p>
+      ) : null}
+    </div>
+  );
+}

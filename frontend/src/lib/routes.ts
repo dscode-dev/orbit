@@ -18,6 +18,8 @@ export const ROUTES = {
   artifacts: "/artefatos",
   /** Artifact Execution Workspace — execução e acompanhamento. */
   executions: "/execucoes",
+  /** Document Center — documentos emitidos, revisões e renderização. */
+  documents: "/documentos",
   /** Scheduling Workspace — agenda operacional. */
   scheduling: "/agenda",
   /** Asset Workspace — visão 360° do equipamento. */
@@ -41,6 +43,7 @@ export const PROTECTED_PREFIXES: readonly string[] = [
   ROUTES.operations,
   ROUTES.artifacts,
   ROUTES.executions,
+  ROUTES.documents,
   ROUTES.scheduling,
   ROUTES.assets,
   ROUTES.organization,

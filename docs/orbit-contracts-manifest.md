@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Backend-19 (Artifact Storage & Manifest).
+Última revisão: PR Frontend-14 (Document Center).
 
 ---
 
@@ -89,6 +89,7 @@ clientes.
 | Artifact Executions                              | Read Models públicos + mapper explícito         | **sincronizado** por `contracts:sync`                                           | parser tolerante em `artifact_execution_contracts.dart` |
 | CRM (clientes e contatos)                        | Read Model público + mapper explícito (PR-11)   | **sincronizado** por `contracts:sync`                                           | não consumido                                           |
 | Artifact Manifest & Storage                      | Read Models públicos + mappers explícitos       | **sincronizado** por `contracts:sync`                                           | espelhado em `artifact_manifest_contracts.dart`         |
+| Artifact Rendering                               | Read Models públicos                            | **sincronizado** por `contracts:sync`                                           | espelhado em `artifact_render_contracts.dart`           |
 | Notifications                                    | registro do Prisma, sem Read Model              | **espelhado à mão** em `src/types/notifications.ts`                             | não consumido                                           |
 
 ### Consequência prática
@@ -358,12 +359,24 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Sem endpoint de **troca de responsável** de operação                                                                                 | reatribuir é atribuir e depois desatribuir                                                                               |
 | Operação **não passa pelo motor de agenda**                                                                                          | a janela prevista é informativa; nenhum conflito é avaliado                                                              |
 | Sem campo nem filtro de **autorização** em `Operation`                                                                               | a preferência é gravada em `settings` e o backend ainda não a aplica — avisado na tela                                   |
-| Sem motor de renderização — `renderStatus` é sempre `NOT_RENDERED`                                                                   | o Manifest guarda o documento; gerar conteúdo é da próxima PR                                                            |
-| Sem fila ou job assíncrono para renderização                                                                                         | a emissão do manifest é síncrona                                                                                         |
+| ~~Sem motor de renderização — `renderStatus` é sempre `NOT_RENDERED`~~                                                               | **corrigido na PR-20**: HTML e PDF renderizam, e `renderStatus` é persistido pelo backend                                |
+| ~~Sem fila ou job assíncrono para renderização~~                                                                                     | **corrigido na PR-20**: fila sobre Postgres com `SKIP LOCKED`, retry, backoff e dead-letter                              |
 | Sem comparação (diff) entre revisões de manifest                                                                                     | o contrato publica o necessário; o diff não foi implementado                                                             |
 | Sem assinatura digital do documento emitido                                                                                          | `contentHash` é o valor que ela cobrirá                                                                                  |
 | Azure Blob e Google Cloud Storage não implementados                                                                                  | a configuração os recusa explicitamente em vez de fingir suporte                                                         |
 | Sem política de retenção de objeto                                                                                                   | `remove` é recusado no provider S3: documento emitido não some por ação da aplicação                                     |
+| Sem DOCX e sem PDF/A                                                                                                                 | são renderizadores novos; o registry os aceita sem mudar pipeline                                                        |
+| Sem assinatura digital no PDF emitido                                                                                                | `contentHash` é o valor que ela cobrirá; falta o certificado                                                             |
+| Chromium/Puppeteer avaliado e não adotado                                                                                            | pdfkit já é dependência; a troca é um provider novo                                                                      |
+| Sem cancelamento de renderização em curso                                                                                            | o job termina; corrigir é abrir a revisão seguinte                                                                       |
+| Job em `DEAD` não tem rota de reenfileiramento                                                                                       | permanece na tabela com o último erro, para investigação                                                                 |
+| Métricas de renderização são por processo                                                                                            | não somam entre réplicas; o log estruturado é a fonte para um coletor                                                    |
+| ~~`renderStatus` da execução era constante `NOT_RENDERED`~~                                                                          | **corrigido na PR-14**: o mapper publica o valor persistido pela PR-20                                                   |
+| Sem listagem global de manifests                                                                                                     | o Document Center parte das execuções                                                                                    |
+| `ArtifactExecutionQueryDto` não filtra por `renderStatus`                                                                            | as filas da central contam a página carregada, e a tela declara isso                                                     |
+| Sem busca pelo conteúdo do documento nem filtro por formato/renderizador                                                             | a central oferece só a busca que o backend suporta                                                                       |
+| Sem endpoint de catálogo de renderizadores                                                                                           | a lista vem de `/artifact-rendering/metrics`                                                                             |
+| Sem contrato de compartilhamento de documento                                                                                        | a ação é declarada indisponível no Document Registry                                                                     |
 
 ---
 
@@ -392,5 +405,8 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Execution Center (web)                          | `frontend/docs/execution-center.md`             |
 | Artifact Manifest (backend)                     | `backend/docs/artifact-manifest.md`             |
 | Storage Provider e URLs assinadas (backend)     | `backend/docs/artifact-storage.md`              |
+| Artifact Rendering Engine (backend)             | `backend/docs/artifact-rendering.md`            |
+| Document Registry (web)                         | `frontend/docs/document-registry.md`            |
+| Document Center (web)                           | `frontend/docs/document-center.md`              |
 | Arquitetura, fila de uploads e offline (mobile) | `mobile/README.md`                              |
 | Administração da plataforma                     | `backend/docs/platform-administration.md`       |

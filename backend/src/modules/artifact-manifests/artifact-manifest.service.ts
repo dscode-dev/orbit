@@ -161,6 +161,63 @@ export class ArtifactManifestService {
     );
   }
 
+  /**
+   * Emite a revisão a partir de bytes já produzidos, no mesmo processo.
+   *
+   * É o caminho do Rendering Engine (PR-20): ele tem o conteúdo em mãos e não
+   * precisa passar por URL assinada para entregá-lo a si mesmo. O que acontece
+   * é exatamente o mesmo do caminho externo — o arquivo vai para o Storage, o
+   * hash é calculado sobre o conteúdo gravado e a revisão é emitida —, apenas
+   * sem o desvio pela rede.
+   *
+   * Storage e manifest continuam sendo responsabilidade **desta** camada: o
+   * renderer entrega bytes e não sabe onde eles param.
+   */
+  async issueWithContent(
+    id: string,
+    { organizationId, actorId }: ManifestActor,
+    content: {
+      bytes: Buffer;
+      fileName: string;
+      mimeType: string;
+      rendererVersion?: string | null;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<ArtifactManifestReadModel> {
+    const manifest = await this.manifest(id, organizationId);
+    this.policy.assertCanAttachFile(manifest);
+
+    const file = await this.files.store({
+      organizationId,
+      businessUnitId: manifest.businessUnitId,
+      namespace: STORAGE_NAMESPACES.manifest,
+      fileName: content.fileName,
+      mimeType: content.mimeType,
+      body: content.bytes,
+      metadata: {
+        manifestId: manifest.id,
+        revision: manifest.revision,
+        ...content.metadata,
+      },
+      createdById: actorId,
+    });
+
+    return this.mapper.details(
+      await this.repository.issue(
+        id,
+        organizationId,
+        manifest.businessUnitId,
+        manifest.executionId,
+        {
+          fileId: file.id,
+          contentHash: file.sha256 as string,
+          rendererVersion: content.rendererVersion,
+          issuedById: actorId,
+        },
+      ),
+    );
+  }
+
   async revoke(
     id: string,
     { organizationId, actorId }: ManifestActor,

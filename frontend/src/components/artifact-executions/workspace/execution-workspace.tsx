@@ -21,7 +21,7 @@
  */
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, FileStack, RefreshCw } from "lucide-react";
 
 import { ContentContainer } from "@/components/layout/page-primitives";
 import { PanelError, PanelLoading } from "@/components/panels";
@@ -160,6 +160,13 @@ function WorkspaceBody({
             </h1>
             <ExecutionStatusBadge status={execution.status} />
             <RenderStatusBadge status={execution.renderStatus} />
+            {/* O documento emitido é assunto da central; aqui só o atalho. */}
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={ROUTES.documents}>
+                <FileStack className="size-4" />
+                Documentos
+              </Link>
+            </Button>
             <Badge variant="secondary">
               v{execution.snapshot.templateVersion}
             </Badge>

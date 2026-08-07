@@ -8,8 +8,8 @@
  * backend publicar um estado novo, ele precisa ser visto.
  */
 import { Progress } from "@/components/ui/progress";
+import { resolveRenderStatus } from "@/documents";
 import { cn } from "@/lib/utils";
-import type { ArtifactRenderStatus } from "@/types/artifact-executions";
 
 /** Exportado para o Entity Registry referenciar — nunca copiar. */
 export const ARTIFACT_EXECUTION_STATUS_LABELS: Readonly<
@@ -59,55 +59,21 @@ export function ExecutionStatusBadge({
 }
 
 /**
- * Estado da renderização do artefato.
+ * Estado de renderização — delegado ao Document Registry.
  *
- * O backend publica o campo e responde `NOT_RENDERED` enquanto não existe
- * motor de renderização. A interface trata os cinco estados desde já: quando o
- * motor entrar, nada muda aqui.
+ * O mapa de rótulos e cores vivia aqui desde a PR-06, quando não havia motor
+ * de renderização nem central documental. Agora o **Document Registry** é a
+ * fonte única: manter uma segunda cópia faria a mesma informação divergir
+ * entre a execução e a central.
  *
- * `NOT_RENDERED` é apresentado como ausência, não como espera — dizer
- * "aguardando" sugeriria que algo está por vir, e não está.
+ * Os dois nomes continuam exportados para os componentes existentes não
+ * mudarem de import.
  */
-const RENDER_LABELS: Readonly<Record<ArtifactRenderStatus, string>> = {
-  NOT_RENDERED: "Não renderizado",
-  PENDING: "Na fila",
-  RENDERING: "Renderizando",
-  READY: "Pronto",
-  FAILED: "Falhou",
-};
-
-const RENDER_CLASSES: Readonly<Record<ArtifactRenderStatus, string>> = {
-  NOT_RENDERED: "bg-surface-strong text-muted-foreground",
-  PENDING: "bg-surface-strong text-muted-foreground",
-  RENDERING: "bg-primary/15 text-primary",
-  READY: "bg-emerald-500/15 text-emerald-400",
-  FAILED: "bg-destructive/15 text-destructive",
-};
-
 export function renderStatusLabel(status: string): string {
-  return RENDER_LABELS[status as ArtifactRenderStatus] ?? status;
+  return resolveRenderStatus(status).label;
 }
 
-export function RenderStatusBadge({
-  status,
-  className,
-}: {
-  status: string;
-  className?: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-xs font-medium",
-        RENDER_CLASSES[status as ArtifactRenderStatus] ??
-          "bg-surface-strong text-muted-foreground",
-        className,
-      )}
-    >
-      {renderStatusLabel(status)}
-    </span>
-  );
-}
+export { RenderStatusBadge } from "@/documents";
 
 /**
  * Progresso — sempre o número que o backend calculou.

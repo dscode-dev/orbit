@@ -213,6 +213,7 @@ model Organization {
   artifactInsights         ArtifactExecutionInsight[]
   storageFiles             StorageFile[]
   artifactManifests        ArtifactManifest[]
+  backgroundJobs           BackgroundJob[]
   reports                  Report[]
   checklistTemplates       ChecklistTemplate[]
   checklistExecutions      ChecklistExecution[]
@@ -289,6 +290,7 @@ model BusinessUnit {
   artifactExecutions     ArtifactExecution[]
   storageFiles           StorageFile[]
   artifactManifests      ArtifactManifest[]
+  backgroundJobs         BackgroundJob[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -852,6 +854,13 @@ model ArtifactExecution {
   completedAt       DateTime? @map("completed_at") @db.Timestamptz(3)
   archivedAt        DateTime? @map("archived_at") @db.Timestamptz(3)
   notes             String?   @db.Text
+  /// Estado da renderização. O backend é a autoridade — clientes só leem.
+  renderStatus      String    @default("NOT_RENDERED") @map("render_status") @db.VarChar(20)
+  renderRequestedAt DateTime? @map("render_requested_at") @db.Timestamptz(3)
+  renderStartedAt   DateTime? @map("render_started_at") @db.Timestamptz(3)
+  renderCompletedAt DateTime? @map("render_completed_at") @db.Timestamptz(3)
+  /// Motivo da falha em linguagem de negócio. Nunca carrega stack nem caminho.
+  renderError       String?   @map("render_error") @db.VarChar(500)
   context           Json      @default("{}") @db.JsonB
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -1594,4 +1603,43 @@ model AuditLog {
   @@index([entityType, entityId, createdAt])
   @@index([userId, createdAt])
   @@map("audit_logs")
+}
+
+/// Job assíncrono processado pela própria aplicação.
+///
+/// O Orbit não adotou fila externa: Postgres é a infraestrutura de mensageria
+/// disponível, e `FOR UPDATE SKIP LOCKED` dá exclusão mútua entre réplicas sem
+/// acrescentar um componente ao deploy. A tabela é genérica de propósito —
+/// renderização é o primeiro uso, não o único previsto.
+model BackgroundJob {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  businessUnitId String?   @map("business_unit_id") @db.Uuid
+  queue          String    @db.VarChar(80)
+  /// Chave de idempotência: enfileirar o mesmo trabalho duas vezes não duplica.
+  jobKey         String    @map("job_key") @db.VarChar(200)
+  payload        Json      @default("{}") @db.JsonB
+  status         String    @default("PENDING") @db.VarChar(20)
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(3) @map("max_attempts")
+  /// Quando o job volta a ser elegível — é o backoff exponencial.
+  availableAt    DateTime  @default(now()) @map("available_at") @db.Timestamptz(3)
+  lockedAt       DateTime? @map("locked_at") @db.Timestamptz(3)
+  lockedBy       String?   @map("locked_by") @db.VarChar(120)
+  /// Atravessa enfileiramento, execução, log e auditoria.
+  correlationId  String    @map("correlation_id") @db.VarChar(64)
+  /// Contexto do ator, para o worker reabrir a mesma RLS da requisição.
+  actorUserId    String?   @map("actor_user_id") @db.Uuid
+  lastError      String?   @map("last_error") @db.VarChar(1000)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(3)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+
+  @@index([queue, status, availableAt])
+  @@index([organizationId, queue, status])
+  @@map("background_jobs")
 }

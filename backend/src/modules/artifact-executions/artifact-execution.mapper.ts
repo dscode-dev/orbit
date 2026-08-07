@@ -8,6 +8,7 @@ import type {
   ArtifactExecutionResponseReadModel,
   ArtifactExecutionSignatureReadModel,
   ArtifactSnapshotReadModel,
+  ArtifactRenderStatus,
 } from './artifact-execution.read-models';
 import { ArtifactExecutionProgressCalculator } from './artifact-execution.progress';
 
@@ -80,6 +81,7 @@ interface InsightSource {
   createdAt: DateValue;
 }
 interface ExecutionSource {
+  renderStatus: string;
   id: string;
   organizationId: string;
   businessUnitId: string;
@@ -143,10 +145,13 @@ export class ArtifactExecutionReadModelMapper {
       title: source.title,
       status: source.status,
       /**
-       * Ainda não há motor de renderização; o campo existe no contrato para
-       * que os clientes já tratem o ciclo completo.
+       * Estado real desde a PR-20.
+       *
+       * Até então o campo era uma constante — não havia motor de renderização,
+       * e o contrato existia para os clientes já tratarem o ciclo. Agora a
+       * coluna é persistida e este é o valor que o backend decidiu.
        */
-      renderStatus: 'NOT_RENDERED',
+      renderStatus: source.renderStatus as ArtifactRenderStatus,
       progress: source.progress,
       scheduledStart: this.nullableDate(source.scheduledStart),
       scheduledEnd: this.nullableDate(source.scheduledEnd),

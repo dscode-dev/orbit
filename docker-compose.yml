@@ -43,6 +43,14 @@ services:
       ENCRYPTION_KEY_VERSION: ${ENCRYPTION_KEY_VERSION:-1}
       OPERATION_UPLOAD_DIR: /app/storage/operations
       DOCUMENT_STORAGE_DIR: /app/storage/documents
+      # Objetos do Storage Provider (PR-19). Sem volume, os documentos emitidos
+      # morrem no primeiro rebuild da imagem — o manifest continua apontando
+      # para um arquivo que não existe mais.
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-LOCAL}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-orbit-artifacts}
+      STORAGE_LOCAL_DIR: /app/storage/objects
+      STORAGE_LOCAL_PUBLIC_URL: ${STORAGE_LOCAL_PUBLIC_URL:-http://localhost:5001/api/v1}
+      STORAGE_SIGNED_URL_TTL_SECONDS: ${STORAGE_SIGNED_URL_TTL_SECONDS:-300}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -62,6 +70,7 @@ services:
     volumes:
       - operation_attachments:/app/storage/operations
       - generated_documents:/app/storage/documents
+      - artifact_objects:/app/storage/objects
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -141,6 +150,7 @@ volumes:
   postgres_data:
   operation_attachments:
   generated_documents:
+  artifact_objects:
 
 networks:
   orbit_private:

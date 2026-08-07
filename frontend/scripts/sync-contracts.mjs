@@ -46,6 +46,7 @@ const READ_MODELS = [
   "modules/organizations/business-units/customers/customer.read-models.ts",
   "modules/storage/file-object.read-models.ts",
   "modules/artifact-manifests/artifact-manifest.read-models.ts",
+  "modules/artifact-rendering/artifact-render.read-models.ts",
 ];
 
 const BANNER = `/**
