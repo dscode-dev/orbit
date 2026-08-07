@@ -17,14 +17,7 @@
 import { UserRound, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { FilterSelect } from "@/workspace";
 import { useSession } from "@/providers/session-provider";
 import { schedulingReferencesService } from "@/services/scheduling-references.service";
 import {
@@ -34,8 +27,6 @@ import {
 } from "@/types/scheduling";
 import { eventStatusLabel } from "./event-badges";
 import { ReferencePicker } from "./reference-picker";
-
-const ANY = "__all__";
 
 export interface SchedulingFiltersValue {
   calendarId?: string;
@@ -80,76 +71,41 @@ export function SchedulingFilters({
 
   return (
     <div className="grid gap-4 lg:grid-cols-5">
-      <div className="space-y-2">
-        <Label htmlFor="scheduling-calendar">Calendário</Label>
-        <Select
-          value={value.calendarId ?? ANY}
-          onValueChange={(next) =>
-            onChange({ calendarId: next === ANY ? undefined : next })
-          }
-        >
-          <SelectTrigger id="scheduling-calendar">
-            <SelectValue placeholder="Todos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>Todos</SelectItem>
-            {calendars.map((calendar) => (
-              <SelectItem key={calendar.id} value={calendar.id}>
-                {calendar.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <FilterSelect
+        id="scheduling-calendar"
+        label="Calendário"
+        value={value.calendarId}
+        onChange={(calendarId) => onChange({ calendarId })}
+        options={calendars.map((calendar) => ({
+          value: calendar.id,
+          label: calendar.name,
+        }))}
+      />
 
-      <div className="space-y-2">
-        <Label htmlFor="scheduling-unit">Unidade</Label>
-        <Select
-          value={value.businessUnitId ?? ANY}
-          onValueChange={(next) =>
-            onChange({ businessUnitId: next === ANY ? undefined : next })
-          }
-        >
-          <SelectTrigger id="scheduling-unit">
-            <SelectValue placeholder="Todas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>Todas</SelectItem>
-            {session.businessUnits.map((unit) => (
-              <SelectItem key={unit.id} value={unit.id}>
-                {unit.tradeName ?? unit.legalName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <FilterSelect
+        id="scheduling-unit"
+        label="Unidade"
+        value={value.businessUnitId}
+        onChange={(businessUnitId) => onChange({ businessUnitId })}
+        options={session.businessUnits.map((unit) => ({
+          value: unit.id,
+          label: unit.tradeName ?? unit.legalName,
+        }))}
+        anyLabel="Todas"
+      />
 
-      <div className="space-y-2">
-        <Label htmlFor="scheduling-status">Status</Label>
-        <Select
-          value={value.status ?? ANY}
-          onValueChange={(next) =>
-            onChange({
-              status:
-                next === ANY
-                  ? undefined
-                  : (next as SchedulingEventQuery["status"]),
-            })
-          }
-        >
-          <SelectTrigger id="scheduling-status">
-            <SelectValue placeholder="Todos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>Todos</SelectItem>
-            {SCHEDULING_EVENT_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {eventStatusLabel(status)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <FilterSelect
+        id="scheduling-status"
+        label="Status"
+        value={value.status}
+        onChange={(status) =>
+          onChange({ status: status as SchedulingEventQuery["status"] })
+        }
+        options={SCHEDULING_EVENT_STATUSES.map((status) => ({
+          value: status,
+          label: eventStatusLabel(status),
+        }))}
+      />
 
       <ReferencePicker
         id="scheduling-customer"

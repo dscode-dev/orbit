@@ -72,6 +72,7 @@ import {
 import { formatDateTime } from "@/lib/formatters";
 import { ROUTES } from "@/lib/routes";
 import { useSession } from "@/providers/session-provider";
+import { useAction } from "@/actions";
 import type { ArtifactTemplate } from "@/types/artifact-templates";
 import { DuplicateTemplateDialog } from "../duplicate-template-dialog";
 import { MutationError } from "../mutation-error";
@@ -136,9 +137,8 @@ function StudioWorkspace({
   const [duplicating, setDuplicating] = useState(false);
 
   const platformOwned = isPlatformTemplate(template);
-  const canManage =
-    session.hasPermission("artifact_templates.update") &&
-    session.hasCapability("artifact_templates.manage");
+  /** Exigências declaradas no Action Registry, não repetidas aqui. */
+  const canManage = useAction("artifact-template.publish").allowed;
   const readOnly = platformOwned || !canManage;
 
   /**

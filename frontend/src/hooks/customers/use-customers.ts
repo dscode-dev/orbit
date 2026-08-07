@@ -22,6 +22,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery } from "@/hooks/api/use-api-query";
+import { CACHE } from "@/hooks/api/cache-policy";
 import { artifactExecutionsService } from "@/services/artifact-executions.service";
 import { assetsService } from "@/services/assets.service";
 import { customersService } from "@/services/customers.service";
@@ -37,8 +38,6 @@ import type {
   UpdateCustomerInput,
 } from "@/types/customers";
 
-const MINUTE = 60_000;
-
 /**
  * Cadência por leitura.
  *
@@ -46,9 +45,9 @@ const MINUTE = 60_000;
  * do módulo dono. Nenhuma se atualiza sozinha.
  */
 export const CUSTOMERS_REFRESH = {
-  list: { staleTime: MINUTE },
-  detail: { staleTime: 30_000 },
-  related: { staleTime: 30_000 },
+  list: CACHE.stable,
+  detail: CACHE.fresh,
+  related: CACHE.fresh,
 } as const;
 
 /** Horizonte da agenda futura do cliente, em dias. */

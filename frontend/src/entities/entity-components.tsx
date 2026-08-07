@@ -12,13 +12,14 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 
 import { useSession } from "@/providers/session-provider";
+import { getAction } from "@/actions/action-registry";
+import { accessBlockReason, allowsAccess } from "@/registry";
 import { cn } from "@/lib/utils";
 import {
   entityBadgeClass,
   entityBadgeLabel,
   entityHref,
   resolveEntity,
-  type EntityAction,
   type EntityId,
 } from "./entity-registry";
 
@@ -112,30 +113,32 @@ export function EntityBadge({
  * A sessão permite oferecer esta ação?
  *
  * **Não é autorização.** O backend decide e recusa; isto evita apresentar um
- * botão que já se sabe que levaria 403. Ação sem permissão nem capability
- * declaradas é sempre oferecida.
+ * botão que já se sabe que levaria 403.
+ *
+ * ## Quem responde é o Action Registry
+ *
+ * `can("update")` resolve `"<entidade>.update"` no Action Registry. Antes, a
+ * resposta vinha de uma lista inline em `EntityDefinition.actions` — e as duas
+ * listas divergiram: `customer` tinha `actions: []`, então `can("update")` era
+ * **sempre falso** e a seção de contatos do Customer Workspace nunca ficava
+ * editável, embora `customers.update` exista no backend e o papel a tivesse.
+ *
+ * Uma fonte só elimina a classe inteira desse defeito.
  */
 export function useEntityAccess(entity: EntityId) {
   const session = useSession();
   const definition = resolveEntity(entity);
 
-  const allows = (action: EntityAction | undefined): boolean => {
-    if (!action) return false;
-    if (action.permission && !session.hasPermission(action.permission)) {
-      return false;
-    }
-    if (action.capability && !session.hasCapability(action.capability)) {
-      return false;
-    }
-    return true;
-  };
+  const requirement = (actionId: string) => getAction(`${entity}.${actionId}`);
 
   return {
     definition,
     canRead:
       !definition.capability.read ||
       session.hasCapability(definition.capability.read),
-    can: (actionId: string) =>
-      allows(definition.actions.find((action) => action.id === actionId)),
+    can: (actionId: string) => allowsAccess(requirement(actionId), session),
+    /** Por que não aparece — para explicar em vez de sumir. */
+    blockReason: (actionId: string) =>
+      accessBlockReason(requirement(actionId), session),
   };
 }

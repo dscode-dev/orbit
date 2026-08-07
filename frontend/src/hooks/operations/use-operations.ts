@@ -16,6 +16,7 @@ import { useMemo } from "react";
 import { queryKeys } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery } from "@/hooks/api/use-api-query";
+import { CACHE } from "@/hooks/api/cache-policy";
 import { useActiveScope } from "@/providers/use-active-scope";
 import {
   operationChecklistsService,
@@ -30,8 +31,6 @@ import type {
   UpdateOperationInput,
 } from "@/types/operations";
 
-const MINUTE = 60_000;
-
 /**
  * Cadência por seção, escolhida pela volatilidade.
  *
@@ -39,12 +38,12 @@ const MINUTE = 60_000;
  * ação do usuário; anexos só mudam quando alguém envia algo.
  */
 export const OPERATIONS_REFRESH = {
-  list: { staleTime: 30_000, refetchInterval: MINUTE },
-  detail: { staleTime: 30_000, refetchInterval: false as const },
-  timeline: { staleTime: 15_000, refetchInterval: MINUTE },
-  history: { staleTime: MINUTE, refetchInterval: false as const },
-  checklists: { staleTime: 30_000, refetchInterval: false as const },
-  intelligence: { staleTime: 5 * MINUTE, refetchInterval: false as const },
+  list: CACHE.live,
+  detail: CACHE.fresh,
+  timeline: CACHE.live,
+  history: CACHE.stable,
+  checklists: CACHE.fresh,
+  intelligence: CACHE.catalog,
 } as const;
 
 /** Lista paginada. A unidade ativa entra como filtro quando não há escolha explícita. */

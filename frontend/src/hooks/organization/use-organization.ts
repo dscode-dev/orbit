@@ -23,6 +23,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery } from "@/hooks/api/use-api-query";
+import { CACHE } from "@/hooks/api/cache-policy";
 import { queryKeys } from "@/api/query-keys";
 import { organizationService } from "@/services/organization.service";
 import type {
@@ -32,8 +33,6 @@ import type {
   UpdateOrganizationInput,
 } from "@/types/organization";
 
-const MINUTE = 60_000;
-
 /**
  * Cadência por leitura.
  *
@@ -41,14 +40,14 @@ const MINUTE = 60_000;
  * consulta se atualiza sozinha. O catálogo de planos praticamente não muda.
  */
 export const ORGANIZATION_REFRESH = {
-  current: { staleTime: MINUTE },
-  entitlements: { staleTime: MINUTE },
-  usage: { staleTime: 30_000 },
-  businessUnits: { staleTime: MINUTE },
+  current: CACHE.stable,
+  entitlements: CACHE.stable,
+  usage: CACHE.fresh,
+  businessUnits: CACHE.stable,
   /** Quadro de pessoas muda por convite e desligamento, não por operação. */
-  members: { staleTime: 5 * MINUTE },
-  integrations: { staleTime: MINUTE },
-  plans: { staleTime: 10 * MINUTE },
+  members: CACHE.catalog,
+  integrations: CACHE.stable,
+  plans: CACHE.catalog,
 } as const;
 
 export function useOrganization() {

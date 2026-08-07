@@ -22,23 +22,13 @@
  * prioridade (não existem no modelo `Notification`). Marcar em lote **existe**
  * (`PATCH /read-all`) e está implementado.
  */
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { BellOff, CheckCheck, Filter, RefreshCw } from "lucide-react";
 
 import { MutationError } from "@/components/artifact-studio/mutation-error";
-import { EmptyState } from "@/components/feedback/states";
-import { PanelError, PanelLoading } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   readResourceReference,
   resourceHref,
@@ -59,23 +49,28 @@ import type {
   OrbitNotification,
 } from "@/types/notifications";
 import {
+  FilterSelect,
+  ListState,
+  Pagination,
+  useListController,
+} from "@/workspace";
+import {
   groupByDay,
   NotificationCategoryIcon,
   notificationCategory,
   notificationStatusLabel,
 } from "./notification-presentation";
 
-const PAGE_SIZE = 20;
-const ANY = "__all__";
+const STATUS_OPTIONS = Object.values(NotificationStatus).map((status) => ({
+  value: status,
+  label: notificationStatusLabel(status),
+}));
 
 export function NotificationCenter() {
   const router = useRouter();
-  const [filters, setFilters] = useState<NotificationQuery>({
-    page: 1,
-    limit: PAGE_SIZE,
-  });
+  const list = useListController<NotificationQuery>({ limit: 20 });
 
-  const query = useNotifications(filters);
+  const query = useNotifications(list.query);
   const notifications = useDeduplicated(query.data);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
@@ -89,9 +84,11 @@ export function NotificationCenter() {
    * Saem dos tipos que apareceram na página — o backend não publica catálogo
    * de tipos, e inventar uma lista fixa criaria taxonomia paralela.
    */
-  const types = useMemo(() => {
+  const typeOptions = useMemo(() => {
     const seen = new Set(notifications.map((item) => item.type));
-    return [...seen].sort();
+    return [...seen]
+      .sort()
+      .map((type) => ({ value: type, label: notificationCategory(type).label }));
   }, [notifications]);
 
   const groups = useMemo(() => groupByDay(notifications), [notifications]);
@@ -112,69 +109,31 @@ export function NotificationCenter() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-wrap items-end gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="notifications-type">Categoria</Label>
-            <Select
-              value={filters.type ?? ANY}
-              onValueChange={(value) =>
-                setFilters((current) => ({
-                  ...current,
-                  type: value === ANY ? undefined : value,
-                  page: 1,
-                }))
-              }
-            >
-              <SelectTrigger id="notifications-type" className="w-56">
-                <SelectValue placeholder="Todas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ANY}>Todas</SelectItem>
-                {types.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {notificationCategory(type).label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FilterSelect
+            id="notifications-type"
+            label="Categoria"
+            value={list.query.type}
+            onChange={(value) => list.setFilter("type", value)}
+            options={typeOptions}
+            anyLabel="Todas"
+            className="w-56"
+          />
 
-          <div className="space-y-2">
-            <Label htmlFor="notifications-status">Status</Label>
-            <Select
-              value={filters.status ?? ANY}
-              onValueChange={(value) =>
-                setFilters((current) => ({
-                  ...current,
-                  status:
-                    value === ANY
-                      ? undefined
-                      : (value as NotificationQuery["status"]),
-                  page: 1,
-                }))
-              }
-            >
-              <SelectTrigger id="notifications-status" className="w-48">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ANY}>Todos</SelectItem>
-                {Object.values(NotificationStatus).map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {notificationStatusLabel(status)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FilterSelect
+            id="notifications-status"
+            label="Status"
+            value={list.query.status}
+            onChange={(value) =>
+              list.setFilter("status", value as NotificationQuery["status"])
+            }
+            options={STATUS_OPTIONS}
+            className="w-48"
+          />
 
           <Button
-            variant={filters.unreadOnly ? "default" : "outline"}
+            variant={list.query.unreadOnly ? "default" : "outline"}
             onClick={() =>
-              setFilters((current) => ({
-                ...current,
-                unreadOnly: current.unreadOnly ? undefined : true,
-                page: 1,
-              }))
+              list.setFilter("unreadOnly", list.query.unreadOnly ? undefined : true)
             }
           >
             <Filter className="size-4" />
@@ -221,79 +180,52 @@ export function NotificationCenter() {
 
       <MutationError error={markRead.error ?? markAllRead.error} />
 
-      {query.isPending ? (
-        <PanelLoading rows={6} />
-      ) : query.error ? (
-        <PanelError error={query.error} onRetry={() => void query.refetch()} />
-      ) : notifications.length === 0 ? (
-        <EmptyState
-          icon={<BellOff className="size-5" />}
-          title="Nenhuma notificação"
-          description={
-            filters.unreadOnly
-              ? "Nada pendente de leitura no momento."
-              : "Você verá aqui os avisos de operações, agenda, artefatos e sistema."
-          }
-        />
-      ) : (
-        <div className="space-y-6">
-          {groups.map((group) => (
-            <section key={group.key} className="space-y-2">
-              <h2 className="text-sm font-medium text-muted-foreground">
-                {group.label}
-              </h2>
-              <ul className="space-y-2">
-                {group.ids.map((id) => {
-                  const notification = byId.get(id);
-                  if (!notification) return null;
-                  return (
-                    <NotificationRow
-                      key={id}
-                      notification={notification}
-                      pending={markRead.isPending && markRead.variables === id}
-                      onOpen={() => open(notification)}
-                    />
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
-        </div>
-      )}
+      <ListState
+        isPending={query.isPending}
+        error={query.error}
+        onRetry={() => void query.refetch()}
+        items={notifications}
+        empty={{
+          icon: <BellOff className="size-5" />,
+          title: "Nenhuma notificação",
+          description: list.query.unreadOnly
+            ? "Nada pendente de leitura no momento."
+            : "Você verá aqui os avisos de operações, agenda, artefatos e sistema.",
+        }}
+      >
+        {() => (
+          <div className="space-y-6">
+            {groups.map((group) => (
+              <section key={group.key} className="space-y-2">
+                <h2 className="text-sm font-medium text-muted-foreground">
+                  {group.label}
+                </h2>
+                <ul className="space-y-2">
+                  {group.ids.map((id) => {
+                    const notification = byId.get(id);
+                    if (!notification) return null;
+                    return (
+                      <NotificationRow
+                        key={id}
+                        notification={notification}
+                        pending={markRead.isPending && markRead.variables === id}
+                        onOpen={() => open(notification)}
+                      />
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
+        )}
+      </ListState>
 
-      {meta && meta.totalPages > 1 ? (
-        <div className="flex items-center justify-between gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!meta.hasPreviousPage || query.isFetching}
-            onClick={() =>
-              setFilters((current) => ({
-                ...current,
-                page: Math.max(1, (current.page ?? 1) - 1),
-              }))
-            }
-          >
-            Anterior
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Página {meta.page} de {meta.totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!meta.hasNextPage || query.isFetching}
-            onClick={() =>
-              setFilters((current) => ({
-                ...current,
-                page: (current.page ?? 1) + 1,
-              }))
-            }
-          >
-            Próxima
-          </Button>
-        </div>
-      ) : null}
+      <Pagination
+        meta={meta}
+        onPrevious={list.previousPage}
+        onNext={list.nextPage}
+        isFetching={query.isFetching}
+      />
     </div>
   );
 }

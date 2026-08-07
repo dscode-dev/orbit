@@ -30,18 +30,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useAction } from "@/actions";
 import {
   ContentHash,
   DocumentFormatBadge,
   RendererLabel,
-  documentAction,
-  isDocumentActionEnabled,
   resolveFormat,
 } from "@/documents";
 import { useApiQuery } from "@/hooks/api/use-api-query";
 import { formatDateTime } from "@/lib/formatters";
 import { documentsService } from "@/services/documents.service";
-import { useSession } from "@/providers/session-provider";
 import type {
   ArtifactManifestSummary,
   SignedUrlOperation,
@@ -54,7 +52,6 @@ export function DocumentPreview({
   manifestId: string;
   summary: ArtifactManifestSummary;
 }) {
-  const session = useSession();
   const format = resolveFormat(summary.format);
   const [operation, setOperation] = useState<SignedUrlOperation>(
     format.previewable ? "preview" : "download",
@@ -76,11 +73,8 @@ export function DocumentPreview({
     },
   );
 
-  const canDownload = isDocumentActionEnabled(
-    documentAction("download") as never,
-    session,
-  );
-  const share = documentAction("share");
+  const canDownload = useAction("artifact-execution.download-document").allowed;
+  const share = useAction("artifact-execution.share-document");
 
   if (summary.status === "REVOKED") {
     return (
@@ -154,7 +148,7 @@ export function DocumentPreview({
           endpoint que crie link público ou envie por e-mail. O botão declara a
           ausência em vez de sumir sem explicação.
         */}
-        {share && !share.available ? (
+        {!share.allowed ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <span>
@@ -165,7 +159,7 @@ export function DocumentPreview({
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs">
-              {share.unavailableReason}
+              {share.blockReason}
             </TooltipContent>
           </Tooltip>
         ) : null}

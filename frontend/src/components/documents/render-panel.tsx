@@ -32,10 +32,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAction } from "@/actions";
 import {
   RenderStatusBadge,
-  documentAction,
-  isDocumentActionEnabled,
   resolveRenderStatus,
   resolveRenderer,
 } from "@/documents";
@@ -45,7 +44,6 @@ import {
 } from "@/hooks/documents/use-documents";
 import type { useRenderState } from "@/hooks/documents/use-documents";
 import { formatDateTime } from "@/lib/formatters";
-import { useSession } from "@/providers/session-provider";
 
 export function RenderPanel({
   executionId,
@@ -54,10 +52,10 @@ export function RenderPanel({
   executionId: string;
   query: ReturnType<typeof useRenderState>;
 }) {
-  const session = useSession();
   const request = useRequestRender(executionId);
   const { renderers, isPending: loadingRenderers } = useAvailableRenderers();
   const [renderer, setRenderer] = useState<string>("");
+  const render = useAction("artifact-execution.render");
 
   if (query.isPending) return <Skeleton className="h-24 rounded-xl" />;
 
@@ -65,11 +63,14 @@ export function RenderPanel({
   if (!state) return null;
 
   const definition = resolveRenderStatus(state.renderStatus);
-  const action = documentAction("render");
-  const canRender =
-    action !== undefined &&
-    isDocumentActionEnabled(action, session) &&
-    definition.canRequest;
+  /**
+   * Duas condições independentes.
+   *
+   * `render.allowed` é sobre **esta sessão** — plano e papel, declarados no
+   * Action Registry. `canRequest` é sobre **este estado** — pedir renderização
+   * de algo que já está na fila não faria nada. As duas precisam valer.
+   */
+  const canRender = render.allowed && definition.canRequest;
 
   const chosen = renderer || renderers[0] || "";
 

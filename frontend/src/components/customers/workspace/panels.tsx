@@ -23,7 +23,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { RelatedRecordsPanel } from "@/entities";
 import {
   useCreateContact,
@@ -35,9 +34,8 @@ import {
   useRemoveContact,
 } from "@/hooks/customers/use-customers";
 import { formatDateTime } from "@/lib/formatters";
-import { formatMetricValue, resolveMetric } from "@/metrics";
+import { MetricCard } from "@/workspace";
 import { ROUTES } from "@/lib/routes";
-import { cn } from "@/lib/utils";
 import {
   CUSTOMER_LIMITS,
   type Customer,
@@ -480,11 +478,15 @@ export function IndicatorsSection({ customer }: { customer: Customer }) {
       description="Contagens publicadas pelo backend"
     >
       <div className="grid gap-3 sm:grid-cols-2">
-        <Counter
+        <MetricCard
+          size="sm"
+          showDescription
           metricId="customer.assets.total"
           value={customer.counts.assets}
         />
-        <Counter
+        <MetricCard
+          size="sm"
+          showDescription
           metricId="customer.operations.total"
           value={customer.counts.operations}
         />
@@ -496,36 +498,6 @@ export function IndicatorsSection({ customer }: { customer: Customer }) {
         período.
       </p>
     </PanelFrame>
-  );
-}
-
-function Counter({
-  metricId,
-  value,
-}: {
-  metricId: string;
-  value: number | undefined;
-}) {
-  const definition = resolveMetric({ id: metricId });
-  const Icon = definition.icon;
-
-  return (
-    <div className="space-y-1 rounded-lg border border-border px-3 py-3">
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Icon className={cn("size-3.5", definition.color)} aria-hidden />
-        {definition.label}
-      </p>
-      {value === undefined ? (
-        <Skeleton className="h-7 w-16" />
-      ) : (
-        <p className="font-display text-2xl font-bold tabular-nums">
-          {formatMetricValue(definition, value)}
-        </p>
-      )}
-      <p className="text-[10px] text-muted-foreground">
-        {definition.description}
-      </p>
-    </div>
   );
 }
 

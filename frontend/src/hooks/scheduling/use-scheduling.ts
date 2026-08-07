@@ -26,6 +26,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery } from "@/hooks/api/use-api-query";
+import { CACHE, MINUTE, every } from "@/hooks/api/cache-policy";
 import { schedulingService } from "@/services/scheduling.service";
 import type {
   AddSchedulingAllocationInput,
@@ -38,8 +39,6 @@ import type {
 } from "@/types/scheduling";
 
 const RESOURCE = "scheduling";
-const MINUTE = 60_000;
-
 /**
  * Cadência por leitura.
  *
@@ -48,14 +47,14 @@ const MINUTE = 60_000;
  * porque descrevem exatamente aquelas ocorrências.
  */
 export const SCHEDULING_REFRESH = {
-  occurrences: { staleTime: 30_000, refetchInterval: 2 * MINUTE },
-  conflicts: { staleTime: 30_000, refetchInterval: 2 * MINUTE },
+  occurrences: every(CACHE.live, 2 * MINUTE),
+  conflicts: every(CACHE.live, 2 * MINUTE),
   /** Calendários e disponibilidade mudam por configuração, não por operação. */
-  calendars: { staleTime: 10 * MINUTE },
-  availability: { staleTime: 5 * MINUTE },
-  event: { staleTime: 15_000 },
-  timeline: { staleTime: MINUTE },
-  intelligence: { staleTime: 5 * MINUTE },
+  calendars: CACHE.catalog,
+  availability: CACHE.catalog,
+  event: CACHE.fresh,
+  timeline: CACHE.stable,
+  intelligence: CACHE.catalog,
 } as const;
 
 export function useSchedulingCalendars(businessUnitId?: string) {

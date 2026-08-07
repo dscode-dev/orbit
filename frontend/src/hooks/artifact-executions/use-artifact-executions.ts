@@ -26,6 +26,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery } from "@/hooks/api/use-api-query";
+import { CACHE } from "@/hooks/api/cache-policy";
 import { queryKeys } from "@/api/query-keys";
 import { artifactExecutionsService } from "@/services/artifact-executions.service";
 import type {
@@ -38,8 +39,6 @@ import type {
 } from "@/types/artifact-executions";
 
 const RESOURCE = "artifact-executions";
-const MINUTE = 60_000;
-
 /**
  * Cadência por leitura.
  *
@@ -49,9 +48,9 @@ const MINUTE = 60_000;
  * próprias escritas.
  */
 export const ARTIFACT_EXECUTIONS_REFRESH = {
-  list: { staleTime: 30_000, refetchInterval: MINUTE },
-  detail: { staleTime: 15_000, refetchInterval: false as const },
-  progress: { staleTime: 15_000, refetchInterval: false as const },
+  list: CACHE.live,
+  detail: CACHE.fresh,
+  progress: CACHE.fresh,
 } as const;
 
 export function useArtifactExecutionsList(query: ArtifactExecutionQuery) {

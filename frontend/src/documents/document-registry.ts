@@ -4,8 +4,8 @@
  * Enquanto o **Template Type Registry** descreve *o que o artefato é*
  * (Ordem de Serviço, PMOC, Recibo), este registry descreve *o que o documento
  * emitido é*: em que formato saiu, que renderizador o produziu, em que estado
- * está a renderização, o que se pode fazer com ele e com que visualizador
- * abri-lo.
+ * está a renderização e com que visualizador abri-lo. O que se pode **fazer**
+ * com ele é do Action Registry.
  *
  * A divisão importa. Um PMOC é um tipo de artefato; um PDF é um formato de
  * documento; `pdf.default` é um renderizador. Misturar os três num só lugar
@@ -15,7 +15,7 @@
  * ```
  * Template Type Registry ──▶ que artefato é (PMOC, Recibo…)
  * Document Registry ─────▶ que documento saiu (PDF, HTML…)
- *                     └──▶ renderer, estado, ações, visualizador
+ *                     └──▶ renderer, estado, visualizador
  * ```
  *
  * Regras, as mesmas dos demais registries:
@@ -41,6 +41,7 @@ import {
   type LucideProps,
 } from "lucide-react";
 
+import { createRegistry, humanizeId } from "@/registry";
 import { resolveTemplateType } from "@/artifacts";
 import type { EntityId } from "@/entities/entity-registry";
 import type { ManifestFormat, RenderStatus } from "@/types/documents";
@@ -104,8 +105,6 @@ const FORMATS: readonly DocumentFormatDefinition[] = [
     previewable: true,
   },
 ];
-
-const FORMAT_BY_ID = new Map(FORMATS.map((format) => [format.id, format]));
 
 /* ------------------------------------------------------------------ */
 /* Estados de renderização                                             */
@@ -179,10 +178,6 @@ const RENDER_STATUSES: readonly RenderStatusDefinition[] = [
   },
 ];
 
-const STATUS_BY_ID = new Map(
-  RENDER_STATUSES.map((status) => [status.id, status]),
-);
-
 /* ------------------------------------------------------------------ */
 /* Renderizadores                                                      */
 /* ------------------------------------------------------------------ */
@@ -218,110 +213,27 @@ const RENDERERS: readonly RendererDefinition[] = [
   },
 ];
 
-const RENDERER_BY_ID = new Map(
-  RENDERERS.map((renderer) => [renderer.id, renderer]),
-);
-
-/* ------------------------------------------------------------------ */
-/* Ações                                                               */
-/* ------------------------------------------------------------------ */
-
-/**
- * Ação sobre um documento emitido.
- *
- * `permission` e `capability` são as **exigidas pelo backend** — a interface as
- * usa para não oferecer o que resultaria em 403. Quem autoriza é o servidor.
- *
- * `available: false` declara contrato inexistente em vez de esconder a ação.
- */
-export interface DocumentAction {
-  readonly id: string;
-  readonly label: string;
-  readonly permission?: string;
-  readonly capability?: string;
-  readonly available: boolean;
-  readonly unavailableReason?: string;
-}
-
-export const DOCUMENT_ACTIONS: readonly DocumentAction[] = [
-  {
-    id: "preview",
-    label: "Visualizar",
-    permission: "artifact_manifests.read",
-    capability: "artifact_manifests.read",
-    available: true,
-  },
-  {
-    id: "download",
-    label: "Baixar",
-    permission: "artifact_manifests.read",
-    capability: "artifact_manifests.read",
-    available: true,
-  },
-  {
-    id: "render",
-    label: "Renderizar",
-    permission: "artifact_rendering.render",
-    capability: "artifact_rendering.render",
-    available: true,
-  },
-  {
-    id: "revoke",
-    label: "Revogar",
-    permission: "artifact_manifests.revoke",
-    capability: "artifact_manifests.manage",
-    available: true,
-  },
-  {
-    id: "share",
-    label: "Compartilhar",
-    available: false,
-    unavailableReason:
-      "Não há contrato de compartilhamento: a URL assinada é curta e pessoal, e não existe endpoint que crie link público ou envie por e-mail.",
-  },
-];
-
-const ACTION_BY_ID = new Map(
-  DOCUMENT_ACTIONS.map((action) => [action.id, action]),
-);
-
 /* ------------------------------------------------------------------ */
 /* API                                                                 */
 /* ------------------------------------------------------------------ */
 
-const reportedUnknown = new Set<string>();
+/**
+ * Três eixos, três registries do Kernel.
+ *
+ * São vocabulários independentes — um formato não é um estado, um estado não é
+ * um renderizador — e cada um ganha índice, aviso único e fallback memoizado
+ * sem repetir uma linha de infraestrutura.
+ */
+const SOURCE = "src/documents/document-registry.ts";
 
-function warnOnce(kind: string, id: string): void {
-  const key = `${kind}:${id}`;
-  if (process.env.NODE_ENV === "production" || reportedUnknown.has(key)) return;
-  reportedUnknown.add(key);
-  console.warn(
-    `[documents] ${kind} "${id}" não registrado — usando apresentação derivada. ` +
-      `Registre-o em src/documents/document-registry.ts.`,
-  );
-}
-
-function humanize(id: string): string {
-  return id
-    .split(/[._-]/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-export function allFormats(): readonly DocumentFormatDefinition[] {
-  return FORMATS;
-}
-
-export function resolveFormat(id: string): DocumentFormatDefinition {
-  const normalized = id.trim().toUpperCase();
-  const known = FORMAT_BY_ID.get(normalized);
-  if (known) return known;
-
-  warnOnce("formato", normalized);
-  return {
-    id: normalized,
-    label: normalized,
+const formats = createRegistry<DocumentFormatDefinition>({
+  name: "documents/formato",
+  source: SOURCE,
+  entries: FORMATS,
+  normalizeId: (id) => id.trim().toUpperCase(),
+  derive: (id) => ({
+    id,
+    label: id,
     description: "Formato publicado pelo backend e ainda não registrado.",
     icon: FileText,
     color: "text-muted-foreground",
@@ -329,71 +241,74 @@ export function resolveFormat(id: string): DocumentFormatDefinition {
     /** Sem saber desenhar, resta oferecer o arquivo. */
     viewer: "download-only",
     previewable: false,
-  };
-}
+  }),
+});
 
-export function allRenderStatuses(): readonly RenderStatusDefinition[] {
-  return RENDER_STATUSES;
-}
-
-export function resolveRenderStatus(id: string): RenderStatusDefinition {
-  const known = STATUS_BY_ID.get(id as RenderStatus);
-  if (known) return known;
-
-  warnOnce("estado de renderização", id);
-  return {
+const renderStatuses = createRegistry<RenderStatusDefinition>({
+  name: "documents/estado",
+  source: SOURCE,
+  entries: RENDER_STATUSES,
+  derive: (id) => ({
     id: id as RenderStatus,
-    label: humanize(id),
+    label: humanizeId(id),
     description: "Estado publicado pelo backend e ainda não registrado.",
     icon: MinusCircle,
     color: "text-muted-foreground",
     badgeClass: "bg-surface-strong text-muted-foreground",
     inFlight: false,
     canRequest: false,
-  };
+  }),
+});
+
+const renderers = createRegistry<RendererDefinition>({
+  name: "documents/renderizador",
+  source: SOURCE,
+  entries: RENDERERS,
+  derive: (id) => ({
+    id,
+    label: humanizeId(id),
+    description: "Renderizador publicado pelo backend e ainda não registrado.",
+    /**
+     * O formato é inferido do prefixo apenas para apresentação.
+     *
+     * A verdade sobre o formato está no manifest (`format`), que é o que a
+     * tela usa para escolher visualizador — isto aqui só rotula um id.
+     */
+    format: (formats.has(id.split(".")[0] ?? "")
+      ? (id.split(".")[0] ?? "").toUpperCase()
+      : "PDF") as ManifestFormat,
+  }),
+});
+
+export function allFormats(): readonly DocumentFormatDefinition[] {
+  return formats.all();
+}
+
+export function resolveFormat(id: string): DocumentFormatDefinition {
+  return formats.resolve(id);
+}
+
+export function allRenderStatuses(): readonly RenderStatusDefinition[] {
+  return renderStatuses.all();
+}
+
+export function resolveRenderStatus(id: string): RenderStatusDefinition {
+  return renderStatuses.resolve(id);
 }
 
 export function resolveRenderer(id: string): RendererDefinition {
-  const known = RENDERER_BY_ID.get(id);
-  if (known) return known;
-
-  warnOnce("renderizador", id);
-  /**
-   * O formato é inferido do prefixo apenas para apresentação.
-   *
-   * A verdade sobre o formato está no manifest (`format`), que é o que a tela
-   * usa para escolher visualizador — isto aqui só rotula um identificador.
-   */
-  const prefix = id.split(".")[0]?.toUpperCase() ?? "";
-  return {
-    id,
-    label: humanize(id),
-    description: "Renderizador publicado pelo backend e ainda não registrado.",
-    format: (FORMAT_BY_ID.has(prefix) ? prefix : "PDF") as ManifestFormat,
-  };
+  return renderers.resolve(id);
 }
 
-export function documentAction(id: string): DocumentAction | undefined {
-  return ACTION_BY_ID.get(id);
-}
-
-/** `true` quando o plano e o papel liberam a ação — e ela existe. */
-export function isDocumentActionEnabled(
-  action: DocumentAction,
-  access: {
-    hasPermission: (permission: string) => boolean;
-    hasCapability: (capability: string) => boolean;
-  },
-): boolean {
-  if (!action.available) return false;
-  if (action.permission && !access.hasPermission(action.permission)) {
-    return false;
-  }
-  if (action.capability && !access.hasCapability(action.capability)) {
-    return false;
-  }
-  return true;
-}
+/**
+ * Ações de documento vivem no **Action Registry**.
+ *
+ * `import { useAction } from "@/actions";` — `artifact-execution.render`,
+ * `.download-document`, `.share-document`, `.revoke-document`.
+ *
+ * Elas moravam aqui e no Entity Registry ao mesmo tempo, com exigências
+ * escritas duas vezes. Um catálogo só.
+ */
 
 /**
  * Entidade que o documento descreve.

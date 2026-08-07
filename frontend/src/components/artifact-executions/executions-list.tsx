@@ -14,16 +14,12 @@
  * coluna mostra quais vínculos existem e leva ao registro; os nomes aparecem
  * no Workspace, onde é uma leitura por vínculo.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { ArrowRight, Boxes, ListFilter, Search, UserRound } from "lucide-react";
+import { ArrowRight, Boxes, UserRound } from "lucide-react";
 
-import { EmptyState } from "@/components/feedback/states";
-import { PanelError, PanelLoading } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -39,6 +35,13 @@ import { cn } from "@/lib/utils";
 import { useActiveScope } from "@/providers/use-active-scope";
 import { useSession } from "@/providers/session-provider";
 import {
+  ListState,
+  Pagination,
+  ResultSummary,
+  SearchField,
+  useListController,
+} from "@/workspace";
+import {
   ARTIFACT_EXECUTION_STATUSES,
   type ArtifactExecutionListItem,
   type ArtifactExecutionQuery,
@@ -50,9 +53,6 @@ import {
   RenderStatusBadge,
 } from "./execution-badges";
 
-const PAGE_SIZE = 20;
-const SEARCH_DEBOUNCE_MS = 400;
-
 export function ExecutionsList({
   initialQuery,
 }: {
@@ -61,75 +61,45 @@ export function ExecutionsList({
 }) {
   const session = useSession();
   const { businessUnitId } = useActiveScope();
-  const [filters, setFilters] = useState<ArtifactExecutionQuery>({
-    page: 1,
-    limit: PAGE_SIZE,
-    ...initialQuery,
+  const list = useListController<ArtifactExecutionQuery>({
+    limit: 20,
+    initial: initialQuery,
   });
-  const [searchTerm, setSearchTerm] = useState(initialQuery?.search ?? "");
-
-  /** Busca só viaja depois que o usuário para de digitar. */
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setFilters((current) =>
-        current.search === (searchTerm || undefined)
-          ? current
-          : { ...current, search: searchTerm || undefined, page: 1 },
-      );
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
 
   /** A unidade ativa é filtro real da consulta quando não há escolha explícita. */
   const scopedQuery = useMemo<ArtifactExecutionQuery>(
     () => ({
-      ...filters,
-      businessUnitId: filters.businessUnitId ?? businessUnitId ?? undefined,
+      ...list.query,
+      businessUnitId: list.query.businessUnitId ?? businessUnitId ?? undefined,
     }),
-    [filters, businessUnitId],
+    [list.query, businessUnitId],
   );
 
   const query = useArtifactExecutionsList(scopedQuery);
   const executions = query.data?.data ?? [];
   const meta = query.data?.meta;
 
-  const summary = useMemo(() => {
-    if (!meta) return null;
-    const first = (meta.page - 1) * meta.limit + 1;
-    const last = Math.min(meta.page * meta.limit, meta.total);
-    return meta.total === 0
-      ? "Nenhuma execução"
-      : `${first}–${last} de ${meta.total}`;
-  }, [meta]);
-
-  const mine = filters.responsibleUserId === session.user?.id;
+  const mine = list.query.responsibleUserId === session.user?.id;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end gap-4">
-        <div className="min-w-64 flex-1 space-y-2">
-          <Label htmlFor="executions-search">Buscar</Label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="executions-search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Código ou título"
-              className="pl-9"
-            />
-          </div>
-        </div>
+        <SearchField
+          id="executions-search"
+          value={list.searchTerm}
+          onChange={list.setSearchTerm}
+          placeholder="Código ou título"
+          className="min-w-64 flex-1"
+        />
 
         {session.user ? (
           <Button
             variant={mine ? "default" : "outline"}
             onClick={() =>
-              setFilters((current) => ({
-                ...current,
-                responsibleUserId: mine ? undefined : session.user?.id,
-                page: 1,
-              }))
+              list.setFilter(
+                "responsibleUserId",
+                mine ? undefined : session.user?.id,
+              )
             }
           >
             <UserRound className="size-4" />
@@ -139,88 +109,58 @@ export function ExecutionsList({
       </div>
 
       <StatusTabs
-        value={filters.status}
-        onChange={(status) =>
-          setFilters((current) => ({ ...current, status, page: 1 }))
-        }
+        value={list.query.status}
+        onChange={(status) => list.setFilter("status", status)}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <ListFilter className="size-4" aria-hidden />
-          <span>{summary ?? "Carregando…"}</span>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Ordenado por criação, da mais recente (ordem definida pelo backend)
-        </p>
-      </div>
+      <ResultSummary
+        meta={meta}
+        noun="execução"
+        note="Ordenado por criação, da mais recente (ordem definida pelo backend)"
+      />
 
-      {query.isPending ? (
-        <PanelLoading rows={6} />
-      ) : query.error ? (
-        <PanelError error={query.error} onRetry={() => void query.refetch()} />
-      ) : executions.length === 0 ? (
-        <EmptyState
-          icon={<Boxes className="size-5" />}
-          title="Nenhuma execução encontrada"
-          description="Ajuste a busca ou o filtro de status para ver mais resultados."
-        />
-      ) : (
-        <div className="glass-panel overflow-x-auto rounded-xl">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Execução</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="min-w-40">Progresso</TableHead>
-                <TableHead>Artefato</TableHead>
-                <TableHead>Vínculos</TableHead>
-                <TableHead>Agendamento</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {executions.map((execution) => (
-                <ExecutionRow key={execution.id} execution={execution} />
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      <ListState
+        isPending={query.isPending}
+        error={query.error}
+        onRetry={() => void query.refetch()}
+        items={executions}
+        empty={{
+          icon: <Boxes className="size-5" />,
+          title: "Nenhuma execução encontrada",
+          description:
+            "Ajuste a busca ou o filtro de status para ver mais resultados.",
+        }}
+      >
+        {(rows) => (
+          <div className="glass-panel overflow-x-auto rounded-xl">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Execução</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="min-w-40">Progresso</TableHead>
+                  <TableHead>Artefato</TableHead>
+                  <TableHead>Vínculos</TableHead>
+                  <TableHead>Agendamento</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((execution) => (
+                  <ExecutionRow key={execution.id} execution={execution} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </ListState>
 
-      {meta && meta.totalPages > 1 ? (
-        <div className="flex items-center justify-between gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!meta.hasPreviousPage || query.isFetching}
-            onClick={() =>
-              setFilters((current) => ({
-                ...current,
-                page: Math.max(1, (current.page ?? 1) - 1),
-              }))
-            }
-          >
-            Anterior
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Página {meta.page} de {meta.totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!meta.hasNextPage || query.isFetching}
-            onClick={() =>
-              setFilters((current) => ({
-                ...current,
-                page: (current.page ?? 1) + 1,
-              }))
-            }
-          >
-            Próxima
-          </Button>
-        </div>
-      ) : null}
+      <Pagination
+        meta={meta}
+        onPrevious={list.previousPage}
+        onNext={list.nextPage}
+        isFetching={query.isFetching}
+      />
     </div>
   );
 }

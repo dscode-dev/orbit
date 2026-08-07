@@ -35,6 +35,7 @@ import {
   type LucideProps,
 } from "lucide-react";
 
+import { createRegistry, warnUnknown } from "@/registry";
 import type {
   AnalyticsDirection,
   AnalyticsDomain,
@@ -508,7 +509,28 @@ const DEFINITIONS: readonly MetricDefinition[] = [
   }),
 ];
 
-const BY_ID = new Map(DEFINITIONS.map((metric) => [metric.id, metric]));
+/**
+ * Índice, aviso único e cache de derivados ficam com o Registry Kernel.
+ *
+ * `derive` aqui é o último recurso — quando nem o contrato do backend chega.
+ * O caminho normal de uma métrica desconhecida passa por `resolveMetric`, que
+ * tem mais informação para trabalhar (ver abaixo).
+ */
+const registry = createRegistry<MetricDefinition>({
+  name: "metrics",
+  source: "src/metrics/metric-registry.ts",
+  entries: DEFINITIONS,
+  derive: (id) =>
+    define({
+      id,
+      label: humanizeMetricId(id),
+      description: "Métrica publicada pelo backend e ainda não registrada.",
+      category: "OPERATIONS",
+      unit: "count",
+      icon: Activity,
+      priority: 1000,
+    }),
+});
 
 /** Ícone padrão por categoria, para métricas ainda não registradas. */
 const CATEGORY_ICONS: Readonly<Record<MetricCategory, MetricIcon>> = {
@@ -525,15 +547,23 @@ const CATEGORY_ICONS: Readonly<Record<MetricCategory, MetricIcon>> = {
 /* ------------------------------------------------------------------ */
 
 export function getMetric(id: string): MetricDefinition | undefined {
-  return BY_ID.get(id);
+  return registry.get(id);
 }
 
 /** Rótulo amigável para ids usados fora do contrato completo de KPI. */
 export function metricLabel(id: string): string {
   const baseId = id.endsWith(".forecast") ? id.slice(0, -9) : id;
-  return BY_ID.get(baseId)?.label ?? humanizeMetricId(baseId);
+  return registry.get(baseId)?.label ?? humanizeMetricId(baseId);
 }
 
+/**
+ * Rótulo derivado de um id de métrica.
+ *
+ * Não usa o `humanizeId` do Kernel de propósito: ids de métrica são
+ * qualificados por domínio (`operations.completion_rate`) e o que interessa
+ * num crachá é o último segmento — `Completion Rate`, não
+ * `Operations Completion Rate`.
+ */
 function humanizeMetricId(id: string): string {
   const value = id.split(".").at(-1) ?? id;
   return value
@@ -542,7 +572,7 @@ function humanizeMetricId(id: string): string {
 }
 
 export function allMetrics(): readonly MetricDefinition[] {
-  return DEFINITIONS;
+  return registry.all();
 }
 
 /** Dados que o backend publica sobre uma métrica. */
@@ -553,32 +583,33 @@ export interface MetricContract {
   domain?: MetricCategory;
 }
 
-const reportedUnknown = new Set<string>();
+/**
+ * Definições derivadas do contrato, memoizadas por id.
+ *
+ * Sem isto, cada render construía um objeto novo para a mesma métrica
+ * desconhecida — e duas chamadas devolviam valores `!==`, o que derrota
+ * `useMemo` e `React.memo` justamente no caminho degradado.
+ */
+const derivedFromContract = new Map<string, MetricDefinition>();
 
 /**
  * Resolve a definição de uma métrica.
  *
  * Métrica não registrada não quebra a tela: o registry deriva uma definição
- * do próprio contrato do backend e avisa no console em desenvolvimento, uma
- * vez por id.
+ * do próprio contrato do backend — que traz rótulo, unidade e domínio, mais do
+ * que o id sozinho — e avisa no console em desenvolvimento, uma vez por id.
  */
 export function resolveMetric(contract: MetricContract): MetricDefinition {
-  const known = BY_ID.get(contract.id);
+  const known = registry.get(contract.id);
   if (known) return known;
 
-  if (
-    process.env.NODE_ENV !== "production" &&
-    !reportedUnknown.has(contract.id)
-  ) {
-    reportedUnknown.add(contract.id);
-    console.warn(
-      `[metrics] métrica "${contract.id}" não registrada — usando apresentação derivada do contrato. ` +
-        `Registre-a em src/metrics/metric-registry.ts.`,
-    );
-  }
+  const cached = derivedFromContract.get(contract.id);
+  if (cached) return cached;
+
+  warnUnknown("metrics", "métrica", contract.id, "src/metrics/metric-registry.ts");
 
   const category = contract.domain ?? "OPERATIONS";
-  return define({
+  const derived = define({
     id: contract.id,
     label: contract.label ?? contract.id,
     description: "Métrica publicada pelo backend e ainda não registrada.",
@@ -587,6 +618,8 @@ export function resolveMetric(contract: MetricContract): MetricDefinition {
     icon: CATEGORY_ICONS[category],
     priority: 1000,
   });
+  derivedFromContract.set(contract.id, derived);
+  return derived;
 }
 
 /** Formata um valor pela definição da métrica. */
@@ -618,8 +651,8 @@ export function sortByPriority<T extends { id: string }>(
   items: readonly T[],
 ): readonly T[] {
   return [...items].sort((left, right) => {
-    const leftPriority = BY_ID.get(left.id)?.priority ?? 1000;
-    const rightPriority = BY_ID.get(right.id)?.priority ?? 1000;
+    const leftPriority = registry.get(left.id)?.priority ?? 1000;
+    const rightPriority = registry.get(right.id)?.priority ?? 1000;
     return leftPriority - rightPriority;
   });
 }

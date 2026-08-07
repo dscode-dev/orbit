@@ -1,119 +1,143 @@
-# Action Registry — preparação
+# Action Registry
 
-**Não implementado.** Este documento descreve a arquitetura pretendida e como o
-código já está organizado para recebê-la, conforme pedido na PR-09.
+O catálogo do que se pode fazer com uma entidade.
 
----
-
-## 1. O problema que ele vai resolver
-
-Os quatro registries existentes cobrem apresentação:
-
-| Registry        | Resolve                                                  |
-| --------------- | -------------------------------------------------------- |
-| Metric Registry | id de métrica → rótulo, ícone, formato, procedência      |
-| Widget Registry | tag de widget → componente                               |
-| Field Registry  | tipo de campo → como exibir e editar                     |
-| Entity Registry | id de entidade → rótulo, ícone, rota, capability, badges |
-
-Falta o eixo das **ações**. Hoje, "criar", "duplicar", "arquivar", "ativar",
-"aprovar" aparecem como botões escritos à mão em cada tela, cada um repetindo o
-mesmo trio: qual permissão exige, qual capability exige, e o que fazer quando o
-servidor recusa.
-
-Isso ainda não dói porque cada Workspace tem poucas ações. Vai doer quando a
-mesma ação existir em três lugares — duplicar um template no Studio, na
-listagem e na paleta de comandos — e as três cópias divergirem.
+`src/actions/action-registry.ts` · `import { useAction } from "@/actions"`
 
 ---
 
-## 2. O contrato pretendido
+## 1. O eixo que faltava
+
+Os outros registries cobrem apresentação:
+
+| Registry      | Resolve                                                  |
+| ------------- | -------------------------------------------------------- |
+| Metric        | id de métrica → rótulo, ícone, formato, procedência      |
+| Widget        | tag de widget → componente                               |
+| Field         | tipo de campo → como exibir e editar                     |
+| Entity        | id de entidade → rótulo, ícone, rota, capability, badges |
+| Template Type | `artifactType` → o que o artefato é                      |
+| Document      | formato e estado → o que o documento emitido é           |
+
+Faltava o eixo das **ações**. "Criar", "duplicar", "publicar", "renderizar"
+viviam como botão escrito à mão em cada tela, cada um repetindo o mesmo trio:
+qual permissão exige, qual capability exige, e se precisa confirmar.
+
+### E divergiram
+
+Três coisas que a fragmentação já tinha custado, encontradas ao consolidar:
+
+**Um botão que nunca aparecia.** `EntityDefinition.actions` declarava as ações
+do ativo, mas deixou `customer` com `actions: []`. `can("update")` era
+**sempre falso**, e a seção de contatos do Customer Workspace nunca ficava
+editável — embora `customers.update` exista no backend e o papel a tivesse.
+
+**Uma declaração que envelheceu.** O `COMMON_ACTIONS` do Template Type Registry
+marcava "gerar documento" como indisponível por "não há motor de renderização".
+Verdade quando foi escrita, falsa desde a PR-20. Nenhuma tela consumia a lista,
+então o erro passou despercebido.
+
+**Exigências escritas duas vezes.** As ações de documento estavam no Document
+Registry _e_ no Entity Registry, com permissões repetidas em ambos.
+
+## 2. O contrato
 
 ```ts
-interface ActionDefinition<TInput = void, TResult = unknown> {
-  id: string;                       // "artifact-template.duplicate"
-  entity: EntityId;                 // dono da ação
+interface ActionDefinition extends AccessRequirement {
+  id: string; // "artifact-template.duplicate"
+  entity: EntityId; // dono da ação
   label: string;
+  description?: string;
   icon: ActionIcon;
-  /** Exigências declaradas — as mesmas chaves do backend. */
+  category: ActionCategory; // create · edit · workflow · document · destructive
+  surfaces: readonly ActionSurface[]; // primary · menu · row · palette
+  destructive?: boolean;
+  confirm?: { title; body; confirmLabel };
+  // de AccessRequirement:
   permission?: string;
   capability?: string;
-  /** Pede confirmação antes de executar. */
-  destructive?: boolean;
-  /** Como a interface a apresenta: botão, item de menu, atalho. */
-  surfaces: readonly ActionSurface[];
-  /** A mutação que executa. Sempre uma chamada real ao backend. */
-  run: (context: ActionContext, input: TInput) => Promise<TResult>;
+  available?: boolean;
+  unavailableReason?: string;
 }
-
-resolveAction(id): ActionDefinition | undefined
-useAction(id): { available: boolean; run: (input) => Promise<…>; pending: boolean }
 ```
 
-As mesmas três regras dos outros registries valem:
+### Superfícies
 
-- **nenhum componente decide apresentação de ação** — resolve pelo registry;
-- **o registry não autoriza nada** — declara o que o backend exige;
-- **ação desconhecida não quebra a tela** — `resolveAction` devolve
-  `undefined` e a superfície simplesmente não a oferece.
+A mesma ação tem exigências diferentes conforme onde aparece. Um botão primário
+cabe numa tela; um item de menu cabe numa linha de tabela; a paleta de comandos
+precisa de um rótulo que faça sentido fora de contexto — e só faz sentido
+oferecer ali o que não depende de um registro selecionado.
 
----
+### Padrões por categoria
 
-## 3. O que já está no lugar
+`define()` aplica o que cada tela vinha repetindo: ação `destructive` já nasce
+pedindo confirmação, ação `create` já nasce como botão primário e entra na
+paleta.
 
-**A semente existe no Entity Registry.** `EntityDefinition.actions` já declara
-ações com `permission`, `capability` e `destructive`:
+Ação destrutiva sem `confirm` é erro de declaração, verificado pelo `validate`
+do Kernel em desenvolvimento — o diálogo apareceria vazio.
+
+## 3. `useAction`
+
+```tsx
+const duplicate = useAction("artifact-template.duplicate");
+if (!duplicate.allowed) return null;
+return <Button onClick={() => mutation.mutate()}>{duplicate.label}</Button>;
+```
 
 ```ts
-actions: [
-  {
-    id: "create",
-    label: "Novo ativo",
-    permission: "assets.create",
-    capability: "assets.manage",
-  },
-  {
-    id: "delete",
-    label: "Excluir",
-    permission: "assets.delete",
-    capability: "assets.manage",
-    destructive: true,
-  },
-];
+interface ActionState {
+  definition: ActionDefinition;
+  label: string;
+  allowed: boolean; // vale oferecer o botão?
+  blockReason: string | null; // por que não — para explicar em vez de sumir
+  destructive: boolean;
+  confirm: { title; body; confirmLabel } | undefined;
+}
 ```
 
-E `useEntityAccess(entity).can("delete")` já responde "esta sessão pode ver este
-botão?" sem que o componente conheça permissão alguma. O Action Registry é a
-evolução natural: acrescentar a essas declarações o `run`, as superfícies e o
-tratamento de recusa.
+`useEntityActions(entity, surface)` devolve as ações daquela entidade que esta
+sessão pode ver — é o que um menu de linha consome.
 
-**As recusas já são tratadas por código, não por texto.** Os Workspaces reagem
-a `ARTIFACT_EXECUTION_NOT_EDITABLE`, a `CONFLICT` do agendamento e ao 409 de
-chave duplicada pelo **código** do erro. Quando as ações forem declarativas,
-esse tratamento sobe para o registry sem reescrita.
+## 4. O que ele **não** faz
 
-**As mutações já são reutilizáveis.** Toda escrita passa por `useApiMutation`,
-com invalidação declarada e `scope` para serializar. Um `run` do registry
-chamaria exatamente esses hooks.
+**Não executa.** Não há `run`, e a ausência é deliberada: executar exige hooks
+(`useApiMutation`), e hooks não podem ser chamados de dentro de um objeto
+literal. O `onClick` continua sendo o hook que a tela já tem. Amarrar execução
+aqui exigiria que o registry conhecesse serviços — e ele voltaria a ser o lugar
+onde a regra de negócio se esconde.
 
----
+**Não autoriza.** Declara o que o backend exige; quem decide é o servidor, que
+recusa com 403 independentemente do que esteja aqui.
 
-## 4. O que ainda falta decidir
+**Não sabe regra de negócio.** Se a transição é válida, se o registro pode ser
+excluído, se o limite do plano foi atingido — sempre do servidor. `destructive`
+é uma dica de interface, não uma regra.
 
-- **Onde vive o `run`.** Ações precisam de hooks (`useApiMutation`), e hooks
-  não podem ser chamados dentro de um objeto. A saída provável é o registry
-  guardar uma _fábrica_ que o `useAction` instancia.
-- **Superfícies.** Botão, item de menu, ação em lote e paleta de comandos têm
-  requisitos diferentes de rótulo e confirmação.
-- **Ações em lote.** Hoje nenhum endpoint aceita lote; quando aceitarem, a
-  declaração precisa distinguir "uma por registro" de "uma para muitos".
+## 5. Ausência declarada
 
----
+`available: false` diz "o contrato não existe", que é diferente de "não
+autorizado". É o caso de `artifact-execution.share-document`: a URL assinada é
+curta e pessoal, e não há endpoint que crie link público ou envie por e-mail.
 
-## 5. O que **não** entra no Action Registry
+O botão aparece desabilitado com a explicação no tooltip. Quando o contrato
+existir, vira `available: true` e nada mais muda.
 
-- **Regra de negócio.** Se a transição é válida, se o registro pode ser
-  excluído, se o limite foi atingido — sempre do servidor.
-- **Autorização.** Continua declarativa: o registry diz o que o backend exige,
-  o servidor decide.
-- **Estado de dados.** Quem lê é a Query Layer.
+## 6. Quem consome hoje
+
+| Tela                                      | Ação                                    |
+| ----------------------------------------- | --------------------------------------- |
+| `operations-list`                         | `operation.create`                      |
+| `scheduling-workspace`, `reminder-center` | `scheduling-event.create`               |
+| `artifact-studio`                         | `artifact-template.publish`             |
+| `document-preview`                        | `.download-document`, `.share-document` |
+| `render-panel`                            | `artifact-execution.render`             |
+| `useEntityAccess().can()`                 | resolve `"<entidade>.<verbo>"`          |
+| Paleta de comandos                        | superfície `palette`                    |
+
+### O que ficou de fora, e por quê
+
+Permissões finas que o registry não declara — `operations.assign`,
+`operations.status.update`, anexos — continuam como `hasPermission` direto na
+tela. Inventar ações para forçá-las ao catálogo criaria entradas que nada
+representa; o registry cataloga ações, não checagens.

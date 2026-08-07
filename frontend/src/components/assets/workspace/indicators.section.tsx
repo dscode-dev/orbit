@@ -30,13 +30,11 @@
  * não faz.
  */
 import { PanelFrame, PanelWithoutSource } from "@/components/panels";
-import { Skeleton } from "@/components/ui/skeleton";
+import { MetricCard } from "@/workspace";
 import {
   useAssetExecutionsCount,
   useAssetOperationsCount,
 } from "@/hooks/assets/use-assets";
-import { formatMetricValue, resolveMetric } from "@/metrics";
-import { cn } from "@/lib/utils";
 
 /** Ids registrados no Metric Registry para os contadores do ativo. */
 const METRIC_IDS = {
@@ -57,22 +55,28 @@ export function IndicatorsSection({ assetId }: { assetId: string }) {
       description="Contagens do servidor para este ativo"
     >
       <div className="grid gap-3 sm:grid-cols-3">
-        <Counter
+        <MetricCard
+          size="sm"
+          showDescription
           metricId={METRIC_IDS.operations}
           value={operations.data?.meta.total}
-          pending={operations.isPending}
+          isPending={operations.isPending}
           failed={Boolean(operations.error)}
         />
-        <Counter
+        <MetricCard
+          size="sm"
+          showDescription
           metricId={METRIC_IDS.openOperations}
           value={openOperations.data?.meta.total}
-          pending={openOperations.isPending}
+          isPending={openOperations.isPending}
           failed={Boolean(openOperations.error)}
         />
-        <Counter
+        <MetricCard
+          size="sm"
+          showDescription
           metricId={METRIC_IDS.executions}
           value={executions.data?.meta.total}
-          pending={executions.isPending}
+          isPending={executions.isPending}
           failed={Boolean(executions.error)}
         />
       </div>
@@ -83,44 +87,6 @@ export function IndicatorsSection({ assetId }: { assetId: string }) {
         publica.
       </p>
     </PanelFrame>
-  );
-}
-
-function Counter({
-  metricId,
-  value,
-  pending,
-  failed,
-}: {
-  metricId: string;
-  value: number | undefined;
-  pending: boolean;
-  failed: boolean;
-}) {
-  const definition = resolveMetric({ id: metricId });
-  const Icon = definition.icon;
-
-  return (
-    <div className="space-y-1 rounded-lg border border-border px-3 py-3">
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Icon className={cn("size-3.5", definition.color)} aria-hidden />
-        {definition.label}
-      </p>
-
-      {pending ? (
-        <Skeleton className="h-7 w-16" />
-      ) : failed || value === undefined ? (
-        <p className="text-sm text-muted-foreground">indisponível</p>
-      ) : (
-        <p className="font-display text-2xl font-bold tabular-nums">
-          {formatMetricValue(definition, value)}
-        </p>
-      )}
-
-      <p className="text-[10px] text-muted-foreground">
-        {definition.description}
-      </p>
-    </div>
   );
 }
 

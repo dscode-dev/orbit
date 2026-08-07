@@ -20,19 +20,16 @@
  */
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery } from "@/hooks/api/use-api-query";
+import { CACHE, SECOND, pollWhile } from "@/hooks/api/cache-policy";
+import { resolveRenderStatus } from "@/documents";
 import { documentsService } from "@/services/documents.service";
 import type { RenderState, RequestRenderInput } from "@/types/documents";
 
-const SECOND = 1000;
-
-/** Estados em que ainda há trabalho acontecendo no servidor. */
-const IN_FLIGHT: readonly string[] = ["PENDING", "RENDERING"];
-
 export const DOCUMENTS_REFRESH = {
   /** Revisões mudam quando uma renderização termina. */
-  manifests: { staleTime: 15 * SECOND },
-  manifest: { staleTime: 30 * SECOND },
-  metrics: { staleTime: 60 * SECOND },
+  manifests: CACHE.live,
+  manifest: CACHE.fresh,
+  metrics: CACHE.stable,
 } as const;
 
 export function useExecutionManifests(executionId: string, enabled = true) {
@@ -65,12 +62,17 @@ export function useRenderState(executionId: string, enabled = true) {
     {
       staleTime: 2 * SECOND,
       enabled: enabled && Boolean(executionId),
-      refetchInterval: (query) => {
-        const state = query.state.data as RenderState | undefined;
-        return state && IN_FLIGHT.includes(state.renderStatus)
-          ? 3 * SECOND
-          : false;
-      },
+      /**
+       * O estado do registry decide, não uma lista de strings.
+       *
+       * `inFlight` é declarado no Document Registry — o mesmo dado que pinta o
+       * crachá. Um estado novo do backend passa a ser acompanhado sem tocar
+       * neste arquivo.
+       */
+      refetchInterval: pollWhile<RenderState>(
+        (state) => resolveRenderStatus(state.renderStatus).inFlight,
+        3 * SECOND,
+      ),
     },
   );
 }

@@ -1,15 +1,32 @@
 "use client";
 
-import { useEffect } from "react";
-import {
-  Calculator,
-  Boxes,
-  FileBarChart,
-  Settings,
-  Users,
-  Workflow,
-  Sparkles,
-} from "lucide-react";
+/**
+ * Paleta de comandos (⌘K).
+ *
+ * ## O que ela era
+ *
+ * Uma lista fixa escrita na fase de design: "Operações", "Inventário",
+ * "Pessoas", "Relatórios", "Abrir calculadora". Três desses módulos não
+ * existem, e **nenhum item navegava** — os `CommandItem` não tinham `onSelect`.
+ * Era um menu decorativo.
+ *
+ * ## O que ela é
+ *
+ * Dirigida pelos registries. Os destinos vêm do **Entity Registry** (rótulo,
+ * ícone, rota, capability) e as ações do **Action Registry** — as mesmas
+ * declarações que alimentam o menu lateral e os botões das telas. Um módulo
+ * novo aparece aqui por ter sido registrado, não por alguém lembrar de vir
+ * editar este arquivo.
+ *
+ * ## O que ela não faz
+ *
+ * **Não executa ações.** Ela leva ao lugar onde a ação existe, porque executar
+ * exige o contexto que só a tela tem — qual registro, qual formulário, qual
+ * confirmação. Uma paleta que dispara mutação sem esse contexto é uma armadilha.
+ */
+import { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+
 import {
   CommandDialog,
   CommandEmpty,
@@ -18,14 +35,22 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from "@/components/ui/command";
+import { allActions } from "@/actions";
+import { entityTargets } from "@/navigation";
+import { resolveEntity } from "@/entities";
+import { useSession } from "@/providers/session-provider";
+import { allowsAccess } from "@/registry";
+import { cn } from "@/lib/utils";
 
-export function useCommandPalette(open: boolean, setOpen: (v: boolean) => void) {
+export function useCommandPalette(
+  open: boolean,
+  setOpen: (value: boolean) => void,
+) {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
         setOpen(!open);
       }
     };
@@ -39,42 +64,88 @@ export function CommandPalette({
   onOpenChange,
 }: {
   open: boolean;
-  onOpenChange: (v: boolean) => void;
+  onOpenChange: (value: boolean) => void;
 }) {
+  const router = useRouter();
+  const session = useSession();
+
+  /** Só os módulos que o plano e o papel desta sessão alcançam. */
+  const destinations = useMemo(
+    () =>
+      entityTargets().filter(
+        (target) => !target.capability || session.hasCapability(target.capability),
+      ),
+    [session],
+  );
+
+  /**
+   * Ações de criação, que são as que fazem sentido fora de contexto.
+   *
+   * "Duplicar" e "Revogar" precisam de um registro selecionado; "Novo ativo"
+   * não. Por isso a paleta filtra por superfície `palette`, que o registry já
+   * declara.
+   */
+  const actions = useMemo(
+    () =>
+      allActions().filter(
+        (action) =>
+          action.surfaces.includes("palette") && allowsAccess(action, session),
+      ),
+    [session],
+  );
+
+  const go = (href: string) => {
+    onOpenChange(false);
+    router.push(href);
+  };
+
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Buscar módulos, registros e ações…" />
+      <CommandInput placeholder="Buscar módulos e ações…" />
       <CommandList>
         <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
-        <CommandGroup heading="Navegação">
-          <CommandItem>
-            <Workflow className="size-4" /> Operações
-            <CommandShortcut>⌘1</CommandShortcut>
-          </CommandItem>
-          <CommandItem>
-            <Boxes className="size-4" /> Inventário
-            <CommandShortcut>⌘2</CommandShortcut>
-          </CommandItem>
-          <CommandItem>
-            <Users className="size-4" /> Pessoas
-            <CommandShortcut>⌘3</CommandShortcut>
-          </CommandItem>
-          <CommandItem>
-            <FileBarChart className="size-4" /> Relatórios
-          </CommandItem>
+
+        <CommandGroup heading="Ir para">
+          {destinations.map((target) => {
+            const Icon = target.icon;
+            return (
+              <CommandItem
+                key={target.id}
+                value={`${target.label} ${target.description ?? ""}`}
+                onSelect={() => go(target.href)}
+              >
+                <Icon className="size-4" />
+                {target.label}
+              </CommandItem>
+            );
+          })}
         </CommandGroup>
-        <CommandSeparator />
-        <CommandGroup heading="Ações">
-          <CommandItem>
-            <Sparkles className="size-4" /> Criar novo registro
-          </CommandItem>
-          <CommandItem>
-            <Calculator className="size-4" /> Abrir calculadora
-          </CommandItem>
-          <CommandItem>
-            <Settings className="size-4" /> Preferências
-          </CommandItem>
-        </CommandGroup>
+
+        {actions.length > 0 ? (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Criar">
+              {actions.map((action) => {
+                const Icon = action.icon;
+                const entity = resolveEntity(action.entity);
+                return (
+                  <CommandItem
+                    key={action.id}
+                    value={`${action.label} ${entity.labelPlural}`}
+                    /**
+                     * Leva à tela da entidade, onde a ação existe de verdade.
+                     * A paleta navega; quem executa é a tela.
+                     */
+                    onSelect={() => go(entity.basePath)}
+                  >
+                    <Icon className={cn("size-4", entity.color)} />
+                    {action.label}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </>
+        ) : null}
       </CommandList>
     </CommandDialog>
   );

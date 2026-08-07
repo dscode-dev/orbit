@@ -35,6 +35,7 @@
 import { useMemo } from "react";
 
 import { useApiQuery } from "@/hooks/api/use-api-query";
+import { CACHE } from "@/hooks/api/cache-policy";
 import { artifactExecutionsService } from "@/services/artifact-executions.service";
 import { useActiveScope } from "@/providers/use-active-scope";
 import type { ArtifactExecutionStatus } from "@/types/artifact-executions";
@@ -68,7 +69,7 @@ export const QUEUE_METRIC_IDS: Readonly<
   COMPLETED: "executions.completed",
 };
 
-const COUNT_REFRESH = { staleTime: 30_000, refetchInterval: 60_000 } as const;
+const COUNT_REFRESH = CACHE.live;
 
 /**
  * Contagem de uma fila.

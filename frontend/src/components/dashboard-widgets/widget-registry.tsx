@@ -40,6 +40,7 @@ import { OperationalTrendWidget } from "./operational-trend.widget";
 import { OrbitIntelligenceWidget } from "./orbit-intelligence.widget";
 import { UpcomingEventsWidget } from "./upcoming-events.widget";
 import { PanelFrame, PanelWithoutSource } from "@/components/panels";
+import { warnUnknown } from "@/registry";
 
 /** Leituras compartilhadas por todos os widgets do painel. */
 export interface WidgetDataSources {
@@ -129,8 +130,22 @@ const WITHOUT_SOURCE: Readonly<Record<string, string>> = {
     "As projeções do Analytics cobrem operações e PMOC, não produção agrícola.",
 };
 
-/** Widget sem fonte real: mantém o card, declara a ausência. */
+/**
+ * Widget sem fonte real: mantém o card, declara a ausência.
+ *
+ * **O componente é memoizado por motivo, e isso não é otimização.** React
+ * identifica um componente pela referência da função: uma fábrica que devolve
+ * uma função nova a cada chamada faz o React ver um tipo diferente e
+ * **desmontar e remontar** a subárvore inteira. Como `resolveWidgets` roda a
+ * cada render do dashboard, o painel piscava a cada render — o cache é o que
+ * torna o tipo estável.
+ */
+const withoutSourceCache = new Map<string, WidgetComponent>();
+
 function createWithoutSourceWidget(reason: string): WidgetComponent {
+  const cached = withoutSourceCache.get(reason);
+  if (cached) return cached;
+
   function WithoutSourceWidget({ widget }: WidgetProps) {
     return (
       <PanelFrame
@@ -143,6 +158,7 @@ function createWithoutSourceWidget(reason: string): WidgetComponent {
     );
   }
   WithoutSourceWidget.displayName = "WithoutSourceWidget";
+  withoutSourceCache.set(reason, WithoutSourceWidget);
   return WithoutSourceWidget;
 }
 
@@ -171,14 +187,18 @@ const REGISTRY: Readonly<Record<string, WidgetComponent>> = {
   "hvac-contracts": createKpiDomainWidget({ domain: "CONTRACTS" }),
 };
 
-const reportedUnknown = new Set<string>();
-
 /**
  * Resolve o componente de um widget.
  *
  * `null` significa "ignore este widget": tag desconhecida. Em
- * desenvolvimento, o motivo aparece no console uma vez por tag — em produção
- * o painel simplesmente segue sem ele.
+ * desenvolvimento, o motivo aparece no console uma vez por tag — pelo
+ * `warnUnknown` do Registry Kernel, o mesmo dos demais registries — e em
+ * produção o painel simplesmente segue sem ele.
+ *
+ * Este registry **não usa `createRegistry`**: os outros sempre devolvem algo
+ * exibível, e aqui a ausência é a resposta certa. Widget desconhecido não vira
+ * card genérico; ele some, porque um card vazio ocuparia espaço do painel sem
+ * dizer nada. O que se compartilha é o aviso.
  */
 export function resolveWidget(
   widget: ResolvedDashboardWidget,
@@ -189,16 +209,12 @@ export function resolveWidget(
   const reason = WITHOUT_SOURCE[widget.id];
   if (reason) return createWithoutSourceWidget(reason);
 
-  if (
-    process.env.NODE_ENV !== "production" &&
-    !reportedUnknown.has(widget.id)
-  ) {
-    reportedUnknown.add(widget.id);
-    console.warn(
-      `[dashboard] widget "${widget.id}" (${widget.readModel}) não tem componente registrado e foi ignorado. ` +
-        `Registre-o em src/components/dashboard-widgets/widget-registry.tsx.`,
-    );
-  }
+  warnUnknown(
+    "dashboard",
+    `widget (${widget.readModel})`,
+    widget.id,
+    "src/components/dashboard-widgets/widget-registry.tsx",
+  );
   return null;
 }
 

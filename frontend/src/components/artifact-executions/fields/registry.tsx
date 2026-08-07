@@ -19,6 +19,7 @@
  */
 import type { ComponentType } from "react";
 
+import { createRegistry } from "@/registry";
 import type { ArtifactField } from "@/types/artifact-templates";
 import type {
   ArtifactExecutionAttachment,
@@ -130,54 +131,62 @@ const STRUCTURED: FieldRenderer = {
  *
  * A lista corresponde aos exemplos que o `ArtifactFieldDto` cita. Não é
  * exaustiva por natureza — é por isso que existe o fallback.
+ *
+ * Vários tipos compartilham renderizador de propósito: `NUMBER` e `DECIMAL`
+ * se preenchem igual, e `SELECT` e `RADIO` diferem só na apresentação do
+ * mesmo conjunto. O registro é por tipo, o renderizador é reaproveitado.
  */
-const BY_TYPE: ReadonlyMap<string, FieldRenderer> = new Map([
-  ["TEXT", TEXT],
-  ["LONG_TEXT", LONG_TEXT],
-  ["OBSERVATION", LONG_TEXT],
-  ["NUMBER", NUMERIC],
-  ["DECIMAL", NUMERIC],
-  ["CHECKBOX", BOOLEAN],
-  ["SWITCH", BOOLEAN],
-  ["SELECT", CHOICE],
-  ["RADIO", CHOICE],
-  ["MULTISELECT", MULTI_CHOICE],
-  ["DATE", DATE_TIME],
-  ["TIME", DATE_TIME],
-  ["DATETIME", DATE_TIME],
-  ["PHOTO", MEDIA],
-  ["VIDEO", MEDIA],
-  ["FILE", MEDIA],
-  ["SIGNATURE", SIGNATURE],
-  ["QR_CODE", TEXT],
-  ["BARCODE", TEXT],
-  ["LOCATION", STRUCTURED],
-]);
+const ENTRIES: readonly FieldRendererEntry[] = [
+  { id: "TEXT", renderer: TEXT },
+  { id: "LONG_TEXT", renderer: LONG_TEXT },
+  { id: "OBSERVATION", renderer: LONG_TEXT },
+  { id: "NUMBER", renderer: NUMERIC },
+  { id: "DECIMAL", renderer: NUMERIC },
+  { id: "CHECKBOX", renderer: BOOLEAN },
+  { id: "SWITCH", renderer: BOOLEAN },
+  { id: "SELECT", renderer: CHOICE },
+  { id: "RADIO", renderer: CHOICE },
+  { id: "MULTISELECT", renderer: MULTI_CHOICE },
+  { id: "DATE", renderer: DATE_TIME },
+  { id: "TIME", renderer: DATE_TIME },
+  { id: "DATETIME", renderer: DATE_TIME },
+  { id: "PHOTO", renderer: MEDIA },
+  { id: "VIDEO", renderer: MEDIA },
+  { id: "FILE", renderer: MEDIA },
+  { id: "SIGNATURE", renderer: SIGNATURE },
+  { id: "QR_CODE", renderer: TEXT },
+  { id: "BARCODE", renderer: TEXT },
+  { id: "LOCATION", renderer: STRUCTURED },
+];
 
-const reportedUnknown = new Set<string>();
+/** Um tipo de campo e o renderizador que o desenha. */
+interface FieldRendererEntry {
+  readonly id: string;
+  readonly renderer: FieldRenderer;
+}
+
+const registry = createRegistry<FieldRendererEntry>({
+  name: "artifact-fields",
+  source: "src/components/artifact-executions/fields/registry.tsx",
+  entries: ENTRIES,
+  normalizeId: (id) => id.trim().toUpperCase(),
+  /**
+   * Tipo desconhecido cai na apresentação estruturada — que mostra o valor
+   * como ele é e permite editá-lo como JSON. Preencher continua possível; o
+   * que se perde é só o controle especializado.
+   */
+  derive: (id) => ({ id, renderer: STRUCTURED }),
+});
 
 /**
  * Resolve o renderizador de um tipo.
  *
- * Tipo não registrado cai na apresentação estruturada — que mostra o valor
- * como ele é e permite editá-lo como JSON — e avisa no console em
- * desenvolvimento, uma vez por tipo. Preencher continua possível; o que se
- * perde é só o controle especializado.
+ * Tipo não registrado cai na apresentação estruturada e avisa no console em
+ * desenvolvimento, uma vez por tipo.
  */
 export function resolveFieldRenderer(type: string): FieldRenderer {
-  const known = BY_TYPE.get(type);
-  if (known) return known;
-
-  if (process.env.NODE_ENV !== "production" && !reportedUnknown.has(type)) {
-    reportedUnknown.add(type);
-    console.warn(
-      `[artifact-fields] tipo "${type}" não registrado — usando apresentação estruturada. ` +
-        `Registre-o em src/components/artifact-executions/fields/registry.tsx.`,
-    );
-  }
-
-  return STRUCTURED;
+  return registry.resolve(type).renderer;
 }
 
 /** Tipos com renderizador dedicado — usado na documentação da tela. */
-export const REGISTERED_FIELD_TYPES: readonly string[] = [...BY_TYPE.keys()];
+export const REGISTERED_FIELD_TYPES: readonly string[] = registry.ids();

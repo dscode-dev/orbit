@@ -7,14 +7,12 @@
  */
 export {
   allEntities,
-  entityAction,
   entityBadgeClass,
   entityBadgeLabel,
   entityHref,
   getEntity,
   resolveEntity,
   ENTITY_IDS,
-  type EntityAction,
   type EntityBadgeSet,
   type EntityDefinition,
   type EntityIcon,

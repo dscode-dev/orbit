@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Frontend-14 (Document Center).
+Última revisão: PR Frontend-14.5 (Registry Kernel & Frontend Core Refinement).
 
 ---
 
@@ -406,6 +406,8 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Artifact Manifest (backend)                     | `backend/docs/artifact-manifest.md`             |
 | Storage Provider e URLs assinadas (backend)     | `backend/docs/artifact-storage.md`              |
 | Artifact Rendering Engine (backend)             | `backend/docs/artifact-rendering.md`            |
+| Registry Kernel (web)                           | `frontend/docs/registry-kernel.md`              |
+| Workspace Core e Navigation Core (web)          | `frontend/docs/workspace-core.md`               |
 | Document Registry (web)                         | `frontend/docs/document-registry.md`            |
 | Document Center (web)                           | `frontend/docs/document-center.md`              |
 | Arquitetura, fila de uploads e offline (mobile) | `mobile/README.md`                              |

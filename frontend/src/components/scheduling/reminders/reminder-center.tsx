@@ -51,7 +51,7 @@ import {
   useUpdateSchedulingEvent,
 } from "@/hooks/scheduling/use-scheduling";
 import { addZonedMonths, formatZonedDateTime } from "@/lib/scheduling";
-import { useSession } from "@/providers/session-provider";
+import { useAction } from "@/actions";
 import { useActiveScope } from "@/providers/use-active-scope";
 import type {
   SchedulingCalendar,
@@ -76,7 +76,6 @@ export const REMINDERS_CALENDAR_KEY = "LEMBRETES";
 const HORIZON_MONTHS = 11;
 
 export function ReminderCenter() {
-  const session = useSession();
   const { businessUnitId } = useActiveScope();
   const { timeZone } = useSchedulingTimeZone();
 
@@ -103,9 +102,8 @@ export function ReminderCenter() {
 
   const occurrences = useSchedulingOccurrences(query);
 
-  const canManage =
-    session.hasPermission("scheduling.events.create") &&
-    session.hasCapability("scheduling.manage");
+  /** Exigências declaradas no Action Registry, não repetidas aqui. */
+  const canManage = useAction("scheduling-event.create").allowed;
 
   /**
    * Uma linha por regra, não por ocorrência.

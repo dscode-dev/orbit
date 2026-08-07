@@ -47,6 +47,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery } from "@/hooks/api/use-api-query";
+import { CACHE } from "@/hooks/api/cache-policy";
 import { notificationsService } from "@/services/notifications.service";
 import type {
   NotificationListResult,
@@ -74,7 +75,7 @@ function readPollInterval(): number {
 
 export const NOTIFICATIONS_REFRESH = {
   list: {
-    staleTime: 15_000,
+    staleTime: CACHE.live.staleTime,
     refetchInterval: NOTIFICATIONS_POLL_MS,
     /** O contador precisa continuar andando com a aba em segundo plano. */
     refetchIntervalInBackground: false,

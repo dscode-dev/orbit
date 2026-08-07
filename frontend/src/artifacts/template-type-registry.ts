@@ -5,8 +5,7 @@
  * sem `@IsIn`): qualquer organização pode inventar um tipo. O que ele não
  * publica é o que a interface precisa para tratar um tipo como algo conhecido —
  * rótulo legível, descrição, categoria, ícone, cor, a entidade que o tipo
- * descreve, qual template oficial serve de ponto de partida e quais ações fazem
- * sentido.
+ * descreve e qual template oficial serve de ponto de partida.
  *
  * Sem um lugar para isso, essa decisão vira `template.artifactType === "PMOC"`
  * espalhado por componentes. É exatamente o que este registry existe para
@@ -44,6 +43,7 @@ import {
   type LucideProps,
 } from "lucide-react";
 
+import { createRegistry, humanizeId } from "@/registry";
 import type { EntityId } from "@/entities/entity-registry";
 
 export type TemplateTypeIcon = ComponentType<LucideProps>;
@@ -66,40 +66,6 @@ export const TEMPLATE_TYPE_CATEGORY_LABELS: Readonly<
   DOCUMENTO: "Documento",
 };
 
-/**
- * Ação que a interface pode oferecer sobre um artefato deste tipo.
- *
- * `permission` e `capability` são as **exigidas pelo backend** — a interface as
- * usa para não oferecer o que resultaria em 403. Quem autoriza continua sendo o
- * servidor.
- *
- * `available: false` significa "o contrato ainda não existe": a ação aparece
- * declarada como indisponível, em vez de sumir sem explicação.
- */
-export interface TemplateTypeAction {
-  readonly id: string;
-  readonly label: string;
-  readonly permission?: string;
-  readonly capability?: string;
-  readonly available: boolean;
-  /** Por que está indisponível, quando `available` é falso. */
-  readonly unavailableReason?: string;
-}
-
-/**
- * Renderer do artefato — **referência apenas**.
- *
- * O backend publica `renderStatus` em toda execução e responde sempre
- * `NOT_RENDERED`: não existe motor de renderização. O registry nomeia o
- * renderer que cada tipo usará para que a ligação já esteja declarada quando
- * ele existir, sem prometer nada agora.
- */
-export interface TemplateTypeRenderer {
-  readonly id: string;
-  readonly available: false;
-  readonly note: string;
-}
-
 export interface TemplateTypeDefinition {
   /** Igual ao `artifactType` publicado pelo backend. */
   readonly id: string;
@@ -113,76 +79,15 @@ export interface TemplateTypeDefinition {
   readonly primaryEntity: EntityId;
   /** `key` do template oficial global que serve de ponto de partida. */
   readonly officialKey?: string;
-  readonly actions: readonly TemplateTypeAction[];
-  readonly renderer: TemplateTypeRenderer;
   /** Menor aparece primeiro. */
   readonly priority: number;
 }
 
 /* ------------------------------------------------------------------ */
-/* Ações                                                               */
-/* ------------------------------------------------------------------ */
-
-/**
- * Ações comuns a todo tipo de artefato.
- *
- * Cada uma corresponde a um endpoint real; a exceção declarada é a
- * renderização, que não tem contrato.
- */
-const COMMON_ACTIONS: readonly TemplateTypeAction[] = [
-  {
-    id: "duplicate",
-    label: "Duplicar",
-    permission: "artifact_templates.create",
-    capability: "artifact_templates.manage",
-    available: true,
-  },
-  {
-    id: "publish-version",
-    label: "Publicar versão",
-    permission: "artifact_templates.update",
-    capability: "artifact_templates.manage",
-    available: true,
-  },
-  {
-    id: "execute",
-    label: "Executar em campo",
-    permission: "artifact_executions.create",
-    capability: "artifact_executions.execute",
-    available: true,
-  },
-  {
-    id: "sign",
-    label: "Assinar",
-    permission: "artifact_executions.update",
-    capability: "artifact_executions.manage",
-    available: true,
-  },
-  {
-    id: "render",
-    label: "Gerar documento",
-    available: false,
-    unavailableReason:
-      "Não há motor de renderização: `renderStatus` é sempre `NOT_RENDERED` e não existe endpoint de geração.",
-  },
-];
-
-const renderer = (id: string): TemplateTypeRenderer => ({
-  id,
-  available: false,
-  note: "Referência para quando o motor de renderização existir.",
-});
-
-/* ------------------------------------------------------------------ */
 /* Definições                                                          */
 /* ------------------------------------------------------------------ */
 
-interface TemplateTypeInput extends Omit<
-  TemplateTypeDefinition,
-  "actions" | "renderer" | "color"
-> {
-  actions?: readonly TemplateTypeAction[];
-  renderer?: TemplateTypeRenderer;
+interface TemplateTypeInput extends Omit<TemplateTypeDefinition, "color"> {
   color?: string;
 }
 
@@ -197,8 +102,6 @@ function define(input: TemplateTypeInput): TemplateTypeDefinition {
   return {
     ...input,
     color: input.color ?? CATEGORY_COLORS[input.category],
-    actions: input.actions ?? COMMON_ACTIONS,
-    renderer: input.renderer ?? renderer(`${input.id.toLowerCase()}.default`),
   };
 }
 
@@ -285,25 +188,44 @@ const DEFINITIONS: readonly TemplateTypeDefinition[] = [
   }),
 ];
 
-const BY_ID = new Map(DEFINITIONS.map((type) => [type.id, type]));
-const BY_OFFICIAL_KEY = new Map(
-  DEFINITIONS.flatMap((type) =>
-    type.officialKey ? [[type.officialKey, type] as const] : [],
-  ),
-);
+/**
+ * Índice, aviso e fallback ficam com o Registry Kernel.
+ *
+ * O índice por `officialKey` é o segundo eixo de busca do catálogo — "esta
+ * chave é de um template oficial?" — e o Kernel o constrói a partir da mesma
+ * lista, sem uma segunda declaração para desincronizar.
+ */
+const registry = createRegistry<TemplateTypeDefinition>({
+  name: "artifacts",
+  source: "src/artifacts/template-type-registry.ts",
+  entries: DEFINITIONS,
+  normalizeId: (id) => id.trim().toUpperCase(),
+  derive: (id) =>
+    define({
+      id,
+      name: humanizeId(id),
+      description: "Tipo criado pela organização, ainda não registrado.",
+      category: "DOCUMENTO",
+      icon: FileText,
+      primaryEntity: "artifact-template",
+      priority: 1000,
+    }),
+});
+
+const BY_OFFICIAL_KEY = registry.index((type) => type.officialKey);
 
 /* ------------------------------------------------------------------ */
 /* API                                                                 */
 /* ------------------------------------------------------------------ */
 
 export function allTemplateTypes(): readonly TemplateTypeDefinition[] {
-  return DEFINITIONS;
+  return registry.all();
 }
 
 export function getTemplateType(
   id: string,
 ): TemplateTypeDefinition | undefined {
-  return BY_ID.get(id.trim().toUpperCase());
+  return registry.get(id);
 }
 
 /** `true` quando a chave é a de um template oficial do catálogo. */
@@ -317,8 +239,6 @@ export function templateTypeByOfficialKey(
   return BY_OFFICIAL_KEY.get(key.trim().toUpperCase());
 }
 
-const reportedUnknown = new Set<string>();
-
 /**
  * Resolve a definição de um tipo.
  *
@@ -328,38 +248,7 @@ const reportedUnknown = new Set<string>();
  * aparecer, não virar "Outro".
  */
 export function resolveTemplateType(id: string): TemplateTypeDefinition {
-  const normalized = id.trim().toUpperCase();
-  const known = BY_ID.get(normalized);
-  if (known) return known;
-
-  if (
-    process.env.NODE_ENV !== "production" &&
-    !reportedUnknown.has(normalized)
-  ) {
-    reportedUnknown.add(normalized);
-    console.warn(
-      `[artifacts] tipo "${normalized}" não registrado — usando apresentação derivada. ` +
-        `Registre-o em src/artifacts/template-type-registry.ts.`,
-    );
-  }
-
-  return define({
-    id: normalized,
-    name: humanize(normalized),
-    description: "Tipo criado pela organização, ainda não registrado.",
-    category: "DOCUMENTO",
-    icon: FileText,
-    primaryEntity: "artifact-template",
-    priority: 1000,
-  });
-}
-
-function humanize(id: string): string {
-  return id
-    .split(/[_.-]/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-    .join(" ");
+  return registry.resolve(id);
 }
 
 /** Rótulo curto do tipo, para tabelas e crachás. */
@@ -367,31 +256,17 @@ export function templateTypeLabel(id: string): string {
   return resolveTemplateType(id).name;
 }
 
-/** Ação do tipo, quando ela existe no catálogo. */
-export function templateTypeAction(
-  id: string,
-  actionId: string,
-): TemplateTypeAction | undefined {
-  return resolveTemplateType(id).actions.find(
-    (action) => action.id === actionId,
-  );
-}
-
-/** `true` quando o plano e o papel liberam a ação — e ela existe. */
-export function isTemplateActionEnabled(
-  action: TemplateTypeAction,
-  access: {
-    hasPermission: (permission: string) => boolean;
-    hasCapability: (capability: string) => boolean;
-  },
-): boolean {
-  if (!action.available) return false;
-  if (action.permission && !access.hasPermission(action.permission))
-    return false;
-  if (action.capability && !access.hasCapability(action.capability))
-    return false;
-  return true;
-}
+/**
+ * Ações de artefato vivem no **Action Registry**.
+ *
+ * `import { useAction, actionsFor } from "@/actions";`
+ *
+ * Elas moravam aqui como `COMMON_ACTIONS`, com uma declaração que envelheceu:
+ * "gerar documento" seguia marcada como indisponível por "não há motor de
+ * renderização" — verdade quando foi escrita, falsa desde a PR-20. Nenhuma
+ * tela consumia a lista, então o erro passou despercebido. Um catálogo só, e
+ * consumido, não envelhece em silêncio.
+ */
 
 /** Ordena qualquer coisa que carregue `artifactType` pela ordem do registry. */
 export function sortByTemplateType<T extends { artifactType: string }>(

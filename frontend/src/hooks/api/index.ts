@@ -9,6 +9,15 @@ export {
 } from "./use-api-query";
 export { useApiMutation, type ApiMutationOptions } from "./use-api-mutation";
 export {
+  CACHE,
+  MINUTE,
+  SECOND,
+  every,
+  pollWhile,
+  type CachePolicy,
+  type CachePolicyName,
+} from "./cache-policy";
+export {
   useAcceptInvitation,
   useForgotPassword,
   useLogin,

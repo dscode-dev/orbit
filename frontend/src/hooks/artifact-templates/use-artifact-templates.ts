@@ -10,6 +10,7 @@
  */
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery, type ApiQueryOptions } from "@/hooks/api/use-api-query";
+import { CACHE } from "@/hooks/api/cache-policy";
 import { artifactTemplatesService } from "@/services/artifact-templates.service";
 import type {
   ArtifactTemplateListItem,
@@ -22,14 +23,12 @@ import type {
 } from "@/types/artifact-templates";
 import type { PaginatedResult } from "@/types/api";
 
-const MINUTE = 60_000;
-
 export const ARTIFACT_TEMPLATES_REFRESH = {
-  list: { staleTime: MINUTE },
-  detail: { staleTime: 30_000 },
+  list: CACHE.stable,
+  detail: CACHE.fresh,
   /** Versões são imutáveis: uma vez lidas, não mudam. */
-  versions: { staleTime: 5 * MINUTE },
-  version: { staleTime: Infinity },
+  versions: CACHE.catalog,
+  version: CACHE.immutable,
 } as const;
 
 export function useArtifactTemplatesList(

@@ -25,12 +25,10 @@
  * global, então a coluna não é clicável e a ordem do backend é declarada no
  * cabeçalho. Ver `docs/operations-workspace.md`.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ListFilter, Plus } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 
-import { PanelError, PanelLoading } from "@/components/panels";
-import { EmptyState } from "@/components/feedback/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,7 +43,7 @@ import {
 import { EntityLink } from "@/entities/entity-components";
 import { useSchedulingTimeZone } from "@/components/scheduling/use-scheduling-timezone";
 import { useOperationsList } from "@/hooks/operations/use-operations";
-import { useSession } from "@/providers/session-provider";
+import { useAction } from "@/actions";
 import { formatDateTime } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/routes";
@@ -58,39 +56,24 @@ import {
 import { OperationActions } from "./operation-actions";
 import { OperationFormDialog } from "./operation-form.dialog";
 import { OperationsFilters } from "./operations-filters";
-
-const PAGE_SIZE = 20;
-const SEARCH_DEBOUNCE_MS = 400;
+import {
+  ListState,
+  Pagination,
+  ResultSummary,
+  useListController,
+} from "@/workspace";
 
 export function OperationsList() {
-  const session = useSession();
   const { timeZone } = useSchedulingTimeZone();
-  const [filters, setFilters] = useState<OperationQuery>({
-    page: 1,
-    limit: PAGE_SIZE,
-  });
-  const [searchTerm, setSearchTerm] = useState("");
+  const list = useListController<OperationQuery>({ limit: 20 });
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [editing, setEditing] = useState<Operation | null>(null);
   const [formOpen, setFormOpen] = useState(false);
 
-  const canCreate =
-    session.hasPermission("operations.create") &&
-    session.hasCapability("operations.manage");
+  /** Exigências declaradas no Action Registry, não repetidas aqui. */
+  const canCreate = useAction("operation.create").allowed;
 
-  /** Busca só viaja depois que o usuário para de digitar. */
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setFilters((current) =>
-        current.search === (searchTerm || undefined)
-          ? current
-          : { ...current, search: searchTerm || undefined, page: 1 },
-      );
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  const query = useOperationsList(filters);
+  const query = useOperationsList(list.query);
   const operations = query.data?.data ?? [];
   const meta = query.data?.meta;
 
@@ -112,40 +95,36 @@ export function OperationsList() {
     });
   };
 
+  /**
+   * Filtrar limpa a seleção.
+   *
+   * A seleção é por id, e os ids somem quando a lista muda — manter uma
+   * seleção que não está mais na tela levaria a uma ação em lote sobre
+   * registros invisíveis.
+   */
   const applyFilters = (patch: Partial<OperationQuery>) => {
-    setFilters((current) => ({ ...current, ...patch, page: 1 }));
+    list.patch(patch);
     setSelected(new Set());
   };
 
   const resetFilters = () => {
-    setSearchTerm("");
-    setFilters({ page: 1, limit: PAGE_SIZE });
+    list.reset();
     setSelected(new Set());
   };
-
-  const summary = useMemo(() => {
-    if (!meta) return null;
-    const first = (meta.page - 1) * meta.limit + 1;
-    const last = Math.min(meta.page * meta.limit, meta.total);
-    return meta.total === 0
-      ? "Nenhuma operação"
-      : `${first}–${last} de ${meta.total}`;
-  }, [meta]);
 
   return (
     <div className="space-y-6">
       <OperationsFilters
-        value={filters}
+        value={list.query}
         onChange={applyFilters}
         onReset={resetFilters}
-        searchTerm={searchTerm}
-        onSearchTermChange={setSearchTerm}
+        searchTerm={list.searchTerm}
+        onSearchTermChange={list.setSearchTerm}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <ListFilter className="size-4" aria-hidden />
-          <span>{summary ?? "Carregando…"}</span>
+          <ResultSummary meta={meta} noun="operação" />
           {selected.size > 0 ? (
             <Badge variant="secondary">{selected.size} selecionadas</Badge>
           ) : null}
@@ -170,88 +149,64 @@ export function OperationsList() {
         </div>
       </div>
 
-      {query.isPending ? (
-        <PanelLoading rows={6} />
-      ) : query.error ? (
-        <PanelError error={query.error} onRetry={() => void query.refetch()} />
-      ) : operations.length === 0 ? (
-        <EmptyState
-          title="Nenhuma operação encontrada"
-          description="Ajuste os filtros ou limpe a busca para ver mais resultados."
-        />
-      ) : (
-        <div className="glass-panel overflow-x-auto rounded-xl">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={toggleAll}
-                    aria-label="Selecionar todas as operações da página"
+      <ListState
+        isPending={query.isPending}
+        error={query.error}
+        onRetry={() => void query.refetch()}
+        items={operations}
+        empty={{
+          title: "Nenhuma operação encontrada",
+          description:
+            "Ajuste os filtros ou limpe a busca para ver mais resultados.",
+        }}
+      >
+        {(rows) => (
+          <div className="glass-panel overflow-x-auto rounded-xl">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleAll}
+                      aria-label="Selecionar todas as operações da página"
+                    />
+                  </TableHead>
+                  <TableHead>Operação</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Agendamento</TableHead>
+                  <TableHead>Equipe</TableHead>
+                  <TableHead>Acesso rápido</TableHead>
+                  <TableHead className="w-20" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((operation) => (
+                  <OperationRow
+                    key={operation.id}
+                    operation={operation}
+                    selected={selected.has(operation.id)}
+                    timeZone={timeZone}
+                    onToggle={() => toggleOne(operation.id)}
+                    onEdit={() => {
+                      setEditing(operation);
+                      setFormOpen(true);
+                    }}
                   />
-                </TableHead>
-                <TableHead>Operação</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Agendamento</TableHead>
-                <TableHead>Equipe</TableHead>
-                <TableHead>Acesso rápido</TableHead>
-                <TableHead className="w-20" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {operations.map((operation) => (
-                <OperationRow
-                  key={operation.id}
-                  operation={operation}
-                  selected={selected.has(operation.id)}
-                  timeZone={timeZone}
-                  onToggle={() => toggleOne(operation.id)}
-                  onEdit={() => {
-                    setEditing(operation);
-                    setFormOpen(true);
-                  }}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </ListState>
 
-      {meta && meta.totalPages > 1 ? (
-        <div className="flex items-center justify-between gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!meta.hasPreviousPage || query.isFetching}
-            onClick={() =>
-              setFilters((current) => ({
-                ...current,
-                page: Math.max(1, (current.page ?? 1) - 1),
-              }))
-            }
-          >
-            Anterior
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Página {meta.page} de {meta.totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!meta.hasNextPage || query.isFetching}
-            onClick={() =>
-              setFilters((current) => ({
-                ...current,
-                page: (current.page ?? 1) + 1,
-              }))
-            }
-          >
-            Próxima
-          </Button>
-        </div>
-      ) : null}
+      <Pagination
+        meta={meta}
+        onPrevious={list.previousPage}
+        onNext={list.nextPage}
+        isFetching={query.isFetching}
+      />
 
       <OperationFormDialog
         open={formOpen}

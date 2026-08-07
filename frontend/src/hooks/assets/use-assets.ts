@@ -25,6 +25,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery } from "@/hooks/api/use-api-query";
+import { CACHE } from "@/hooks/api/cache-policy";
 import { artifactExecutionsService } from "@/services/artifact-executions.service";
 import { assetsService } from "@/services/assets.service";
 import { operationsService } from "@/services/operations.service";
@@ -36,19 +37,17 @@ import type {
   UpdateAssetInput,
 } from "@/types/assets";
 
-const MINUTE = 60_000;
-
 /**
- * Cadência por leitura.
+ * Cadência por leitura, nomeada pelo Query Core.
  *
  * Cadastro de ativo muda por configuração, não por evento operacional — daí
- * não haver recarga automática. As listas cruzadas acompanham a cadência do
- * módulo dono.
+ * `stable` e `fresh`, nenhum deles com recarga automática. As listas cruzadas
+ * acompanham a cadência do módulo dono.
  */
 export const ASSETS_REFRESH = {
-  list: { staleTime: MINUTE },
-  detail: { staleTime: 30_000 },
-  related: { staleTime: 30_000 },
+  list: CACHE.stable,
+  detail: CACHE.fresh,
+  related: CACHE.fresh,
 } as const;
 
 /** Horizonte da agenda futura do ativo, em dias. */

@@ -22,18 +22,13 @@
  * e descobrir que não havia documento nenhum. Aqui os documentos são o assunto:
  * emitidos, em produção, falhos — cada um com sua fila.
  */
-import { useEffect, useMemo, useState } from "react";
-import { FileStack, ListFilter, Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import { FileStack } from "lucide-react";
 
-import { EmptyState } from "@/components/feedback/states";
 import { ContentContainer } from "@/components/layout/page-primitives";
-import { PanelError, PanelLoading } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { allRenderStatuses } from "@/documents";
+import { resolveRenderStatus } from "@/documents";
 import { useArtifactExecutionsList } from "@/hooks/artifact-executions/use-artifact-executions";
 import { useActiveScope } from "@/providers/use-active-scope";
 import type {
@@ -41,11 +36,15 @@ import type {
   ArtifactExecutionQuery,
 } from "@/types/artifact-executions";
 import type { RenderStatus } from "@/types/documents";
+import {
+  ListState,
+  Pagination,
+  ResultSummary,
+  SearchField,
+  useListController,
+} from "@/workspace";
 import { DocumentList } from "./document-list";
 import { DocumentViewer } from "./document-viewer";
-
-const PAGE_SIZE = 20;
-const SEARCH_DEBOUNCE_MS = 400;
 
 /**
  * Filas da central, na ordem em que interessam.
@@ -62,31 +61,18 @@ const QUEUES: readonly RenderStatus[] = [
   "NOT_RENDERED",
 ];
 
+/** As filas na ordem acima, com a apresentação do Document Registry. */
+const QUEUE_TABS = QUEUES.map((id) => resolveRenderStatus(id));
+
 export function DocumentCenter() {
   const { businessUnitId } = useActiveScope();
   const [queue, setQueue] = useState<RenderStatus>("READY");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [search, setSearch] = useState<string | undefined>(undefined);
-  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
-
-  /** A busca só viaja depois que a digitação para. */
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearch(searchTerm || undefined);
-      setPage(1);
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
+  const list = useListController<ArtifactExecutionQuery>({ limit: 20 });
 
   const query = useMemo<ArtifactExecutionQuery>(
-    () => ({
-      page,
-      limit: PAGE_SIZE,
-      search,
-      businessUnitId: businessUnitId ?? undefined,
-    }),
-    [page, search, businessUnitId],
+    () => ({ ...list.query, businessUnitId: businessUnitId ?? undefined }),
+    [list.query, businessUnitId],
   );
 
   const executions = useArtifactExecutionsList(query);
@@ -103,10 +89,8 @@ export function DocumentCenter() {
    * uma contagem da organização: é o que está nesta página. A lacuna está
    * registrada para a próxima evolução do backend.
    */
-  const items = useMemo(
-    () => executions.data?.data ?? [],
-    [executions.data],
-  );
+  const items = useMemo(() => executions.data?.data ?? [], [executions.data]);
+
   const buckets = useMemo(() => {
     const map = new Map<string, ArtifactExecutionListItem[]>();
     for (const status of QUEUES) map.set(status, []);
@@ -121,66 +105,38 @@ export function DocumentCenter() {
   return (
     <ContentContainer size="wide" className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-64 flex-1 space-y-2">
-          <Label htmlFor="documents-search">Buscar</Label>
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              id="documents-search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Código ou título da execução"
-              className="pl-9"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            O backend busca por código e título da execução. Não há busca pelo
-            conteúdo do documento.
-          </p>
-        </div>
+        <SearchField
+          id="documents-search"
+          value={list.searchTerm}
+          onChange={list.setSearchTerm}
+          placeholder="Código ou título da execução"
+          hint="O backend busca por código e título da execução. Não há busca pelo conteúdo do documento."
+          className="min-w-64 flex-1"
+        />
 
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <ListFilter className="size-4" aria-hidden />
-          <span>
-            {meta
-              ? meta.total === 0
-                ? "Nenhuma execução"
-                : `${items.length} de ${meta.total} nesta página`
-              : "Carregando…"}
-          </span>
-        </div>
+        <ResultSummary meta={meta} noun="execução" />
       </div>
 
-      {executions.isPending ? (
-        <PanelLoading rows={6} />
-      ) : executions.error ? (
-        <PanelError
-          error={executions.error}
-          onRetry={() => void executions.refetch()}
-        />
-      ) : items.length === 0 ? (
-        <EmptyState
-          icon={<FileStack className="size-5" />}
-          title="Nenhum documento nesta unidade"
-          description="Os documentos aparecem aqui depois que uma execução é submetida e renderizada."
-        />
-      ) : (
-        <Tabs
-          value={queue}
-          onValueChange={(value) => setQueue(value as RenderStatus)}
-          className="space-y-4"
-        >
-          <TabsList>
-            {allRenderStatuses()
-              .slice()
-              .sort(
-                (left, right) =>
-                  QUEUES.indexOf(left.id) - QUEUES.indexOf(right.id),
-              )
-              .map((status) => (
+      <ListState
+        isPending={executions.isPending}
+        error={executions.error}
+        onRetry={() => void executions.refetch()}
+        items={items}
+        empty={{
+          icon: <FileStack className="size-5" />,
+          title: "Nenhum documento nesta unidade",
+          description:
+            "Os documentos aparecem aqui depois que uma execução é submetida e renderizada.",
+        }}
+      >
+        {() => (
+          <Tabs
+            value={queue}
+            onValueChange={(value) => setQueue(value as RenderStatus)}
+            className="space-y-4"
+          >
+            <TabsList>
+              {QUEUE_TABS.map((status) => (
                 <TabsTrigger key={status.id} value={status.id}>
                   {status.label}
                   <Badge variant="secondary" className="ml-1.5">
@@ -188,47 +144,31 @@ export function DocumentCenter() {
                   </Badge>
                 </TabsTrigger>
               ))}
-          </TabsList>
+            </TabsList>
 
-          <p className="text-xs text-muted-foreground">
-            As contagens são desta página. O backend não filtra execuções por
-            estado de renderização — a limitação está documentada.
-          </p>
+            <p className="text-xs text-muted-foreground">
+              As contagens são desta página. O backend não filtra execuções por
+              estado de renderização — a limitação está documentada.
+            </p>
 
-          {QUEUES.map((status) => (
-            <TabsContent key={status} value={status}>
-              <DocumentList
-                executions={buckets.get(status) ?? []}
-                onOpen={setSelected}
-              />
-            </TabsContent>
-          ))}
-        </Tabs>
-      )}
+            {QUEUES.map((status) => (
+              <TabsContent key={status} value={status}>
+                <DocumentList
+                  executions={buckets.get(status) ?? []}
+                  onOpen={setSelected}
+                />
+              </TabsContent>
+            ))}
+          </Tabs>
+        )}
+      </ListState>
 
-      {meta && meta.totalPages > 1 ? (
-        <div className="flex items-center justify-between gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!meta.hasPreviousPage || executions.isFetching}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-          >
-            Anterior
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Página {meta.page} de {meta.totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!meta.hasNextPage || executions.isFetching}
-            onClick={() => setPage((current) => current + 1)}
-          >
-            Próxima
-          </Button>
-        </div>
-      ) : null}
+      <Pagination
+        meta={meta}
+        onPrevious={list.previousPage}
+        onNext={list.nextPage}
+        isFetching={executions.isFetching}
+      />
 
       <DocumentViewer
         executionId={selected}

@@ -35,6 +35,7 @@ import {
   type LucideProps,
 } from "lucide-react";
 
+import { createRegistry } from "@/registry";
 import { ROUTES } from "@/lib/routes";
 import { OPERATION_STATUS_LABELS } from "@/types/operations";
 import { ARTIFACT_EXECUTION_STATUS_LABELS } from "@/components/artifact-executions/execution-badges";
@@ -58,18 +59,6 @@ export const ENTITY_IDS = [
   "scheduling-event",
 ] as const;
 export type EntityId = (typeof ENTITY_IDS)[number];
-
-/** Ação que a interface pode oferecer sobre a entidade. */
-export interface EntityAction {
-  readonly id: string;
-  readonly label: string;
-  /** Permissão exigida pelo backend (`@Permissions`). */
-  readonly permission?: string;
-  /** Capability exigida pelo plano (`@Capabilities`). */
-  readonly capability?: string;
-  /** Ação destrutiva — a interface pede confirmação. */
-  readonly destructive?: boolean;
-}
 
 /**
  * Conjunto de rótulos de um atributo categórico da entidade (status,
@@ -102,7 +91,6 @@ export interface EntityDefinition {
     readonly delete?: string;
   };
   readonly badges: Readonly<Record<string, EntityBadgeSet>>;
-  readonly actions: readonly EntityAction[];
   /** Caminho do registro. Ausente quando a entidade não tem tela própria. */
   readonly href?: (id: string) => string;
 }
@@ -147,27 +135,6 @@ const DEFINITIONS: readonly EntityDefinition[] = [
       },
       category: { label: "Categoria", labels: ASSET_CATEGORY_LABELS },
     },
-    actions: [
-      {
-        id: "create",
-        label: "Novo ativo",
-        permission: "assets.create",
-        capability: "assets.manage",
-      },
-      {
-        id: "update",
-        label: "Editar",
-        permission: "assets.update",
-        capability: "assets.manage",
-      },
-      {
-        id: "delete",
-        label: "Excluir",
-        permission: "assets.delete",
-        capability: "assets.manage",
-        destructive: true,
-      },
-    ],
     href: (id) => `${ROUTES.assets}/${id}`,
   },
   {
@@ -191,7 +158,6 @@ const DEFINITIONS: readonly EntityDefinition[] = [
         classes: OPERATION_STATUS_CLASSES,
       },
     },
-    actions: [],
     href: (id) => `${ROUTES.operations}/${id}`,
   },
   {
@@ -212,7 +178,6 @@ const DEFINITIONS: readonly EntityDefinition[] = [
     badges: {
       status: { label: "Status", labels: SCHEDULING_STATUS_LABELS },
     },
-    actions: [],
     /**
      * A agenda não tem rota por evento: o detalhe abre em painel lateral
      * dentro do Workspace. `href` leva ao Workspace.
@@ -239,7 +204,6 @@ const DEFINITIONS: readonly EntityDefinition[] = [
     badges: {
       status: { label: "Status", labels: ARTIFACT_EXECUTION_STATUS_LABELS },
     },
-    actions: [],
     href: (id) => `${ROUTES.executions}/${id}`,
   },
   {
@@ -261,7 +225,6 @@ const DEFINITIONS: readonly EntityDefinition[] = [
       delete: "artifact_templates.delete",
     },
     badges: {},
-    actions: [],
     href: (id) => `${ROUTES.artifacts}/${id}`,
   },
   {
@@ -279,34 +242,21 @@ const DEFINITIONS: readonly EntityDefinition[] = [
       update: "customers.update",
     },
     badges: {},
-    actions: [],
     href: (id) => `${ROUTES.customers}/${id}`,
   },
 ];
 
-const BY_ID = new Map(DEFINITIONS.map((entity) => [entity.id, entity]));
-
-const reportedUnknown = new Set<string>();
-
 /**
- * Resolve a definição de uma entidade.
+ * Índice, aviso e fallback ficam com o Registry Kernel.
  *
- * Entidade não registrada não quebra a tela: devolve uma definição derivada do
- * próprio identificador e avisa no console em desenvolvimento, uma vez por id.
+ * O que sobra aqui é o vocabulário de entidade — que é o que este arquivo
+ * deve conter.
  */
-export function resolveEntity(id: string): EntityDefinition {
-  const known = BY_ID.get(id as EntityId);
-  if (known) return known;
-
-  if (process.env.NODE_ENV !== "production" && !reportedUnknown.has(id)) {
-    reportedUnknown.add(id);
-    console.warn(
-      `[entities] entidade "${id}" não registrada — usando apresentação derivada. ` +
-        `Registre-a em src/entities/entity-registry.ts.`,
-    );
-  }
-
-  return {
+const registry = createRegistry<EntityDefinition>({
+  name: "entities",
+  source: "src/entities/entity-registry.ts",
+  entries: DEFINITIONS,
+  derive: (id) => ({
     id: id as EntityId,
     label: id,
     labelPlural: id,
@@ -317,15 +267,25 @@ export function resolveEntity(id: string): EntityDefinition {
     capability: { read: "", manage: "" },
     permissions: { read: "" },
     badges: {},
-    actions: [],
-  };
+  }),
+});
+
+/**
+ * Resolve a definição de uma entidade.
+ *
+ * Entidade não registrada não quebra a tela: devolve uma definição derivada do
+ * próprio identificador — sempre a mesma referência — e avisa no console em
+ * desenvolvimento, uma vez por id.
+ */
+export function resolveEntity(id: string): EntityDefinition {
+  return registry.resolve(id);
 }
 
 export function getEntity(id: EntityId): EntityDefinition {
-  return resolveEntity(id);
+  return registry.resolve(id);
 }
 
-export const allEntities = (): readonly EntityDefinition[] => DEFINITIONS;
+export const allEntities = (): readonly EntityDefinition[] => registry.all();
 
 /**
  * Rótulo de um valor categórico da entidade.
@@ -357,9 +317,12 @@ export function entityHref(entity: EntityId, id: string): string | null {
   return resolveEntity(entity).href?.(id) ?? null;
 }
 
-export function entityAction(
-  entity: EntityId,
-  actionId: string,
-): EntityAction | undefined {
-  return resolveEntity(entity).actions.find((action) => action.id === actionId);
-}
+/**
+ * Ações de entidade vivem no **Action Registry**.
+ *
+ * `import { getAction, actionsFor } from "@/actions";`
+ *
+ * Elas moravam aqui como lista inline, e a lista divergiu da realidade: uma
+ * entidade ficou com `actions: []` e passou a esconder um botão que o backend
+ * liberava. Um catálogo só, com um dono só.
+ */

@@ -27,8 +27,7 @@ import type {
 } from "@/types/dashboard";
 import { DASHBOARD_RANGE_DAYS } from "@/types/dashboard";
 import { useApiQuery, type ApiQueryOptions } from "@/hooks/api/use-api-query";
-
-const MINUTE = 60_000;
+import { CACHE, MINUTE, every } from "@/hooks/api/cache-policy";
 
 /**
  * Cadência de atualização por Read Model.
@@ -38,17 +37,17 @@ const MINUTE = 60_000;
  */
 export const REFRESH_POLICY = {
   /** Resolução de widgets: muda quando o plano ou os módulos mudam. */
-  layout: { staleTime: 10 * MINUTE, refetchInterval: false as const },
+  layout: CACHE.catalog,
   /** KPIs e séries operacionais. */
-  analytics: { staleTime: MINUTE, refetchInterval: 2 * MINUTE },
+  analytics: every(CACHE.stable, 2 * MINUTE),
   /** Health Score deriva dos KPIs; acompanha um pouco mais devagar. */
-  health: { staleTime: 2 * MINUTE, refetchInterval: 5 * MINUTE },
+  health: every(CACHE.stable, 5 * MINUTE),
   /** Projeções e leitura de IA: caras e pouco voláteis. */
-  intelligence: { staleTime: 5 * MINUTE, refetchInterval: false as const },
+  intelligence: CACHE.catalog,
   /** Clima e impacto ambiental. */
-  environment: { staleTime: 10 * MINUTE, refetchInterval: 15 * MINUTE },
+  environment: every(CACHE.catalog, 15 * MINUTE),
   /** Agenda: o dado mais volátil do painel. */
-  agenda: { staleTime: MINUTE, refetchInterval: 2 * MINUTE },
+  agenda: every(CACHE.stable, 2 * MINUTE),
 } as const;
 
 /**
