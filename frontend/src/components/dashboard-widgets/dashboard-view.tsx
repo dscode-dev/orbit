@@ -72,6 +72,7 @@ export function DashboardView() {
    */
   const sources: WidgetDataSources = {
     analytics: {
+      query: analyticsQuery,
       dashboard: toPanelQuery(useAnalyticsDashboard(analyticsQuery)),
       health: toPanelQuery(useAnalyticsHealth(analyticsQuery)),
       intelligence: toPanelQuery(useOrbitIntelligence(analyticsQuery)),

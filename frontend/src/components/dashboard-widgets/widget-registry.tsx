@@ -25,6 +25,7 @@ import type {
   AgendaReadModel,
   AnalyticsDashboardReadModel,
   AnalyticsHealthReadModel,
+  AnalyticsQuery,
   EnvironmentalImpactReadModel,
   KpiReadModel,
   OrbitIntelligenceAnalyticsContext,
@@ -33,6 +34,7 @@ import type {
 import { AttentionCenterWidget } from "./attention-center.widget";
 import { ComparativeRadarWidget } from "./comparative-radar.widget";
 import { EnvironmentalWidget } from "./environmental.widget";
+import { FinancialHealthWidget } from "./financial-health.widget";
 import { ExecutiveKpisWidget } from "./executive-kpis.widget";
 import { HealthScoreWidget } from "./health-score.widget";
 import { createKpiDomainWidget } from "./kpi-domain.widget";
@@ -45,6 +47,14 @@ import { warnUnknown } from "@/registry";
 /** Leituras compartilhadas por todos os widgets do painel. */
 export interface WidgetDataSources {
   analytics: {
+    /**
+     * O recorte que está valendo — período e unidade.
+     *
+     * Não é uma leitura; é o parâmetro que gerou as demais. Existe porque um
+     * widget pode consultar uma fonte própria e precisa fazê-lo **no mesmo
+     * recorte** do painel, em vez de escolher um período por conta.
+     */
+    query: AnalyticsQuery;
     dashboard: PanelQuery<AnalyticsDashboardReadModel>;
     health: PanelQuery<AnalyticsHealthReadModel>;
     intelligence: PanelQuery<OrbitIntelligenceAnalyticsContext>;
@@ -90,16 +100,6 @@ export const WIDGET_SPAN: Readonly<
  * plataforma, não um erro.
  */
 const WITHOUT_SOURCE: Readonly<Record<string, string>> = {
-  /**
-   * Saúde Financeira.
-   *
-   * A plataforma não tem domínio financeiro: não existe modelo de lançamento,
-   * receita, despesa ou previsão no Prisma, nem endpoint que os publique. Não
-   * há contrato disponível para consumir parcialmente — nem saldo, nem
-   * evolução mensal. Ver `docs/ux-improvements.md`.
-   */
-  "financial-health":
-    "Saldo, receitas, despesas e previsto dependem de um módulo financeiro que ainda não existe no backend — não há modelo nem endpoint. Nenhum número é estimado aqui.",
   "team-performance":
     "Produtividade por técnico ainda não é publicada pelo Analytics — apenas a contagem de técnicos alocados, no widget de técnicos.",
   "recent-activity":
@@ -170,6 +170,14 @@ function createWithoutSourceWidget(reason: string): WidgetComponent {
  */
 const REGISTRY: Readonly<Record<string, WidgetComponent>> = {
   "attention-center": AttentionCenterWidget,
+  /**
+   * Saúde Financeira.
+   *
+   * Estava em `WITHOUT_SOURCE` até a PR-21 do backend, que criou o domínio.
+   * Agora consome `/financial/analytics/*` — e guarda a leitura atrás da
+   * capability financeira, que é independente das operacionais.
+   */
+  "financial-health": FinancialHealthWidget,
   "operations-comparative-radar": ComparativeRadarWidget,
   "executive-kpis": ExecutiveKpisWidget,
   "health-score": HealthScoreWidget,

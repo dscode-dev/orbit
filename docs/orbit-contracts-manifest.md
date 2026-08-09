@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Backend-21 (Financial Core).
+Última revisão: PR Frontend-19 (Financial Workspace).
 
 ---
 
@@ -385,6 +385,8 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Sem parcelamento, recorrência ou centro de custo                                                                                     | não há modelo nem rota; um lançamento pertence a uma unidade e a uma competência                                                                                                                                                                      |
 | Sem conversão entre moedas                                                                                                           | `currency` é gravada por lançamento, mas não existe taxa de câmbio — o resumo publica a moeda padrão da organização e não soma moedas diferentes                                                                                                      |
 | Orçamento ainda não gera receita prevista                                                                                            | `source = 'QUOTE'` existe no contrato e no banco, com a mesma trava de origem; falta o módulo de orçamentos publicar o evento de aprovação                                                                                                            |
+| Sem exportação financeira                                                                                                            | nenhum endpoint produz CSV, XLSX ou PDF de lançamentos; o Document Center emite documentos de execução, não relatórios — declarado como ação indisponível no Action Registry                                                                          |
+| Sem rota por documento emitido                                                                                                       | `origin.entityId` do lançamento é o id do `ArtifactManifest`, e o Document Center navega por execução; o painel mostra a referência e declara que não há destino                                                                                      |
 | ~~Convites só podiam ser criados~~                                                                                                   | **corrigido na PR-17**: `GET /identity/invitations`, `POST :id/resend` e `DELETE :id`; o token nunca é publicado                                                                                                                                      |
 | ~~Nenhum endpoint publicava papéis~~                                                                                                 | **corrigido na PR-17**: `GET /organizations/current/roles`, com `permissions`, `isSystem` e `memberCount`; só os papéis da organização                                                                                                                |
 | ~~Membro não publicava unidade~~                                                                                                     | **corrigido na PR-17**: `businessUnits` no `OrganizationMemberReadModel`, de `BusinessUnitMembership`                                                                                                                                                 |
@@ -425,6 +427,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Assunto                                         | Documento                                       |
 | ----------------------------------------------- | ----------------------------------------------- |
 | Financial Core (backend)                        | `backend/docs/financial-core.md`                |
+| Financial Workspace (web)                       | `frontend/docs/financial-workspace.md`          |
 | BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`                |
 | Autenticação e sessão (web)                     | `frontend/docs/authentication.md`               |
 | Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`                    |
