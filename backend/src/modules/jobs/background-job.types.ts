@@ -41,6 +41,14 @@ export const JOB_QUEUES = {
    * renomear a fila.
    */
   artifactManifestIssued: 'artifact.manifest.issued',
+  /**
+   * Orçamento mudou de situação.
+   *
+   * Nomeada pelo evento comercial, não pelo efeito financeiro: aprovar cria
+   * receita prevista hoje, e amanhã pode disparar notificação ao vendedor sem
+   * que ninguém volte aqui para renomear a fila.
+   */
+  quoteStatusChanged: 'quote.status.changed',
 } as const;
 export type JobQueue = (typeof JOB_QUEUES)[keyof typeof JOB_QUEUES];
 

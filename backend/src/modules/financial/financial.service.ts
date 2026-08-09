@@ -53,7 +53,7 @@ import {
   type FinancialEntryRecord,
 } from './financial.repository';
 
-/** Lançamento derivado de um documento emitido. */
+/** Lançamento derivado de outro registro do sistema. */
 export interface RecordFromSourceInput {
   organizationId: string;
   businessUnitId: string;
@@ -67,6 +67,22 @@ export interface RecordFromSourceInput {
   operationId?: string | null;
   metadata?: Record<string, unknown>;
   actorId: string;
+  /**
+   * Sentido. `INCOME` por padrão — as duas origens automáticas de hoje,
+   * recibo e orçamento, são dinheiro entrando.
+   */
+  type?: string;
+  /**
+   * Situação inicial.
+   *
+   * `CONFIRMED` por padrão, que é o caso do **recibo**: o documento comprova
+   * dinheiro que já entrou. Um **orçamento aprovado** passa `PENDING` — é
+   * expectativa, e tratá-la como caixa inflaria o realizado com trabalho que
+   * ainda nem começou.
+   */
+  status?: string;
+  /** Vencimento previsto, quando a origem o conhece. */
+  dueDate?: Date | null;
 }
 
 @Injectable()
@@ -405,38 +421,81 @@ export class FinancialService {
    */
   async recordFromSource(input: RecordFromSourceInput) {
     const settings = await this.repository.ensureSettings(input.organizationId);
+    const type = input.type ?? FinancialEntryType.INCOME;
+    const status = input.status ?? FinancialEntryStatus.CONFIRMED;
     const categories = await this.repository.listCategories(
       input.organizationId,
-      FinancialEntryType.INCOME,
+      type,
     );
-    /** Primeira categoria de receita da organização — sugestão, não regra. */
+    /** Primeira categoria do lado correspondente — sugestão, não regra. */
     const category = categories[0]?.id ?? null;
+    const confirmed = status === FinancialEntryStatus.CONFIRMED;
 
     const created = await this.repository.createFromSource(
       {
         organizationId: input.organizationId,
         businessUnitId: input.businessUnitId,
         categoryId: category,
-        type: FinancialEntryType.INCOME,
-        /** Recibo é dinheiro que já entrou; nasce confirmado. */
-        status: FinancialEntryStatus.CONFIRMED,
+        type,
+        status,
         source: input.source,
         sourceEntityId: input.sourceEntityId,
         amount: input.amount,
         currency: input.currency || settings.defaultCurrency,
         description: input.description,
         competenceDate: this.dateOnly(input.competenceDate),
+        dueDate: input.dueDate ? this.dateOnly(input.dueDate) : null,
         customerId: input.customerId ?? null,
         operationId: input.operationId ?? null,
         metadata: input.metadata,
         createdById: input.actorId,
-        confirmedAt: new Date(),
-        confirmedById: input.actorId,
+        /** Carimbo só existe quando de fato houve confirmação. */
+        confirmedAt: confirmed ? new Date() : null,
+        confirmedById: confirmed ? input.actorId : null,
       },
       input.actorId,
     );
 
     return created;
+  }
+
+  /**
+   * Cancela o lançamento derivado de um registro, se existir e ainda valer.
+   *
+   * É a compensação de uma origem que deixou de valer — um orçamento aprovado
+   * e depois cancelado. **Não apaga**: o lançamento permanece com motivo,
+   * autor e data, porque a previsão existiu e alguém a viu. Devolve `null`
+   * quando não há nada a cancelar, e isso é sucesso: repetir o evento não pode
+   * falhar.
+   */
+  async cancelFromSource(input: {
+    organizationId: string;
+    source: string;
+    sourceEntityId: string;
+    reason: string;
+    actorId: string;
+  }) {
+    const entry = await this.repository.findBySource(
+      input.organizationId,
+      input.source,
+      input.sourceEntityId,
+    );
+    if (!entry || entry.status === FinancialEntryStatus.CANCELLED) return null;
+
+    return this.repository.update(
+      entry.id,
+      input.organizationId,
+      entry.businessUnit.id,
+      {
+        status: FinancialEntryStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancelledBy: { connect: { id: input.actorId } },
+        cancelReason: input.reason,
+      },
+      input.actorId,
+      { status: entry.status, amount: entry.amount.toString() },
+      'FINANCIAL_ENTRY_CANCELLED',
+    );
   }
 
   /* ---------------------------------------------------------------- */

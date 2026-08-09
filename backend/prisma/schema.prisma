@@ -55,6 +55,9 @@ model User {
   financialEntriesCreated       FinancialEntry[]               @relation("FinancialEntryCreatedBy")
   financialEntriesConfirmed     FinancialEntry[]               @relation("FinancialEntryConfirmedBy")
   financialEntriesCancelled     FinancialEntry[]               @relation("FinancialEntryCancelledBy")
+  quotesCreated                 Quote[]                        @relation("QuoteCreatedBy")
+  quotesSent                    Quote[]                        @relation("QuoteSentBy")
+  quotesDecided                 Quote[]                        @relation("QuoteDecidedBy")
   schedulingHistory             SchedulingEventHistory[]
   notificationPreferences       NotificationPreference[]
   notificationDeliveries        NotificationDelivery[]
@@ -245,6 +248,8 @@ model Organization {
   financialCategories      FinancialCategory[]
   financialEntries         FinancialEntry[]
   financialSettings        FinancialSettings?
+  quotes                   Quote[]
+  quoteItems               QuoteItem[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -312,6 +317,8 @@ model BusinessUnit {
   teams Team[]
 
   financialEntries FinancialEntry[]
+
+  quotes Quote[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -514,6 +521,8 @@ model Customer {
 
   financialEntries FinancialEntry[]
 
+  quotes Quote[]
+
   @@index([organizationId, status, deletedAt])
   @@index([organizationId, documentNumber])
   @@map("customers")
@@ -588,6 +597,8 @@ model Product {
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   businessUnit BusinessUnit?    @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
   category     ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  quoteItems QuoteItem[]
 
   @@unique([organizationId, sku])
   @@index([organizationId, kind, status, deletedAt])
@@ -675,6 +686,8 @@ model Operation {
   artifactExecutions  ArtifactExecution[]
 
   financialEntries FinancialEntry[]
+
+  quote Quote?
 
   @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, scheduledStart])
@@ -1960,4 +1973,121 @@ model FinancialSettings {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("financial_settings")
+}
+
+// -----------------------------------------------------------------------------
+// COMMERCIAL ENGINE — QUOTES
+//
+// Proposta comercial: o que se ofereceu, por quanto, até quando. **Não é
+// pedido, nem contrato, nem nota fiscal** — é o documento que antecede a
+// decisão do cliente, e cuja aprovação passa a valer como receita prevista.
+// -----------------------------------------------------------------------------
+
+/// Orçamento.
+///
+/// ## Dinheiro é do servidor
+///
+/// `subtotal`, `discount` e `total` são recalculados a cada mudança de item.
+/// Nenhum deles é aceito do cliente: um total enviado pela rede é um total que
+/// alguém pode escolher.
+///
+/// ## Conversão é fato, não estado
+///
+/// Ter virado operação não é um status — é `operationId` preenchido. Um
+/// orçamento aprovado e convertido continua aprovado; o que mudou é que existe
+/// trabalho a fazer por causa dele.
+model Quote {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  businessUnitId String    @map("business_unit_id") @db.Uuid
+  customerId     String    @map("customer_id") @db.Uuid
+  /// Sequencial por organização, atribuído sob trava — nunca se repete.
+  number         Int
+  /// Identificador legível derivado do número (`ORC-000042`).
+  code           String    @db.VarChar(40)
+  /// `DRAFT` · `SENT` · `APPROVED` · `REJECTED` · `EXPIRED` · `CANCELLED`.
+  status         String    @default("DRAFT") @db.VarChar(20)
+  title          String    @db.VarChar(220)
+  notes          String?   @db.Text
+  /// Última data em que a proposta vale. Sem hora: validade é dia.
+  validUntil     DateTime? @map("valid_until") @db.Date
+  currency       String    @default("BRL") @db.VarChar(3)
+  /// Soma dos itens. Recalculado pelo servidor.
+  subtotal       Decimal   @default(0) @db.Decimal(14, 2)
+  /// Desconto sobre o total do orçamento, além dos descontos por item.
+  discount       Decimal   @default(0) @db.Decimal(14, 2)
+  total          Decimal   @default(0) @db.Decimal(14, 2)
+
+  sentAt        DateTime? @map("sent_at") @db.Timestamptz(3)
+  sentById      String?   @map("sent_by_id") @db.Uuid
+  /// Momento da decisão do cliente — aprovação ou recusa.
+  decidedAt     DateTime? @map("decided_at") @db.Timestamptz(3)
+  decidedById   String?   @map("decided_by_id") @db.Uuid
+  /// Motivo da recusa ou do cancelamento. Preservado; nunca sobrescrito por edição.
+  closingReason String?   @map("closing_reason") @db.VarChar(500)
+  expiredAt     DateTime? @map("expired_at") @db.Timestamptz(3)
+  cancelledAt   DateTime? @map("cancelled_at") @db.Timestamptz(3)
+
+  /// Operação gerada pela conversão. Nulo enquanto não converteu.
+  operationId String?   @unique @map("operation_id") @db.Uuid
+  convertedAt DateTime? @map("converted_at") @db.Timestamptz(3)
+
+  metadata    Json      @default("{}") @db.JsonB
+  createdById String    @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  operation    Operation?   @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  createdBy    User         @relation("QuoteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  sentBy       User?        @relation("QuoteSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  decidedBy    User?        @relation("QuoteDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  items        QuoteItem[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, businessUnitId, status, createdAt])
+  @@index([organizationId, customerId, createdAt])
+  @@index([organizationId, status, validUntil])
+  @@map("quotes")
+}
+
+/// Item de um orçamento — **cópia comercial**, não referência viva.
+///
+/// Descrição, SKU, unidade e preço são gravados no momento em que o item entra.
+/// `catalogItemId` guarda de onde veio, para rastreabilidade, mas o orçamento
+/// não o lê para exibir nada: mudar o preço no Catálogo amanhã não pode mudar
+/// o que já foi proposto a um cliente — e um preço que muda depois de enviado
+/// é uma proposta que ninguém pode honrar.
+model QuoteItem {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  quoteId        String   @map("quote_id") @db.Uuid
+  /// Origem no Catálogo. `SetNull` para que apagar o produto não apague o item.
+  catalogItemId  String?  @map("catalog_item_id") @db.Uuid
+  /// `PRODUCT` · `SERVICE` · `PART`, congelado na inclusão.
+  kind           String   @default("PRODUCT") @db.VarChar(40)
+  description    String   @db.VarChar(255)
+  sku            String?  @db.VarChar(80)
+  unit           String   @default("UN") @db.VarChar(20)
+  /// Três casas: serviço se mede em horas, e meia hora existe.
+  quantity       Decimal  @db.Decimal(14, 3)
+  unitPrice      Decimal  @map("unit_price") @db.Decimal(14, 2)
+  discount       Decimal  @default(0) @db.Decimal(14, 2)
+  /// `quantity * unitPrice - discount`, calculado pelo servidor.
+  total          Decimal  @db.Decimal(14, 2)
+  notes          String?  @db.Text
+  position       Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quote        Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  catalogItem  Product?     @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+
+  @@index([quoteId, position])
+  @@index([organizationId, catalogItemId])
+  @@map("quote_items")
 }

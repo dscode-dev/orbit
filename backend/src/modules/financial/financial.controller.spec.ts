@@ -16,7 +16,10 @@ const ROUTE_METHODS = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'];
 
 /** Nomes dos métodos que o Nest reconhece como rota. */
 function routes(): string[] {
-  const prototype = FinancialController.prototype as Record<string, unknown>;
+  const prototype = FinancialController.prototype as unknown as Record<
+    string,
+    unknown
+  >;
   return Object.getOwnPropertyNames(prototype).filter((name) => {
     if (name === 'constructor') return false;
     const handler = prototype[name];
@@ -38,9 +41,9 @@ describe('FinancialController', () => {
   });
 
   it.each(routes())('%s exige capability financeira', (name) => {
-    const handler = (FinancialController.prototype as Record<string, unknown>)[
-      name
-    ] as object;
+    const handler = (
+      FinancialController.prototype as unknown as Record<string, unknown>
+    )[name] as object;
     const capabilities = Reflect.getMetadata(
       REQUIRED_CAPABILITIES_KEY,
       handler,
@@ -53,9 +56,9 @@ describe('FinancialController', () => {
   });
 
   it.each(routes())('%s exige permissão financeira', (name) => {
-    const handler = (FinancialController.prototype as Record<string, unknown>)[
-      name
-    ] as object;
+    const handler = (
+      FinancialController.prototype as unknown as Record<string, unknown>
+    )[name] as object;
     const permissions = Reflect.getMetadata(PERMISSIONS_KEY, handler) as
       string[] | undefined;
 
@@ -72,9 +75,9 @@ describe('FinancialController', () => {
    * dois testes acima e daria a quem só consulta o direito de criar receita.
    */
   it.each(routes())('%s casa escrita com capability de gestão', (name) => {
-    const handler = (FinancialController.prototype as Record<string, unknown>)[
-      name
-    ] as object;
+    const handler = (
+      FinancialController.prototype as unknown as Record<string, unknown>
+    )[name] as object;
     const method = String(Reflect.getMetadata('method', handler) ?? '');
     const capabilities = (Reflect.getMetadata(
       REQUIRED_CAPABILITIES_KEY,

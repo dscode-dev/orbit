@@ -49,6 +49,7 @@ const READ_MODELS = [
   "modules/artifact-rendering/artifact-render.read-models.ts",
   "modules/workforce/workforce.read-models.ts",
   "modules/financial/financial.read-models.ts",
+  "modules/quotes/quote.read-models.ts",
 ];
 
 const BANNER = `/**

@@ -276,3 +276,21 @@ export const FinancialEntrySource = literal({
 });
 export type FinancialEntrySource =
   (typeof FinancialEntrySource)[keyof typeof FinancialEntrySource];
+
+/**
+ * Situação de um orçamento.
+ *
+ * `EXPIRED` é atribuído pelo **servidor**, comparando a validade com o próprio
+ * relógio; nenhum cliente o envia. `CANCELLED` é ato de quem propôs,
+ * `REJECTED` é decisão de quem recebeu — a diferença importa para saber por que
+ * a proposta não virou trabalho.
+ */
+export const QuoteStatus = literal({
+  DRAFT: 'DRAFT',
+  SENT: 'SENT',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  EXPIRED: 'EXPIRED',
+  CANCELLED: 'CANCELLED',
+});
+export type QuoteStatus = (typeof QuoteStatus)[keyof typeof QuoteStatus];

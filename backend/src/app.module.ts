@@ -10,6 +10,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { TechnicalCatalogsModule } from './modules/technical-catalogs/technical-catalogs.module';
 import { WorkforceModule } from './modules/workforce/workforce.module';
 import { FinancialModule } from './modules/financial/financial.module';
+import { QuotesModule } from './modules/quotes/quotes.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SignaturesModule } from './modules/signatures/signatures.module';
@@ -35,6 +36,7 @@ import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-
     TechnicalCatalogsModule,
     WorkforceModule,
     FinancialModule,
+    QuotesModule,
     IntegrationsModule,
     OperationsModule,
     ReportsModule,
