@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Frontend-20 (Quotes Workspace).
+Última revisão: PR Backend-23 (Inventory Engine).
 
 ---
 
@@ -379,7 +379,12 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Sem contrato de compartilhamento de documento                                                                                        | a ação é declarada indisponível no Document Registry                                                                                                                                                                                                  |
 | Sem histórico de cliente ou equipamento                                                                                              | `AuditLog` existe no banco (com índice por `entityType`/`entityId`), mas nenhuma rota o publica para o tenant — verificado: 404 em `/customers/:id/history`, `/assets/:id/history` e `/audit-logs`. A aba declara a ausência e não reconstrói eventos |
 | ~~`products.status` não era escrevível nem filtrável~~                                                                               | **corrigido na PR-16**: `status` opcional em `UpdateProductDto` e `CatalogQueryDto`; criação inalterada                                                                                                                                               |
-| Sem controle de estoque                                                                                                              | nenhum modelo, coluna ou rota na plataforma (`/catalog/stock`, `/stock`, `/inventory` → 404); a aba declara a ausência e não estima                                                                                                                   |
+| ~~Sem controle de estoque~~                                                                                                          | **corrigido na PR-23**: `inventory_movements` (append-only) e `inventory_balances` (projeção), com RLS por organização **e** unidade, capabilities `inventory.read`/`inventory.manage` e API em `/inventory/**` |
+| Estoque não tem reservas                                                                                                             | `reserved` existe na projeção e `available = onHand − reserved` é publicado, mas **nenhum endpoint reserva**: falta um reservador com ciclo de vida — orçamento é intenção comercial e operação não tem plano de materiais |
+| Estoque não tem valor financeiro                                                                                                     | `costPrice` do Catálogo é o preço de hoje, não o custo das unidades em prateleira; sem FIFO ou custo médio não há regra autoritativa, e nenhum campo monetário é publicado                               |
+| Sem lote, número de série e validade                                                                                                 | o saldo é uma quantidade, não um conjunto de unidades identificadas                                                                                                                                      |
+| Sem inventário físico completo                                                                                                       | existe ajuste por item, com motivo obrigatório; não existe contagem que congele o estoque e concilie tudo de uma vez                                                                                     |
+| Sem transferência em trânsito                                                                                                        | a transferência é instantânea; não há estado "saiu de A e ainda não chegou em B" — exigiria um terceiro saldo e um aceite no destino                                                                     |
 | ~~Sem domínio financeiro~~                                                                                                           | **corrigido na PR-21**: `financial_entries`, `financial_categories` e `financial_settings`, com RLS por organização **e** unidade, capabilities `financial.read`/`financial.manage` e API em `/financial/**`                                           |
 | Sem conciliação bancária, fiscal ou gateway de pagamento                                                                             | fora do escopo declarado da PR-21; o domínio registra o fato financeiro, não processa dinheiro                                                                                                                                                        |
 | Sem parcelamento, recorrência ou centro de custo                                                                                     | não há modelo nem rota; um lançamento pertence a uma unidade e a uma competência                                                                                                                                                                      |
@@ -439,6 +444,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Financial Workspace (web)                       | `frontend/docs/financial-workspace.md`          |
 | Commercial Engine — Quotes (backend)            | `backend/docs/commercial-quotes.md`             |
 | Quotes Workspace (web)                          | `frontend/docs/quotes-workspace.md`             |
+| Inventory Engine (backend)                      | `backend/docs/inventory-engine.md`              |
 | BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`                |
 | Autenticação e sessão (web)                     | `frontend/docs/authentication.md`               |
 | Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`                    |

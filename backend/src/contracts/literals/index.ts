@@ -294,3 +294,36 @@ export const QuoteStatus = literal({
   CANCELLED: 'CANCELLED',
 });
 export type QuoteStatus = (typeof QuoteStatus)[keyof typeof QuoteStatus];
+
+/**
+ * Tipo de movimento de estoque.
+ *
+ * A **direção** é consequência do tipo, nunca do sinal da quantidade:
+ * `ENTRY`, `RETURN`, `ADJUSTMENT_IN` e `TRANSFER_IN` somam; `CONSUMPTION`,
+ * `ADJUSTMENT_OUT` e `TRANSFER_OUT` subtraem.
+ */
+export const InventoryMovementType = literal({
+  ENTRY: 'ENTRY',
+  CONSUMPTION: 'CONSUMPTION',
+  RETURN: 'RETURN',
+  ADJUSTMENT_IN: 'ADJUSTMENT_IN',
+  ADJUSTMENT_OUT: 'ADJUSTMENT_OUT',
+  TRANSFER_IN: 'TRANSFER_IN',
+  TRANSFER_OUT: 'TRANSFER_OUT',
+});
+export type InventoryMovementType =
+  (typeof InventoryMovementType)[keyof typeof InventoryMovementType];
+
+/**
+ * Situação do saldo diante do mínimo configurado.
+ *
+ * Decidida pelo **servidor**: comparar saldo com mínimo no cliente daria a
+ * duas telas a chance de discordar sobre o que é "baixo".
+ */
+export const InventoryStockStatus = literal({
+  OK: 'OK',
+  LOW: 'LOW',
+  OUT_OF_STOCK: 'OUT_OF_STOCK',
+});
+export type InventoryStockStatus =
+  (typeof InventoryStockStatus)[keyof typeof InventoryStockStatus];

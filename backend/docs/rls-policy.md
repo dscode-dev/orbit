@@ -29,9 +29,11 @@ state when a pooled connection is reused.
 - Organization scoped: usage, integrations, customers, categories, templates,
   documents, signatures, and AI records.
 - Required business-unit scope: assets, operations, checklist executions,
-  reports, and `financial_entries`. Money is counted per unit, so the entry
-  policy demands both organization and unit — access to one branch never
-  reveals another branch's cash.
+  reports, `financial_entries`, `quotes`, and both inventory tables. Money and
+  stock are counted per unit, so those policies demand organization **and**
+  unit — access to one branch never reveals another branch's cash or shelf. The
+  inventory policy is also what forces a transfer to hold access to **both**
+  ends: the destination insert passes through that unit's `WITH CHECK`.
 - Optional business-unit scope: contacts, products, and notifications. A null
   unit means organization-wide.
 - Organization scoped, added in PR-21: `financial_categories` and

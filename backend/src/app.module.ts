@@ -11,6 +11,7 @@ import { TechnicalCatalogsModule } from './modules/technical-catalogs/technical-
 import { WorkforceModule } from './modules/workforce/workforce.module';
 import { FinancialModule } from './modules/financial/financial.module';
 import { QuotesModule } from './modules/quotes/quotes.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SignaturesModule } from './modules/signatures/signatures.module';
@@ -37,6 +38,7 @@ import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-
     WorkforceModule,
     FinancialModule,
     QuotesModule,
+    InventoryModule,
     IntegrationsModule,
     OperationsModule,
     ReportsModule,

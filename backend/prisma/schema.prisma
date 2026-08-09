@@ -58,6 +58,7 @@ model User {
   quotesCreated                 Quote[]                        @relation("QuoteCreatedBy")
   quotesSent                    Quote[]                        @relation("QuoteSentBy")
   quotesDecided                 Quote[]                        @relation("QuoteDecidedBy")
+  inventoryMovements            InventoryMovement[]            @relation("InventoryMovementActor")
   schedulingHistory             SchedulingEventHistory[]
   notificationPreferences       NotificationPreference[]
   notificationDeliveries        NotificationDelivery[]
@@ -250,6 +251,8 @@ model Organization {
   financialSettings        FinancialSettings?
   quotes                   Quote[]
   quoteItems               QuoteItem[]
+  inventoryMovements       InventoryMovement[]
+  inventoryBalances        InventoryBalance[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -319,6 +322,9 @@ model BusinessUnit {
   financialEntries FinancialEntry[]
 
   quotes Quote[]
+
+  inventoryMovements InventoryMovement[]
+  inventoryBalances  InventoryBalance[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -598,7 +604,9 @@ model Product {
   businessUnit BusinessUnit?    @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
   category     ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  quoteItems QuoteItem[]
+  quoteItems         QuoteItem[]
+  inventoryMovements InventoryMovement[]
+  inventoryBalances  InventoryBalance[]
 
   @@unique([organizationId, sku])
   @@index([organizationId, kind, status, deletedAt])
@@ -688,6 +696,8 @@ model Operation {
   financialEntries FinancialEntry[]
 
   quote Quote?
+
+  inventoryMovements InventoryMovement[]
 
   @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, scheduledStart])
@@ -2090,4 +2100,99 @@ model QuoteItem {
   @@index([quoteId, position])
   @@index([organizationId, catalogItemId])
   @@map("quote_items")
+}
+
+// -----------------------------------------------------------------------------
+// INVENTORY ENGINE
+//
+// **Estoque não é um número que se edita.** O saldo é consequência de
+// movimentações, e só delas. Não existe rota que escreva quantidade: quem
+// quiser mudar o saldo registra um movimento, e o movimento fica.
+//
+//   CatalogItem ──▶ InventoryMovement (ledger) ──▶ InventoryBalance (projeção)
+//
+// A projeção existe por desempenho — perguntar "quanto tem" não pode custar a
+// soma de todo o histórico. Ela nunca é fonte independente: cada movimento a
+// atualiza na mesma transação, e `balanceAfter` guarda o resultado para que
+// divergência entre as duas seja detectável.
+// -----------------------------------------------------------------------------
+
+/// Um fato de estoque. **Append-only.**
+///
+/// Movimento confirmado não é editado nem apagado — corrigir saldo é
+/// registrar outro movimento. Apagar uma linha para consertar um número
+/// destruiria a explicação de um saldo que alguém já conferiu, e é
+/// exatamente o que um livro de estoque existe para impedir.
+model InventoryMovement {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  organizationId    String   @map("organization_id") @db.Uuid
+  /// Estoque é da unidade: o mesmo item tem saldos diferentes em filiais diferentes.
+  businessUnitId    String   @map("business_unit_id") @db.Uuid
+  catalogItemId     String   @map("catalog_item_id") @db.Uuid
+  /// `ENTRY` · `CONSUMPTION` · `RETURN` · `ADJUSTMENT_IN` · `ADJUSTMENT_OUT` · `TRANSFER_IN` · `TRANSFER_OUT`
+  type              String   @db.VarChar(20)
+  /// Sempre positiva. A direção é dada por `type`, nunca pelo sinal.
+  quantity          Decimal  @db.Decimal(14, 3)
+  /// Saldo da unidade logo depois deste movimento, gravado na mesma instrução.
+  balanceAfter      Decimal  @map("balance_after") @db.Decimal(14, 3)
+  reason            String?  @db.VarChar(500)
+  notes             String?  @db.Text
+  /// Operação que consumiu ou devolveu o material.
+  operationId       String?  @map("operation_id") @db.Uuid
+  /// Procedência: `MANUAL` quando alguém digitou; outro registro quando derivado.
+  source            String   @default("MANUAL") @db.VarChar(20)
+  sourceEntityId    String?  @map("source_entity_id") @db.Uuid
+  /// Identidade compartilhada pelas duas pontas de uma transferência.
+  transferId        String?  @map("transfer_id") @db.Uuid
+  /// Unidade da outra ponta, para que cada lado saiba de onde veio ou para onde foi.
+  counterpartUnitId String?  @map("counterpart_unit_id") @db.Uuid
+  createdById       String   @map("created_by_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  catalogItem  Product      @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  operation    Operation?   @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  createdBy    User         @relation("InventoryMovementActor", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, businessUnitId, catalogItemId, createdAt])
+  @@index([organizationId, type, createdAt])
+  @@index([organizationId, operationId])
+  @@index([organizationId, source, sourceEntityId])
+  @@index([transferId])
+  @@map("inventory_movements")
+}
+
+/// Saldo atual de um item numa unidade — **projeção**, não verdade autônoma.
+///
+/// `minimumStock` mora aqui porque o mínimo é do par item+unidade: a filial que
+/// atende hospital precisa de mais filtro em casa que a que atende escritório.
+model InventoryBalance {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  businessUnitId String    @map("business_unit_id") @db.Uuid
+  catalogItemId  String    @map("catalog_item_id") @db.Uuid
+  /// Quantidade física. Nunca negativa — garantido por `CHECK`.
+  onHand         Decimal   @default(0) @map("on_hand") @db.Decimal(14, 3)
+  /// Comprometido e ainda não consumido.
+  ///
+  /// **Nada escreve nesta coluna hoje.** É a fundação para reservas: existe
+  /// para que o contrato já publique `available = onHand - reserved` e a PR que
+  /// implementar reserva não precise reformatar projeção nem Read Model.
+  reserved       Decimal   @default(0) @db.Decimal(14, 3)
+  /// Abaixo disto o item é considerado baixo. `0` significa "sem mínimo definido".
+  minimumStock   Decimal   @default(0) @map("minimum_stock") @db.Decimal(14, 3)
+  /// Último movimento que alterou este saldo — âncora de conferência.
+  lastMovementAt DateTime? @map("last_movement_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  catalogItem  Product      @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+
+  @@unique([businessUnitId, catalogItemId])
+  @@index([organizationId, businessUnitId])
+  @@index([organizationId, catalogItemId])
+  @@map("inventory_balances")
 }
