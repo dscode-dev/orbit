@@ -52,6 +52,9 @@ model User {
   teamMemberships               TeamMembership[]
   ledTeams                      Team[]                         @relation("TeamLeader")
   locations                     MemberLocation[]
+  financialEntriesCreated       FinancialEntry[]               @relation("FinancialEntryCreatedBy")
+  financialEntriesConfirmed     FinancialEntry[]               @relation("FinancialEntryConfirmedBy")
+  financialEntriesCancelled     FinancialEntry[]               @relation("FinancialEntryCancelledBy")
   schedulingHistory             SchedulingEventHistory[]
   notificationPreferences       NotificationPreference[]
   notificationDeliveries        NotificationDelivery[]
@@ -239,6 +242,9 @@ model Organization {
   teams                    Team[]
   teamMemberships          TeamMembership[]
   memberLocations          MemberLocation[]
+  financialCategories      FinancialCategory[]
+  financialEntries         FinancialEntry[]
+  financialSettings        FinancialSettings?
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -304,6 +310,8 @@ model BusinessUnit {
   backgroundJobs         BackgroundJob[]
 
   teams Team[]
+
+  financialEntries FinancialEntry[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -504,6 +512,8 @@ model Customer {
   schedulingEvents   SchedulingEvent[]
   artifactExecutions ArtifactExecution[]
 
+  financialEntries FinancialEntry[]
+
   @@index([organizationId, status, deletedAt])
   @@index([organizationId, documentNumber])
   @@map("customers")
@@ -663,6 +673,8 @@ model Operation {
   checklistExecutions ChecklistExecution[]
   aiExecutions        AiExecution[]
   artifactExecutions  ArtifactExecution[]
+
+  financialEntries FinancialEntry[]
 
   @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, scheduledStart])
@@ -1817,4 +1829,135 @@ model MemberLocation {
   @@index([organizationId, userId, recordedAt])
   @@index([organizationId, recordedAt])
   @@map("member_locations")
+}
+
+// -----------------------------------------------------------------------------
+// FINANCIAL CORE
+//
+// Registro de entradas e saídas de dinheiro. **Não é contabilidade**: não há
+// partidas dobradas, plano de contas, conciliação bancária nem apuração
+// fiscal. O que existe é o fato financeiro — entrou ou saiu, quanto, quando,
+// de que categoria, com que origem.
+//
+// Todo lançamento pertence a **uma única unidade de negócio**: dinheiro é
+// contado por unidade, e um lançamento de duas unidades seria um rateio, que
+// é decisão contábil que este domínio não toma.
+// -----------------------------------------------------------------------------
+
+/// Categoria de receita ou despesa, customizável pela organização.
+///
+/// É catálogo, e não texto livre no lançamento, para que dois lançamentos da
+/// mesma natureza sejam agrupáveis pela mesma chave — sem isso "Peças" e
+/// "peças" seriam categorias diferentes no relatório.
+model FinancialCategory {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  /// `INCOME` · `EXPENSE` — uma categoria serve a um lado só.
+  type           String    @db.VarChar(20)
+  name           String    @db.VarChar(120)
+  slug           String    @db.VarChar(120)
+  description    String?   @db.Text
+  /// Classe de cor sobre tokens do Design System.
+  color          String?   @db.VarChar(40)
+  /// `true` para as categorias semeadas na primeira abertura do módulo.
+  isSystem       Boolean   @default(false) @map("is_system")
+  sortOrder      Int       @default(0) @map("sort_order")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entries      FinancialEntry[]
+
+  @@unique([organizationId, type, slug])
+  @@index([organizationId, type, deletedAt])
+  @@map("financial_categories")
+}
+
+/// Lançamento financeiro — uma entrada ou uma saída.
+///
+/// ## Rastreabilidade da origem
+///
+/// `source` diz **de onde o fato veio** e `sourceEntityId` aponta para o
+/// registro que o originou. Um lançamento de recibo carrega o id do manifest
+/// que o emitiu; um manual não carrega nada. É o par que garante que o mesmo
+/// recibo nunca vire dois lançamentos — ver o índice único parcial na
+/// migração.
+///
+/// ## Cancelar não é apagar
+///
+/// `CANCELLED` preserva o fato de que o lançamento existiu e por que deixou de
+/// valer. Apagar um valor confirmado destruiria a explicação de um saldo que
+/// alguém já viu.
+model FinancialEntry {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  /// Obrigatória: dinheiro é contado por unidade.
+  businessUnitId String    @map("business_unit_id") @db.Uuid
+  categoryId     String?   @map("category_id") @db.Uuid
+  /// `INCOME` · `EXPENSE`.
+  type           String    @db.VarChar(20)
+  /// `PENDING` · `CONFIRMED` · `CANCELLED`.
+  status         String    @default("PENDING") @db.VarChar(20)
+  /// `MANUAL` · `RECEIPT` · `QUOTE` · `SYSTEM`.
+  source         String    @default("MANUAL") @db.VarChar(20)
+  /// Registro que originou o lançamento. Nulo em lançamento manual.
+  sourceEntityId String?   @map("source_entity_id") @db.Uuid
+  amount         Decimal   @db.Decimal(14, 2)
+  currency       String    @default("BRL") @db.VarChar(3)
+  description    String    @db.VarChar(255)
+  notes          String?   @db.Text
+  /// Data de competência — quando o fato aconteceu, não quando foi digitado.
+  competenceDate DateTime  @map("competence_date") @db.Date
+  /// Vencimento previsto, quando faz sentido. Opcional.
+  dueDate        DateTime? @map("due_date") @db.Date
+  confirmedAt    DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  confirmedById  String?   @map("confirmed_by_id") @db.Uuid
+  cancelledAt    DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById  String?   @map("cancelled_by_id") @db.Uuid
+  cancelReason   String?   @map("cancel_reason") @db.VarChar(500)
+  customerId     String?   @map("customer_id") @db.Uuid
+  operationId    String?   @map("operation_id") @db.Uuid
+  metadata       Json      @default("{}") @db.JsonB
+  createdById    String    @map("created_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit       @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  category     FinancialCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  customer     Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  operation    Operation?         @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  createdBy    User               @relation("FinancialEntryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  confirmedBy  User?              @relation("FinancialEntryConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  cancelledBy  User?              @relation("FinancialEntryCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, businessUnitId, competenceDate, deletedAt])
+  @@index([organizationId, type, status, competenceDate])
+  @@index([organizationId, categoryId, competenceDate])
+  @@index([organizationId, customerId])
+  @@index([organizationId, operationId])
+  @@index([organizationId, source, sourceEntityId])
+  @@index([organizationId, status, dueDate])
+  @@map("financial_entries")
+}
+
+/// Configuração financeira da organização.
+///
+/// **Não é depósito de flags.** Cada campo aqui muda um comportamento que o
+/// servidor de fato executa; um interruptor que ninguém lê não entra.
+model FinancialSettings {
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  organizationId     String   @unique @map("organization_id") @db.Uuid
+  /// Recibo oficial emitido vira receita confirmada automaticamente.
+  autoRecordReceipts Boolean  @default(true) @map("auto_record_receipts")
+  /// Moeda padrão dos lançamentos criados sem moeda explícita.
+  defaultCurrency    String   @default("BRL") @map("default_currency") @db.VarChar(3)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("financial_settings")
 }

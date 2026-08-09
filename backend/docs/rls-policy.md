@@ -28,10 +28,14 @@ state when a pooled connection is reused.
 - Organization root: `organizations`.
 - Organization scoped: usage, integrations, customers, categories, templates,
   documents, signatures, and AI records.
-- Required business-unit scope: assets, operations, checklist executions, and
-  reports.
+- Required business-unit scope: assets, operations, checklist executions,
+  reports, and `financial_entries`. Money is counted per unit, so the entry
+  policy demands both organization and unit — access to one branch never
+  reveals another branch's cash.
 - Optional business-unit scope: contacts, products, and notifications. A null
   unit means organization-wide.
+- Organization scoped, added in PR-21: `financial_categories` and
+  `financial_settings`.
 - Parent inherited: operation users and history inherit the policy of their
   operation.
 - Audit logs: tenant/unit scoped, SELECT and INSERT only.

@@ -24,7 +24,6 @@
  * atendendo HTTP.
  */
 import {
-  Inject,
   Injectable,
   Logger,
   type OnModuleDestroy,
@@ -36,11 +35,11 @@ import { RequestContext, RequestContextStorage } from '../../context';
 import { generateUuidV7 } from '../../utils';
 import { BackgroundJobQueue } from './background-job.queue';
 import {
-  JOB_PROCESSOR,
   PermanentJobError,
   type BackgroundJobRecord,
   type JobProcessor,
 } from './background-job.types';
+import { JobProcessorRegistry } from './job-processor.registry';
 
 /** Tempo após o qual um job `RUNNING` é considerado abandonado. */
 const STALLED_AFTER_MS = 5 * 60_000;
@@ -55,8 +54,7 @@ export class BackgroundJobWorker implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly queue: BackgroundJobQueue,
     private readonly storage: RequestContextStorage,
-    @Inject(JOB_PROCESSOR)
-    private readonly processors: readonly JobProcessor[],
+    private readonly registry: JobProcessorRegistry,
   ) {}
 
   onModuleInit(): void {
@@ -87,7 +85,7 @@ export class BackgroundJobWorker implements OnModuleInit, OnModuleDestroy {
     this.running = true;
     let processed = 0;
     try {
-      for (const processor of this.processors) {
+      for (const processor of this.registry.all()) {
         await this.queue.requeueStalled(processor.queue, STALLED_AFTER_MS);
         const job = await this.queue.claim(processor.queue, this.identity);
         if (!job) continue;

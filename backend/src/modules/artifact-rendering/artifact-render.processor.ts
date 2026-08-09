@@ -30,8 +30,9 @@
  * O efeito colateral honesto de uma reexecução é uma revisão a mais, com o
  * mesmo conteúdo — visível no histórico, que é onde deve estar.
  */
-import { Injectable } from '@nestjs/common';
+import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { ArtifactManifestService } from '../artifact-manifests/artifact-manifest.service';
+import { JobProcessorRegistry } from '../jobs/job-processor.registry';
 import {
   PermanentJobError,
   JOB_QUEUES,
@@ -50,7 +51,7 @@ const fileNameFor = (code: string, format: string): string =>
   `${code.replace(/[^A-Za-z0-9._-]/g, '_')}.${format.toLowerCase()}`;
 
 @Injectable()
-export class ArtifactRenderProcessor implements JobProcessor {
+export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
   readonly queue: JobQueue = JOB_QUEUES.artifactRender;
 
   constructor(
@@ -59,7 +60,12 @@ export class ArtifactRenderProcessor implements JobProcessor {
     private readonly renderers: ArtifactRendererRegistry,
     private readonly manifests: ArtifactManifestService,
     private readonly metrics: ArtifactRenderMetrics,
+    private readonly registry: JobProcessorRegistry,
   ) {}
+
+  onModuleInit(): void {
+    this.registry.register(this);
+  }
 
   async process(job: BackgroundJobRecord): Promise<void> {
     const payload = this.payload(job);

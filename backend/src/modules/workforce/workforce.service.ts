@@ -214,11 +214,7 @@ export class WorkforceService {
     }
   }
 
-  async updateTeam(
-    id: string,
-    organizationId: string,
-    input: UpdateTeamDto,
-  ) {
+  async updateTeam(id: string, organizationId: string, input: UpdateTeamDto) {
     await this.getTeam(id, organizationId);
     try {
       return await this.repository.updateTeam(id, {
@@ -269,7 +265,8 @@ export class WorkforceService {
       teamId,
       userId,
     );
-    if (count === 0) throw new EntityNotFoundException('TeamMembership', userId);
+    if (count === 0)
+      throw new EntityNotFoundException('TeamMembership', userId);
     return this.getTeam(teamId, organizationId);
   }
 

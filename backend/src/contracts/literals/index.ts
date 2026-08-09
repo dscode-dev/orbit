@@ -238,3 +238,41 @@ export const AiExecutionStatus = literal({
 });
 export type AiExecutionStatus =
   (typeof AiExecutionStatus)[keyof typeof AiExecutionStatus];
+
+/** Sentido do dinheiro. O sinal está aqui, nunca no valor. */
+export const FinancialEntryType = literal({
+  INCOME: 'INCOME',
+  EXPENSE: 'EXPENSE',
+});
+export type FinancialEntryType =
+  (typeof FinancialEntryType)[keyof typeof FinancialEntryType];
+
+/**
+ * Situação do lançamento.
+ *
+ * `PENDING` é previsão; `CONFIRMED` é realizado; `CANCELLED` deixou de valer
+ * mas continua existindo — cancelar preserva a explicação de um saldo que
+ * alguém já viu.
+ */
+export const FinancialEntryStatus = literal({
+  PENDING: 'PENDING',
+  CONFIRMED: 'CONFIRMED',
+  CANCELLED: 'CANCELLED',
+});
+export type FinancialEntryStatus =
+  (typeof FinancialEntryStatus)[keyof typeof FinancialEntryStatus];
+
+/**
+ * De onde o fato financeiro veio.
+ *
+ * Só `MANUAL` é digitado por alguém. Os demais são derivados de um registro do
+ * sistema, e por isso não podem ter origem nem identidade alteradas por edição.
+ */
+export const FinancialEntrySource = literal({
+  MANUAL: 'MANUAL',
+  RECEIPT: 'RECEIPT',
+  QUOTE: 'QUOTE',
+  SYSTEM: 'SYSTEM',
+});
+export type FinancialEntrySource =
+  (typeof FinancialEntrySource)[keyof typeof FinancialEntrySource];

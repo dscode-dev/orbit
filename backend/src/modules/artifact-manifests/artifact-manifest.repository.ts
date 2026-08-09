@@ -18,6 +18,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { RlsTransaction } from '../../database';
 import { generateUuidV7 } from '../../utils';
+import { BackgroundJobQueue } from '../jobs/background-job.queue';
+import { JOB_QUEUES } from '../jobs/background-job.types';
 
 const actor = { select: { id: true, displayName: true } } as const;
 
@@ -51,7 +53,10 @@ export interface IssueData {
 
 @Injectable()
 export class ArtifactManifestRepository {
-  constructor(private readonly rls: RlsTransaction) {}
+  constructor(
+    private readonly rls: RlsTransaction,
+    private readonly jobs: BackgroundJobQueue,
+  ) {}
 
   listByExecution(executionId: string, organizationId: string) {
     return this.rls.run((tx) =>
@@ -122,6 +127,16 @@ export class ArtifactManifestRepository {
   /**
    * Emite a revisão: registra o arquivo, marca como ativa e aposenta a
    * anterior — tudo em uma transação.
+   *
+   * ## O evento sai daqui
+   *
+   * Este é o único ponto que grava `issuedAt`, e por isso é onde o fato
+   * "documento oficialmente emitido" nasce. O job é enfileirado **dentro da
+   * mesma transação**: quem quiser reagir à emissão — hoje o Financeiro, com
+   * recibos — reage ao evento de negócio, não à renderização. Renderizar um
+   * PDF não emite nada, e `confirmFile` emite sem renderizar.
+   *
+   * Nada aqui conhece o consumidor. A fila leva o nome do evento.
    */
   issue(
     id: string,
@@ -169,6 +184,29 @@ export class ArtifactManifestRepository {
           revision: manifest.revision,
           contentHash: data.contentHash,
         },
+      );
+
+      /**
+       * `jobKey` é o id do manifesto: a mesma emissão nunca vira dois eventos,
+       * nem sob retry. Falhar aqui desfaz a emissão — que é o comportamento
+       * correto: um documento emitido cujo evento se perdeu é pior que uma
+       * emissão que pede para ser repetida.
+       */
+      await this.jobs.enqueue(
+        {
+          queue: JOB_QUEUES.artifactManifestIssued,
+          jobKey: manifest.id,
+          organizationId,
+          businessUnitId,
+          payload: {
+            manifestId: manifest.id,
+            executionId,
+            revision: manifest.revision,
+          },
+          correlationId: generateUuidV7(),
+          actorUserId: data.issuedById,
+        },
+        tx,
       );
 
       return manifest;

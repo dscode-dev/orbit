@@ -21,7 +21,11 @@ export interface InvitationReadModel {
   acceptedAt: string | null;
   createdAt: string;
   role: { id: string; key: string; name: string };
-  businessUnit: { id: string; legalName: string; tradeName: string | null } | null;
+  businessUnit: {
+    id: string;
+    legalName: string;
+    tradeName: string | null;
+  } | null;
   invitedBy: { id: string; displayName: string } | null;
 }
 

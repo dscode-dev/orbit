@@ -245,7 +245,13 @@ describe('Artifact Rendering (e2e)', () => {
   });
 
   it('o worker renderiza, emite o manifest e marca READY', async () => {
-    expect(await worker.tick()).toBe(1);
+    /**
+     * Um ciclo reivindica um job **por fila**. Desde que a emissão do manifest
+     * publica o evento `artifact.manifest.issued`, o mesmo ciclo pode fechar
+     * duas coisas: a renderização e o evento que ela originou. O que este
+     * teste protege é a renderização — as asserções seguintes.
+     */
+    expect(await worker.tick()).toBeGreaterThanOrEqual(1);
 
     const status = await auth(
       http().get(`/api/v1/artifact-executions/${executionId}/render`),
@@ -318,7 +324,13 @@ describe('Artifact Rendering (e2e)', () => {
       .send({ renderer: 'html.default' })
       .expect(202);
 
-    expect(await worker.tick()).toBe(1);
+    /**
+     * Um ciclo reivindica um job **por fila**. Desde que a emissão do manifest
+     * publica o evento `artifact.manifest.issued`, o mesmo ciclo pode fechar
+     * duas coisas: a renderização e o evento que ela originou. O que este
+     * teste protege é a renderização — as asserções seguintes.
+     */
+    expect(await worker.tick()).toBeGreaterThanOrEqual(1);
 
     const manifests = await auth(
       http().get(`/api/v1/artifact-executions/${executionId}/manifests`),

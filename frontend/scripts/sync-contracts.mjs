@@ -48,6 +48,7 @@ const READ_MODELS = [
   "modules/artifact-manifests/artifact-manifest.read-models.ts",
   "modules/artifact-rendering/artifact-render.read-models.ts",
   "modules/workforce/workforce.read-models.ts",
+  "modules/financial/financial.read-models.ts",
 ];
 
 const BANNER = `/**

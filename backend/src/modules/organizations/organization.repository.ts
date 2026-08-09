@@ -184,10 +184,7 @@ export class OrganizationRepository {
     );
   }
 
-  updateMembership(
-    id: string,
-    data: { roleId?: string; status?: string },
-  ) {
+  updateMembership(id: string, data: { roleId?: string; status?: string }) {
     return this.rls.run((transaction) =>
       transaction.organizationMembership.update({
         where: { id },
@@ -268,7 +265,10 @@ export class OrganizationRepository {
     );
   }
 
-  listMembers(organizationId: string, pagination?: { skip: number; take: number }) {
+  listMembers(
+    organizationId: string,
+    pagination?: { skip: number; take: number },
+  ) {
     return this.rls.run((transaction) =>
       transaction.organizationMembership.findMany({
         where: { organizationId, deletedAt: null },

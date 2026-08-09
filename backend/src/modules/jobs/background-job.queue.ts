@@ -30,6 +30,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database';
+import type { PrismaTransactionClient } from '../../database/prisma.types';
 import { generateUuidV7 } from '../../utils';
 import type {
   BackgroundJobRecord,
@@ -78,8 +79,21 @@ export class BackgroundJobQueue {
    * `(queue, job_key)` enquanto o status é `PENDING` ou `RUNNING`. Duas
    * requisições simultâneas não criam dois jobs — a segunda colide e lê a
    * primeira.
+   *
+   * ## Enfileirar dentro da transação de quem pediu
+   *
+   * `client` recebe a transação do chamador quando o job **só faz sentido se o
+   * fato de negócio existir** — e vice-versa. Sem isso o enfileiramento
+   * acontece depois do commit, e um processo que morre entre os dois deixa o
+   * fato gravado e o trabalho nunca pedido: perda silenciosa, do tipo que
+   * ninguém descobre porque nada falhou. Com a transação, é padrão outbox — ou
+   * os dois existem, ou nenhum.
    */
-  async enqueue(input: EnqueueJobInput): Promise<BackgroundJobRecord> {
+  async enqueue(
+    input: EnqueueJobInput,
+    client?: PrismaTransactionClient,
+  ): Promise<BackgroundJobRecord> {
+    if (client) return this.enqueueWithin(client, input);
     try {
       const created = await this.prisma.backgroundJob.create({
         data: {
@@ -111,6 +125,60 @@ export class BackgroundJobQueue {
       }
       throw error;
     }
+  }
+
+  /**
+   * Insere dentro de uma transação em curso.
+   *
+   * Aqui **não** se captura `P2002`: no Postgres uma violação de unicidade
+   * aborta a transação inteira, e a leitura de recuperação falharia com
+   * "current transaction is aborted". `ON CONFLICT DO NOTHING` evita o erro em
+   * vez de tratá-lo — sem alvo declarado, cobre o índice parcial que define a
+   * idempotência da fila. Nada retornado significa que a chave já está na
+   * fila, e aí o job existente é lido normalmente.
+   */
+  private async enqueueWithin(
+    client: PrismaTransactionClient,
+    input: EnqueueJobInput,
+  ): Promise<BackgroundJobRecord> {
+    const inserted = await client.$queryRaw<JobRow[]>`
+      INSERT INTO background_jobs (
+        id, organization_id, business_unit_id, queue, job_key, payload,
+        correlation_id, actor_user_id, max_attempts, updated_at
+      ) VALUES (
+        ${generateUuidV7()}::uuid,
+        ${input.organizationId}::uuid,
+        ${input.businessUnitId ?? null}::uuid,
+        ${input.queue},
+        ${input.jobKey},
+        ${JSON.stringify(input.payload)}::jsonb,
+        ${input.correlationId},
+        ${input.actorUserId ?? null}::uuid,
+        ${input.maxAttempts ?? 3},
+        now()
+      )
+      ON CONFLICT DO NOTHING
+      RETURNING id, queue, job_key, organization_id, business_unit_id,
+                payload, status, attempts, max_attempts, correlation_id,
+                actor_user_id, last_error, available_at, created_at
+    `;
+
+    const row = inserted[0];
+    if (row) return this.fromRow(row);
+
+    const existing = await client.backgroundJob.findFirst({
+      where: {
+        queue: input.queue,
+        jobKey: input.jobKey,
+        status: { in: ['PENDING', 'RUNNING'] },
+      },
+    });
+    if (!existing) {
+      throw new Error(
+        `[jobs] enfileiramento recusado sem job correspondente: ${input.queue}/${input.jobKey}`,
+      );
+    }
+    return this.toRecord(existing);
   }
 
   /** Reivindica um job elegível, ou `null` quando não há trabalho. */

@@ -224,7 +224,9 @@ export class WorkforceController {
     @Param('id', ParseUUIDv7Pipe) id: string,
     @Req() request: IdentityRequest,
   ) {
-    return this.mapper.team(await this.workforce.getTeam(id, this.org(request)));
+    return this.mapper.team(
+      await this.workforce.getTeam(id, this.org(request)),
+    );
   }
 
   @Post('teams')

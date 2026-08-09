@@ -72,7 +72,11 @@ export class WorkforceRepository {
 
   updateSpecialty(id: string, data: Prisma.SpecialtyUpdateInput) {
     return this.rls.run((transaction) =>
-      transaction.specialty.update({ where: { id }, data, select: specialtyView }),
+      transaction.specialty.update({
+        where: { id },
+        data,
+        select: specialtyView,
+      }),
     );
   }
 

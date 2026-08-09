@@ -32,6 +32,15 @@ export type JobStatus = (typeof JOB_STATUSES)[number];
 /** Filas conhecidas. Uma constante evita fila nomeada por engano. */
 export const JOB_QUEUES = {
   artifactRender: 'artifact.render',
+  /**
+   * Manifesto emitido.
+   *
+   * Nomeada pelo **evento**, não por quem consome. O módulo que emite o
+   * manifesto não sabe que existe Financeiro, e não deveria: se amanhã o
+   * evento interessar a notificações ou a um webhook, ninguém volta aqui para
+   * renomear a fila.
+   */
+  artifactManifestIssued: 'artifact.manifest.issued',
 } as const;
 export type JobQueue = (typeof JOB_QUEUES)[keyof typeof JOB_QUEUES];
 
@@ -93,4 +102,9 @@ export class PermanentJobError extends Error {
   }
 }
 
-export const JOB_PROCESSOR = Symbol('JOB_PROCESSOR');
+/**
+ * Processadores se inscrevem em `JobProcessorRegistry`.
+ *
+ * O token multi-provider que existia aqui só enxergava o módulo onde o worker
+ * é declarado — ver o comentário do registro.
+ */

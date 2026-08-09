@@ -6,8 +6,9 @@
  * escrever a classe e somá-la aqui; registry, pipeline, manifest e API não
  * mudam.
  *
- * O worker é registrado neste módulo, com o processador de renderização. Se
- * outra fila surgir, ela traz o seu processador e o worker os percorre.
+ * O worker é registrado neste módulo. Ele não conhece os processadores: cada
+ * um se inscreve em `JobProcessorRegistry` ao subir, e o worker percorre o que
+ * estiver inscrito — inclusive filas de módulos que este aqui não importa.
  */
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../database/prisma.module';
@@ -16,7 +17,6 @@ import { ArtifactManifestModule } from '../artifact-manifests/artifact-manifest.
 import { ArtifactManifestPolicy } from '../artifact-manifests/artifact-manifest.policy';
 import { SubscriptionPlansModule } from '../subscription-plans/subscription-plans.module';
 import { BackgroundJobWorker } from '../jobs/background-job.worker';
-import { JOB_PROCESSOR } from '../jobs/background-job.types';
 import { ArtifactRenderAssembler } from './artifact-render.assembler';
 import { ArtifactRenderController } from './artifact-render.controller';
 import { ArtifactRenderMetrics } from './artifact-render.metrics';
@@ -54,11 +54,6 @@ import { ArtifactPdfRenderer } from './renderers/pdf/artifact-pdf.renderer';
     ArtifactRenderService,
     ArtifactRenderProcessor,
     ArtifactManifestPolicy,
-    {
-      provide: JOB_PROCESSOR,
-      inject: [ArtifactRenderProcessor],
-      useFactory: (render: ArtifactRenderProcessor) => [render],
-    },
     BackgroundJobWorker,
   ],
   exports: [

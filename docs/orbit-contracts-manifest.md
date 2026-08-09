@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Frontend-18 (Settings & Profile Workspace).
+Última revisão: PR Backend-21 (Financial Core).
 
 ---
 
@@ -380,6 +380,11 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Sem histórico de cliente ou equipamento                                                                                              | `AuditLog` existe no banco (com índice por `entityType`/`entityId`), mas nenhuma rota o publica para o tenant — verificado: 404 em `/customers/:id/history`, `/assets/:id/history` e `/audit-logs`. A aba declara a ausência e não reconstrói eventos |
 | ~~`products.status` não era escrevível nem filtrável~~                                                                               | **corrigido na PR-16**: `status` opcional em `UpdateProductDto` e `CatalogQueryDto`; criação inalterada                                                                                                                                               |
 | Sem controle de estoque                                                                                                              | nenhum modelo, coluna ou rota na plataforma (`/catalog/stock`, `/stock`, `/inventory` → 404); a aba declara a ausência e não estima                                                                                                                   |
+| ~~Sem domínio financeiro~~                                                                                                           | **corrigido na PR-21**: `financial_entries`, `financial_categories` e `financial_settings`, com RLS por organização **e** unidade, capabilities `financial.read`/`financial.manage` e API em `/financial/**`                                           |
+| Sem conciliação bancária, fiscal ou gateway de pagamento                                                                             | fora do escopo declarado da PR-21; o domínio registra o fato financeiro, não processa dinheiro                                                                                                                                                        |
+| Sem parcelamento, recorrência ou centro de custo                                                                                     | não há modelo nem rota; um lançamento pertence a uma unidade e a uma competência                                                                                                                                                                      |
+| Sem conversão entre moedas                                                                                                           | `currency` é gravada por lançamento, mas não existe taxa de câmbio — o resumo publica a moeda padrão da organização e não soma moedas diferentes                                                                                                      |
+| Orçamento ainda não gera receita prevista                                                                                            | `source = 'QUOTE'` existe no contrato e no banco, com a mesma trava de origem; falta o módulo de orçamentos publicar o evento de aprovação                                                                                                            |
 | ~~Convites só podiam ser criados~~                                                                                                   | **corrigido na PR-17**: `GET /identity/invitations`, `POST :id/resend` e `DELETE :id`; o token nunca é publicado                                                                                                                                      |
 | ~~Nenhum endpoint publicava papéis~~                                                                                                 | **corrigido na PR-17**: `GET /organizations/current/roles`, com `permissions`, `isSystem` e `memberCount`; só os papéis da organização                                                                                                                |
 | ~~Membro não publicava unidade~~                                                                                                     | **corrigido na PR-17**: `businessUnits` no `OrganizationMemberReadModel`, de `BusinessUnitMembership`                                                                                                                                                 |
@@ -419,6 +424,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 
 | Assunto                                         | Documento                                       |
 | ----------------------------------------------- | ----------------------------------------------- |
+| Financial Core (backend)                        | `backend/docs/financial-core.md`                |
 | BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`                |
 | Autenticação e sessão (web)                     | `frontend/docs/authentication.md`               |
 | Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`                    |
