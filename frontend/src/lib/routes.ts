@@ -30,6 +30,8 @@ export const ROUTES = {
   team: "/equipe",
   /** Financial Workspace — lançamentos, categorias e relatórios. */
   financial: "/financeiro",
+  /** Quotes Workspace — propostas comerciais. */
+  quotes: "/orcamentos",
   /** Settings Workspace — governança da plataforma. */
   settings: "/configuracoes",
   /** Profile Workspace — a própria conta. */
@@ -59,6 +61,7 @@ export const PROTECTED_PREFIXES: readonly string[] = [
   ROUTES.catalog,
   ROUTES.team,
   ROUTES.financial,
+  ROUTES.quotes,
   ROUTES.settings,
   ROUTES.profile,
   ROUTES.organization,

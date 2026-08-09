@@ -45,6 +45,7 @@ export {
   FINANCIAL_TYPE_CLASSES,
   FINANCIAL_TYPE_LABELS,
 } from "./financial-labels";
+export { QUOTE_STATUS_CLASSES, QUOTE_STATUS_LABELS } from "./quote-labels";
 export {
   ASSET_CATEGORY_LABELS,
   ASSET_IDENTIFIER_LABELS,

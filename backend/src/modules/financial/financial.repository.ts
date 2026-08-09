@@ -607,6 +607,7 @@ export class FinancialRepository {
       type: query.type,
       status: query.status,
       source: query.source,
+      sourceEntityId: query.sourceEntityId,
       categoryId: query.categoryId,
       businessUnitId: query.businessUnitId,
       customerId: query.customerId,

@@ -30,6 +30,7 @@ export const ALLOWED_API_ROOTS: readonly string[] = [
   "organizations",
   "plans",
   "platform-admin",
+  "quotes",
   "report-templates",
   "reports",
   "scheduling",

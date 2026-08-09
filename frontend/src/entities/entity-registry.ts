@@ -32,6 +32,7 @@ import {
   Handshake,
   LayoutTemplate,
   PackageSearch,
+  ReceiptText,
   UsersRound,
   Wallet,
   Workflow,
@@ -57,6 +58,10 @@ import {
   FINANCIAL_TYPE_CLASSES,
   FINANCIAL_TYPE_LABELS,
 } from "./financial-labels";
+import {
+  QUOTE_STATUS_CLASSES,
+  QUOTE_STATUS_LABELS,
+} from "./quote-labels";
 
 export type EntityIcon = ComponentType<LucideProps>;
 
@@ -76,6 +81,7 @@ export const ENTITY_IDS = [
   "artifact-execution",
   "scheduling-event",
   "financial-entry",
+  "quote",
 ] as const;
 export type EntityId = (typeof ENTITY_IDS)[number];
 
@@ -252,6 +258,44 @@ const DEFINITIONS: readonly EntityDefinition[] = [
       status: { label: "Status", labels: ARTIFACT_EXECUTION_STATUS_LABELS },
     },
     href: (id) => `${ROUTES.executions}/${id}`,
+  },
+  {
+    /**
+     * Orçamento — proposta comercial.
+     *
+     * Tem rota própria por registro, ao contrário do lançamento financeiro: um
+     * orçamento é um documento com itens, histórico e desfecho, e cabe numa
+     * página. Painel lateral obrigaria a rolar dentro de uma gaveta.
+     *
+     * `quotes.read` é **independente** de `crm.read` e `catalog.read`: ter a
+     * carteira de clientes ou a tabela de preços não é o mesmo que poder propor
+     * um valor em nome da empresa. É a regra que o backend aplica; aqui ela só
+     * evita oferecer o que seria recusado.
+     */
+    id: "quote",
+    label: "Orçamento",
+    labelPlural: "Orçamentos",
+    description:
+      "Propostas comerciais: o que se ofereceu, por quanto, até quando.",
+    icon: ReceiptText,
+    color: "text-violet-400",
+    basePath: ROUTES.quotes,
+    capability: { read: "quotes.read", manage: "quotes.manage" },
+    permissions: {
+      read: "quotes.read",
+      create: "quotes.manage",
+      update: "quotes.manage",
+      /** Só rascunho é apagável; enviado é cancelado, e isso é transição. */
+      delete: "quotes.manage",
+    },
+    badges: {
+      status: {
+        label: "Situação",
+        labels: QUOTE_STATUS_LABELS,
+        classes: QUOTE_STATUS_CLASSES,
+      },
+    },
+    href: (id) => `${ROUTES.quotes}/${id}`,
   },
   {
     /**

@@ -64,6 +64,7 @@ import {
   IntelligenceSection,
   OverviewSection,
 } from "./panels";
+import { CustomerQuotesTab } from "./tabs/quotes.tab";
 import { EquipmentTab } from "./tabs/equipment.tab";
 import { HistoryTab } from "./tabs/history.tab";
 import {
@@ -175,6 +176,13 @@ function WorkspaceBody({
               {customer.counts.operations}
             </Badge>
           </TabsTrigger>
+          {/*
+            Orçamentos do cliente.
+            Sem crachá de contagem: `GET /customers/:id` publica `counts` de
+            equipamentos e operações, não de propostas — e inventar o número
+            somando uma página daria o tamanho da página.
+          */}
+          <TabsTrigger value="orcamentos">Orçamentos</TabsTrigger>
           <TabsTrigger value="execucoes">Execuções</TabsTrigger>
           <TabsTrigger value="documentos">Documentos</TabsTrigger>
           <TabsTrigger value="historico">Histórico</TabsTrigger>
@@ -216,6 +224,12 @@ function WorkspaceBody({
         <TabsContent value="operacoes">
           <TabBoundary id="customer-operations" label="as operações">
             <OperationsTab customerId={customer.id} />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="orcamentos">
+          <TabBoundary id="customer-quotes" label="os orçamentos">
+            <CustomerQuotesTab customerId={customer.id} />
           </TabBoundary>
         </TabsContent>
 

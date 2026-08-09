@@ -365,8 +365,14 @@ export class QuoteRepository {
   ) {
     return this.rls.run(async (tx) => {
       /**
-       * `COALESCE` para atualizar só o que veio, e recomputar o total com a
-       * combinação final — nunca com a metade nova e a metade antiga.
+       * Uma instrução só, e o total junto.
+       *
+       * `COALESCE` atualiza apenas o que veio; o total é recomputado **na
+       * mesma linha do `SET`**, a partir dos valores novos. Fazê-lo em duas
+       * instruções deixaria a primeira com quantidade nova e total velho — e o
+       * `CHECK` `total = ROUND(quantity * unit_price, 2) - discount` é
+       * avaliado a cada instrução, então a escrita falharia antes de o
+       * recálculo acontecer.
        */
       await tx.$executeRaw`
         UPDATE quote_items SET
@@ -376,13 +382,13 @@ export class QuoteRepository {
           unit_price  = COALESCE(${patch.unitPrice ?? null}::decimal, unit_price),
           discount    = COALESCE(${patch.discount ?? null}::decimal, discount),
           notes       = COALESCE(${patch.notes ?? null}, notes),
+          total       = ROUND(
+                          COALESCE(${patch.quantity ?? null}::decimal, quantity)
+                          * COALESCE(${patch.unitPrice ?? null}::decimal, unit_price),
+                          2
+                        ) - COALESCE(${patch.discount ?? null}::decimal, discount),
           updated_at  = now()
         WHERE id = ${itemId}::uuid
-      `;
-      await tx.$executeRaw`
-        UPDATE quote_items
-           SET total = ROUND(quantity * unit_price, 2) - discount
-         WHERE id = ${itemId}::uuid
       `;
 
       await this.recalculate(tx, quoteId);

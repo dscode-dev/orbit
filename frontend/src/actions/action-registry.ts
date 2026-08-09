@@ -34,6 +34,7 @@ import {
   Archive,
   Ban,
   CheckCheck,
+  CircleX,
   CircleCheckBig,
   Copy,
   Download,
@@ -45,8 +46,10 @@ import {
   Power,
   PowerOff,
   RefreshCw,
+  ReceiptText,
   Send,
   Share2,
+  ShoppingCart,
   ShieldCheck,
   Trash2,
   Undo2,
@@ -562,6 +565,131 @@ const DEFINITIONS: readonly ActionDefinition[] = [
    * curta e pessoal, e não existe endpoint que crie link público ou envie por
    * e-mail. Quando existir, vira `true` e nada mais muda.
    */
+  /* ---------------------------------------------------------------- */
+  /* Orçamentos                                                        */
+  /* ---------------------------------------------------------------- */
+  define({
+    id: "quote.create",
+    entity: "quote",
+    label: "Novo orçamento",
+    description: "Proposta comercial para um cliente.",
+    icon: Plus,
+    category: "create",
+    permission: "quotes.manage",
+    capability: "quotes.manage",
+  }),
+  define({
+    id: "quote.update",
+    entity: "quote",
+    label: "Editar",
+    icon: Pencil,
+    category: "edit",
+    permission: "quotes.manage",
+    capability: "quotes.manage",
+  }),
+  /**
+   * As quatro transições.
+   *
+   * O registry declara **quem pode ver o botão**; se a proposta aceita a
+   * transição **agora** é o `transitions` que o backend publica em cada
+   * orçamento. Duplicar a máquina de estados aqui criaria a segunda, e as duas
+   * divergiriam no primeiro estado novo.
+   */
+  define({
+    id: "quote.send",
+    entity: "quote",
+    label: "Enviar ao cliente",
+    description: "Registra o envio. A proposta deixa de aceitar alterações.",
+    icon: Send,
+    category: "workflow",
+    permission: "quotes.manage",
+    capability: "quotes.manage",
+  }),
+  define({
+    id: "quote.approve",
+    entity: "quote",
+    label: "Registrar aprovação",
+    description:
+      "O cliente aceitou. Gera receita prevista — não recebida — no Financeiro.",
+    icon: CheckCheck,
+    category: "workflow",
+    permission: "quotes.manage",
+    capability: "quotes.manage",
+  }),
+  define({
+    id: "quote.reject",
+    entity: "quote",
+    label: "Registrar recusa",
+    icon: CircleX,
+    category: "workflow",
+    permission: "quotes.manage",
+    capability: "quotes.manage",
+  }),
+  define({
+    id: "quote.cancel",
+    entity: "quote",
+    label: "Cancelar proposta",
+    icon: Ban,
+    category: "destructive",
+    permission: "quotes.manage",
+    capability: "quotes.manage",
+    confirm: {
+      title: "Cancelar esta proposta?",
+      body: "Ela deixa de valer e o motivo fica registrado. Se já havia receita prevista, ela é cancelada — não apagada. Uma operação já criada por conversão não é desfeita.",
+      confirmLabel: "Cancelar proposta",
+    },
+  }),
+  /**
+   * Conversão em operação.
+   *
+   * Exige também `operations.manage`: abrir trabalho em campo é ato do domínio
+   * de operações, e é a dupla exigência que o backend aplica.
+   */
+  define({
+    id: "quote.convert",
+    entity: "quote",
+    label: "Converter em operação",
+    description: "Abre a ordem de serviço correspondente à proposta aprovada.",
+    icon: ShoppingCart,
+    category: "workflow",
+    permission: "quotes.manage",
+    capability: "operations.manage",
+  }),
+  define({
+    id: "quote.delete",
+    entity: "quote",
+    label: "Excluir rascunho",
+    icon: Trash2,
+    category: "destructive",
+    permission: "quotes.manage",
+    capability: "quotes.manage",
+    confirm: {
+      title: "Excluir este rascunho?",
+      body: "Só rascunhos podem ser excluídos. Proposta já enviada é cancelada, para que o motivo e o histórico permaneçam.",
+      confirmLabel: "Excluir",
+    },
+  }),
+  /**
+   * Documento da proposta — sem contrato.
+   *
+   * O template oficial `ORBIT_ORCAMENTO` existe e o Rendering Engine sabe
+   * emiti-lo, mas **não há mapeamento Quote → ArtifactExecution** no backend:
+   * nada transforma os itens do orçamento nas seções do template. Declarado
+   * como indisponível em vez de omitido — e nenhum PDF é gerado aqui, porque
+   * um segundo gerador seria a segunda verdade sobre o que é um documento
+   * emitido.
+   */
+  define({
+    id: "quote.document",
+    entity: "quote",
+    label: "Gerar documento",
+    icon: ReceiptText,
+    category: "document",
+    available: false,
+    unavailableReason:
+      "O template `ORBIT_ORCAMENTO` existe, mas o backend ainda não mapeia um orçamento para uma execução de artefato. Nenhum PDF é gerado fora do Rendering Engine.",
+  }),
+
   /* ---------------------------------------------------------------- */
   /* Financeiro                                                        */
   /* ---------------------------------------------------------------- */

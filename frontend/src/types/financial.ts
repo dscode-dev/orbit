@@ -58,6 +58,13 @@ export interface FinancialEntryQuery {
   type?: FinancialEntryType;
   status?: FinancialEntryStatus;
   source?: FinancialEntrySource;
+  /**
+   * Registro que originou o lançamento.
+   *
+   * Responde "qual é a previsão deste orçamento" pelo servidor. Filtrar
+   * páginas no cliente erraria assim que o resultado passasse de uma página.
+   */
+  sourceEntityId?: string;
   categoryId?: string;
   businessUnitId?: string;
   customerId?: string;

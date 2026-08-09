@@ -252,6 +252,27 @@ describe('Quotes (e2e)', () => {
       .send({ discount: 10_000 })
       .expect(400);
 
+    /**
+     * Editar um item recalcula sem violar o `CHECK`.
+     *
+     * O total do item e os totais do orçamento mudam na mesma instrução; em
+     * duas, a primeira deixaria quantidade nova com total velho e a escrita
+     * falharia — foi assim que o defeito apareceu.
+     */
+    const edited = body(
+      await auth(
+        http().patch(
+          `/api/v1/quotes/${quote.id}/items/${withService.items[1]!.id}`,
+        ),
+        tenant.token,
+      )
+        .send({ quantity: 4, discount: 40 })
+        .expect(200),
+    );
+    /** 4 × 120 = 480,00 − 40,00 = 440,00 · subtotal 799,60 */
+    expect(edited.items[1]!.total).toBe('440.00');
+    expect(edited.subtotal).toBe('799.60');
+
     /** Remover item recalcula e apara o desconto sem estourar a constraint. */
     const removed = body(
       await auth(

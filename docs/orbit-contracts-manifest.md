@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Backend-22 (Commercial Engine — Quotes).
+Última revisão: PR Frontend-20 (Quotes Workspace).
 
 ---
 
@@ -386,6 +386,10 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Sem conversão entre moedas                                                                                                           | `currency` é gravada por lançamento, mas não existe taxa de câmbio — o resumo publica a moeda padrão da organização e não soma moedas diferentes                                                                                                      |
 | ~~Orçamento ainda não gera receita prevista~~                                                                                        | **corrigido na PR-22**: aprovar cria `FinancialEntry(INCOME, PENDING, source=QUOTE)` pelo outbox; cancelar cancela a previsão sem apagá-la                                                               |
 | ~~Sem domínio comercial~~                                                                                                            | **corrigido na PR-22**: `quotes` e `quote_items`, RLS por organização **e** unidade, capabilities `quotes.read`/`quotes.manage`, snapshot comercial e conversão idempotente em `Operation`               |
+| ~~Lançamento financeiro não era consultável por origem~~                                                                             | **corrigido na PR Frontend-20**: `sourceEntityId` opcional no `FinancialEntryQueryDto`, sobre a coluna já indexada — permite mostrar a previsão de um orçamento sem filtrar páginas no cliente           |
+| Sem histórico publicado de orçamento                                                                                                 | `AuditLog` grava cada transição e mudança de item, mas nenhuma rota o expõe ao tenant; o detalhe usa os carimbos do próprio orçamento                                                                    |
+| `GET /customers/:id` não conta orçamentos                                                                                            | `counts` cobre equipamentos e operações; a aba de orçamentos do cliente não exibe crachá em vez de somar uma página                                                                                      |
+| `/quotes` não publica soma de valores por situação                                                                                   | os indicadores do funil são contagens (`meta.total`); o valor previsto que existe é o `PENDING INCOME` do Financeiro                                                                                     |
 | Sem revisão de proposta                                                                                                              | alterar preço depois de enviado exige criar outra proposta; `number`/`code` não têm sufixo de revisão                                                                                                    |
 | Sem envio de orçamento por e-mail                                                                                                    | `POST /quotes/:id/send` muda o estado e registra quem enviou; a entrega ao cliente acontece fora da plataforma                                                                                           |
 | Documento do orçamento ainda não é gerado                                                                                            | o template oficial `ORBIT_ORCAMENTO` existe e o Rendering Engine sabe emiti-lo; falta o mapeamento de itens para as seções — preparado, sem segundo gerador de PDF                                       |
@@ -434,6 +438,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Financial Core (backend)                        | `backend/docs/financial-core.md`                |
 | Financial Workspace (web)                       | `frontend/docs/financial-workspace.md`          |
 | Commercial Engine — Quotes (backend)            | `backend/docs/commercial-quotes.md`             |
+| Quotes Workspace (web)                          | `frontend/docs/quotes-workspace.md`             |
 | BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`                |
 | Autenticação e sessão (web)                     | `frontend/docs/authentication.md`               |
 | Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`                    |

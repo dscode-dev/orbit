@@ -31,6 +31,9 @@ import {
   Handshake,
   Package,
   PackageX,
+  Pencil,
+  ReceiptText,
+  Send,
   Thermometer,
   Timer,
   TrendingDown,
@@ -62,7 +65,7 @@ export type MetricIcon = ComponentType<LucideProps>;
  * Categoria aqui é **apresentação** — cor, ícone e agrupamento do card. É o
  * tipo de decisão que este registry existe para hospedar.
  */
-export type MetricCategory = AnalyticsDomain | "FINANCIAL";
+export type MetricCategory = AnalyticsDomain | "FINANCIAL" | "COMMERCIAL";
 
 export type MetricUnit = "count" | "percent" | "hours" | "index" | "currency";
 
@@ -205,6 +208,7 @@ const CATEGORY_COLORS: Readonly<Record<MetricCategory, string>> = {
   CONTRACTS: "text-chart-5",
   ENVIRONMENT: "text-primary",
   FINANCIAL: "text-emerald-400",
+  COMMERCIAL: "text-violet-400",
 };
 
 function define(input: MetricInput): MetricDefinition {
@@ -770,6 +774,68 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     priority: 7,
     capability: "financial.read",
   }),
+
+  /**
+   * Comercial — contagens de `GET /quotes`.
+   *
+   * **Não existe Analytics comercial**: `AnalyticsDomain` cobre operações,
+   * PMOC, equipamentos, técnicos, contratos e ambiente. Estes números são o
+   * `meta.total` de consultas server-side com `limit: 1` — a mesma técnica do
+   * Catálogo e do Execution Center, e pelo mesmo motivo: contar a página daria
+   * o tamanho da página, não o do funil.
+   *
+   * Não há métrica de **valor** aqui. O contrato de `/quotes` não publica soma
+   * de totais por situação, e somar a página seria inventar um indicador. O
+   * valor previsto que existe de verdade é o do Financeiro — `PENDING INCOME`
+   * —, e é lá que ele é publicado.
+   */
+  define({
+    id: "quotes.draft.total",
+    label: "Em elaboração",
+    description: "Propostas ainda não enviadas ao cliente.",
+    category: "COMMERCIAL",
+    unit: "count",
+    icon: Pencil,
+    trendColor: neutralTrend,
+    priority: 1,
+    capability: "quotes.read",
+  }),
+  define({
+    id: "quotes.sent.total",
+    label: "Aguardando decisão",
+    description: "Propostas com o cliente, dentro do prazo de validade.",
+    category: "COMMERCIAL",
+    unit: "count",
+    icon: Send,
+    color: "text-amber-400",
+    trendColor: neutralTrend,
+    priority: 2,
+    capability: "quotes.read",
+  }),
+  define({
+    id: "quotes.approved.total",
+    label: "Aprovadas",
+    description: "Propostas aceitas pelo cliente.",
+    category: "COMMERCIAL",
+    unit: "count",
+    icon: CheckCircle2,
+    color: "text-emerald-400",
+    trendColor: higherIsBetter,
+    priority: 3,
+    capability: "quotes.read",
+  }),
+  define({
+    id: "quotes.expired.total",
+    label: "Expiradas",
+    description: "O prazo passou antes de haver decisão do cliente.",
+    category: "COMMERCIAL",
+    unit: "count",
+    icon: Timer,
+    color: "text-orange-400",
+    trendColor: lowerIsBetter,
+    priority: 4,
+    capability: "quotes.read",
+  }),
 ];
 
 /**
@@ -804,6 +870,7 @@ const CATEGORY_ICONS: Readonly<Record<MetricCategory, MetricIcon>> = {
   CONTRACTS: Handshake,
   ENVIRONMENT: Cloud,
   FINANCIAL: Wallet,
+  COMMERCIAL: ReceiptText,
 };
 
 /* ------------------------------------------------------------------ */

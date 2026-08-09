@@ -103,6 +103,7 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
        */
       fromEntity("customer"),
       fromEntity("catalog-item"),
+      fromEntity("quote"),
       /**
        * Financeiro é comercial, não administrativo.
        *

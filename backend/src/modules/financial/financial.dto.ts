@@ -304,6 +304,19 @@ export class FinancialEntryQueryDto {
   @IsIn(['MANUAL', 'RECEIPT', 'QUOTE', 'SYSTEM'])
   source?: string;
 
+  /**
+   * Registro que originou o lançamento.
+   *
+   * Existe para responder "qual é a previsão **deste** orçamento" sem trazer
+   * páginas de lançamentos para filtrar no cliente — o que erraria assim que o
+   * resultado passasse de uma página. A coluna já é indexada por
+   * `(organization_id, source, source_entity_id)`.
+   */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUIDv7()
+  sourceEntityId?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUIDv7()
