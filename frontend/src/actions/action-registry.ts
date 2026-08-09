@@ -32,7 +32,9 @@
 import type { ComponentType } from "react";
 import {
   Archive,
+  Ban,
   CheckCheck,
+  CircleCheckBig,
   Copy,
   Download,
   Eye,
@@ -560,6 +562,118 @@ const DEFINITIONS: readonly ActionDefinition[] = [
    * curta e pessoal, e não existe endpoint que crie link público ou envie por
    * e-mail. Quando existir, vira `true` e nada mais muda.
    */
+  /* ---------------------------------------------------------------- */
+  /* Financeiro                                                        */
+  /* ---------------------------------------------------------------- */
+  define({
+    id: "financial-entry.create",
+    entity: "financial-entry",
+    label: "Novo lançamento",
+    description: "Receita ou despesa registrada manualmente.",
+    icon: Plus,
+    category: "create",
+    permission: "financial.manage",
+    capability: "financial.manage",
+  }),
+  /**
+   * Editar só existe para lançamento manual.
+   *
+   * A ação é declarada uma vez; quem decide se **esta linha** pode ser editada
+   * é o `editable` que o backend publica no próprio lançamento. O registry não
+   * conhece o registro, só a exigência — e é por isso que a lista não tem
+   * "editar recibo".
+   */
+  define({
+    id: "financial-entry.update",
+    entity: "financial-entry",
+    label: "Editar",
+    icon: Pencil,
+    category: "edit",
+    permission: "financial.manage",
+    capability: "financial.manage",
+  }),
+  define({
+    id: "financial-entry.confirm",
+    entity: "financial-entry",
+    label: "Confirmar",
+    description: "O dinheiro entrou ou saiu de fato.",
+    icon: CircleCheckBig,
+    category: "workflow",
+    permission: "financial.manage",
+    capability: "financial.manage",
+  }),
+  /**
+   * Cancelar não é excluir.
+   *
+   * Destrutiva na interface — pede confirmação e motivo —, mas o registro
+   * permanece: um valor que sumiu do caixa sem explicação é a pergunta que
+   * ninguém responde três meses depois.
+   */
+  define({
+    id: "financial-entry.cancel",
+    entity: "financial-entry",
+    label: "Cancelar lançamento",
+    icon: Ban,
+    category: "destructive",
+    permission: "financial.manage",
+    capability: "financial.manage",
+    confirm: {
+      title: "Cancelar este lançamento?",
+      body: "Ele deixa de contar no saldo, mas continua na base com motivo, autor e data. Nada é apagado.",
+      confirmLabel: "Cancelar lançamento",
+    },
+  }),
+  define({
+    id: "financial-entry.create-category",
+    entity: "financial-entry",
+    label: "Nova categoria",
+    icon: FolderTree,
+    category: "create",
+    surfaces: ["primary"],
+    permission: "financial.manage",
+    capability: "financial.manage",
+  }),
+  define({
+    id: "financial-entry.update-category",
+    entity: "financial-entry",
+    label: "Editar categoria",
+    icon: Pencil,
+    category: "edit",
+    permission: "financial.manage",
+    capability: "financial.manage",
+  }),
+  define({
+    id: "financial-entry.delete-category",
+    entity: "financial-entry",
+    label: "Excluir categoria",
+    icon: Trash2,
+    category: "destructive",
+    permission: "financial.manage",
+    capability: "financial.manage",
+    confirm: {
+      title: "Excluir esta categoria?",
+      body: "O servidor recusa se houver lançamentos usando-a, e categorias semeadas pelo Orbit não podem ser removidas.",
+      confirmLabel: "Excluir",
+    },
+  }),
+  /**
+   * Exportar não tem contrato.
+   *
+   * Não existe endpoint que produza CSV, XLSX ou PDF do financeiro — nem em
+   * `/financial`, nem no Document Center, cujos artefatos são documentos de
+   * execução, não relatórios. Declarado como indisponível em vez de omitido:
+   * é a pergunta que todo mundo faz na primeira semana de uso.
+   */
+  define({
+    id: "financial-entry.export",
+    entity: "financial-entry",
+    label: "Exportar lançamentos",
+    icon: Download,
+    category: "document",
+    available: false,
+    unavailableReason:
+      "Não há endpoint de exportação financeira: `/financial` publica JSON paginado, e o Document Center emite documentos de execução, não relatórios.",
+  }),
   define({
     id: "artifact-execution.share-document",
     entity: "artifact-execution",

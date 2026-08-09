@@ -22,6 +22,7 @@ export const ALLOWED_API_ROOTS: readonly string[] = [
   "checklist-templates",
   "customers",
   "dashboard",
+  "financial",
   "identity",
   "integrations",
   "notifications",

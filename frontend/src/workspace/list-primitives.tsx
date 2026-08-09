@@ -127,6 +127,7 @@ export function FilterSelect({
   onChange,
   options,
   anyLabel = "Todos",
+  disabled = false,
   className,
 }: {
   id: string;
@@ -135,6 +136,15 @@ export function FilterSelect({
   onChange: (value: string | undefined) => void;
   options: readonly FilterOption[];
   anyLabel?: string;
+  /**
+   * Outro filtro já decidiu este.
+   *
+   * Existe porque filtros podem ser mutuamente exclusivos no contrato: no
+   * Financeiro, "só vencidos" implica situação prevista, e o servidor recusa a
+   * combinação. Desabilitar é melhor que deixar montar uma consulta que
+   * voltaria 400 — ou, pior, corrigi-la em silêncio.
+   */
+  disabled?: boolean;
   className?: string;
 }) {
   return (
@@ -143,6 +153,7 @@ export function FilterSelect({
       <Select
         value={toAnyOption(value)}
         onValueChange={(next) => onChange(fromAnyOption(next))}
+        disabled={disabled}
       >
         <SelectTrigger id={id}>
           <SelectValue placeholder={anyLabel} />

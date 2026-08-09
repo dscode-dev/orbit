@@ -33,7 +33,10 @@ import {
   PackageX,
   Thermometer,
   Timer,
+  TrendingDown,
+  TrendingUp,
   Users,
+  Wallet,
   Wrench,
   type LucideProps,
 } from "lucide-react";
@@ -47,8 +50,19 @@ import type {
 
 export type MetricIcon = ComponentType<LucideProps>;
 
-/** Agrupamento de negócio da métrica; espelha `AnalyticsDomain`. */
-export type MetricCategory = AnalyticsDomain;
+/**
+ * Agrupamento de negócio da métrica.
+ *
+ * Espelha `AnalyticsDomain` e acrescenta `FINANCIAL`, que **não** é um domínio
+ * do Analytics: o backend serve finanças em `/financial/analytics/*`, com
+ * capability financeira, justamente para que `analytics.read` não dê acesso a
+ * faturamento. Acrescentar `FINANCIAL` ao literal do backend anunciaria um
+ * domínio que o `KpiEngine` não publica.
+ *
+ * Categoria aqui é **apresentação** — cor, ícone e agrupamento do card. É o
+ * tipo de decisão que este registry existe para hospedar.
+ */
+export type MetricCategory = AnalyticsDomain | "FINANCIAL";
 
 export type MetricUnit = "count" | "percent" | "hours" | "index" | "currency";
 
@@ -190,6 +204,7 @@ const CATEGORY_COLORS: Readonly<Record<MetricCategory, string>> = {
   TECHNICIANS: "text-chart-4",
   CONTRACTS: "text-chart-5",
   ENVIRONMENT: "text-primary",
+  FINANCIAL: "text-emerald-400",
 };
 
 function define(input: MetricInput): MetricDefinition {
@@ -644,6 +659,117 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     trendColor: lowerIsBetter,
     priority: 140,
   }),
+
+  /**
+   * Financeiro — `GET /financial/analytics/summary`.
+   *
+   * Os `id` não vêm do `KpiEngine`: o resumo financeiro publica objetos
+   * (`income.confirmed`, `netConfirmed`…), não uma lista de KPIs com `id`. As
+   * chaves abaixo são a **ligação entre esses campos e a apresentação**, e o
+   * caminho no payload é exatamente o nome — `financial.income.confirmed` lê
+   * `summary.income.confirmed`.
+   *
+   * Nenhuma delas é calculada aqui. `netConfirmed` e `netPending` já vêm
+   * prontos do servidor: subtrair no cliente criaria uma segunda aritmética
+   * financeira, e as duas divergiriam no primeiro arredondamento.
+   *
+   * **Realizado e previsto são métricas diferentes, de propósito.** Não existe
+   * card de "saldo" que some os dois: previsão e caixa são grandezas distintas,
+   * e juntá-las produziria um número que parece dinheiro e não é.
+   */
+  define({
+    id: "financial.income.confirmed",
+    label: "Receitas realizadas",
+    description: "Entradas confirmadas no período — dinheiro que entrou.",
+    category: "FINANCIAL",
+    unit: "currency",
+    icon: TrendingUp,
+    color: "text-emerald-400",
+    trendColor: higherIsBetter,
+    priority: 1,
+    capability: "financial.read",
+  }),
+  define({
+    id: "financial.expense.confirmed",
+    label: "Despesas realizadas",
+    description: "Saídas confirmadas no período — dinheiro que saiu.",
+    category: "FINANCIAL",
+    unit: "currency",
+    icon: TrendingDown,
+    color: "text-rose-400",
+    trendColor: lowerIsBetter,
+    priority: 2,
+    capability: "financial.read",
+  }),
+  define({
+    id: "financial.netConfirmed",
+    label: "Saldo realizado",
+    description:
+      "Receitas menos despesas confirmadas. Só o que aconteceu — previsão não entra.",
+    category: "FINANCIAL",
+    unit: "currency",
+    icon: Wallet,
+    trendColor: higherIsBetter,
+    priority: 3,
+    capability: "financial.read",
+  }),
+  define({
+    id: "financial.income.pending",
+    label: "Receitas previstas",
+    description: "Entradas lançadas que ainda não foram confirmadas.",
+    category: "FINANCIAL",
+    unit: "currency",
+    icon: CalendarClock,
+    color: "text-amber-400",
+    trendColor: neutralTrend,
+    priority: 4,
+    capability: "financial.read",
+  }),
+  define({
+    id: "financial.expense.pending",
+    label: "Despesas previstas",
+    description: "Saídas lançadas que ainda não foram confirmadas.",
+    category: "FINANCIAL",
+    unit: "currency",
+    icon: CalendarClock,
+    color: "text-amber-400",
+    trendColor: neutralTrend,
+    priority: 5,
+    capability: "financial.read",
+  }),
+  define({
+    id: "financial.netPending",
+    label: "Saldo previsto",
+    description:
+      "Receitas menos despesas previstas. É expectativa, não caixa.",
+    category: "FINANCIAL",
+    unit: "currency",
+    icon: CalendarClock,
+    color: "text-amber-400",
+    trendColor: neutralTrend,
+    priority: 6,
+    capability: "financial.read",
+  }),
+  /**
+   * Vencido.
+   *
+   * `PENDING` cuja data de vencimento já passou — e **o servidor é quem
+   * decide**, comparando contra o próprio relógio. Um navegador com a data
+   * errada não define o que está atrasado.
+   */
+  define({
+    id: "financial.overdue.pending",
+    label: "Vencido",
+    description:
+      "Lançamentos previstos cujo vencimento já passou, segundo o relógio do servidor.",
+    category: "FINANCIAL",
+    unit: "currency",
+    icon: Timer,
+    color: "text-rose-400",
+    trendColor: lowerIsBetter,
+    priority: 7,
+    capability: "financial.read",
+  }),
 ];
 
 /**
@@ -677,6 +803,7 @@ const CATEGORY_ICONS: Readonly<Record<MetricCategory, MetricIcon>> = {
   TECHNICIANS: Users,
   CONTRACTS: Handshake,
   ENVIRONMENT: Cloud,
+  FINANCIAL: Wallet,
 };
 
 /* ------------------------------------------------------------------ */

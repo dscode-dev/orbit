@@ -33,6 +33,7 @@ import {
   LayoutTemplate,
   PackageSearch,
   UsersRound,
+  Wallet,
   Workflow,
   type LucideProps,
 } from "lucide-react";
@@ -48,6 +49,14 @@ import {
   INVITATION_STATUS_LABELS,
   MEMBER_STATUS_LABELS,
 } from "./workforce-labels";
+import {
+  FINANCIAL_SOURCE_CLASSES,
+  FINANCIAL_SOURCE_LABELS,
+  FINANCIAL_STATUS_CLASSES,
+  FINANCIAL_STATUS_LABELS,
+  FINANCIAL_TYPE_CLASSES,
+  FINANCIAL_TYPE_LABELS,
+} from "./financial-labels";
 
 export type EntityIcon = ComponentType<LucideProps>;
 
@@ -66,6 +75,7 @@ export const ENTITY_IDS = [
   "artifact-template",
   "artifact-execution",
   "scheduling-event",
+  "financial-entry",
 ] as const;
 export type EntityId = (typeof ENTITY_IDS)[number];
 
@@ -242,6 +252,60 @@ const DEFINITIONS: readonly EntityDefinition[] = [
       status: { label: "Status", labels: ARTIFACT_EXECUTION_STATUS_LABELS },
     },
     href: (id) => `${ROUTES.executions}/${id}`,
+  },
+  {
+    /**
+     * Lançamento financeiro.
+     *
+     * **Não tem rota própria por registro.** O detalhe abre em painel lateral
+     * dentro do Workspace: um lançamento é meia dúzia de campos, e uma página
+     * inteira para ele custaria uma navegação sem entregar nada. `href` leva ao
+     * Workspace.
+     *
+     * A capability de leitura é `financial.read`, e ela é **independente** de
+     * `operations.read` e `crm.read`: quem enxerga a operação ou o cliente não
+     * passa a enxergar o dinheiro deles. É a mesma regra que o backend aplica —
+     * aqui ela só evita oferecer o que seria recusado.
+     */
+    id: "financial-entry",
+    label: "Lançamento",
+    labelPlural: "Financeiro",
+    description:
+      "Entradas e saídas de dinheiro por unidade, com origem rastreável.",
+    icon: Wallet,
+    color: "text-emerald-400",
+    basePath: ROUTES.financial,
+    capability: { read: "financial.read", manage: "financial.manage" },
+    permissions: {
+      read: "financial.read",
+      create: "financial.manage",
+      update: "financial.manage",
+      /**
+       * Não há exclusão.
+       *
+       * Cancelar preserva o registro, com motivo e autor — e é `POST`, não
+       * `DELETE`, no backend. Declarar uma permissão de exclusão aqui faria a
+       * interface oferecer uma ação que não existe.
+       */
+    },
+    badges: {
+      type: {
+        label: "Sentido",
+        labels: FINANCIAL_TYPE_LABELS,
+        classes: FINANCIAL_TYPE_CLASSES,
+      },
+      status: {
+        label: "Situação",
+        labels: FINANCIAL_STATUS_LABELS,
+        classes: FINANCIAL_STATUS_CLASSES,
+      },
+      source: {
+        label: "Origem",
+        labels: FINANCIAL_SOURCE_LABELS,
+        classes: FINANCIAL_SOURCE_CLASSES,
+      },
+    },
+    href: () => ROUTES.financial,
   },
   {
     id: "artifact-template",

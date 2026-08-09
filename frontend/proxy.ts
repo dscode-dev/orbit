@@ -145,6 +145,7 @@ export const config = {
     "/ativos/:path*",
     "/catalogo/:path*",
     "/equipe/:path*",
+    "/financeiro/:path*",
     "/configuracoes/:path*",
     "/perfil/:path*",
     "/organizacao/:path*",

@@ -103,6 +103,14 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
        */
       fromEntity("customer"),
       fromEntity("catalog-item"),
+      /**
+       * Financeiro é comercial, não administrativo.
+       *
+       * O que se faz aqui é acompanhar o dinheiro que a operação gera —
+       * mesmo grupo de quem cuida da carteira. Em "Administração" ficaria ao
+       * lado de configuração de conta, que é outra tarefa.
+       */
+      fromEntity("financial-entry"),
     ],
   },
   {
