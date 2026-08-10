@@ -22,6 +22,7 @@
 import type { ComponentType } from "react";
 import {
   Activity,
+  Boxes,
   CalendarClock,
   CheckCircle2,
   ClipboardCheck,
@@ -30,6 +31,8 @@ import {
   Gauge,
   Handshake,
   Package,
+  PackageMinus,
+  PackagePlus,
   PackageX,
   Pencil,
   ReceiptText,
@@ -65,7 +68,11 @@ export type MetricIcon = ComponentType<LucideProps>;
  * Categoria aqui é **apresentação** — cor, ícone e agrupamento do card. É o
  * tipo de decisão que este registry existe para hospedar.
  */
-export type MetricCategory = AnalyticsDomain | "FINANCIAL" | "COMMERCIAL";
+export type MetricCategory =
+  | AnalyticsDomain
+  | "FINANCIAL"
+  | "COMMERCIAL"
+  | "INVENTORY";
 
 export type MetricUnit = "count" | "percent" | "hours" | "index" | "currency";
 
@@ -209,6 +216,7 @@ const CATEGORY_COLORS: Readonly<Record<MetricCategory, string>> = {
   ENVIRONMENT: "text-primary",
   FINANCIAL: "text-emerald-400",
   COMMERCIAL: "text-violet-400",
+  INVENTORY: "text-sky-400",
 };
 
 function define(input: MetricInput): MetricDefinition {
@@ -836,6 +844,82 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     priority: 4,
     capability: "quotes.read",
   }),
+
+  /**
+   * Estoque — `GET /inventory/analytics/summary`.
+   *
+   * Os três primeiros são contagens que o **backend publica**: `trackedItems`,
+   * `lowStockItems`, `outOfStockItems`. Os dois últimos são contagens de
+   * movimento no período.
+   *
+   * **Nenhuma métrica de valor.** Estoque não tem valoração no contrato:
+   * `costPrice` do Catálogo é o preço de hoje, não o custo do que está na
+   * prateleira, e sem FIFO ou custo médio qualquer número seria invenção com
+   * aparência de contabilidade.
+   *
+   * Também não há métrica de "volume total": somar quilos de gás com unidades
+   * de filtro produz um número sem significado. As quantidades por tipo de
+   * movimento existem no resumo e são exibidas junto do item a que pertencem.
+   */
+  define({
+    id: "inventory.tracked.total",
+    label: "Itens controlados",
+    description: "Produtos e peças com saldo registrado em alguma unidade.",
+    category: "INVENTORY",
+    unit: "count",
+    icon: Boxes,
+    trendColor: neutralTrend,
+    priority: 1,
+    capability: "inventory.read",
+  }),
+  define({
+    id: "inventory.low.total",
+    label: "Estoque baixo",
+    description: "Itens no mínimo ou abaixo dele, segundo o servidor.",
+    category: "INVENTORY",
+    unit: "count",
+    icon: PackageX,
+    color: "text-amber-400",
+    trendColor: lowerIsBetter,
+    priority: 2,
+    capability: "inventory.read",
+  }),
+  define({
+    id: "inventory.out.total",
+    label: "Sem estoque",
+    description: "Itens zerados na unidade — a peça não está lá.",
+    category: "INVENTORY",
+    unit: "count",
+    icon: PackageX,
+    color: "text-rose-400",
+    trendColor: lowerIsBetter,
+    priority: 3,
+    capability: "inventory.read",
+  }),
+  define({
+    id: "inventory.entries.count",
+    label: "Entradas no período",
+    description:
+      "Movimentos que somaram ao estoque: compras, devoluções, sobras e recebimentos.",
+    category: "INVENTORY",
+    unit: "count",
+    icon: PackagePlus,
+    color: "text-emerald-400",
+    trendColor: neutralTrend,
+    priority: 4,
+    capability: "inventory.read",
+  }),
+  define({
+    id: "inventory.consumption.count",
+    label: "Consumos no período",
+    description: "Movimentos de material usado em trabalho.",
+    category: "INVENTORY",
+    unit: "count",
+    icon: PackageMinus,
+    trendColor: neutralTrend,
+    priority: 5,
+    capability: "inventory.read",
+  }),
 ];
 
 /**
@@ -871,6 +955,7 @@ const CATEGORY_ICONS: Readonly<Record<MetricCategory, MetricIcon>> = {
   ENVIRONMENT: Cloud,
   FINANCIAL: Wallet,
   COMMERCIAL: ReceiptText,
+  INVENTORY: Boxes,
 };
 
 /* ------------------------------------------------------------------ */

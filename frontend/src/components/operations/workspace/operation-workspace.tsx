@@ -40,6 +40,7 @@ import {
   ScheduleSection,
 } from "./details.section";
 import { IntelligenceSection } from "./intelligence.section";
+import { MaterialsSection } from "./materials.section";
 import { StatusSection } from "./status.section";
 import { HistorySection, TimelineSection } from "./timeline.section";
 
@@ -107,6 +108,12 @@ export function OperationWorkspace({ operationId }: { operationId: string }) {
           <DetailsSection query={operationQuery} />
           <TimelineSection query={toPanelQuery(timeline)} />
           <ChecklistsSection query={toPanelQuery(checklists)} />
+          {/*
+            Materiais utilizados: baixa de estoque vinculada a esta operação.
+            Fica na coluna principal, ao lado de checklists — as duas respondem
+            "o que foi feito em campo".
+          */}
+          <MaterialsSection operation={operationQuery.data} />
           <IntelligenceSection query={toPanelQuery(intelligence)} />
           <AdditionalDataSection query={operationQuery} />
         </div>

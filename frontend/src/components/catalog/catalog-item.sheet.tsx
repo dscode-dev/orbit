@@ -9,14 +9,16 @@
  *
  * ## Estoque
  *
- * A seção existe e **declara a ausência**. Não há modelo, coluna nem endpoint
- * de estoque em lugar nenhum da plataforma — verificado: `/catalog/stock`,
- * `/catalog/products/:id/stock`, `/stock` e `/inventory` respondem 404.
+ * A seção declarava a ausência do domínio até a Backend PR-23; agora mostra os
+ * saldos reais por unidade, de `/inventory/items/:id`.
  *
- * Mostrar "0 em estoque" seria pior que não mostrar nada: zero é um número, e
- * um número que ninguém mediu vira decisão de compra errada.
+ * **Preço vem do Catálogo, quantidade vem do Estoque.** Os dois contratos não
+ * se misturam: o painel de preço não exibe saldo, e o de saldo não exibe
+ * preço.
+ *
+ * `SERVICE` não recebe controle nenhum — nem saldo zero.
  */
-import { Boxes, PackageSearch } from "lucide-react";
+import { PackageSearch } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { InventoryItemSection } from "@/components/inventory/inventory-item.section";
 import { useAction } from "@/actions";
 import { CATALOG_KIND_LABELS, EntityBadge } from "@/entities";
 import { formatDateTime } from "@/lib/formatters";
@@ -127,36 +130,25 @@ function Body({
           </section>
         ) : null}
 
-        {isService ? <ServiceGaps /> : <StockSection />}
+        {isService ? (
+          <ServiceGaps />
+        ) : (
+          /*
+            Sem histórico aqui: o painel lateral é estreito, e a listagem
+            completa mora na aba Estoque do Workspace. O que cabe é o saldo.
+          */
+          <InventoryItemSection
+            item={{
+              id: item.id,
+              name: item.name,
+              kind: item.kind,
+              unit: item.unit,
+            }}
+            withHistory={false}
+          />
+        )}
       </div>
     </>
-  );
-}
-
-/**
- * Estoque — a ausência, declarada.
- *
- * A plataforma inteira não tem estoque: nenhum modelo no schema, nenhuma
- * coluna de quantidade, nenhuma rota. Não é um recurso do plano nem uma
- * permissão faltando — o domínio não existe.
- */
-function StockSection() {
-  return (
-    <section className="space-y-2 rounded-xl border border-dashed border-border p-4">
-      <h3 className="flex items-center gap-2 text-sm font-medium">
-        <Boxes className="size-4 text-muted-foreground" aria-hidden />
-        Estoque
-      </h3>
-      <p className="text-sm text-muted-foreground">
-        O backend ainda não tem controle de estoque: não há modelo, coluna de
-        quantidade nem endpoint de movimentação em nenhum módulo da plataforma.
-      </p>
-      <p className="text-xs text-muted-foreground">
-        Nenhuma quantidade é exibida aqui. Mostrar &ldquo;0 em estoque&rdquo;
-        seria pior que não mostrar nada — zero é um número, e um número que
-        ninguém mediu vira decisão de compra errada.
-      </p>
-    </section>
   );
 }
 

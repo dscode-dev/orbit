@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Backend-23 (Inventory Engine).
+Última revisão: PR Frontend-21 (Inventory Workspace).
 
 ---
 
@@ -385,6 +385,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Sem lote, número de série e validade                                                                                                 | o saldo é uma quantidade, não um conjunto de unidades identificadas                                                                                                                                      |
 | Sem inventário físico completo                                                                                                       | existe ajuste por item, com motivo obrigatório; não existe contagem que congele o estoque e concilie tudo de uma vez                                                                                     |
 | Sem transferência em trânsito                                                                                                        | a transferência é instantânea; não há estado "saiu de A e ainda não chegou em B" — exigiria um terceiro saldo e um aceite no destino                                                                     |
+| Movimento de transferência não publica o nome da contraparte                                                                         | só `counterpartUnitId`; carregar a outra unidade em toda listagem custaria uma consulta por linha, e o extrato dela mostra o outro lado com o nome                                                       |
 | ~~Sem domínio financeiro~~                                                                                                           | **corrigido na PR-21**: `financial_entries`, `financial_categories` e `financial_settings`, com RLS por organização **e** unidade, capabilities `financial.read`/`financial.manage` e API em `/financial/**`                                           |
 | Sem conciliação bancária, fiscal ou gateway de pagamento                                                                             | fora do escopo declarado da PR-21; o domínio registra o fato financeiro, não processa dinheiro                                                                                                                                                        |
 | Sem parcelamento, recorrência ou centro de custo                                                                                     | não há modelo nem rota; um lançamento pertence a uma unidade e a uma competência                                                                                                                                                                      |
@@ -445,6 +446,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Commercial Engine — Quotes (backend)            | `backend/docs/commercial-quotes.md`             |
 | Quotes Workspace (web)                          | `frontend/docs/quotes-workspace.md`             |
 | Inventory Engine (backend)                      | `backend/docs/inventory-engine.md`              |
+| Inventory Workspace (web)                       | `frontend/docs/inventory-workspace.md`          |
 | BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`                |
 | Autenticação e sessão (web)                     | `frontend/docs/authentication.md`               |
 | Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`                    |

@@ -32,6 +32,7 @@
 import type { ComponentType } from "react";
 import {
   Archive,
+  ArrowLeftRight,
   Ban,
   CheckCheck,
   CircleX,
@@ -41,8 +42,11 @@ import {
   Eye,
   FileOutput,
   FolderTree,
+  PackageMinus,
+  PackagePlus,
   Pencil,
   Plus,
+  Scale,
   Power,
   PowerOff,
   RefreshCw,
@@ -565,6 +569,112 @@ const DEFINITIONS: readonly ActionDefinition[] = [
    * curta e pessoal, e não existe endpoint que crie link público ou envie por
    * e-mail. Quando existir, vira `true` e nada mais muda.
    */
+  /* ---------------------------------------------------------------- */
+  /* Estoque                                                           */
+  /* ---------------------------------------------------------------- */
+  /**
+   * As ações de estoque pertencem ao **item do catálogo**.
+   *
+   * Não há entidade `inventory-movement` no Entity Registry, e não deveria
+   * haver: movimento não tem tela própria, não tem rota e não é navegável —
+   * registrá-lo só para pendurar ações criaria uma entidade que nunca é o
+   * destino de um link. As ações vivem onde a pessoa está quando decide
+   * executá-las: no item.
+   *
+   * A capability é `inventory.manage`, independente de `catalog.manage`: mexer
+   * na tabela de preços não é mexer na prateleira.
+   */
+  define({
+    id: "catalog-item.stock-entry",
+    entity: "catalog-item",
+    label: "Registrar entrada",
+    description: "Material que chegou à unidade.",
+    icon: PackagePlus,
+    category: "workflow",
+    permission: "inventory.manage",
+    capability: "inventory.manage",
+  }),
+  define({
+    id: "catalog-item.stock-consumption",
+    entity: "catalog-item",
+    label: "Registrar consumo",
+    description: "Material usado em um trabalho.",
+    icon: PackageMinus,
+    category: "workflow",
+    permission: "inventory.manage",
+    capability: "inventory.manage",
+  }),
+  define({
+    id: "catalog-item.stock-return",
+    entity: "catalog-item",
+    label: "Registrar devolução",
+    description: "Material que voltou da visita sem ser usado.",
+    icon: Undo2,
+    category: "workflow",
+    permission: "inventory.manage",
+    capability: "inventory.manage",
+  }),
+  /**
+   * Ajuste é destrutivo na interface — pede confirmação e motivo.
+   *
+   * Não porque apaga algo: **nada é apagado**. Porque é a única operação que
+   * altera o saldo sem um fato externo que a explique, e é onde estoque some
+   * sem rastro em sistemas que a tratam como digitação comum.
+   */
+  define({
+    id: "catalog-item.stock-adjustment",
+    entity: "catalog-item",
+    label: "Ajustar contagem",
+    description: "Diferença encontrada na conferência física.",
+    icon: Scale,
+    category: "destructive",
+    permission: "inventory.manage",
+    capability: "inventory.manage",
+    confirm: {
+      title: "Registrar ajuste de contagem?",
+      body: "O ajuste não corrige o saldo por edição: ele cria uma movimentação no histórico, com motivo e autor. O saldo anterior continua explicável.",
+      confirmLabel: "Registrar ajuste",
+    },
+  }),
+  define({
+    id: "catalog-item.stock-transfer",
+    entity: "catalog-item",
+    label: "Transferir entre unidades",
+    description: "Sai de uma unidade e entra na outra, na mesma operação.",
+    icon: ArrowLeftRight,
+    category: "workflow",
+    permission: "inventory.manage",
+    capability: "inventory.manage",
+  }),
+  define({
+    id: "catalog-item.stock-minimum",
+    entity: "catalog-item",
+    label: "Definir estoque mínimo",
+    description: "Política de reposição do item nesta unidade.",
+    icon: Pencil,
+    category: "edit",
+    permission: "inventory.manage",
+    capability: "inventory.manage",
+  }),
+  /**
+   * Reserva — sem contrato.
+   *
+   * O backend publica `reserved` e `available` na projeção, mas **nenhuma rota
+   * reserva**: falta um reservador com ciclo de vida. Declarada indisponível
+   * em vez de omitida, porque `available` aparece na tela e a pergunta "como
+   * eu reservo?" vem logo depois.
+   */
+  define({
+    id: "catalog-item.stock-reserve",
+    entity: "catalog-item",
+    label: "Reservar material",
+    icon: Archive,
+    category: "workflow",
+    available: false,
+    unavailableReason:
+      "O saldo já publica `reserved` e `available`, mas não existe endpoint de reserva: falta no backend algo que reserve, libere e converta em consumo.",
+  }),
+
   /* ---------------------------------------------------------------- */
   /* Orçamentos                                                        */
   /* ---------------------------------------------------------------- */
