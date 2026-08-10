@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { RlsTransaction } from '../../database';
+import { DomainEventEmitter } from '../automations/domain-event.emitter';
 import { PaginationHelper } from '../../database/helpers/database.helpers';
 import type {
   ArtifactExecutionQueryDto,
@@ -28,7 +29,10 @@ const details = Prisma.validator<Prisma.ArtifactExecutionInclude>()({
 
 @Injectable()
 export class ArtifactExecutionRepository {
-  constructor(private readonly rls: RlsTransaction) {}
+  constructor(
+    private readonly rls: RlsTransaction,
+    private readonly events: DomainEventEmitter,
+  ) {}
 
   list(organizationId: string, query: ArtifactExecutionQueryDto) {
     const pagination = PaginationHelper.normalize(query.page, query.limit);
@@ -257,6 +261,32 @@ export class ArtifactExecutionRepository {
         { status: before.status },
         { status },
       );
+
+      /**
+       * Concluída: o formulário de campo virou fato.
+       *
+       * Só `COMPLETED` é publicado — as demais transições são passos do
+       * preenchimento, e uma automação que disparasse a cada pausa incomodaria
+       * mais do que ajudaria.
+       */
+      if (status === 'COMPLETED') {
+        await this.events.emit(tx, {
+          type: 'artifact.execution.completed',
+          organizationId,
+          businessUnitId: before.businessUnitId,
+          actorId,
+          entityType: 'ARTIFACT_EXECUTION',
+          entityId: id,
+          payload: {
+            artifactType: execution.snapshot?.artifactType,
+            templateKey: execution.snapshot?.templateKey,
+            businessUnitId: before.businessUnitId,
+            customerId: before.customerId,
+            operationId: before.operationId,
+            createdById: before.createdById,
+          },
+        });
+      }
       return execution;
     });
   }

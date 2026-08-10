@@ -26,6 +26,7 @@ import { Prisma } from '@prisma/client';
 import { PaginationHelper, RlsTransaction } from '../../database';
 import type { PrismaTransactionClient } from '../../database/prisma.types';
 import { generateUuidV7 } from '../../utils';
+import { DomainEventEmitter } from '../automations/domain-event.emitter';
 import { BackgroundJobQueue } from '../jobs/background-job.queue';
 import { JOB_QUEUES } from '../jobs/background-job.types';
 import type { QuoteQueryDto } from './quote.dto';
@@ -116,6 +117,7 @@ export class QuoteRepository {
   constructor(
     private readonly rls: RlsTransaction,
     private readonly jobs: BackgroundJobQueue,
+    private readonly events: DomainEventEmitter,
   ) {}
 
   /* ---------------------------------------------------------------- */
@@ -501,6 +503,41 @@ export class QuoteRepository {
         { from: input.from },
         { status: input.to, ...(input.details ?? {}) },
       );
+
+      /**
+       * Aprovação também é evento de domínio.
+       *
+       * A fila `quote.status.changed` continua existindo para o efeito
+       * financeiro — ela nasceu antes do motor e tem consumidor próprio. O
+       * evento é para **automação**: são coisas diferentes, e fundi-las faria a
+       * receita prevista depender de o motor estar de pé.
+       */
+      if (input.to === 'APPROVED') {
+        const approved = await tx.quote.findUniqueOrThrow({
+          where: { id: input.id },
+          select: {
+            customerId: true,
+            total: true,
+            currency: true,
+            createdById: true,
+          },
+        });
+        await this.events.emit(tx, {
+          type: 'quote.approved',
+          organizationId: input.organizationId,
+          businessUnitId: input.businessUnitId,
+          actorId: input.actorId,
+          entityType: 'QUOTE',
+          entityId: input.id,
+          payload: {
+            businessUnitId: input.businessUnitId,
+            customerId: approved.customerId,
+            total: approved.total.toString(),
+            currency: approved.currency,
+            createdById: approved.createdById,
+          },
+        });
+      }
 
       if (input.event) {
         await this.jobs.enqueue(

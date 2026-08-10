@@ -18,6 +18,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { RlsTransaction } from '../../database';
 import { generateUuidV7 } from '../../utils';
+import { DomainEventEmitter } from '../automations/domain-event.emitter';
 import { BackgroundJobQueue } from '../jobs/background-job.queue';
 import { JOB_QUEUES } from '../jobs/background-job.types';
 
@@ -56,6 +57,7 @@ export class ArtifactManifestRepository {
   constructor(
     private readonly rls: RlsTransaction,
     private readonly jobs: BackgroundJobQueue,
+    private readonly events: DomainEventEmitter,
   ) {}
 
   listByExecution(executionId: string, organizationId: string) {
@@ -185,6 +187,25 @@ export class ArtifactManifestRepository {
           contentHash: data.contentHash,
         },
       );
+
+      /** O mesmo fato, publicado também como evento de domínio. */
+      const snapshot = await tx.artifactSnapshot.findFirst({
+        where: { id: manifest.snapshotId },
+        select: { artifactType: true },
+      });
+      await this.events.emit(tx, {
+        type: 'artifact.manifest.issued',
+        organizationId,
+        businessUnitId,
+        actorId: data.issuedById,
+        entityType: 'ARTIFACT_MANIFEST',
+        entityId: manifest.id,
+        payload: {
+          artifactType: snapshot?.artifactType,
+          businessUnitId,
+          executionId,
+        },
+      });
 
       /**
        * `jobKey` é o id do manifesto: a mesma emissão nunca vira dois eventos,

@@ -1,0 +1,1050 @@
+/**
+ * E2E do Automation Engine.
+ *
+ * ```
+ * fato de domínio ──▶ domain_events ──▶ automation.dispatch ──▶ regras
+ *                                            │
+ *                                            ▼
+ *                                    automation_executions
+ *                                            │
+ *                            automation.action (com prazo) ──▶ efeito
+ * ```
+ *
+ * O que só aqui se prova, porque é garantia do **banco** e da **fila**:
+ *
+ * - a mesma ocorrência de evento não executa a mesma ação duas vezes;
+ * - o prazo em meses é de calendário, porque quem soma é o Postgres;
+ * - o lembrete de seis meses nasce do worker, sem ninguém abrir a Agenda;
+ * - a regra desligada depois do agendamento não executa;
+ * - falha vai para dead-letter sem deixar efeito pela metade.
+ *
+ * O worker roda **desligado** e o teste chama `tick()` quando quer: esperar um
+ * laço de dois segundos tornaria o teste lento e intermitente.
+ *
+ * ## Sobre a RLS
+ *
+ * O isolamento entre organizações é exercitado pela API, que é como o usuário
+ * chega ao dado. As políticas em si estão na migração e são conferidas no fim
+ * desta suíte pelo catálogo do Postgres — nesta instalação de desenvolvimento o
+ * papel da aplicação é superusuário e **contorna RLS**, então um teste que
+ * tentasse ler a tabela direto provaria o contrário do que parece. Dizer o que
+ * o teste cobre é mais útil que uma asserção que passa pelo motivo errado.
+ */
+import { ValidationPipe, type INestApplication } from '@nestjs/common';
+import { Test, type TestingModule } from '@nestjs/testing';
+import { randomUUID } from 'node:crypto';
+import request from 'supertest';
+import type { App } from 'supertest/types';
+import { AppModule } from './../src/app.module';
+import { configureApiVersioning } from './../src/configure-api';
+import { PrismaService } from './../src/database/prisma.service';
+import { BackgroundJobWorker } from './../src/modules/jobs/background-job.worker';
+
+const digits = (length: number): string =>
+  Array.from({ length }, () => Math.floor(Math.random() * 10)).join('');
+
+function cnpj(): string {
+  const base = digits(8) + '0001';
+  const check = (numbers: string): number => {
+    const weights =
+      numbers.length === 12
+        ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+        : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const sum = numbers
+      .split('')
+      .reduce(
+        (total, digit, index) => total + Number(digit) * (weights[index] ?? 0),
+        0,
+      );
+    const rest = sum % 11;
+    return rest < 2 ? 0 : 11 - rest;
+  };
+  const first = check(base);
+  return `${base}${first}${check(`${base}${first}`)}`;
+}
+
+interface Envelope<T> {
+  data: T;
+}
+
+interface Page<T> {
+  data: T[];
+  meta: { total: number };
+}
+
+interface Rule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  trigger: string;
+  triggerLabel: string | null;
+  conditions: { field: string; operator: string; value?: unknown }[];
+  actions: {
+    id: string;
+    type: string;
+    delay: { amount: number; unit: string } | null;
+    config: Record<string, unknown>;
+    available: boolean;
+  }[];
+  businessUnit: { id: string; name: string } | null;
+}
+
+interface Execution {
+  id: string;
+  status: string;
+  actionId: string;
+  actionType: string;
+  attempts: number;
+  scheduledFor: string | null;
+  executedAt: string | null;
+  result: { type: string; id: string } | null;
+  detail: string | null;
+  correlationId: string;
+  event: { id: string; type: string; occurredAt: string };
+  rule: { id: string; name: string };
+}
+
+const PASSWORD = 'Orbit#Automation@2026';
+
+describe('Automations (e2e)', () => {
+  let app: INestApplication<App>;
+  let prisma: PrismaService;
+  let worker: BackgroundJobWorker;
+  let http: () => request.Agent;
+
+  let token: string;
+  let neighbourToken: string;
+  let restrictedToken: string;
+  let organizationId: string;
+  let userId: string;
+  let unitA: string;
+  let unitB: string;
+  let customerId: string;
+
+  const auth = (req: request.Test, tok = token) =>
+    req.set('Authorization', `Bearer ${tok}`);
+
+  async function login(email: string): Promise<string> {
+    const response = await http()
+      .post('/api/v1/identity/login')
+      .send({ email, password: PASSWORD })
+      .expect(200);
+    return (response.body as Envelope<{ accessToken: string }>).data
+      .accessToken;
+  }
+
+  async function register(label: string) {
+    const suffix = randomUUID().slice(0, 8);
+    const email = `auto.${label}.${suffix}@orbit.local`;
+    const registration = await http()
+      .post('/api/v1/identity/register')
+      .send({
+        email,
+        firstName: 'Auto',
+        lastName: 'E2E',
+        password: PASSWORD,
+        organizationName: `Auto ${label} ${suffix}`,
+        legalName: `Auto ${label} ${suffix} LTDA`,
+        documentType: 'CNPJ',
+        documentNumber: cnpj(),
+        city: 'Recife',
+        street: 'Rua da Aurora',
+        stateCode: 'PE',
+      })
+      .expect(201);
+    return {
+      email,
+      token: (registration.body as Envelope<{ accessToken: string }>).data
+        .accessToken,
+    };
+  }
+
+  /** Esvazia a fila: um `tick` reivindica um job por fila por vez. */
+  async function drain(rounds = 8): Promise<void> {
+    for (let round = 0; round < rounds; round += 1) await worker.tick();
+  }
+
+  async function createRule(
+    body: Record<string, unknown>,
+    tok = token,
+  ): Promise<Rule> {
+    const response = await auth(http().post('/api/v1/automations'), tok)
+      .send(body)
+      .expect(201);
+    return (response.body as Envelope<Rule>).data;
+  }
+
+  async function executionsOf(
+    ruleId: string,
+    tok = token,
+  ): Promise<Execution[]> {
+    const response = await auth(
+      http().get(`/api/v1/automations/executions?ruleId=${ruleId}&limit=100`),
+      tok,
+    ).expect(200);
+    return (response.body as Envelope<Page<Execution>>).data.data;
+  }
+
+  async function disable(ruleId: string): Promise<void> {
+    await auth(http().post(`/api/v1/automations/${ruleId}/toggle`))
+      .send({ enabled: false })
+      .expect(201);
+  }
+
+  async function newOperation(
+    kind = 'MAINTENANCE',
+    unit = unitA,
+  ): Promise<string> {
+    const response = await auth(http().post('/api/v1/operations'))
+      .send({
+        businessUnitId: unit,
+        customerId,
+        code: `OS-${digits(8)}`,
+        kind,
+        title: 'Visita técnica',
+      })
+      .expect(201);
+    return (response.body as Envelope<{ id: string }>).data.id;
+  }
+
+  async function complete(operationId: string): Promise<void> {
+    await auth(http().patch(`/api/v1/operations/${operationId}/status`))
+      .send({ status: 'IN_PROGRESS' })
+      .expect(200);
+    await auth(http().patch(`/api/v1/operations/${operationId}/status`))
+      .send({ status: 'COMPLETED' })
+      .expect(200);
+  }
+
+  const notificationsWithTitle = (title: string) =>
+    prisma.notification.count({ where: { organizationId, title } });
+
+  /* ---------------------------------------------------------------- */
+
+  beforeAll(async () => {
+    /** O teste controla quando o trabalho de fundo roda. */
+    process.env.JOBS_WORKER_ENABLED = 'false';
+
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    configureApiVersioning(app);
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
+    await app.init();
+    http = () => request(app.getHttpServer());
+    prisma = app.get(PrismaService);
+    worker = app.get(BackgroundJobWorker);
+
+    const principal = await register('principal');
+    token = principal.token;
+    neighbourToken = (await register('vizinha')).token;
+
+    const organization = await auth(
+      http().get('/api/v1/organizations/current'),
+    ).expect(200);
+    const current = (
+      organization.body as Envelope<{
+        id: string;
+        businessUnits: { id: string }[];
+      }>
+    ).data;
+    organizationId = current.id;
+    unitA = current.businessUnits[0]!.id;
+
+    const me = await prisma.user.findFirstOrThrow({
+      where: { email: principal.email },
+      select: { id: true },
+    });
+    userId = me.id;
+
+    /**
+     * Segunda unidade, criada direto no banco.
+     *
+     * O plano semeado limita a organização a uma unidade e a API recusa a
+     * segunda — corretamente. O que o isolamento por unidade precisa é de duas
+     * pontas existentes, e provisionar unidade não é o que esta PR testa.
+     */
+    const primary = await prisma.businessUnitMembership.findFirstOrThrow({
+      where: { userId },
+      select: { roleId: true },
+    });
+    const branch = await prisma.businessUnit.create({
+      data: {
+        organizationId,
+        slug: `filial-${digits(6)}`,
+        type: 'BRANCH',
+        legalName: `Filial ${digits(4)} LTDA`,
+        tradeName: 'Filial Norte',
+        documentType: 'CNPJ',
+        documentNumber: cnpj(),
+        city: 'Recife',
+        street: 'Rua do Sol',
+        stateCode: 'PE',
+      },
+      select: { id: true },
+    });
+    await prisma.businessUnitMembership.create({
+      data: {
+        organizationId,
+        businessUnitId: branch.id,
+        userId,
+        roleId: primary.roleId,
+      },
+    });
+    unitB = branch.id;
+
+    /** Sessão nova: o token carrega as unidades do momento em que foi emitido. */
+    token = await login(principal.email);
+
+    /** O lembrete precisa de um calendário para entrar. */
+    await auth(http().post('/api/v1/scheduling/calendars'))
+      .send({
+        key: `equipe-${digits(5)}`,
+        name: 'Equipe de campo',
+        timezone: 'America/Recife',
+        isDefault: true,
+      })
+      .expect(201);
+
+    const customer = await auth(http().post('/api/v1/customers'))
+      .send({
+        legalName: `Cliente ${digits(4)} LTDA`,
+        type: 'COMPANY',
+        documentType: 'CNPJ',
+        documentNumber: cnpj(),
+      })
+      .expect(201);
+    customerId = (customer.body as Envelope<{ id: string }>).data.id;
+
+    /**
+     * Organização com o mesmo plano e um papel sem as permissões de automação —
+     * é assim que se prova o 403 sem mexer no papel de quem usa a suíte.
+     */
+    const restricted = await register('restrita');
+    const restrictedUser = await prisma.user.findFirstOrThrow({
+      where: { email: restricted.email },
+      select: { id: true },
+    });
+    const membership = await prisma.organizationMembership.findFirstOrThrow({
+      where: { userId: restrictedUser.id },
+      select: { organizationId: true, role: { select: { permissions: true } } },
+    });
+    const limited = await prisma.role.create({
+      data: {
+        organizationId: membership.organizationId,
+        key: `SEM_AUTOMACAO_${digits(4)}`,
+        name: 'Sem automação',
+        permissions: membership.role.permissions.filter(
+          (permission) =>
+            permission !== '*' && !permission.startsWith('automations.'),
+        ),
+      },
+      select: { id: true },
+    });
+    await prisma.organizationMembership.updateMany({
+      where: { userId: restrictedUser.id },
+      data: { roleId: limited.id },
+    });
+    await prisma.businessUnitMembership.updateMany({
+      where: { userId: restrictedUser.id },
+      data: { roleId: limited.id },
+    });
+    restrictedToken = await login(restricted.email);
+  }, 180000);
+
+  afterAll(async () => {
+    await app?.close();
+  });
+
+  /* ================================================================ */
+  /* Catálogo e validação                                              */
+  /* ================================================================ */
+
+  it('1 · o catálogo de gatilhos e ações vem do servidor', async () => {
+    const response = await auth(
+      http().get('/api/v1/automations/catalog'),
+    ).expect(200);
+    const catalog = (
+      response.body as Envelope<{
+        triggers: { type: string; fields: string[] }[];
+        actions: {
+          type: string;
+          available: boolean;
+          unavailableReason?: string;
+        }[];
+        operators: string[];
+        delayUnits: string[];
+      }>
+    ).data;
+
+    expect(catalog.triggers.map((trigger) => trigger.type)).toContain(
+      'operation.completed',
+    );
+    expect(catalog.operators).toEqual(['equals', 'notEquals', 'in', 'exists']);
+    expect(catalog.delayUnits).toContain('MONTHS');
+
+    /** A ação que este motor ainda não sabe executar aparece declarada. */
+    const followUp = catalog.actions.find(
+      (action) => action.type === 'CREATE_FOLLOW_UP_OPERATION',
+    );
+    expect(followUp?.available).toBe(false);
+    expect(followUp?.unavailableReason).toBeTruthy();
+  });
+
+  it('2 · gatilho fora do catálogo e campo fora do gatilho são recusados', async () => {
+    await auth(http().post('/api/v1/automations'))
+      .send({
+        name: 'Regra impossível',
+        trigger: 'universo.explodiu',
+        actions: [{ type: 'CREATE_REMINDER', config: { title: 'x' } }],
+      })
+      .expect(400);
+
+    await auth(http().post('/api/v1/automations'))
+      .send({
+        name: 'Campo inexistente',
+        trigger: 'operation.completed',
+        conditions: [{ field: 'cor', operator: 'equals', value: 'azul' }],
+        actions: [{ type: 'CREATE_REMINDER', config: { title: 'x' } }],
+      })
+      .expect(400);
+
+    /** Fila fora da lista fechada: `TRIGGER_JOB` não é porta para qualquer coisa. */
+    await auth(http().post('/api/v1/automations'))
+      .send({
+        name: 'Fila proibida',
+        trigger: 'operation.completed',
+        actions: [
+          { type: 'TRIGGER_JOB', config: { queue: 'automation.dispatch' } },
+        ],
+      })
+      .expect(400);
+  });
+
+  /* ================================================================ */
+  /* Execução                                                          */
+  /* ================================================================ */
+
+  it('3 · regra habilitada executa a ação e registra o resultado', async () => {
+    const title = `Nova OS ${digits(6)}`;
+    const rule = await createRule({
+      name: 'Avisar na abertura',
+      trigger: 'operation.created',
+      actions: [
+        {
+          type: 'SEND_NOTIFICATION',
+          config: { title, body: 'Uma OS foi aberta.', target: 'ACTOR' },
+        },
+      ],
+    });
+    expect(rule.enabled).toBe(true);
+    expect(rule.triggerLabel).toBe('Operação criada');
+
+    await newOperation();
+    await drain();
+
+    const executions = await executionsOf(rule.id);
+    expect(executions).toHaveLength(1);
+    expect(executions[0]!.status).toBe('SUCCEEDED');
+    expect(executions[0]!.result?.type).toBe('NOTIFICATION');
+    expect(executions[0]!.event.type).toBe('operation.created');
+    expect(executions[0]!.correlationId).toBeTruthy();
+
+    /** 12 · o efeito existe de verdade, e para quem provocou o evento. */
+    const notification = await prisma.notification.findFirstOrThrow({
+      where: { organizationId, title },
+      select: {
+        recipientUserId: true,
+        type: true,
+        organizationId: true,
+        businessUnitId: true,
+      },
+    });
+    expect(notification.recipientUserId).toBe(userId);
+    expect(notification.type).toBe('AUTOMATION');
+    expect(notification.businessUnitId).toBe(unitA);
+
+    await disable(rule.id);
+  }, 120000);
+
+  it('4 · regra desligada não gera execução', async () => {
+    const title = `Desligada ${digits(6)}`;
+    const rule = await createRule({
+      name: 'Regra desligada',
+      trigger: 'operation.created',
+      actions: [
+        {
+          type: 'SEND_NOTIFICATION',
+          config: { title, body: 'não deveria chegar', target: 'ACTOR' },
+        },
+      ],
+    });
+    await disable(rule.id);
+
+    await newOperation();
+    await drain();
+
+    expect(await executionsOf(rule.id)).toHaveLength(0);
+    expect(await notificationsWithTitle(title)).toBe(0);
+  }, 120000);
+
+  it('5 · a condição que casa dispara; a que não casa, não', async () => {
+    const matching = `Instalação ${digits(6)}`;
+    const missing = `Entrega ${digits(6)}`;
+
+    const hit = await createRule({
+      name: 'Só instalação',
+      trigger: 'operation.created',
+      conditions: [
+        { field: 'kind', operator: 'equals', value: 'INSTALLATION' },
+      ],
+      actions: [
+        {
+          type: 'SEND_NOTIFICATION',
+          config: {
+            title: matching,
+            body: 'instalação aberta',
+            target: 'ACTOR',
+          },
+        },
+      ],
+    });
+    const miss = await createRule({
+      name: 'Só entrega',
+      trigger: 'operation.created',
+      conditions: [{ field: 'kind', operator: 'equals', value: 'DELIVERY' }],
+      actions: [
+        {
+          type: 'SEND_NOTIFICATION',
+          config: { title: missing, body: 'entrega aberta', target: 'ACTOR' },
+        },
+      ],
+    });
+
+    await newOperation('INSTALLATION');
+    await drain();
+
+    expect(await executionsOf(hit.id)).toHaveLength(1);
+    expect(await notificationsWithTitle(matching)).toBe(1);
+
+    /** A regra que não casou não deixa rastro de execução — só log. */
+    expect(await executionsOf(miss.id)).toHaveLength(0);
+    expect(await notificationsWithTitle(missing)).toBe(0);
+
+    await disable(hit.id);
+    await disable(miss.id);
+  }, 120000);
+
+  /* ================================================================ */
+  /* O lembrete de seis meses                                          */
+  /* ================================================================ */
+
+  it('6 · manutenção concluída agenda o lembrete para o futuro, e nada acontece agora', async () => {
+    const rule = await createRule({
+      name: 'Preventiva semestral',
+      trigger: 'operation.completed',
+      conditions: [{ field: 'kind', operator: 'equals', value: 'MAINTENANCE' }],
+      actions: [
+        {
+          type: 'CREATE_REMINDER',
+          delay: { amount: 6, unit: 'MONTHS' },
+          config: {
+            title: 'Retorno da preventiva',
+            description: 'Agendar a próxima visita preventiva.',
+          },
+        },
+      ],
+    });
+
+    const operationId = await newOperation('MAINTENANCE');
+    await complete(operationId);
+    await drain();
+
+    const executions = await executionsOf(rule.id);
+    /** `status.changed` e `completed` são dois eventos; só um casa com a regra. */
+    expect(executions).toHaveLength(1);
+    const execution = executions[0]!;
+    expect(execution.status).toBe('PENDING');
+    expect(execution.event.type).toBe('operation.completed');
+    expect(execution.scheduledFor).not.toBeNull();
+    expect(new Date(execution.scheduledFor!).getTime()).toBeGreaterThan(
+      Date.now() + 150 * 24 * 3600_000,
+    );
+
+    /** 7 · o prazo é de calendário: quem somou foi o Postgres. */
+    const calendarSix = await prisma.$queryRaw<{ at: Date }[]>`
+      SELECT now() + interval '6 months' AS at
+    `;
+    const drift = Math.abs(
+      new Date(execution.scheduledFor!).getTime() -
+        calendarSix[0]!.at.getTime(),
+    );
+    expect(drift).toBeLessThan(60_000);
+
+    /** Seis meses de calendário não são 180 dias — a diferença é medível. */
+    const approximation = Date.now() + 180 * 24 * 3600_000;
+    expect(
+      Math.abs(new Date(execution.scheduledFor!).getTime() - approximation),
+    ).toBeGreaterThan(24 * 3600_000);
+
+    /** O job existe e está dormindo: nenhum lembrete foi criado ainda. */
+    const job = await prisma.backgroundJob.findFirstOrThrow({
+      where: { organizationId, queue: 'automation.action' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true, availableAt: true },
+    });
+    expect(job.status).toBe('PENDING');
+    expect(job.availableAt.getTime()).toBeGreaterThan(Date.now());
+    expect(
+      await prisma.schedulingEvent.count({
+        where: { organizationId, sourceModule: 'automations' },
+      }),
+    ).toBe(0);
+
+    /** 8 · o prazo chega. Ninguém abriu a Agenda; o worker é quem age. */
+    await prisma.backgroundJob.update({
+      where: { id: job.id },
+      data: { availableAt: new Date(Date.now() - 1000) },
+    });
+    await drain();
+
+    const [done] = await executionsOf(rule.id);
+    expect(done!.status).toBe('SUCCEEDED');
+    expect(done!.result?.type).toBe('SCHEDULING_EVENT');
+
+    const reminder = await prisma.schedulingEvent.findFirstOrThrow({
+      where: { organizationId, sourceModule: 'automations' },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        organizationId: true,
+        businessUnitId: true,
+        sourceEntityType: true,
+        sourceEntityId: true,
+        createdById: true,
+      },
+    });
+    expect(reminder.id).toBe(done!.result?.id);
+    expect(reminder.title).toBe('Retorno da preventiva');
+    expect(reminder.type).toBe('REMINDER');
+    /** 14 · o worker reabriu o contexto do tenant, não o da plataforma. */
+    expect(reminder.organizationId).toBe(organizationId);
+    expect(reminder.businessUnitId).toBe(unitA);
+    expect(reminder.sourceEntityType).toBe('OPERATION');
+    expect(reminder.sourceEntityId).toBe(operationId);
+    expect(reminder.createdById).toBe(userId);
+
+    await disable(rule.id);
+  }, 180000);
+
+  /* ================================================================ */
+  /* Idempotência                                                      */
+  /* ================================================================ */
+
+  it('9 · a mesma ocorrência não executa duas vezes, nem com o despacho repetido', async () => {
+    const title = `Idempotente ${digits(6)}`;
+    const rule = await createRule({
+      name: 'Uma vez só',
+      trigger: 'operation.created',
+      actions: [
+        {
+          type: 'SEND_NOTIFICATION',
+          config: { title, body: 'uma vez', target: 'ACTOR' },
+        },
+      ],
+    });
+
+    const operationId = await newOperation();
+    await drain();
+
+    expect(await notificationsWithTitle(title)).toBe(1);
+    const [first] = await executionsOf(rule.id);
+    expect(first!.status).toBe('SUCCEEDED');
+    expect(first!.attempts).toBe(1);
+
+    /**
+     * Reprocessa **as duas etapas** desta ocorrência: é o que acontece quando
+     * um job volta por tempo limite, quando a fila reentrega e quando alguém
+     * repete à mão.
+     *
+     * Só os jobs **deste** evento: reenfileirar a fila inteira mandaria eventos
+     * antigos serem avaliados pelas regras de hoje — o que é o comportamento
+     * correto do despacho, e não o que este teste mede.
+     */
+    const event = await prisma.domainEvent.findFirstOrThrow({
+      where: {
+        organizationId,
+        entityId: operationId,
+        type: 'operation.created',
+      },
+      select: { id: true },
+    });
+    await prisma.backgroundJob.updateMany({
+      where: {
+        organizationId,
+        jobKey: {
+          in: [event.id, `${event.id}:${rule.id}:${rule.actions[0]!.id}`],
+        },
+      },
+      data: {
+        status: 'PENDING',
+        lockedAt: null,
+        lockedBy: null,
+        availableAt: new Date(Date.now() - 1000),
+      },
+    });
+    await drain(12);
+
+    expect(await notificationsWithTitle(title)).toBe(1);
+    const again = await executionsOf(rule.id);
+    expect(again).toHaveLength(1);
+    expect(again[0]!.status).toBe('SUCCEEDED');
+    /** A execução não foi reivindicada de novo: `claim` recusa o que deu certo. */
+    expect(again[0]!.attempts).toBe(1);
+
+    await disable(rule.id);
+  }, 180000);
+
+  it('10 · a regra desligada depois do agendamento não executa', async () => {
+    const rule = await createRule({
+      name: 'Arrependimento',
+      trigger: 'operation.created',
+      actions: [
+        {
+          type: 'CREATE_REMINDER',
+          delay: { amount: 2, unit: 'HOURS' },
+          config: { title: `Lembrete cancelado ${digits(6)}` },
+        },
+      ],
+    });
+
+    await newOperation();
+    await drain();
+
+    const [pending] = await executionsOf(rule.id);
+    expect(pending!.status).toBe('PENDING');
+
+    /** Excluir a regra com pendência é recusado: o job ficaria órfão. */
+    await auth(http().delete(`/api/v1/automations/${rule.id}`)).expect(409);
+
+    await disable(rule.id);
+
+    const job = await prisma.backgroundJob.findFirstOrThrow({
+      where: { organizationId, queue: 'automation.action', status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    await prisma.backgroundJob.update({
+      where: { id: job.id },
+      data: { availableAt: new Date(Date.now() - 1000) },
+    });
+    const before = await prisma.schedulingEvent.count({
+      where: { organizationId, sourceModule: 'automations' },
+    });
+    await drain();
+
+    const [skipped] = await executionsOf(rule.id);
+    expect(skipped!.status).toBe('SKIPPED');
+    expect(skipped!.detail).toContain('desativada');
+    expect(
+      await prisma.schedulingEvent.count({
+        where: { organizationId, sourceModule: 'automations' },
+      }),
+    ).toBe(before);
+  }, 180000);
+
+  /* ================================================================ */
+  /* Isolamento                                                        */
+  /* ================================================================ */
+
+  it('11 · a regra da organização vizinha não vê o evento desta', async () => {
+    const title = `Vizinha ${digits(6)}`;
+    const stranger = await createRule(
+      {
+        name: 'Regra da vizinha',
+        trigger: 'operation.created',
+        actions: [
+          {
+            type: 'SEND_NOTIFICATION',
+            config: { title, body: 'não é da sua conta', target: 'ACTOR' },
+          },
+        ],
+      },
+      neighbourToken,
+    );
+
+    await newOperation();
+    await drain();
+
+    expect(await executionsOf(stranger.id, neighbourToken)).toHaveLength(0);
+    expect(await notificationsWithTitle(title)).toBe(0);
+
+    /** E a regra da vizinha não é legível daqui. */
+    await auth(http().get(`/api/v1/automations/${stranger.id}`)).expect(404);
+    await auth(http().post(`/api/v1/automations/${stranger.id}/toggle`))
+      .send({ enabled: false })
+      .expect(404);
+
+    await auth(
+      http().post(`/api/v1/automations/${stranger.id}/toggle`),
+      neighbourToken,
+    )
+      .send({ enabled: false })
+      .expect(201);
+  }, 120000);
+
+  it('12 · a regra presa a uma unidade ignora o evento da outra', async () => {
+    const title = `Filial ${digits(6)}`;
+    const rule = await createRule({
+      name: 'Só a filial',
+      trigger: 'operation.created',
+      businessUnitId: unitB,
+      actions: [
+        {
+          type: 'SEND_NOTIFICATION',
+          config: { title, body: 'evento da filial', target: 'ACTOR' },
+        },
+      ],
+    });
+    expect(rule.businessUnit?.id).toBe(unitB);
+
+    await newOperation('MAINTENANCE', unitA);
+    await drain();
+    expect(await executionsOf(rule.id)).toHaveLength(0);
+
+    await newOperation('MAINTENANCE', unitB);
+    await drain();
+    const executions = await executionsOf(rule.id);
+    expect(executions).toHaveLength(1);
+    expect(executions[0]!.status).toBe('SUCCEEDED');
+    expect(await notificationsWithTitle(title)).toBe(1);
+
+    await disable(rule.id);
+  }, 180000);
+
+  /**
+   * O papel sem `automations.*` é o caso real: o plano concede a capability à
+   * organização inteira, e quem separa quem administra automação de quem só
+   * executa ordem de serviço é o papel. Os dois guardas estão na rota; este
+   * teste exercita o que a operação de fato configura.
+   */
+  it('13 · sem a permissão de automação, a API recusa', async () => {
+    await auth(http().get('/api/v1/automations'), restrictedToken).expect(403);
+    await auth(
+      http().get('/api/v1/automations/catalog'),
+      restrictedToken,
+    ).expect(403);
+    await auth(http().post('/api/v1/automations'), restrictedToken)
+      .send({
+        name: 'Não autorizada',
+        trigger: 'operation.created',
+        actions: [{ type: 'CREATE_REMINDER', config: { title: 'x' } }],
+      })
+      .expect(403);
+    /** Sem token, nem chega ao guarda de permissão. */
+    await http().get('/api/v1/automations').expect(401);
+  });
+
+  /* ================================================================ */
+  /* Evento                                                            */
+  /* ================================================================ */
+
+  it('14 · o evento é versionado e carrega só o que a condição pode ler', async () => {
+    const operationId = await newOperation();
+
+    const event = await prisma.domainEvent.findFirstOrThrow({
+      where: { organizationId, entityId: operationId },
+      select: {
+        type: true,
+        payloadVersion: true,
+        payload: true,
+        entityType: true,
+        businessUnitId: true,
+        actorId: true,
+        correlationId: true,
+        occurredAt: true,
+      },
+    });
+
+    expect(event.type).toBe('operation.created');
+    expect(event.payloadVersion).toBe(1);
+    expect(event.entityType).toBe('OPERATION');
+    expect(event.businessUnitId).toBe(unitA);
+    expect(event.actorId).toBe(userId);
+    expect(event.correlationId).toBeTruthy();
+
+    const payload = event.payload as Record<string, unknown>;
+    expect(Object.keys(payload).sort()).toEqual([
+      'businessUnitId',
+      'createdById',
+      'customerId',
+      'kind',
+      'priority',
+      'status',
+    ]);
+    /** Nada de entidade Prisma inteira: só escalares. */
+    for (const value of Object.values(payload)) {
+      expect(['string', 'number', 'boolean']).toContain(typeof value);
+    }
+  }, 120000);
+
+  /* ================================================================ */
+  /* Falha                                                             */
+  /* ================================================================ */
+
+  it('15 · a ação sem destinatário resolvível falha e vai para dead-letter, sem efeito parcial', async () => {
+    const title = `Sem dono ${digits(6)}`;
+    /**
+     * `inventory.low_stock` não carrega dono — é um saldo, não um registro de
+     * alguém. Pedir notificação ao `OWNER` é um erro de configuração que só
+     * aparece na execução, e é exatamente o que se quer ver terminar como
+     * falha permanente em vez de repetir para sempre.
+     */
+    const rule = await createRule({
+      name: 'Estoque baixo avisa o dono',
+      trigger: 'inventory.low_stock',
+      actions: [
+        {
+          type: 'SEND_NOTIFICATION',
+          config: { title, body: 'estoque baixo', target: 'OWNER' },
+        },
+      ],
+    });
+
+    const part = await auth(http().post('/api/v1/catalog/products'))
+      .send({
+        name: 'Filtro G4',
+        kind: 'PART',
+        sku: `FLT-${digits(6)}`,
+        unit: 'UN',
+        salePrice: 79.9,
+      })
+      .expect(201);
+    const partId = (part.body as Envelope<{ id: string }>).data.id;
+
+    await auth(http().post('/api/v1/inventory/entries'))
+      .send({
+        catalogItemId: partId,
+        businessUnitId: unitA,
+        quantity: 4,
+        reason: 'Compra inicial',
+      })
+      .expect(201);
+    await auth(http().post('/api/v1/inventory/consumptions'))
+      .send({
+        catalogItemId: partId,
+        businessUnitId: unitA,
+        quantity: 4,
+        reason: 'Consumo total na visita',
+      })
+      .expect(201);
+
+    await drain(12);
+
+    const [execution] = await executionsOf(rule.id);
+    expect(execution!.status).toBe('FAILED');
+    expect(execution!.detail).toContain('destinatário');
+    expect(await notificationsWithTitle(title)).toBe(0);
+
+    const job = await prisma.backgroundJob.findFirstOrThrow({
+      where: { organizationId, queue: 'automation.action' },
+      orderBy: { createdAt: 'desc' },
+      select: { status: true, lastError: true },
+    });
+    /** Erro permanente não fica repetindo: vai direto para o cemitério. */
+    expect(job.status).toBe('DEAD');
+    expect(job.lastError).toContain('destinatário');
+
+    await disable(rule.id);
+  }, 180000);
+
+  /* ================================================================ */
+  /* Ciclo de vida                                                     */
+  /* ================================================================ */
+
+  it('16 · duplicar nasce desligada e excluir sem pendência funciona', async () => {
+    const rule = await createRule({
+      name: 'Modelo para copiar',
+      trigger: 'quote.approved',
+      actions: [
+        {
+          type: 'SEND_NOTIFICATION',
+          config: { title: 'Orçamento aprovado', body: 'oba', target: 'ACTOR' },
+        },
+      ],
+    });
+    await disable(rule.id);
+
+    const copied = await auth(
+      http().post(`/api/v1/automations/${rule.id}/duplicate`),
+    ).expect(201);
+    const copy = (copied.body as Envelope<Rule>).data;
+    expect(copy.id).not.toBe(rule.id);
+    expect(copy.enabled).toBe(false);
+    expect(copy.name).toContain('cópia');
+    expect(copy.trigger).toBe('quote.approved');
+
+    /** Editar não troca o gatilho — o DTO nem aceita o campo. */
+    await auth(http().patch(`/api/v1/automations/${copy.id}`))
+      .send({ trigger: 'operation.created' })
+      .expect(400);
+
+    await auth(http().delete(`/api/v1/automations/${copy.id}`)).expect(204);
+    await auth(http().get(`/api/v1/automations/${copy.id}`)).expect(404);
+  }, 120000);
+
+  it('17 · a listagem filtra por gatilho e situação, com paginação do servidor', async () => {
+    const response = await auth(
+      http().get('/api/v1/automations?trigger=operation.created&limit=5'),
+    ).expect(200);
+    const page = (response.body as Envelope<Page<Rule>>).data;
+
+    expect(page.meta.total).toBeGreaterThan(0);
+    expect(page.data.length).toBeLessThanOrEqual(5);
+    for (const rule of page.data) {
+      expect(rule.trigger).toBe('operation.created');
+    }
+
+    const disabled = await auth(
+      http().get('/api/v1/automations?enabled=false&limit=100'),
+    ).expect(200);
+    for (const rule of (disabled.body as Envelope<Page<Rule>>).data.data) {
+      expect(rule.enabled).toBe(false);
+    }
+  });
+
+  it('18 · as políticas de RLS existem nas três tabelas do motor', async () => {
+    const policies = await prisma.$queryRaw<
+      { tablename: string; policyname: string }[]
+    >`
+      SELECT tablename, policyname
+        FROM pg_policies
+       WHERE tablename IN ('domain_events', 'automation_rules', 'automation_executions')
+    `;
+    expect(policies.map((policy) => policy.tablename).sort()).toEqual([
+      'automation_executions',
+      'automation_rules',
+      'domain_events',
+    ]);
+
+    const forced = await prisma.$queryRaw<
+      { relname: string; relforcerowsecurity: boolean }[]
+    >`
+      SELECT relname, relforcerowsecurity
+        FROM pg_class
+       WHERE relname IN ('domain_events', 'automation_rules', 'automation_executions')
+    `;
+    for (const table of forced) {
+      expect(table.relforcerowsecurity).toBe(true);
+    }
+  });
+});

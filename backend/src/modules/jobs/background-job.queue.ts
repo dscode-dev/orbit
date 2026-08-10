@@ -106,6 +106,7 @@ export class BackgroundJobQueue {
           correlationId: input.correlationId,
           actorUserId: input.actorUserId ?? null,
           maxAttempts: input.maxAttempts ?? 3,
+          ...(input.availableAt ? { availableAt: input.availableAt } : {}),
         },
       });
       return this.toRecord(created);
@@ -144,7 +145,7 @@ export class BackgroundJobQueue {
     const inserted = await client.$queryRaw<JobRow[]>`
       INSERT INTO background_jobs (
         id, organization_id, business_unit_id, queue, job_key, payload,
-        correlation_id, actor_user_id, max_attempts, updated_at
+        correlation_id, actor_user_id, max_attempts, available_at, updated_at
       ) VALUES (
         ${generateUuidV7()}::uuid,
         ${input.organizationId}::uuid,
@@ -155,6 +156,7 @@ export class BackgroundJobQueue {
         ${input.correlationId},
         ${input.actorUserId ?? null}::uuid,
         ${input.maxAttempts ?? 3},
+        COALESCE(${input.availableAt ?? null}::timestamptz, now()),
         now()
       )
       ON CONFLICT DO NOTHING

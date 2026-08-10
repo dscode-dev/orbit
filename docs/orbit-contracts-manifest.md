@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Frontend-21 (Inventory Workspace).
+Última revisão: PR-24 (Automation Engine).
 
 ---
 
@@ -391,6 +391,14 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Sem parcelamento, recorrência ou centro de custo                                                                                     | não há modelo nem rota; um lançamento pertence a uma unidade e a uma competência                                                                                                                                                                      |
 | Sem conversão entre moedas                                                                                                           | `currency` é gravada por lançamento, mas não existe taxa de câmbio — o resumo publica a moeda padrão da organização e não soma moedas diferentes                                                                                                      |
 | ~~Orçamento ainda não gera receita prevista~~                                                                                        | **corrigido na PR-22**: aprovar cria `FinancialEntry(INCOME, PENDING, source=QUOTE)` pelo outbox; cancelar cancela a previsão sem apagá-la                                                               |
+| ~~Lembrete de retorno dependia de alguém abrir a Agenda~~                                                                            | **corrigido na PR-24**: `operation.completed` → regra com prazo de calendário → `SchedulingEvent` criado pelo worker, sem intervenção de tela                                                            |
+| ~~Sem motor de automação~~                                                                                                           | **corrigido na PR-24**: `domain_events`, `automation_rules` e `automation_executions`, RLS por organização, capabilities `automations.read`/`automations.manage` e API em `/automations/**`               |
+| Automação não abre operação de acompanhamento                                                                                        | `CREATE_FOLLOW_UP_OPERATION` é publicada com `available: false` e motivo: `Operation` exige código único por organização e nenhum contrato o deriva — a execução vira `SKIPPED` declarado, não silêncio   |
+| Automação não repete (PMOC)                                                                                                          | uma regra dispara uma vez por ocorrência de evento; a recorrência mora no Scheduling (`recurrence.engine.ts`) e duplicá-la daria duas verdades sobre "toda terça, exceto feriado"                         |
+| Automação não chama nada fora da plataforma                                                                                          | `TRIGGER_JOB` aceita apenas filas da lista fechada (`artifact.render`); sem webhook, URL arbitrária ou requisição HTTP — decisão explícita da PR-24                                                       |
+| Automação não agenda em data absoluta                                                                                                | o prazo é sempre relativo ao evento (`MINUTES`…`MONTHS`); "todo dia 5" é agenda, não automação                                                                                                            |
+| `Operation.kind` não tem `PREVENTIVE`                                                                                                | os valores autoritativos são `INSTALLATION`, `MAINTENANCE`, `INSPECTION`, `DELIVERY` e `OTHER`; a regra de preventiva condiciona por `MAINTENANCE`, e o catálogo de automação não inventa valor           |
+| Automação não tem teto de disparos                                                                                                   | uma regra que casa com muitos eventos agenda muitas ações; a fila absorve, mas não há limite por regra ou por período                                                                                     |
 | ~~Sem domínio comercial~~                                                                                                            | **corrigido na PR-22**: `quotes` e `quote_items`, RLS por organização **e** unidade, capabilities `quotes.read`/`quotes.manage`, snapshot comercial e conversão idempotente em `Operation`               |
 | ~~Lançamento financeiro não era consultável por origem~~                                                                             | **corrigido na PR Frontend-20**: `sourceEntityId` opcional no `FinancialEntryQueryDto`, sobre a coluna já indexada — permite mostrar a previsão de um orçamento sem filtrar páginas no cliente           |
 | Sem histórico publicado de orçamento                                                                                                 | `AuditLog` grava cada transição e mudança de item, mas nenhuma rota o expõe ao tenant; o detalhe usa os carimbos do próprio orçamento                                                                    |
@@ -447,6 +455,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Quotes Workspace (web)                          | `frontend/docs/quotes-workspace.md`             |
 | Inventory Engine (backend)                      | `backend/docs/inventory-engine.md`              |
 | Inventory Workspace (web)                       | `frontend/docs/inventory-workspace.md`          |
+| Automation Engine (backend)                     | `backend/docs/automation-engine.md`             |
 | BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`                |
 | Autenticação e sessão (web)                     | `frontend/docs/authentication.md`               |
 | Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`                    |

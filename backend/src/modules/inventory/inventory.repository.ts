@@ -35,6 +35,7 @@ import { Prisma } from '@prisma/client';
 import { PaginationHelper, RlsTransaction } from '../../database';
 import type { PrismaTransactionClient } from '../../database/prisma.types';
 import { generateUuidV7 } from '../../utils';
+import { DomainEventEmitter } from '../automations/domain-event.emitter';
 import type {
   InventoryAnalyticsQueryDto,
   InventoryBalanceQueryDto,
@@ -123,7 +124,10 @@ export class InsufficientStock extends Error {
 
 @Injectable()
 export class InventoryRepository {
-  constructor(private readonly rls: RlsTransaction) {}
+  constructor(
+    private readonly rls: RlsTransaction,
+    private readonly events: DomainEventEmitter,
+  ) {}
 
   /* ---------------------------------------------------------------- */
   /* Escrita — o ledger                                                */
@@ -281,7 +285,64 @@ export class InventoryRepository {
       },
     );
 
+    /**
+     * Estoque baixo é um evento de **cruzamento**, não de estado.
+     *
+     * Só é publicado depois de uma saída que deixou o saldo no mínimo ou
+     * abaixo. Publicá-lo a cada leitura de um item já baixo encheria a fila de
+     * eventos idênticos; publicá-lo na entrada seria anunciar escassez logo
+     * depois de repor. O que interessa é o momento em que passou a faltar.
+     */
+    if (!isInbound(input.type)) {
+      await this.emitLowStock(tx, input, balanceAfter);
+    }
+
     return movement;
+  }
+
+  /**
+   * Publica `inventory.low_stock` quando a saída cruzou o mínimo.
+   *
+   * O estado vem do banco, não de uma comparação aqui: é o mesmo critério do
+   * Read Model — zerado é sempre baixo; com mínimo definido, saldo menor ou
+   * igual também. Duplicar a régua faria a automação discordar da tela.
+   */
+  private async emitLowStock(
+    tx: PrismaTransactionClient,
+    input: MovementInput,
+    balanceAfter: string,
+  ): Promise<void> {
+    const rows = await tx.$queryRaw<{ status: string; kind: string }[]>`
+      SELECT CASE
+               WHEN b.on_hand <= 0 THEN 'OUT_OF_STOCK'
+               WHEN b.minimum_stock > 0 AND b.on_hand <= b.minimum_stock THEN 'LOW'
+               ELSE 'OK'
+             END AS status,
+             p.kind AS kind
+        FROM inventory_balances b
+        JOIN products p ON p.id = b.catalog_item_id
+       WHERE b.business_unit_id = ${input.businessUnitId}::uuid
+         AND b.catalog_item_id = ${input.catalogItemId}::uuid
+    `;
+
+    const state = rows[0];
+    if (!state || state.status === 'OK') return;
+
+    await this.events.emit(tx, {
+      type: 'inventory.low_stock',
+      organizationId: input.organizationId,
+      businessUnitId: input.businessUnitId,
+      actorId: input.createdById,
+      entityType: 'INVENTORY_BALANCE',
+      entityId: input.catalogItemId,
+      payload: {
+        catalogItemId: input.catalogItemId,
+        businessUnitId: input.businessUnitId,
+        status: state.status,
+        kind: state.kind,
+        balanceAfter,
+      },
+    });
   }
 
   /**

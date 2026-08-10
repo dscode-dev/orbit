@@ -333,3 +333,90 @@ export const InventoryStockStatus = literal({
 });
 export type InventoryStockStatus =
   (typeof InventoryStockStatus)[keyof typeof InventoryStockStatus];
+
+/* -------------------------------------------------------------------- */
+/* Automation Engine                                                     */
+/* -------------------------------------------------------------------- */
+
+/**
+ * Os conjuntos de automação usam `as const` em vez de `literal()`.
+ *
+ * O ajudante acima devolve `Readonly<Record<string, string>>`, e o tipo
+ * derivado dele é `string` — suficiente para `@IsIn` em runtime, insuficiente
+ * aqui: o catálogo, o interpretador de condições e os processadores decidem
+ * por comparação com estes valores, e um `'CREATE_REMINDR'` digitado errado
+ * precisa quebrar a compilação, não silenciar uma ação.
+ */
+
+/**
+ * Operadores de condição de automação.
+ *
+ * Quatro, e nenhum deles executa nada. Não há `contains` nem comparação
+ * numérica: os dois convidam à expressão, e expressão é o começo de linguagem.
+ */
+export const AutomationConditionOperator = {
+  equals: 'equals',
+  notEquals: 'notEquals',
+  in: 'in',
+  exists: 'exists',
+} as const;
+export type AutomationConditionOperator =
+  (typeof AutomationConditionOperator)[keyof typeof AutomationConditionOperator];
+
+/**
+ * O que uma regra de automação pode fazer.
+ *
+ * Lista fechada. `CREATE_FOLLOW_UP_OPERATION` existe no contrato e é publicada
+ * como **indisponível** pelo catálogo — declarar o limite é mais honesto que
+ * esconder a opção.
+ */
+export const AutomationActionType = {
+  CREATE_REMINDER: 'CREATE_REMINDER',
+  SEND_NOTIFICATION: 'SEND_NOTIFICATION',
+  CREATE_FOLLOW_UP_OPERATION: 'CREATE_FOLLOW_UP_OPERATION',
+  TRIGGER_JOB: 'TRIGGER_JOB',
+} as const;
+export type AutomationActionType =
+  (typeof AutomationActionType)[keyof typeof AutomationActionType];
+
+/**
+ * Unidade do prazo de uma ação.
+ *
+ * `MONTHS` e `WEEKS` têm semântica de **calendário**, resolvida no banco: um
+ * mês depois de 31 de janeiro é 28 de fevereiro, não 2 de março.
+ */
+export const AutomationDelayUnit = {
+  MINUTES: 'MINUTES',
+  HOURS: 'HOURS',
+  DAYS: 'DAYS',
+  WEEKS: 'WEEKS',
+  MONTHS: 'MONTHS',
+} as const;
+export type AutomationDelayUnit =
+  (typeof AutomationDelayUnit)[keyof typeof AutomationDelayUnit];
+
+/**
+ * Quem recebe uma notificação de automação.
+ *
+ * `OWNER` é quem criou o registro; `ACTOR`, quem provocou o evento; `USER`,
+ * alguém escolhido na regra. Sempre um usuário **do tenant** — não há e-mail
+ * livre nem destino externo.
+ */
+export const AutomationNotificationTarget = {
+  OWNER: 'OWNER',
+  ACTOR: 'ACTOR',
+  USER: 'USER',
+} as const;
+export type AutomationNotificationTarget =
+  (typeof AutomationNotificationTarget)[keyof typeof AutomationNotificationTarget];
+
+/** Situação de uma ação agendada por automação. */
+export const AutomationExecutionStatus = {
+  PENDING: 'PENDING',
+  RUNNING: 'RUNNING',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED',
+  SKIPPED: 'SKIPPED',
+} as const;
+export type AutomationExecutionStatus =
+  (typeof AutomationExecutionStatus)[keyof typeof AutomationExecutionStatus];

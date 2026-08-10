@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { RlsTransaction } from '../../database';
+import { DomainEventEmitter } from '../automations/domain-event.emitter';
 import { PaginationHelper } from '../../database/helpers/database.helpers';
 import type { OperationQueryDto } from './dto/operation.dto';
 
@@ -56,7 +57,10 @@ const operationInclude = {
 
 @Injectable()
 export class OperationRepository {
-  constructor(private readonly rls: RlsTransaction) {}
+  constructor(
+    private readonly rls: RlsTransaction,
+    private readonly events: DomainEventEmitter,
+  ) {}
 
   list(organizationId: string, query: OperationQueryDto) {
     const pagination = PaginationHelper.normalize(query.page, query.limit);
@@ -128,6 +132,25 @@ export class OperationRepository {
           details,
         },
       });
+
+      /** Ponto autoritativo: é aqui que uma ordem de serviço passa a existir. */
+      await this.events.emit(transaction, {
+        type: 'operation.created',
+        organizationId: operation.organizationId,
+        businessUnitId: operation.businessUnitId,
+        actorId: userId,
+        entityType: 'OPERATION',
+        entityId: operation.id,
+        payload: {
+          kind: operation.kind,
+          status: operation.status,
+          priority: operation.priority,
+          businessUnitId: operation.businessUnitId,
+          customerId: operation.customerId,
+          createdById: operation.createdById,
+        },
+      });
+
       return operation;
     });
   }
@@ -175,10 +198,53 @@ export class OperationRepository {
           details,
         },
       });
-      return transaction.operation.findUniqueOrThrow({
+
+      const operation = await transaction.operation.findUniqueOrThrow({
         where: { id },
         include: operationInclude,
       });
+
+      /**
+       * Dois eventos, de propósito.
+       *
+       * `status.changed` cobre qualquer transição; `completed` é publicado à
+       * parte porque "quando concluir" é a regra que a operação de campo mais
+       * escreve — e obrigá-la a lembrar da condição faria a automação disparar
+       * em toda pausa.
+       */
+      const base = {
+        organizationId: operation.organizationId,
+        businessUnitId: operation.businessUnitId,
+        actorId: userId,
+        entityType: 'OPERATION' as const,
+        entityId: operation.id,
+      };
+      const payload = {
+        kind: operation.kind,
+        status: operation.status,
+        fromStatus,
+        priority: operation.priority,
+        businessUnitId: operation.businessUnitId,
+        customerId: operation.customerId,
+        assetId: operation.assetId,
+        createdById: operation.createdById,
+      };
+
+      await this.events.emit(transaction, {
+        ...base,
+        type: 'operation.status.changed',
+        payload,
+      });
+
+      if (toStatus === 'COMPLETED') {
+        await this.events.emit(transaction, {
+          ...base,
+          type: 'operation.completed',
+          payload,
+        });
+      }
+
+      return operation;
     });
   }
 

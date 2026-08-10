@@ -49,6 +49,20 @@ export const JOB_QUEUES = {
    * que ninguém volte aqui para renomear a fila.
    */
   quoteStatusChanged: 'quote.status.changed',
+  /**
+   * Um evento de domínio chegou e precisa ser confrontado com as regras.
+   *
+   * Fan-out: um job por evento, que avalia as regras da organização e
+   * enfileira uma ação de cada vez.
+   */
+  automationDispatch: 'automation.dispatch',
+  /**
+   * Uma ação de automação, possivelmente **adiada**.
+   *
+   * É por esta fila que o "lembrete daqui a seis meses" existe: o job fica
+   * pendente até `available_at`, e o worker o reivindica quando a hora chega.
+   */
+  automationAction: 'automation.action',
 } as const;
 export type JobQueue = (typeof JOB_QUEUES)[keyof typeof JOB_QUEUES];
 
@@ -67,6 +81,14 @@ export interface EnqueueJobInput {
   correlationId: string;
   actorUserId?: string | null;
   maxAttempts?: number;
+  /**
+   * Quando o job passa a ser elegível. Agora, por padrão.
+   *
+   * É o que permite trabalho **futuro** sem scheduler: a fila já ordena por
+   * `available_at` e o worker só reivindica o que já venceu. Um lembrete de
+   * seis meses é um job pendente com esta data seis meses à frente.
+   */
+  availableAt?: Date;
 }
 
 export interface BackgroundJobRecord {

@@ -59,6 +59,7 @@ model User {
   quotesSent                    Quote[]                        @relation("QuoteSentBy")
   quotesDecided                 Quote[]                        @relation("QuoteDecidedBy")
   inventoryMovements            InventoryMovement[]            @relation("InventoryMovementActor")
+  automationRules               AutomationRule[]               @relation("AutomationRuleCreatedBy")
   schedulingHistory             SchedulingEventHistory[]
   notificationPreferences       NotificationPreference[]
   notificationDeliveries        NotificationDelivery[]
@@ -253,6 +254,9 @@ model Organization {
   quoteItems               QuoteItem[]
   inventoryMovements       InventoryMovement[]
   inventoryBalances        InventoryBalance[]
+  domainEvents             DomainEvent[]
+  automationRules          AutomationRule[]
+  automationExecutions     AutomationExecution[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -325,6 +329,8 @@ model BusinessUnit {
 
   inventoryMovements InventoryMovement[]
   inventoryBalances  InventoryBalance[]
+
+  automationRules AutomationRule[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -2195,4 +2201,121 @@ model InventoryBalance {
   @@index([organizationId, businessUnitId])
   @@index([organizationId, catalogItemId])
   @@map("inventory_balances")
+}
+
+// -----------------------------------------------------------------------------
+// AUTOMATION ENGINE
+//
+//   Domain Event ──▶ Automation Rule ──▶ Conditions ──▶ Actions
+//
+// **Não há script.** Uma regra é dado: gatilho conhecido, condições
+// declarativas com quatro operadores, e ações de um catálogo fechado. Nada aqui
+// executa expressão, JavaScript, SQL ou template — a superfície de uma regra é
+// exatamente o que o servidor sabe interpretar.
+// -----------------------------------------------------------------------------
+
+/// Um fato que aconteceu no domínio. **Append-only.**
+///
+/// É o outbox: gravado na mesma transação do fato que o originou, junto com o
+/// job que o levará adiante. Um processo que morra entre o commit e o
+/// enfileiramento não perde o evento.
+///
+/// `payload` carrega o **mínimo necessário** para as condições — nunca a
+/// entidade Prisma inteira. Serializar o registro completo transformaria o
+/// evento num retrato que envelhece e vaza campo que ninguém pediu.
+model DomainEvent {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  businessUnitId String?  @map("business_unit_id") @db.Uuid
+  /// `operation.completed`, `quote.approved`… — catálogo fechado no código.
+  type           String   @db.VarChar(80)
+  occurredAt     DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  actorId        String?  @map("actor_id") @db.Uuid
+  entityType     String   @map("entity_type") @db.VarChar(60)
+  entityId       String   @map("entity_id") @db.Uuid
+  /// Versão do formato do payload. Consumidor antigo sabe o que não entende.
+  payloadVersion Int      @default(1) @map("payload_version")
+  payload        Json     @default("{}") @db.JsonB
+  /// Atravessa o fluxo inteiro: emissão, despacho, ação, log.
+  correlationId  String   @map("correlation_id") @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  executions   AutomationExecution[]
+
+  @@index([organizationId, type, occurredAt])
+  @@index([organizationId, entityType, entityId])
+  @@map("domain_events")
+}
+
+/// Uma regra: quando isto acontecer, e se for assim, faça aquilo.
+model AutomationRule {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  /// Nula = vale para toda a organização; preenchida = só naquela unidade.
+  businessUnitId String?   @map("business_unit_id") @db.Uuid
+  name           String    @db.VarChar(180)
+  description    String?   @db.Text
+  enabled        Boolean   @default(true)
+  /// Tipo de evento que dispara a regra.
+  trigger        String    @db.VarChar(80)
+  /// Lista de condições declarativas, todas verdadeiras para a regra valer.
+  conditions     Json      @default("[]") @db.JsonB
+  /// Lista de ações, cada uma com tipo, atraso e configuração própria.
+  actions        Json      @default("[]") @db.JsonB
+  createdById    String    @map("created_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit?         @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  createdBy    User                  @relation("AutomationRuleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  executions   AutomationExecution[]
+
+  @@index([organizationId, trigger, enabled, deletedAt])
+  @@index([organizationId, businessUnitId])
+  @@map("automation_rules")
+}
+
+/// Uma ação de uma regra sobre uma ocorrência — **uma linha, para sempre**.
+///
+/// É aqui que a idempotência mora. A unicidade
+/// `(evento, regra, ação)` é do banco: retry da fila, job devolvido por tempo
+/// limite e reprocessamento manual convergem para **um** efeito. Sem ela, um
+/// lembrete de seis meses viraria dois na primeira reentrega.
+///
+/// A linha é reivindicada antes de a ação rodar e só é fechada depois. Falha
+/// deixa `FAILED`, que **pode** ser retomado; `SUCCEEDED` nunca é.
+model AutomationExecution {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  eventId        String    @map("event_id") @db.Uuid
+  ruleId         String    @map("rule_id") @db.Uuid
+  /// Identificador da ação dentro da regra — posição estável na lista.
+  actionId       String    @map("action_id") @db.VarChar(60)
+  actionType     String    @map("action_type") @db.VarChar(60)
+  /// `PENDING` · `RUNNING` · `SUCCEEDED` · `FAILED` · `SKIPPED`.
+  status         String    @default("PENDING") @db.VarChar(20)
+  attempts       Int       @default(0)
+  /// Quando a ação foi programada para acontecer — o atraso, materializado.
+  scheduledFor   DateTime? @map("scheduled_for") @db.Timestamptz(3)
+  executedAt     DateTime? @map("executed_at") @db.Timestamptz(3)
+  /// O que a ação criou: id do lembrete, da notificação, da operação.
+  resultType     String?   @map("result_type") @db.VarChar(60)
+  resultId       String?   @map("result_id") @db.Uuid
+  /// Motivo do descarte ou da falha, em linguagem de negócio.
+  detail         String?   @db.VarChar(500)
+  correlationId  String    @map("correlation_id") @db.VarChar(64)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        DomainEvent    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  rule         AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, ruleId, actionId])
+  @@index([organizationId, status, createdAt])
+  @@index([ruleId, createdAt])
+  @@map("automation_executions")
 }
