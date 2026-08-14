@@ -63,6 +63,14 @@ export const JOB_QUEUES = {
    * pendente até `available_at`, e o worker o reivindica quando a hora chega.
    */
   automationAction: 'automation.action',
+  /**
+   * Composição e renderização de um relatório gerencial.
+   *
+   * Assíncrona porque a composição varre o período inteiro de vários domínios
+   * e a renderização produz um arquivo: segurar a requisição HTTP até o fim
+   * daria tempo limite no primeiro relatório anual.
+   */
+  managementReport: 'management-report.generate',
 } as const;
 export type JobQueue = (typeof JOB_QUEUES)[keyof typeof JOB_QUEUES];
 

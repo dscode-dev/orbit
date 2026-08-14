@@ -60,6 +60,7 @@ model User {
   quotesDecided                 Quote[]                        @relation("QuoteDecidedBy")
   inventoryMovements            InventoryMovement[]            @relation("InventoryMovementActor")
   automationRules               AutomationRule[]               @relation("AutomationRuleCreatedBy")
+  managementReports             ManagementReport[]             @relation("ManagementReportGeneratedBy")
   schedulingHistory             SchedulingEventHistory[]
   notificationPreferences       NotificationPreference[]
   notificationDeliveries        NotificationDelivery[]
@@ -257,6 +258,7 @@ model Organization {
   domainEvents             DomainEvent[]
   automationRules          AutomationRule[]
   automationExecutions     AutomationExecution[]
+  managementReports        ManagementReport[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -331,6 +333,8 @@ model BusinessUnit {
   inventoryBalances  InventoryBalance[]
 
   automationRules AutomationRule[]
+
+  managementReports ManagementReport[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -709,6 +713,9 @@ model Operation {
   @@index([organizationId, businessUnitId, status, scheduledStart])
   @@index([organizationId, customerId, createdAt])
   @@index([organizationId, assetId])
+  /// Relatórios gerenciais: "tudo da organização entre duas datas".
+  @@index([organizationId, createdAt])
+  @@index([organizationId, completedAt])
   @@map("operations")
 }
 
@@ -1081,11 +1088,12 @@ model StorageFile {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit BusinessUnit?                 @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
-  createdBy    User?                         @relation("StorageFileCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  manifests    ArtifactManifest[]
-  attachments  ArtifactExecutionAttachment[]
+  organization      Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit      BusinessUnit?                 @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  createdBy         User?                         @relation("StorageFileCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  manifests         ArtifactManifest[]
+  managementReports ManagementReport[]
+  attachments       ArtifactExecutionAttachment[]
 
   memberCertifications MemberCertification[]
 
@@ -2318,4 +2326,59 @@ model AutomationExecution {
   @@index([organizationId, status, createdAt])
   @@index([ruleId, createdAt])
   @@map("automation_executions")
+}
+
+/// Relatório gerencial gerado — o snapshot **é** o relatório.
+///
+/// Um relatório histórico continua representando os números do momento em que
+/// foi gerado: `data` é imutável depois de `READY`, e nenhuma leitura
+/// recalcula. Mudar o operacional depois muda o próximo relatório, não este.
+model ManagementReport {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  /// Nulo = organização inteira. Preenchido = recorte da unidade.
+  businessUnitId String?   @map("business_unit_id") @db.Uuid
+  /// Tipo canônico do catálogo fechado.
+  type           String    @db.VarChar(60)
+  /// Versão do formato de `data`. Um leitor antigo precisa poder recusar.
+  schemaVersion  Int       @default(1) @map("schema_version")
+  status         String    @default("PENDING") @db.VarChar(20)
+  format         String    @default("PDF") @db.VarChar(20)
+  /// Parâmetros efetivamente usados, já resolvidos pelo servidor.
+  parameters     Json      @default("{}") @db.JsonB
+  /// SHA-256 dos parâmetros normalizados — identidade da solicitação.
+  parametersHash String    @map("parameters_hash") @db.Char(64)
+  /// O snapshot: seções, métricas e tabelas. Nulo enquanto não compôs.
+  data           Json?     @db.JsonB
+  /// SHA-256 do snapshot — duas renderizações do mesmo snapshot são iguais.
+  sourceHash     String?   @map("source_hash") @db.Char(64)
+  /// Fontes usadas e a qualidade de cada uma (OBSERVED/DERIVED/PROXY/MOCK).
+  provenance     Json      @default("[]") @db.JsonB
+  /// Fuso do recorte, resolvido da unidade — nunca do navegador.
+  timezone       String    @db.VarChar(64)
+  periodFrom     DateTime  @map("period_from") @db.Timestamptz(3)
+  periodTo       DateTime  @map("period_to") @db.Timestamptz(3)
+  generatedAt    DateTime? @map("generated_at") @db.Timestamptz(3)
+  generatedById  String    @map("generated_by_id") @db.Uuid
+  /// Arquivo emitido, quando houve renderização.
+  fileId         String?   @map("file_id") @db.Uuid
+  renderer       String?   @db.VarChar(80)
+  /// Motivo da falha em linguagem de negócio. Nunca carrega stack.
+  error          String?   @db.VarChar(500)
+  attempts       Int       @default(0)
+  correlationId  String    @map("correlation_id") @db.VarChar(64)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  generatedBy  User          @relation("ManagementReportGeneratedBy", fields: [generatedById], references: [id], onDelete: Restrict)
+  file         StorageFile?  @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, type, createdAt])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, businessUnitId, createdAt])
+  @@index([organizationId, generatedById, createdAt])
+  @@map("management_reports")
 }

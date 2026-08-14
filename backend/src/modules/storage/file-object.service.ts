@@ -34,6 +34,8 @@ import {
 export const STORAGE_NAMESPACES = {
   manifest: 'manifests',
   attachment: 'attachments',
+  /** Relatórios gerenciais: mesmo storage, ciclo de vida próprio. */
+  report: 'reports',
 } as const;
 
 export type StorageNamespace =

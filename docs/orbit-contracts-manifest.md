@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR Frontend-22 (Automation Workspace).
+Última revisão: PR-25 (Management Reports & Insights Engine).
 
 ---
 
@@ -391,6 +391,14 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Sem parcelamento, recorrência ou centro de custo                                                                                     | não há modelo nem rota; um lançamento pertence a uma unidade e a uma competência                                                                                                                                                                      |
 | Sem conversão entre moedas                                                                                                           | `currency` é gravada por lançamento, mas não existe taxa de câmbio — o resumo publica a moeda padrão da organização e não soma moedas diferentes                                                                                                      |
 | ~~Orçamento ainda não gera receita prevista~~                                                                                        | **corrigido na PR-22**: aprovar cria `FinancialEntry(INCOME, PENDING, source=QUOTE)` pelo outbox; cancelar cancela a previsão sem apagá-la                                                               |
+| ~~Sem relatório gerencial reproduzível~~                                                                                             | **corrigido na PR-25**: `management_reports` guarda snapshot imutável com hash da fonte, parâmetros e proveniência; API em `/management-reports/**`, capabilities `reports.management.read`/`reports.management.manage` |
+| `/reports` e `reports.*` pertencem ao relatório **de visita** (PR-08/09)                                                             | o motor gerencial mora em `/management-reports` com capability própria: compartilhar `reports.read` faria quem lê o relatório de uma visita ler o relatório financeiro da organização                          |
+| Relatório gerencial não emite `ArtifactManifest`                                                                                     | o manifest exige `executionId`/`snapshotId`/`templateId` do Artifact Engine; emitir um exigiria fabricar uma execução de artefato por relatório. O snapshot cumpre o papel — imutável, versionado e com hash    |
+| Sem CSV/XLSX de relatório                                                                                                            | `RenderInput` descreve seções e campos rótulo/valor, não grade tabular; um CSV fiel exigiria segundo contrato de saída. PDF e HTML saem pelo renderizador que já existia                                        |
+| Sem PMOC com periodicidade e vencimento                                                                                              | não há entidade de plano PMOC; o que existe é a execução do artefato do tipo PMOC. O relatório conta execuções e **declara** a ausência de "vencido" em vez de aproximar                                        |
+| Sem SLA contratual                                                                                                                   | não há prazo por contrato ou por tipo de operação; o cumprimento medido é contra o `scheduledEnd` da própria ordem, publicado como `DERIVED` e com a nota dizendo o que é                                       |
+| Health score do Analytics fora dos relatórios gerenciais                                                                             | depende do motor ambiental, cuja fonte é `MOCK`; a exclusão fica registrada em `sources` do snapshot, com o motivo                                                                                              |
+| Sem agendamento recorrente nem envio de relatório por e-mail                                                                         | geração é sob demanda; o Automation Engine poderá disparar no futuro pela mesma fila                                                                                                                            |
 | ~~Lembrete de retorno dependia de alguém abrir a Agenda~~                                                                            | **corrigido na PR-24**: `operation.completed` → regra com prazo de calendário → `SchedulingEvent` criado pelo worker, sem intervenção de tela                                                            |
 | ~~Sem motor de automação~~                                                                                                           | **corrigido na PR-24**: `domain_events`, `automation_rules` e `automation_executions`, RLS por organização, capabilities `automations.read`/`automations.manage` e API em `/automations/**`               |
 | ~~Catálogo de automação não publicava os valores aceitos por campo de ação~~                                                        | **corrigido na PR Frontend-22**: `config[].options` no catálogo (`SEND_NOTIFICATION.target`, `TRIGGER_JOB.queue`) — sem ele o cliente pediria a fila digitada ou manteria lista própria divergente |
@@ -461,6 +469,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Inventory Workspace (web)                       | `frontend/docs/inventory-workspace.md`          |
 | Automation Engine (backend)                     | `backend/docs/automation-engine.md`             |
 | Automation Workspace (web)                      | `frontend/docs/automation-workspace.md`         |
+| Management Reports Engine (backend)             | `backend/docs/management-reports.md`            |
 | BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`                |
 | Autenticação e sessão (web)                     | `frontend/docs/authentication.md`               |
 | Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`                    |

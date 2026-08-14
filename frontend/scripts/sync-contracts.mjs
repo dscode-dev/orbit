@@ -52,6 +52,7 @@ const READ_MODELS = [
   "modules/quotes/quote.read-models.ts",
   "modules/inventory/inventory.read-models.ts",
   "modules/automations/automation.read-models.ts",
+  "modules/management-reports/report.read-models.ts",
 ];
 
 const BANNER = `/**
