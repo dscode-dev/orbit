@@ -57,16 +57,34 @@ export class AnalyticsRepository {
           select: operationSelect,
           orderBy: { createdAt: 'asc' },
         }),
-        tx.report.findMany({
-          where: {
-            organizationId,
-            businessUnitId: range.businessUnitId,
-            deletedAt: null,
-            createdAt: { gte: range.from, lte: range.to },
-            template: { reportKind: { contains: 'PMOC', mode: 'insensitive' } },
-          },
-          select: { status: true, createdAt: true, finalizedAt: true },
-        }),
+        /**
+         * PMOC vem do **domínio de PMOC**, não do documento (PR-26).
+         *
+         * Até aqui, o indicador era derivado de `reports` cujo template tinha
+         * "PMOC" no nome — o que media quantos PDFs foram preenchidos, e não se
+         * a manutenção aconteceu. Agora mede o ciclo: previsto, cumprido, e
+         * quando. O formato devolvido é o mesmo, então os motores de KPI e de
+         * tendência não mudam.
+         */
+        tx.pmocExecution
+          .findMany({
+            where: {
+              organizationId,
+              plan: {
+                businessUnitId: range.businessUnitId,
+                deletedAt: null,
+              },
+              dueOn: { gte: range.from, lte: range.to },
+            },
+            select: { status: true, dueOn: true, performedAt: true },
+          })
+          .then((rows) =>
+            rows.map((row) => ({
+              status: row.status,
+              createdAt: row.dueOn,
+              finalizedAt: row.performedAt,
+            })),
+          ),
         tx.asset.findMany({
           where: {
             organizationId,

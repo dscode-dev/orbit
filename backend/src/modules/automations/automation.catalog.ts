@@ -105,6 +105,44 @@ export const TRIGGERS: readonly TriggerDefinition[] = [
     fields: ['businessUnitId', 'customerId', 'total', 'currency'],
   },
   {
+    /**
+     * PMOC — três fatos, e os três têm ponto autoritativo.
+     *
+     * `activated` sai da transição do plano; `due_soon` e `overdue` saem do job
+     * que o próprio plano agendou quando o vencimento foi definido — e são
+     * emitidos **uma vez por vencimento**, guardados por coluna no plano. Sem
+     * essa guarda, "vence em 15 dias" chegaria todo dia por quinze dias.
+     */
+    type: 'pmoc.plan.activated',
+    label: 'Plano PMOC ativado',
+    description: 'Um plano de manutenção passou a valer.',
+    entityType: 'PMOC_PLAN',
+    fields: ['code', 'businessUnitId', 'customerId', 'frequencyUnit'],
+  },
+  {
+    type: 'pmoc.due_soon',
+    label: 'Manutenção PMOC se aproximando',
+    description:
+      'O vencimento de um plano entrou na antecedência configurada nele.',
+    entityType: 'PMOC_PLAN',
+    fields: ['code', 'businessUnitId', 'customerId', 'daysUntilDue', 'dueOn'],
+  },
+  {
+    type: 'pmoc.overdue',
+    label: 'Manutenção PMOC vencida',
+    description: 'O vencimento passou sem a manutenção ter sido registrada.',
+    entityType: 'PMOC_PLAN',
+    fields: ['code', 'businessUnitId', 'customerId', 'daysOverdue', 'dueOn'],
+  },
+  {
+    type: 'pmoc.execution.completed',
+    label: 'Manutenção PMOC concluída',
+    description:
+      'Um ciclo do plano foi cumprido e a periodicidade rolou para o próximo.',
+    entityType: 'PMOC_PLAN',
+    fields: ['code', 'businessUnitId', 'customerId', 'nextDueOn'],
+  },
+  {
     type: 'inventory.low_stock',
     label: 'Estoque baixo',
     description:

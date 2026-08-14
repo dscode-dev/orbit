@@ -71,6 +71,14 @@ export const JOB_QUEUES = {
    * daria tempo limite no primeiro relatório anual.
    */
   managementReport: 'management-report.generate',
+  /**
+   * O vencimento de um plano PMOC chegou perto, ou passou.
+   *
+   * Um job por plano e por fase, com `available_at` derivado do vencimento —
+   * **não é um cron**: não há varredura periódica de tabela nem agendador
+   * paralelo. O ciclo seguinte agenda os próprios avisos quando nasce.
+   */
+  pmocDueCheck: 'pmoc.due-check',
 } as const;
 export type JobQueue = (typeof JOB_QUEUES)[keyof typeof JOB_QUEUES];
 

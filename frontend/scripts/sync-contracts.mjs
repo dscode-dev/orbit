@@ -53,6 +53,7 @@ const READ_MODELS = [
   "modules/inventory/inventory.read-models.ts",
   "modules/automations/automation.read-models.ts",
   "modules/management-reports/report.read-models.ts",
+  "modules/pmoc/pmoc.read-models.ts",
 ];
 
 const BANNER = `/**

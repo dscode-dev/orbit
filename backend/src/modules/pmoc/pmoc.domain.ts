@@ -1,0 +1,202 @@
+/**
+ * As regras do domínio PMOC, sem banco e sem framework.
+ *
+ * ## Três estados diferentes, e é preciso não confundi-los
+ *
+ * | Estado | Do que fala | Quem decide |
+ * | --- | --- | --- |
+ * | **do plano** | o compromisso está valendo? | quem administra o plano |
+ * | **de conformidade** | a manutenção está em dia? | o calendário |
+ * | **da execução** | aquele ciclo foi cumprido? | quem executou |
+ *
+ * Um plano `ACTIVE` pode estar `OVERDUE`; um plano `SUSPENDED` não está em dia
+ * nem atrasado — está fora de avaliação. Misturar os três produziria a pergunta
+ * errada: "o plano está vencido?" não tem resposta, porque plano não vence,
+ * manutenção vence.
+ *
+ * ## O que este arquivo **não** faz
+ *
+ * Não interpreta norma, não conhece a Lei 13.589, não deduz periodicidade legal
+ * por tipo de equipamento e não emite parecer. A periodicidade é a que o cliente
+ * contratou e alguém digitou; o Orbit a cumpre e registra — não a prescreve.
+ */
+
+import {
+  PmocComplianceStatus,
+  PmocFrequencyUnit,
+  PmocPlanStatus,
+} from '../../contracts';
+
+/* -------------------------------------------------------------------- */
+/* Estado do plano                                                       */
+/* -------------------------------------------------------------------- */
+
+/**
+ * Os conjuntos fechados moram em `contracts/literals` — são contrato público,
+ * sincronizado com os clientes. Aqui fica a forma de lista, que o DTO usa, e
+ * as regras que só o servidor aplica.
+ */
+export const PLAN_STATUSES: readonly PlanStatus[] =
+  Object.values(PmocPlanStatus);
+export type PlanStatus = PmocPlanStatus;
+
+/**
+ * A máquina de estados, explícita.
+ *
+ * `EXPIRED` não é destino de ninguém: ele não é uma decisão, é a constatação de
+ * que a vigência acabou — quem o atribui é o servidor, comparando `endsOn` com
+ * a data de hoje. Uma transição manual para "vencido" permitiria dizer que
+ * acabou um contrato que ainda vale.
+ *
+ * `CANCELLED` é terminal. Um plano cancelado que voltasse a valer perderia o
+ * significado do cancelamento — quem quer retomar cria outro, e o histórico dos
+ * dois fica legível.
+ */
+export const PLAN_TRANSITIONS: Readonly<
+  Record<PlanStatus, readonly PlanStatus[]>
+> = {
+  DRAFT: ['ACTIVE', 'CANCELLED'],
+  ACTIVE: ['SUSPENDED', 'CANCELLED'],
+  SUSPENDED: ['ACTIVE', 'CANCELLED'],
+  EXPIRED: ['CANCELLED'],
+  CANCELLED: [],
+};
+
+export function canTransition(from: string, to: PlanStatus): boolean {
+  return (PLAN_TRANSITIONS[from as PlanStatus] ?? []).includes(to);
+}
+
+/** Só rascunho aceita edição de vigência e periodicidade. Ver o serviço. */
+export const EDITABLE_STATUSES: readonly string[] = [
+  'DRAFT',
+  'ACTIVE',
+  'SUSPENDED',
+];
+
+/* -------------------------------------------------------------------- */
+/* Periodicidade                                                         */
+/* -------------------------------------------------------------------- */
+
+/**
+ * Unidades de periodicidade.
+ *
+ * **Sem expressão cron.** Um campo cron seria uma linguagem dentro do
+ * formulário, e a periodicidade de um PMOC é sempre "de N em N" — trimestral,
+ * semestral, anual. O que cron acrescentaria ("toda primeira segunda-feira")
+ * não é o que um contrato de manutenção diz.
+ */
+export const FREQUENCY_UNITS: readonly FrequencyUnit[] =
+  Object.values(PmocFrequencyUnit);
+export type FrequencyUnit = PmocFrequencyUnit;
+
+export interface Frequency {
+  amount: number;
+  unit: FrequencyUnit;
+}
+
+const UNIT_LABELS: Readonly<Record<FrequencyUnit, [string, string]>> = {
+  DAYS: ['dia', 'dias'],
+  WEEKS: ['semana', 'semanas'],
+  MONTHS: ['mês', 'meses'],
+  YEARS: ['ano', 'anos'],
+};
+
+/** "a cada 6 meses", "a cada 1 ano". */
+export function frequencyLabel(frequency: Frequency): string {
+  const [singular, plural] = UNIT_LABELS[frequency.unit] ?? [
+    'período',
+    'períodos',
+  ];
+  return `a cada ${frequency.amount} ${frequency.amount === 1 ? singular : plural}`;
+}
+
+/* -------------------------------------------------------------------- */
+/* Conformidade                                                          */
+/* -------------------------------------------------------------------- */
+
+/**
+ * O estado de conformidade.
+ *
+ * `NOT_APPLICABLE` existe porque a alternativa seria mentir: um plano em
+ * rascunho, suspenso, vencido ou cancelado **não está em dia** — ele está fora
+ * de avaliação, e chamá-lo de `UP_TO_DATE` faria um painel dizer que está tudo
+ * certo quando ninguém está mantendo nada.
+ */
+export const COMPLIANCE_STATUSES: readonly ComplianceStatus[] =
+  Object.values(PmocComplianceStatus);
+export type ComplianceStatus = PmocComplianceStatus;
+
+export interface ComplianceInput {
+  planStatus: string;
+  /** Próximo vencimento, em dia. `null` quando o plano nunca foi ativado. */
+  nextDueOn: Date | null;
+  /** Antecedência do aviso, em dias. */
+  dueSoonDays: number;
+  /** Hoje, **pelo relógio do servidor**. */
+  today: Date;
+}
+
+export interface ComplianceResult {
+  status: ComplianceStatus;
+  /** Negativo quando já venceu. `null` sem vencimento definido. */
+  daysUntilDue: number | null;
+  overdue: boolean;
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * A fórmula, e ela é toda a fórmula.
+ *
+ * ```
+ * dias = próximo vencimento − hoje
+ *
+ * dias <  0                → OVERDUE
+ * dias <= antecedência     → DUE_SOON
+ * caso contrário           → UP_TO_DATE
+ * ```
+ *
+ * Não há score, peso nem média: um número entre 0 e 100 que resume conformidade
+ * esconde exatamente o que importa — **qual** plano venceu e **há quantos
+ * dias**. Um painel com "87% de conformidade" não diz a ninguém o que fazer
+ * amanhã de manhã.
+ *
+ * A antecedência é do plano (`dueSoonDays`, 15 por padrão) e não uma constante
+ * global: avisar com trinta dias faz sentido num plano anual e é ruído num
+ * plano semanal.
+ *
+ * A comparação é **por dia**, não por instante: manutenção vence no dia, e uma
+ * comparação por hora faria o mesmo plano parecer vencido de manhã e em dia à
+ * tarde conforme o fuso de quem consulta.
+ */
+export function evaluateCompliance(input: ComplianceInput): ComplianceResult {
+  if (input.planStatus !== 'ACTIVE' || !input.nextDueOn) {
+    return { status: 'NOT_APPLICABLE', daysUntilDue: null, overdue: false };
+  }
+
+  const due = startOfDay(input.nextDueOn);
+  const today = startOfDay(input.today);
+  const daysUntilDue = Math.round(
+    (due.getTime() - today.getTime()) / MS_PER_DAY,
+  );
+
+  if (daysUntilDue < 0) {
+    return { status: 'OVERDUE', daysUntilDue, overdue: true };
+  }
+  if (daysUntilDue <= input.dueSoonDays) {
+    return { status: 'DUE_SOON', daysUntilDue, overdue: false };
+  }
+  return { status: 'UP_TO_DATE', daysUntilDue, overdue: false };
+}
+
+/** Meia-noite UTC do dia — a coluna é `DATE`, e o dia é a unidade. */
+function startOfDay(value: Date): Date {
+  return new Date(
+    Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()),
+  );
+}
+
+/** `YYYY-MM-DD`, que é como uma coluna `DATE` deve viajar. */
+export function toDateOnly(value: Date): string {
+  return startOfDay(value).toISOString().slice(0, 10);
+}

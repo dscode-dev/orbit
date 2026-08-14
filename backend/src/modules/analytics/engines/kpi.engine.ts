@@ -73,11 +73,11 @@ export class KpiEngine {
       this.kpi(
         'pmoc.compliance',
         'PMOC',
-        'PMOCs finalizados',
+        'Manutenções PMOC cumpridas',
         percent(pmocCompleted, snapshot.pmocs.length),
         '%',
         0,
-        'reports+report_templates',
+        'pmoc_executions',
         'DERIVED',
         95,
         statusFor(percent(pmocCompleted, snapshot.pmocs.length), 85, 70),

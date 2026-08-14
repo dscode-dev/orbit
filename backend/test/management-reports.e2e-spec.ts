@@ -580,13 +580,37 @@ describe('Management reports (e2e)', () => {
     }
   }, 180000);
 
-  it('6 · PMOC declara a ausência de vencimento em vez de aproximar', async () => {
+  /**
+   * Este caso mudou com a PR-26, e a mudança é o ponto.
+   *
+   * Enquanto PMOC era só um tipo de documento, o relatório declarava a
+   * ausência: não havia fonte autoritativa para "vencido". Com o domínio de
+   * planos, periodicidade e ciclos, a fonte passou a existir — e a seção que
+   * declarava a lacuna deixou de fazer sentido.
+   */
+  it('6 · PMOC compõe planos e conformidade a partir do domínio real', async () => {
     const report = await produce({ type: 'PMOC_COMPLIANCE' });
-    const overdue = report.snapshot!.sections.find(
-      (section) => section.id === 'pmoc.overdue',
+
+    const ids = report.snapshot!.sections.map((section) => section.id);
+    expect(ids).toContain('pmoc.plans');
+    expect(ids).toContain('pmoc.cycles');
+
+    /** A antiga seção de lacuna não existe mais. */
+    expect(ids).not.toContain('pmoc.overdue');
+
+    const metrics = report.snapshot!.sections.flatMap(
+      (section) => section.metrics,
     );
-    expect(overdue?.unavailableReason).toContain('periodicidade');
-    expect(overdue?.metrics).toHaveLength(0);
+    expect(metrics.map((metric) => metric.id)).toEqual(
+      expect.arrayContaining([
+        'pmoc.plans_active',
+        'pmoc.overdue',
+        'pmoc.completed_in_period',
+      ]),
+    );
+
+    /** E a evidência documental continua ao lado do fato operacional. */
+    expect(ids).toContain('pmoc.evidence');
   }, 180000);
 
   /* ================================================================ */

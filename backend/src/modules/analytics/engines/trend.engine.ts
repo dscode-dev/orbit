@@ -47,7 +47,7 @@ export class TrendEngine {
           'Operações concluídas',
           completed,
         ),
-        this.series('pmoc.generated', 'PMOC', 'PMOCs gerados', pmocs),
+        this.series('pmoc.generated', 'PMOC', 'Ciclos PMOC previstos', pmocs),
       ],
     };
   }

@@ -3,8 +3,8 @@
  *
  * ## O que este módulo importa, e por quê
  *
- * `FinancialModule` e `InventoryModule` porque os providers **chamam os
- * serviços deles** — é a forma de não recalcular o que já tem dono. A
+ * `FinancialModule`, `InventoryModule` e `PmocModule` porque os providers
+ * **chamam os serviços deles** — é a forma de não recalcular o que já tem dono. A
  * dependência é explícita e de leitura: Reports conhece Financeiro; Financeiro
  * não sabe que Reports existe.
  *
@@ -26,6 +26,7 @@ import { PrismaModule } from '../../database/prisma.module';
 import { ArtifactRenderingModule } from '../artifact-rendering/artifact-rendering.module';
 import { FinancialModule } from '../financial/financial.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { PmocModule } from '../pmoc/pmoc.module';
 import { StorageModule } from '../storage/storage.module';
 import { SubscriptionPlansModule } from '../subscription-plans/subscription-plans.module';
 import { CommercialReportProvider } from './providers/commercial.provider';
@@ -51,6 +52,7 @@ import { ReportService } from './report.service';
     ArtifactRenderingModule,
     FinancialModule,
     InventoryModule,
+    PmocModule,
   ],
   controllers: [ManagementReportController],
   providers: [

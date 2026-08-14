@@ -1,0 +1,169 @@
+/**
+ * Mapeadores do domínio PMOC.
+ *
+ * Nenhum modelo Prisma sai daqui. A conformidade é **calculada no mapper**, com
+ * o relógio do servidor, e viaja pronta: o cliente não recebe `nextDueOn` para
+ * decidir sozinho se está vencido — receberia a régua junto, e duas telas
+ * poderiam discordar.
+ */
+import { Injectable } from '@nestjs/common';
+import {
+  PLAN_TRANSITIONS,
+  evaluateCompliance,
+  frequencyLabel,
+  toDateOnly,
+  type FrequencyUnit,
+  type PlanStatus,
+} from './pmoc.domain';
+import type {
+  PmocComplianceReadModel,
+  PmocCoverageReadModel,
+  PmocExecutionReadModel,
+  PmocPlanReadModel,
+  PmocPlanSummaryReadModel,
+} from './pmoc.read-models';
+import type {
+  CoverageRecord,
+  ExecutionRecord,
+  PlanRecord,
+} from './pmoc.repository';
+
+@Injectable()
+export class PmocMapper {
+  summary(source: PlanRecord, now = new Date()): PmocPlanSummaryReadModel {
+    return {
+      id: source.id,
+      code: source.code,
+      name: source.name,
+      status: source.status,
+      validity: {
+        startsOn: toDateOnly(source.startsOn),
+        endsOn: source.endsOn ? toDateOnly(source.endsOn) : null,
+      },
+      frequency: {
+        amount: source.frequencyAmount,
+        unit: source.frequencyUnit as FrequencyUnit,
+        label: frequencyLabel({
+          amount: source.frequencyAmount,
+          unit: source.frequencyUnit as FrequencyUnit,
+        }),
+      },
+      compliance: this.compliance(source, now),
+      businessUnit: {
+        id: source.businessUnit.id,
+        name: source.businessUnit.tradeName ?? source.businessUnit.legalName,
+      },
+      customer: {
+        id: source.customer.id,
+        name: source.customer.tradeName ?? source.customer.legalName,
+      },
+      technician: source.technician
+        ? {
+            id: source.technician.id,
+            displayName: source.technician.displayName,
+          }
+        : null,
+      coveredEquipment: source._count.coverages,
+      createdAt: source.createdAt.toISOString(),
+      updatedAt: source.updatedAt.toISOString(),
+    };
+  }
+
+  details(
+    source: PlanRecord,
+    extras: {
+      coverages: readonly CoverageRecord[];
+      currentExecution: ExecutionRecord | null;
+      recentExecutions: readonly ExecutionRecord[];
+    },
+    now = new Date(),
+  ): PmocPlanReadModel {
+    return {
+      ...this.summary(source, now),
+      notes: source.notes,
+      activatedAt: source.activatedAt?.toISOString() ?? null,
+      createdBy: {
+        id: source.createdBy.id,
+        displayName: source.createdBy.displayName,
+      },
+      coverages: extras.coverages.map((coverage) => this.coverage(coverage)),
+      currentExecution: extras.currentExecution
+        ? this.execution(extras.currentExecution)
+        : null,
+      recentExecutions: extras.recentExecutions.map((execution) =>
+        this.execution(execution),
+      ),
+      /** O que **este** plano aceita agora — a máquina de estados, publicada. */
+      allowedTransitions: PLAN_TRANSITIONS[source.status as PlanStatus] ?? [],
+    };
+  }
+
+  compliance(source: PlanRecord, now = new Date()): PmocComplianceReadModel {
+    const evaluated = evaluateCompliance({
+      planStatus: source.status,
+      nextDueOn: source.nextDueOn,
+      dueSoonDays: source.dueSoonDays,
+      today: now,
+    });
+
+    return {
+      status: evaluated.status,
+      daysUntilDue: evaluated.daysUntilDue,
+      overdue: evaluated.overdue,
+      dueSoonDays: source.dueSoonDays,
+      lastExecutedAt: source.lastExecutedAt?.toISOString() ?? null,
+      nextDueOn: source.nextDueOn ? toDateOnly(source.nextDueOn) : null,
+      /** O instante da avaliação — deixa explícito que é do servidor. */
+      evaluatedAt: now.toISOString(),
+    };
+  }
+
+  coverage(source: CoverageRecord): PmocCoverageReadModel {
+    return {
+      id: source.id,
+      startsOn: toDateOnly(source.startsOn),
+      endsOn: source.endsOn ? toDateOnly(source.endsOn) : null,
+      notes: source.notes,
+      asset: {
+        id: source.asset.id,
+        name: source.asset.name,
+        category: source.asset.category,
+        identifier: source.asset.identifier,
+        serialNumber: source.asset.serialNumber,
+        status: source.asset.status,
+      },
+    };
+  }
+
+  execution(source: ExecutionRecord): PmocExecutionReadModel {
+    return {
+      id: source.id,
+      dueOn: toDateOnly(source.dueOn),
+      status: source.status,
+      performedAt: source.performedAt?.toISOString() ?? null,
+      notes: source.notes,
+      completedBy: source.completedBy
+        ? {
+            id: source.completedBy.id,
+            displayName: source.completedBy.displayName,
+          }
+        : null,
+      operation: source.operation
+        ? {
+            id: source.operation.id,
+            code: source.operation.code,
+            status: source.operation.status,
+          }
+        : null,
+      artifactExecution: source.artifactExecution
+        ? {
+            id: source.artifactExecution.id,
+            code: source.artifactExecution.code,
+            status: source.artifactExecution.status,
+          }
+        : null,
+      schedulingEventId: source.schedulingEventId,
+      createdAt: source.createdAt.toISOString(),
+    };
+  }
+}

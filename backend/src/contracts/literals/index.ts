@@ -414,3 +414,62 @@ export const AutomationExecutionStatus = {
 } as const;
 export type AutomationExecutionStatus =
   (typeof AutomationExecutionStatus)[keyof typeof AutomationExecutionStatus];
+
+/* -------------------------------------------------------------------- */
+/* PMOC & Compliance                                                     */
+/* -------------------------------------------------------------------- */
+
+/**
+ * Situação de um plano PMOC.
+ *
+ * `EXPIRED` não é escolha de ninguém: é a constatação de que a vigência
+ * acabou, atribuída pelo servidor. `CANCELLED` é terminal.
+ */
+export const PmocPlanStatus = {
+  DRAFT: 'DRAFT',
+  ACTIVE: 'ACTIVE',
+  SUSPENDED: 'SUSPENDED',
+  EXPIRED: 'EXPIRED',
+  CANCELLED: 'CANCELLED',
+} as const;
+export type PmocPlanStatus =
+  (typeof PmocPlanStatus)[keyof typeof PmocPlanStatus];
+
+/**
+ * Unidade da periodicidade.
+ *
+ * Meses e anos têm semântica de **calendário**, resolvida no banco: seis meses
+ * depois de 31 de agosto é 28 de fevereiro, não 180 dias depois.
+ */
+export const PmocFrequencyUnit = {
+  DAYS: 'DAYS',
+  WEEKS: 'WEEKS',
+  MONTHS: 'MONTHS',
+  YEARS: 'YEARS',
+} as const;
+export type PmocFrequencyUnit =
+  (typeof PmocFrequencyUnit)[keyof typeof PmocFrequencyUnit];
+
+/**
+ * Conformidade — situação da **manutenção**, não do plano.
+ *
+ * `NOT_APPLICABLE` cobre o plano que não está em avaliação (rascunho,
+ * suspenso, vencido, cancelado): ele não está em dia, está fora da conta.
+ */
+export const PmocComplianceStatus = {
+  UP_TO_DATE: 'UP_TO_DATE',
+  DUE_SOON: 'DUE_SOON',
+  OVERDUE: 'OVERDUE',
+  NOT_APPLICABLE: 'NOT_APPLICABLE',
+} as const;
+export type PmocComplianceStatus =
+  (typeof PmocComplianceStatus)[keyof typeof PmocComplianceStatus];
+
+/** Situação de um ciclo de manutenção. */
+export const PmocExecutionStatus = {
+  PENDING: 'PENDING',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+} as const;
+export type PmocExecutionStatus =
+  (typeof PmocExecutionStatus)[keyof typeof PmocExecutionStatus];

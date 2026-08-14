@@ -83,6 +83,7 @@ const SCHEDULING = {
   capability: 'scheduling.read',
   permission: 'scheduling.read',
 };
+const PMOC = { capability: 'pmoc.read', permission: 'pmoc.read' };
 const EXECUTIONS = {
   capability: 'artifact_executions.read',
   permission: 'artifact_executions.read',
@@ -182,13 +183,19 @@ export const REPORT_TYPES: readonly ReportTypeDefinition[] = [
     maxRangeDays: 400,
   },
   {
+    /**
+     * Desde a PR-26 este relatório lê o **domínio de PMOC**, não só o
+     * documento. Por isso passou a exigir `pmoc.read` além do acesso às
+     * execuções de artefato: quem não pode ver os planos de manutenção da
+     * carteira não passa a vê-los por dentro de um relatório.
+     */
     type: 'PMOC_COMPLIANCE',
     name: 'PMOC e conformidade',
     description:
-      'Execuções de PMOC no período, por situação, e quantas resultaram em documento emitido.',
-    domains: ['DOCUMENTS'],
-    capabilities: [EXECUTIONS.capability],
-    permissions: [EXECUTIONS.permission],
+      'Planos de manutenção, conformidade e ciclos cumpridos no período — com a evidência documental ao lado.',
+    domains: ['PMOC', 'DOCUMENTS'],
+    capabilities: [PMOC.capability, EXECUTIONS.capability],
+    permissions: [PMOC.permission, EXECUTIONS.permission],
     parameters: ['businessUnitId'],
     formats: ['PDF', 'HTML'],
     maxRangeDays: 400,

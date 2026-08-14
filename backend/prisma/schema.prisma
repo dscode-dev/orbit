@@ -61,6 +61,9 @@ model User {
   inventoryMovements            InventoryMovement[]            @relation("InventoryMovementActor")
   automationRules               AutomationRule[]               @relation("AutomationRuleCreatedBy")
   managementReports             ManagementReport[]             @relation("ManagementReportGeneratedBy")
+  pmocPlansCreated              PmocPlan[]                     @relation("PmocPlanCreatedBy")
+  pmocPlansResponsible          PmocPlan[]                     @relation("PmocPlanTechnician")
+  pmocExecutionsCompleted       PmocExecution[]                @relation("PmocExecutionCompletedBy")
   schedulingHistory             SchedulingEventHistory[]
   notificationPreferences       NotificationPreference[]
   notificationDeliveries        NotificationDelivery[]
@@ -259,6 +262,9 @@ model Organization {
   automationRules          AutomationRule[]
   automationExecutions     AutomationExecution[]
   managementReports        ManagementReport[]
+  pmocPlans                PmocPlan[]
+  pmocCoverages            PmocEquipmentCoverage[]
+  pmocExecutions           PmocExecution[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -335,6 +341,7 @@ model BusinessUnit {
   automationRules AutomationRule[]
 
   managementReports ManagementReport[]
+  pmocPlans         PmocPlan[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -537,7 +544,8 @@ model Customer {
 
   financialEntries FinancialEntry[]
 
-  quotes Quote[]
+  quotes    Quote[]
+  pmocPlans PmocPlan[]
 
   @@index([organizationId, status, deletedAt])
   @@index([organizationId, documentNumber])
@@ -656,6 +664,7 @@ model Asset {
   schedulingEvents      SchedulingEvent[]
   schedulingAllocations SchedulingResourceAllocation[]
   artifactExecutions    ArtifactExecution[]
+  pmocCoverages         PmocEquipmentCoverage[]
 
   @@unique([organizationId, identifier])
   @@index([organizationId, businessUnitId, status, deletedAt])
@@ -708,6 +717,8 @@ model Operation {
   quote Quote?
 
   inventoryMovements InventoryMovement[]
+
+  pmocExecution PmocExecution?
 
   @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, scheduledStart])
@@ -927,21 +938,22 @@ model ArtifactExecution {
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit BusinessUnit                  @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
-  operation    Operation?                    @relation(fields: [operationId], references: [id], onDelete: SetNull)
-  customer     Customer?                     @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  asset        Asset?                        @relation(fields: [assetId], references: [id], onDelete: SetNull)
-  template     ArtifactTemplate              @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  snapshot     ArtifactSnapshot              @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
-  responsible  User?                         @relation("ArtifactExecutionResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
-  createdBy    User                          @relation("ArtifactExecutionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  team         ArtifactExecutionTeam[]
-  responses    ArtifactExecutionResponse[]
-  attachments  ArtifactExecutionAttachment[]
-  signatures   ArtifactExecutionSignature[]
-  insights     ArtifactExecutionInsight[]
-  manifests    ArtifactManifest[]
+  organization  Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit  BusinessUnit                  @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  operation     Operation?                    @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  customer      Customer?                     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  asset         Asset?                        @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  template      ArtifactTemplate              @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  snapshot      ArtifactSnapshot              @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  responsible   User?                         @relation("ArtifactExecutionResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  createdBy     User                          @relation("ArtifactExecutionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  team          ArtifactExecutionTeam[]
+  responses     ArtifactExecutionResponse[]
+  attachments   ArtifactExecutionAttachment[]
+  signatures    ArtifactExecutionSignature[]
+  insights      ArtifactExecutionInsight[]
+  manifests     ArtifactManifest[]
+  pmocExecution PmocExecution?
 
   @@unique([organizationId, code])
   @@index([organizationId, businessUnitId, status, createdAt])
@@ -1532,15 +1544,16 @@ model SchedulingEvent {
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit BusinessUnit?                  @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
-  calendar     SchedulingCalendar             @relation(fields: [calendarId], references: [id], onDelete: Restrict)
-  customer     Customer?                      @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  asset        Asset?                         @relation(fields: [assetId], references: [id], onDelete: SetNull)
-  createdBy    User                           @relation("SchedulingEventCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  recurrence   SchedulingRecurrence?
-  allocations  SchedulingResourceAllocation[]
-  history      SchedulingEventHistory[]
+  organization  Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit  BusinessUnit?                  @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  calendar      SchedulingCalendar             @relation(fields: [calendarId], references: [id], onDelete: Restrict)
+  customer      Customer?                      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  asset         Asset?                         @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  createdBy     User                           @relation("SchedulingEventCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  recurrence    SchedulingRecurrence?
+  allocations   SchedulingResourceAllocation[]
+  history       SchedulingEventHistory[]
+  pmocExecution PmocExecution?
 
   @@index([organizationId, startsAt, endsAt])
   @@index([organizationId, businessUnitId, startsAt])
@@ -2381,4 +2394,132 @@ model ManagementReport {
   @@index([organizationId, businessUnitId, createdAt])
   @@index([organizationId, generatedById, createdAt])
   @@map("management_reports")
+}
+
+// -----------------------------------------------------------------------------
+// PMOC & COMPLIANCE
+// -----------------------------------------------------------------------------
+
+/// Plano de Manutenção, Operação e Controle.
+///
+/// O plano existe **independentemente do documento**: ele é o compromisso de
+/// manter um conjunto de equipamentos com uma periodicidade, e continua valendo
+/// mesmo que nenhum PDF tenha sido emitido ainda.
+model PmocPlan {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  businessUnitId String  @map("business_unit_id") @db.Uuid
+  customerId     String  @map("customer_id") @db.Uuid
+  /// Identificador legível, único por organização.
+  code           String  @db.VarChar(60)
+  name           String  @db.VarChar(220)
+  status         String  @default("DRAFT") @db.VarChar(20)
+  notes          String? @db.Text
+
+  /// Vigência. `endsOn` nulo = sem prazo final.
+  startsOn DateTime  @map("starts_on") @db.Date
+  endsOn   DateTime? @map("ends_on") @db.Date
+
+  /// Periodicidade: quantidade + unidade. Meses e anos são de calendário.
+  frequencyAmount Int    @map("frequency_amount")
+  frequencyUnit   String @map("frequency_unit") @db.VarChar(10)
+
+  /// Antecedência, em dias, para o plano entrar em "próximo do vencimento".
+  dueSoonDays Int @default(15) @map("due_soon_days")
+
+  /// Responsável técnico — referência **operacional**, não registro profissional.
+  technicianUserId String? @map("technician_user_id") @db.Uuid
+
+  /// Derivados mantidos pelo servidor, nunca escritos pelo cliente.
+  lastExecutedAt DateTime? @map("last_executed_at") @db.Timestamptz(3)
+  nextDueOn      DateTime? @map("next_due_on") @db.Date
+
+  /// Para qual vencimento cada aviso já foi emitido — idempotência dos eventos.
+  dueSoonNotifiedFor DateTime? @map("due_soon_notified_for") @db.Date
+  overdueNotifiedFor DateTime? @map("overdue_notified_for") @db.Date
+
+  activatedAt DateTime? @map("activated_at") @db.Timestamptz(3)
+  createdById String    @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  technician   User?        @relation("PmocPlanTechnician", fields: [technicianUserId], references: [id], onDelete: SetNull)
+  createdBy    User         @relation("PmocPlanCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  coverages  PmocEquipmentCoverage[]
+  executions PmocExecution[]
+
+  @@index([organizationId, status, nextDueOn])
+  @@index([organizationId, businessUnitId, status])
+  @@index([organizationId, customerId])
+  @@map("pmoc_plans")
+}
+
+/// Um equipamento coberto por um plano.
+///
+/// Guarda **o vínculo**, não o equipamento: nome, modelo e número de série
+/// continuam sendo do `Asset`, e copiá-los aqui criaria uma segunda verdade que
+/// envelhece na primeira correção de cadastro.
+model PmocEquipmentCoverage {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  planId         String    @map("plan_id") @db.Uuid
+  assetId        String    @map("asset_id") @db.Uuid
+  startsOn       DateTime  @map("starts_on") @db.Date
+  endsOn         DateTime? @map("ends_on") @db.Date
+  notes          String?   @db.VarChar(500)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         PmocPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  asset        Asset        @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, planId])
+  @@index([organizationId, assetId])
+  @@map("pmoc_equipment_coverages")
+}
+
+/// Um ciclo do plano: a manutenção prevista para uma data.
+///
+/// É a **programação**, e é onde a execução real se pendura — a ordem de
+/// serviço que a cumpriu e a execução de artefato que a documentou. Sem ela não
+/// haveria como responder "quando foi a última" nem impedir duas ordens para o
+/// mesmo vencimento.
+model PmocExecution {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  planId         String   @map("plan_id") @db.Uuid
+  /// Vencimento previsto deste ciclo.
+  dueOn          DateTime @map("due_on") @db.Date
+  status         String   @default("PENDING") @db.VarChar(20)
+
+  /// A ordem de serviço que cumpriu o ciclo. Única: um ciclo, uma ordem.
+  operationId         String? @unique @map("operation_id") @db.Uuid
+  /// A evidência documental — execução de artefato real, nunca fabricada.
+  artifactExecutionId String? @unique @map("artifact_execution_id") @db.Uuid
+  /// O compromisso na Agenda existente. Nunca uma agenda paralela.
+  schedulingEventId   String? @unique @map("scheduling_event_id") @db.Uuid
+
+  performedAt   DateTime? @map("performed_at") @db.Timestamptz(3)
+  completedById String?   @map("completed_by_id") @db.Uuid
+  notes         String?   @db.VarChar(500)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan              PmocPlan           @relation(fields: [planId], references: [id], onDelete: Cascade)
+  operation         Operation?         @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  artifactExecution ArtifactExecution? @relation(fields: [artifactExecutionId], references: [id], onDelete: SetNull)
+  schedulingEvent   SchedulingEvent?   @relation(fields: [schedulingEventId], references: [id], onDelete: SetNull)
+  completedBy       User?              @relation("PmocExecutionCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, planId, dueOn])
+  @@index([organizationId, status, dueOn])
+  @@map("pmoc_executions")
 }

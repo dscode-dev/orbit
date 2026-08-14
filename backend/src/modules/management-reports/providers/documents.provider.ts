@@ -1,19 +1,23 @@
 /**
  * Documentos e execuções — e o recorte de PMOC.
  *
- * ## Não existe entidade PMOC
+ * ## O PMOC agora tem domínio próprio
  *
- * O Orbit não tem plano de manutenção com periodicidade, vencimento e
- * cobertura de equipamento. O que existe é o **artefato do tipo PMOC**: um
- * template oficial (`ORBIT_PMOC`) e as execuções dele. Este provider conta
- * essas execuções e quantas viraram documento emitido.
+ * Quando esta PR foi escrita, "PMOC" no Orbit era só um tipo de artefato, e
+ * este provider declarava a ausência: não havia como dizer o que estava
+ * vencido, porque não havia plano com periodicidade nem cobertura de
+ * equipamento.
  *
- * Por isso **não há "PMOC vencido"** neste relatório. Vencimento exige data de
- * validade por plano, e nenhuma tabela a guarda; derivá-la de "a última
- * execução foi há mais de um ano" seria inventar a periodicidade do cliente. A
- * ausência é declarada na seção, não preenchida com aproximação.
+ * A PR-26 criou esse domínio. O relatório de PMOC passou a compor **planos,
+ * conformidade e ciclos** — o que estava previsto, o que foi cumprido e o que
+ * venceu —, e mantém a contagem de execuções de artefato do tipo PMOC como o
+ * que ela sempre foi: a **evidência documental**, ao lado do fato operacional.
+ *
+ * Relatórios gerados antes disso continuam como estavam: o snapshot é imutável,
+ * e nenhuma leitura o recompõe.
  */
 import { Injectable } from '@nestjs/common';
+import { PmocService } from '../../pmoc/pmoc.service';
 import type {
   ReportSectionReadModel,
   ReportTableReadModel,
@@ -29,6 +33,7 @@ import {
 
 const SOURCE = 'artifact_executions';
 const MANIFEST_SOURCE = 'artifact_manifests';
+const PMOC_SOURCE = 'pmoc_plans+pmoc_executions';
 
 @Injectable()
 export class DocumentsReportProvider implements ReportProvider {
@@ -38,15 +43,158 @@ export class DocumentsReportProvider implements ReportProvider {
     permissions: ['artifact_executions.read'],
   };
 
-  constructor(private readonly repository: ReportRepository) {}
+  constructor(
+    private readonly repository: ReportRepository,
+    private readonly pmoc: PmocService,
+  ) {}
 
   compose(context: ReportProviderContext): Promise<ReportComposition> {
     return this.build(context, false);
   }
 
-  /** O mesmo conjunto, recortado no tipo PMOC. */
-  composePmoc(context: ReportProviderContext): Promise<ReportComposition> {
-    return this.build(context, true);
+  /**
+   * PMOC: o domínio primeiro, a evidência depois.
+   *
+   * A seção de planos e conformidade vem do `PmocService` — a mesma fonte que a
+   * tela de PMOC usa, com a mesma régua de vencimento. Duplicar a conta aqui
+   * faria o relatório discordar da tela sobre o que está vencido.
+   */
+  async composePmoc(
+    context: ReportProviderContext,
+  ): Promise<ReportComposition> {
+    const [domain, documents] = await Promise.all([
+      this.composePlans(context),
+      this.build(context, true),
+    ]);
+
+    return {
+      sections: [...domain.sections, ...documents.sections],
+      sources: [...domain.sources, ...documents.sources],
+    };
+  }
+
+  /** Planos, conformidade e ciclos — o fato operacional. */
+  private async composePlans(
+    context: ReportProviderContext,
+  ): Promise<ReportComposition> {
+    const summary = await this.pmoc.compliance(
+      {
+        organizationId: context.scope.organizationId,
+        actorId: 'report',
+        permissions: ['pmoc.read'],
+        businessUnitIds: [],
+      },
+      {
+        from: context.scope.from,
+        to: context.scope.to,
+        businessUnitId: context.scope.businessUnitId ?? undefined,
+      },
+    );
+
+    const sections: ReportSectionReadModel[] = [
+      {
+        id: 'pmoc.plans',
+        title: 'Planos de manutenção',
+        description:
+          'Compromissos de manutenção vigentes e a situação de cada um.',
+        metrics: [
+          {
+            id: 'pmoc.plans_active',
+            label: 'Planos ativos',
+            value: count(summary.plans.active),
+            source: PMOC_SOURCE,
+            provenance: 'OBSERVED',
+          },
+          {
+            id: 'pmoc.equipment_covered',
+            label: 'Equipamentos cobertos',
+            value: count(summary.equipment.covered),
+            source: PMOC_SOURCE,
+            provenance: 'OBSERVED',
+            note: 'Equipamentos distintos em planos ativos.',
+          },
+          {
+            id: 'pmoc.up_to_date',
+            label: 'Em dia',
+            value: count(summary.compliance.upToDate),
+            source: PMOC_SOURCE,
+            provenance: 'DERIVED',
+            note: 'Próximo vencimento além da antecedência configurada no plano.',
+          },
+          {
+            id: 'pmoc.due_soon',
+            label: 'Próximos do vencimento',
+            value: count(summary.compliance.dueSoon),
+            source: PMOC_SOURCE,
+            provenance: 'DERIVED',
+          },
+          {
+            id: 'pmoc.overdue',
+            label: 'Vencidos',
+            value: count(summary.compliance.overdue),
+            source: PMOC_SOURCE,
+            provenance: 'DERIVED',
+            note: 'Vencimento anterior a hoje, pelo relógio do servidor.',
+          },
+          ...(summary.compliance.upToDateRate === null
+            ? []
+            : [
+                {
+                  id: 'pmoc.up_to_date_rate',
+                  label: 'Planos em dia',
+                  value: summary.compliance.upToDateRate,
+                  unit: '%',
+                  source: PMOC_SOURCE,
+                  provenance: 'DERIVED' as const,
+                  note: 'Em dia ÷ (em dia + próximos + vencidos), sobre planos ativos.',
+                },
+              ]),
+        ],
+        tables: [],
+      },
+      {
+        id: 'pmoc.cycles',
+        title: 'Ciclos de manutenção',
+        description: 'O que foi cumprido no período e o que está em aberto.',
+        metrics: [
+          {
+            id: 'pmoc.completed_in_period',
+            label: 'Manutenções concluídas no período',
+            value: count(summary.executions.completedInPeriod),
+            source: PMOC_SOURCE,
+            provenance: 'OBSERVED',
+            note: 'Contadas pela data em que a manutenção aconteceu.',
+          },
+          {
+            id: 'pmoc.pending_cycles',
+            label: 'Ciclos em aberto',
+            value: count(summary.executions.pending),
+            source: PMOC_SOURCE,
+            provenance: 'OBSERVED',
+          },
+          {
+            id: 'pmoc.overdue_cycles',
+            label: 'Ciclos vencidos',
+            value: count(summary.executions.overdue),
+            source: PMOC_SOURCE,
+            provenance: 'OBSERVED',
+          },
+        ],
+        tables: [],
+      },
+    ];
+
+    return {
+      sections,
+      sources: [
+        {
+          domain: 'PMOC',
+          source: PMOC_SOURCE,
+          provenance: 'OBSERVED',
+          included: true,
+        },
+      ],
+    };
   }
 
   private async build(
@@ -106,9 +254,13 @@ export class DocumentsReportProvider implements ReportProvider {
 
     const sections: ReportSectionReadModel[] = [
       {
-        id: pmocOnly ? 'pmoc.executions' : 'documents.executions',
-        title: pmocOnly ? 'Execuções de PMOC' : 'Execuções de artefato',
-        description: 'Iniciadas no período, pela data de criação.',
+        id: pmocOnly ? 'pmoc.evidence' : 'documents.executions',
+        title: pmocOnly
+          ? 'Evidência documental de PMOC'
+          : 'Execuções de artefato',
+        description: pmocOnly
+          ? 'Formulários de PMOC preenchidos no período e documentos emitidos. É a evidência do que os ciclos acima registram.'
+          : 'Iniciadas no período, pela data de criação.',
         metrics: [
           {
             id: 'documents.total',
@@ -160,17 +312,6 @@ export class DocumentsReportProvider implements ReportProvider {
           : {}),
       },
     ];
-
-    if (pmocOnly) {
-      sections.push({
-        id: 'pmoc.overdue',
-        title: 'Vencimentos',
-        metrics: [],
-        tables: [],
-        unavailableReason:
-          'O Orbit não cadastra plano de PMOC com periodicidade e validade, então não há fonte autoritativa para "vencido". O que existe é a execução do artefato do tipo PMOC, contada acima.',
-      });
-    }
 
     return {
       sections,

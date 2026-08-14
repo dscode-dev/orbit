@@ -14,6 +14,7 @@ import { QuotesModule } from './modules/quotes/quotes.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { AutomationsModule } from './modules/automations/automations.module';
 import { ManagementReportsModule } from './modules/management-reports/management-reports.module';
+import { PmocModule } from './modules/pmoc/pmoc.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SignaturesModule } from './modules/signatures/signatures.module';
@@ -43,6 +44,7 @@ import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-
     InventoryModule,
     AutomationsModule,
     ManagementReportsModule,
+    PmocModule,
     IntegrationsModule,
     OperationsModule,
     ReportsModule,
