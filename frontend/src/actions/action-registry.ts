@@ -58,6 +58,7 @@ import {
   Trash2,
   Undo2,
   UserPlus,
+  Zap,
   type LucideProps,
 } from "lucide-react";
 
@@ -128,6 +129,87 @@ function define(
 }
 
 const DEFINITIONS: readonly ActionDefinition[] = [
+  /* ---------------------------------------------------------------- */
+  /* Automações (recurso `automations` no backend)                     */
+  /* ---------------------------------------------------------------- */
+  define({
+    id: "automation-rule.create",
+    entity: "automation-rule",
+    label: "Nova automação",
+    description: "Quando algo acontecer, o Orbit faz o que foi combinado.",
+    icon: Zap,
+    category: "create",
+    permission: "automations.manage",
+    capability: "automations.manage",
+  }),
+  define({
+    id: "automation-rule.update",
+    entity: "automation-rule",
+    label: "Editar",
+    icon: Pencil,
+    category: "edit",
+    permission: "automations.manage",
+    capability: "automations.manage",
+  }),
+  /**
+   * Ligar e desligar é `POST /:id/toggle`, não edição.
+   *
+   * Declaradas à parte porque é assim que se pensa nelas — e porque desligar
+   * **não cancela** o que já está agendado: a ação pendente é descartada na
+   * hora de executar, com o motivo. A exigência é a mesma da edição.
+   */
+  define({
+    id: "automation-rule.enable",
+    entity: "automation-rule",
+    label: "Ativar",
+    icon: Power,
+    category: "workflow",
+    permission: "automations.manage",
+    capability: "automations.manage",
+  }),
+  define({
+    id: "automation-rule.disable",
+    entity: "automation-rule",
+    label: "Desativar",
+    description:
+      "A regra para de valer. Ações já agendadas são descartadas quando chegar a hora.",
+    icon: PowerOff,
+    category: "workflow",
+    permission: "automations.manage",
+    capability: "automations.manage",
+  }),
+  define({
+    id: "automation-rule.duplicate",
+    entity: "automation-rule",
+    label: "Duplicar",
+    description: "A cópia nasce desativada, para ser ajustada antes de valer.",
+    icon: Copy,
+    category: "edit",
+    permission: "automations.manage",
+    capability: "automations.manage",
+  }),
+  /**
+   * Excluir é recusado com 409 enquanto houver ação agendada.
+   *
+   * A condição é do servidor e não está copiada aqui: o texto da confirmação
+   * avisa que pode ser recusada, e a recusa chega com a contagem real de
+   * pendências.
+   */
+  define({
+    id: "automation-rule.delete",
+    entity: "automation-rule",
+    label: "Excluir",
+    icon: Trash2,
+    category: "destructive",
+    permission: "automations.manage",
+    capability: "automations.manage",
+    confirm: {
+      title: "Excluir esta automação?",
+      body: "A regra some das Configurações e para de valer. Se ainda houver ação agendada e não executada — um lembrete futuro, por exemplo —, o servidor recusa a exclusão: desative a regra e espere, ou deixe-a desativada.",
+      confirmLabel: "Excluir",
+    },
+  }),
+
   /* ---------------------------------------------------------------- */
   /* Equipamentos (recurso `assets` no backend)                        */
   /* ---------------------------------------------------------------- */

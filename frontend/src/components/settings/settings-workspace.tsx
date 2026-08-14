@@ -25,6 +25,7 @@
 import { ContentContainer } from "@/components/layout/page-primitives";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabBoundary } from "@/workspace";
+import { AutomationsSettingsTab } from "./tabs/automations.tab";
 import { DocumentsSettingsTab } from "./tabs/documents.tab";
 import { FinancialSettingsTab } from "./tabs/financial.tab";
 import { IntegrationsSettingsTab } from "./tabs/integrations.tab";
@@ -45,6 +46,7 @@ export function SettingsWorkspace() {
           <TabsTrigger value="documentos">Documentos</TabsTrigger>
           <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
           <TabsTrigger value="notificacoes">Notificações</TabsTrigger>
+          <TabsTrigger value="automacoes">Automações</TabsTrigger>
           <TabsTrigger value="seguranca">Segurança</TabsTrigger>
           <TabsTrigger value="integracoes">Integrações</TabsTrigger>
         </TabsList>
@@ -82,6 +84,12 @@ export function SettingsWorkspace() {
         <TabsContent value="notificacoes">
           <TabBoundary id="settings-notifications" label="as notificações">
             <NotificationsSettingsTab />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="automacoes">
+          <TabBoundary id="settings-automations" label="as automações">
+            <AutomationsSettingsTab />
           </TabBoundary>
         </TabsContent>
 

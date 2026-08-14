@@ -334,6 +334,25 @@ export class AutomationService {
         }
       }
 
+      /**
+       * Chave desconhecida é recusada.
+       *
+       * `config` é objeto livre na forma — `@IsObject()` não sabe o que cada
+       * ação aceita —, então a checagem que o `forbidNonWhitelisted` faz nos
+       * outros DTOs precisa acontecer aqui. Sem ela, um campo digitado errado
+       * (`titulo` em vez de `title`) seria gravado em silêncio e a ação
+       * executaria com o padrão, que é o pior dos dois desfechos: parece
+       * configurado e faz outra coisa.
+       */
+      const accepted = new Set(definition.config.map((field) => field.key));
+      for (const key of Object.keys(config)) {
+        if (!accepted.has(key)) {
+          throw new ValidationException(
+            `Action ${action.type} does not accept "${key}". Accepted: ${[...accepted].join(', ') || '(nenhum)'}`,
+          );
+        }
+      }
+
       if (action.type === 'SEND_NOTIFICATION') {
         const target = text(config, 'target');
         if (!NOTIFICATION_TARGETS.includes(target as never)) {

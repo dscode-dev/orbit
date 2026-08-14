@@ -242,3 +242,51 @@ describe('AutomationService', () => {
     expect(repository.softDelete).toHaveBeenCalled();
   });
 });
+
+describe('AutomationService — configuração desconhecida', () => {
+  const repository = {
+    create: jest.fn().mockResolvedValue({ id: 'rule-id' }),
+    findBusinessUnit: jest.fn(),
+    findUser: jest.fn(),
+  };
+  const service = new AutomationService(
+    repository as unknown as AutomationRepository,
+  );
+
+  /**
+   * `titulo` em vez de `title` seria gravado em silêncio e o lembrete
+   * executaria com o texto padrão: parece configurado e faz outra coisa.
+   */
+  it('recusa chave que a ação não aceita', async () => {
+    await expect(
+      service.create('org-id', 'user-id', {
+        name: 'Regra',
+        trigger: 'operation.completed',
+        actions: [
+          {
+            type: 'CREATE_REMINDER',
+            config: { title: 'Retorno', titulo: 'Retorno' },
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(ValidationException);
+  });
+
+  it('aceita exatamente as chaves do catálogo', async () => {
+    await service.create('org-id', 'user-id', {
+      name: 'Regra',
+      trigger: 'operation.completed',
+      actions: [
+        {
+          type: 'CREATE_REMINDER',
+          config: {
+            title: 'Retorno',
+            description: 'Agendar próxima visita',
+            durationMinutes: 90,
+          },
+        },
+      ],
+    });
+    expect(repository.create).toHaveBeenCalled();
+  });
+});

@@ -80,13 +80,19 @@ export interface AutomationCatalogReadModel {
     fields: readonly string[];
   }[];
   actions: {
-    type: string;
+    type: AutomationActionType;
     label: string;
     description: string;
-    config: readonly { key: string; required: boolean; description: string }[];
+    config: readonly {
+      key: string;
+      required: boolean;
+      description: string;
+      /** Conjunto fechado, quando existe — o cliente monta o seletor com ele. */
+      options?: readonly string[];
+    }[];
     available: boolean;
     unavailableReason?: string;
   }[];
-  operators: readonly string[];
-  delayUnits: readonly string[];
+  operators: readonly AutomationConditionOperator[];
+  delayUnits: readonly AutomationDelayUnit[];
 }

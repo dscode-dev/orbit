@@ -36,6 +36,7 @@ import {
   UsersRound,
   Wallet,
   Workflow,
+  Zap,
   type LucideProps,
 } from "lucide-react";
 
@@ -73,6 +74,7 @@ export type EntityIcon = ComponentType<LucideProps>;
  */
 export const ENTITY_IDS = [
   "asset",
+  "automation-rule",
   "catalog-item",
   "team-member",
   "operation",
@@ -350,6 +352,37 @@ const DEFINITIONS: readonly EntityDefinition[] = [
       },
     },
     href: () => ROUTES.financial,
+  },
+  {
+    /**
+     * Regra de automação.
+     *
+     * **Não tem tela própria.** Mora em Configurações → Automações, e é onde
+     * ela pertence: automação é governança da organização, não um objeto do
+     * dia a dia de campo. `basePath` leva às Configurações, e não há `href`
+     * por registro — o detalhe abre em diálogo, porque uma regra são três
+     * frases.
+     *
+     * A situação (`enabled`) é booleana e não vira `badges`: os mapas de
+     * rótulo existem para conjuntos de status, e inventar
+     * `{ true: "Ativa" }` faria um conjunto onde há um interruptor.
+     */
+    id: "automation-rule",
+    label: "Automação",
+    labelPlural: "Automações",
+    description:
+      "Quando algo acontece, o Orbit faz o que foi combinado: lembrete, notificação ou trabalho interno.",
+    icon: Zap,
+    color: "text-sky-400",
+    basePath: ROUTES.settings,
+    capability: { read: "automations.read", manage: "automations.manage" },
+    permissions: {
+      read: "automations.read",
+      create: "automations.manage",
+      update: "automations.manage",
+      delete: "automations.manage",
+    },
+    badges: {},
   },
   {
     id: "artifact-template",

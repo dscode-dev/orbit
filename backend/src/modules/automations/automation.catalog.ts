@@ -204,6 +204,15 @@ export interface ActionDefinition {
     readonly key: string;
     readonly required: boolean;
     readonly description: string;
+    /**
+     * Valores aceitos, quando o campo tem conjunto fechado.
+     *
+     * Publicado porque a alternativa é o cliente pedir que alguém **digite**
+     * o nome interno de uma fila, ou manter uma lista própria que diverge no
+     * primeiro valor novo. A descrição em prosa não serve para montar um
+     * seletor.
+     */
+    readonly options?: readonly string[];
   }[];
   /** `false` quando o motor ainda não sabe executar — declarado, não oculto. */
   readonly available: boolean;
@@ -243,6 +252,7 @@ export const ACTIONS: readonly ActionDefinition[] = [
         key: 'target',
         required: true,
         description: '`OWNER`, `ACTOR` ou `USER`.',
+        options: NOTIFICATION_TARGETS,
       },
       {
         key: 'userId',
@@ -284,6 +294,7 @@ export const ACTIONS: readonly ActionDefinition[] = [
         key: 'queue',
         required: true,
         description: `Uma de: ${ALLOWED_JOB_QUEUES.join(', ')}.`,
+        options: ALLOWED_JOB_QUEUES,
       },
       {
         key: 'payload',

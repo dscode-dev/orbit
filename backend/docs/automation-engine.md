@@ -116,6 +116,16 @@ competindo com a que a equipe usa na mão. Quando a regra a inclui, a execução
 registrada como `SKIPPED` com o motivo — a interface mostra que tentou e por que
 não seguiu, em vez de silenciar e parecer que funcionou.
 
+O catálogo publica, em cada campo de configuração, o conjunto fechado de
+valores aceitos (`config[].options`) quando ele existe — `target` e `queue`. A
+descrição em prosa não serve para montar um seletor, e sem a lista estruturada o
+cliente pediria a fila digitada à mão ou manteria uma cópia divergente.
+
+Chave de configuração **desconhecida é recusada** com 400: `config` é objeto
+livre na forma, então a checagem que o `forbidNonWhitelisted` faz nos outros
+DTOs acontece no serviço. `titulo` no lugar de `title` seria gravado em silêncio
+e a ação executaria com o padrão — parece configurada e faz outra coisa.
+
 `TRIGGER_JOB` aceita apenas `artifact.render`. Sem URL, sem webhook, sem
 requisição HTTP — por decisão explícita desta PR. A fila é conferida duas vezes:
 na criação da regra e de novo na execução. Sem a lista fechada, uma regra
@@ -346,10 +356,11 @@ neste catálogo, não um agendador novo.
 - `automation.evaluator.spec.ts` — 9 casos do interpretador de condições,
   incluindo campo ausente sob `notEquals` e valor não escalar tratado como
   ausente.
-- `automation.service.spec.ts` — 14 casos de validação de regra: gatilho fora do
+- `automation.service.spec.ts` — 16 casos de validação de regra: gatilho fora do
   catálogo, campo fora do gatilho, forma do valor por operador, configuração
   obrigatória por ação, destinatário membro da organização, fila permitida, id
-  estável de ação, cópia desligada, exclusão recusada com pendência.
+  estável de ação, cópia desligada, exclusão recusada com pendência, chave de
+  configuração desconhecida recusada.
 - `test/automations.e2e-spec.ts` — 16 casos contra a aplicação montada: catálogo
   publicado pelo servidor; gatilho, campo e fila recusados; regra ligada
   executando e registrando resultado; regra desligada sem execução; condição que

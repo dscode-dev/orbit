@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR-24 (Automation Engine).
+Última revisão: PR Frontend-22 (Automation Workspace).
 
 ---
 
@@ -393,6 +393,10 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | ~~Orçamento ainda não gera receita prevista~~                                                                                        | **corrigido na PR-22**: aprovar cria `FinancialEntry(INCOME, PENDING, source=QUOTE)` pelo outbox; cancelar cancela a previsão sem apagá-la                                                               |
 | ~~Lembrete de retorno dependia de alguém abrir a Agenda~~                                                                            | **corrigido na PR-24**: `operation.completed` → regra com prazo de calendário → `SchedulingEvent` criado pelo worker, sem intervenção de tela                                                            |
 | ~~Sem motor de automação~~                                                                                                           | **corrigido na PR-24**: `domain_events`, `automation_rules` e `automation_executions`, RLS por organização, capabilities `automations.read`/`automations.manage` e API em `/automations/**`               |
+| ~~Catálogo de automação não publicava os valores aceitos por campo de ação~~                                                        | **corrigido na PR Frontend-22**: `config[].options` no catálogo (`SEND_NOTIFICATION.target`, `TRIGGER_JOB.queue`) — sem ele o cliente pediria a fila digitada ou manteria lista própria divergente |
+| ~~Chave de configuração de ação desconhecida era gravada em silêncio~~                                                             | **corrigido na PR Frontend-22**: o serviço recusa com 400 e lista as chaves aceitas — `titulo` no lugar de `title` fazia a ação executar com o padrão                                        |
+| Condição de automação não tem seletor de cliente, equipamento ou item                                                              | os campos comparam texto e o contrato de automação não oferece busca por rótulo; o editor usa campo de texto com dica do que se espera                                                    |
+| Execução de automação não publica estado da fila                                                                                   | `status` e `attempts` são da **ação**; nova tentativa em andamento, backoff e dead-letter são do job e não saem por `/automations/executions` — a tela declara a fronteira                  |
 | Automação não abre operação de acompanhamento                                                                                        | `CREATE_FOLLOW_UP_OPERATION` é publicada com `available: false` e motivo: `Operation` exige código único por organização e nenhum contrato o deriva — a execução vira `SKIPPED` declarado, não silêncio   |
 | Automação não repete (PMOC)                                                                                                          | uma regra dispara uma vez por ocorrência de evento; a recorrência mora no Scheduling (`recurrence.engine.ts`) e duplicá-la daria duas verdades sobre "toda terça, exceto feriado"                         |
 | Automação não chama nada fora da plataforma                                                                                          | `TRIGGER_JOB` aceita apenas filas da lista fechada (`artifact.render`); sem webhook, URL arbitrária ou requisição HTTP — decisão explícita da PR-24                                                       |
@@ -456,6 +460,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Inventory Engine (backend)                      | `backend/docs/inventory-engine.md`              |
 | Inventory Workspace (web)                       | `frontend/docs/inventory-workspace.md`          |
 | Automation Engine (backend)                     | `backend/docs/automation-engine.md`             |
+| Automation Workspace (web)                      | `frontend/docs/automation-workspace.md`         |
 | BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`                |
 | Autenticação e sessão (web)                     | `frontend/docs/authentication.md`               |
 | Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`                    |
