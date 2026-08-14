@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR-25 (Management Reports & Insights Engine).
+Última revisão: PR Frontend-23 (Management Reports Center).
 
 ---
 
@@ -392,6 +392,10 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Sem conversão entre moedas                                                                                                           | `currency` é gravada por lançamento, mas não existe taxa de câmbio — o resumo publica a moeda padrão da organização e não soma moedas diferentes                                                                                                      |
 | ~~Orçamento ainda não gera receita prevista~~                                                                                        | **corrigido na PR-22**: aprovar cria `FinancialEntry(INCOME, PENDING, source=QUOTE)` pelo outbox; cancelar cancela a previsão sem apagá-la                                                               |
 | ~~Sem relatório gerencial reproduzível~~                                                                                             | **corrigido na PR-25**: `management_reports` guarda snapshot imutável com hash da fonte, parâmetros e proveniência; API em `/management-reports/**`, capabilities `reports.management.read`/`reports.management.manage` |
+| Reports Center não filtra por autor na interface                                                                                     | `generatedById` existe na API; falta um seletor de membro na tela, e o filtro não foi exposto pela metade                                                                                                  |
+| Reports Center não oferece seletor de cliente na geração                                                                             | alguns tipos declaram `customerId`, mas não há busca de cliente dentro do contrato de relatórios — um campo de identificador digitado à mão não serviria a ninguém                                          |
+| Sem comparação entre dois relatórios na tela                                                                                         | os `sourceHash` permitem conferir se dois recortes iguais deram o mesmo resultado; uma tela lado a lado não existe                                                                                          |
+| Relatório gerencial não aparece no Document Center                                                                                   | separação de domínio, não de UI: não há `ArtifactExecution` nem `ArtifactManifest` por trás dele — a central de documentos responde pelo que o Artifact Engine emitiu                                       |
 | `/reports` e `reports.*` pertencem ao relatório **de visita** (PR-08/09)                                                             | o motor gerencial mora em `/management-reports` com capability própria: compartilhar `reports.read` faria quem lê o relatório de uma visita ler o relatório financeiro da organização                          |
 | Relatório gerencial não emite `ArtifactManifest`                                                                                     | o manifest exige `executionId`/`snapshotId`/`templateId` do Artifact Engine; emitir um exigiria fabricar uma execução de artefato por relatório. O snapshot cumpre o papel — imutável, versionado e com hash    |
 | Sem CSV/XLSX de relatório                                                                                                            | `RenderInput` descreve seções e campos rótulo/valor, não grade tabular; um CSV fiel exigiria segundo contrato de saída. PDF e HTML saem pelo renderizador que já existia                                        |
@@ -470,6 +474,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Automation Engine (backend)                     | `backend/docs/automation-engine.md`             |
 | Automation Workspace (web)                      | `frontend/docs/automation-workspace.md`         |
 | Management Reports Engine (backend)             | `backend/docs/management-reports.md`            |
+| Management Reports Center (web)                 | `frontend/docs/management-reports-center.md`    |
 | BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`                |
 | Autenticação e sessão (web)                     | `frontend/docs/authentication.md`               |
 | Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`                    |

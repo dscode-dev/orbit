@@ -47,8 +47,10 @@
  * primeiro clique falharia.
  */
 import { useApiQuery } from "@/hooks/api/use-api-query";
+import type { QueryKey } from "@/api/query-keys";
 import { SECOND } from "@/hooks/api/cache-policy";
 import { documentsService } from "@/services/documents.service";
+import type { SignedUrlReadModel } from "@/types/contracts/modules/storage/file-object.read-models";
 import type { SignedUrlOperation } from "@/types/documents";
 
 /**
@@ -89,6 +91,64 @@ export interface UseSignedUrlOptions {
 }
 
 /**
+ * O ciclo de vida da assinatura, para qualquer recurso que tenha um.
+ *
+ * Toda a inteligência acima — margem, piso, renovação agendada pelo próprio
+ * `expiresAt`, `gcTime` acompanhando o prazo — vale igual para o manifest do
+ * Document Center e para o relatório gerencial. O que muda entre os dois é a
+ * rota que assina, e é só isso que este hook recebe.
+ *
+ * Foi extraído quando o segundo consumidor apareceu: copiar as três guardas
+ * significaria corrigir cada uma duas vezes, e a segunda cópia é sempre a que
+ * fica para trás.
+ */
+export function useSignedUrlLifecycle(
+  keys: QueryKey,
+  fetch: (options: { signal: AbortSignal }) => Promise<SignedUrlReadModel>,
+  options: UseSignedUrlOptions = {},
+) {
+  const { enabled = true } = options;
+
+  return useApiQuery(keys, fetch, {
+    enabled,
+
+    /**
+     * Fresca enquanto valer, considerada velha na margem.
+     *
+     * Sem dado ainda, `0`: a primeira busca não deve ser adiada.
+     */
+    staleTime: (query) => {
+      const data = query.state.data;
+      return data ? millisecondsUntilRenewal(data.expiresAt) : 0;
+    },
+
+    /**
+     * Renova sozinha enquanto a tela estiver aberta.
+     *
+     * É o que separa isto de um `staleTime` bem escolhido: `staleTime` sozinho
+     * só evita refetch, não provoca nenhum. Um visualizador aberto e parado
+     * continuaria com a URL vencida.
+     */
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data ? millisecondsUntilRenewal(data.expiresAt) : false;
+    },
+
+    /** Aba escondida não gasta assinatura; o foco cuida do retorno. */
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+
+    /**
+     * A URL não sobrevive ao próprio prazo dentro do cache.
+     *
+     * Sem isto, reabrir um recurso visitado há muito tempo entregaria a URL
+     * antiga antes do refetch, e o primeiro clique falharia.
+     */
+    gcTime: RENEW_MARGIN_MS,
+  });
+}
+
+/**
  * A URL assinada de um manifest, renovada antes de vencer.
  *
  * A mesma infraestrutura serve `preview` e `download`: são a mesma assinatura
@@ -101,48 +161,10 @@ export function useSignedUrl(
   operation: SignedUrlOperation,
   options: UseSignedUrlOptions = {},
 ) {
-  const { enabled = true } = options;
-
-  return useApiQuery(
+  return useSignedUrlLifecycle(
     [...documentsService.keys.manifest(manifestId), "url", operation],
     ({ signal }) =>
       documentsService.signedUrl(manifestId, operation, { signal }),
-    {
-      enabled: enabled && Boolean(manifestId),
-
-      /**
-       * Fresca enquanto valer, considerada velha na margem.
-       *
-       * Sem dado ainda, `0`: a primeira busca não deve ser adiada.
-       */
-      staleTime: (query) => {
-        const data = query.state.data;
-        return data ? millisecondsUntilRenewal(data.expiresAt) : 0;
-      },
-
-      /**
-       * Renova sozinha enquanto a tela estiver aberta.
-       *
-       * É o que separa esta correção de um `staleTime` bem escolhido:
-       * `staleTime` sozinho só evita refetch, não provoca nenhum. Um
-       * visualizador aberto e parado continuaria com a URL vencida.
-       */
-      refetchInterval: (query) => {
-        const data = query.state.data;
-        return data ? millisecondsUntilRenewal(data.expiresAt) : false;
-      },
-
-      /** Aba escondida não gasta assinatura; o foco cuida do retorno. */
-      refetchIntervalInBackground: false,
-      refetchOnWindowFocus: true,
-
-      /**
-       * A URL não sobrevive ao próprio prazo dentro do cache.
-       *
-       * Sem isto, reabrir uma revisão visitada há muito tempo entregaria a URL
-       * antiga antes do refetch, e o primeiro clique falharia.
-       */
-      gcTime: RENEW_MARGIN_MS,
-    },
+    { enabled: (options.enabled ?? true) && Boolean(manifestId) },
   );
 }

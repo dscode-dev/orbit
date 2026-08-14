@@ -36,6 +36,7 @@ import {
   UsersRound,
   Wallet,
   Workflow,
+  FileBarChart,
   Zap,
   type LucideProps,
 } from "lucide-react";
@@ -63,6 +64,10 @@ import {
   QUOTE_STATUS_CLASSES,
   QUOTE_STATUS_LABELS,
 } from "./quote-labels";
+import {
+  REPORT_STATUS_CLASSES,
+  REPORT_STATUS_LABELS,
+} from "@/types/management-reports";
 
 export type EntityIcon = ComponentType<LucideProps>;
 
@@ -75,6 +80,7 @@ export type EntityIcon = ComponentType<LucideProps>;
 export const ENTITY_IDS = [
   "asset",
   "automation-rule",
+  "management-report",
   "catalog-item",
   "team-member",
   "operation",
@@ -383,6 +389,51 @@ const DEFINITIONS: readonly EntityDefinition[] = [
       delete: "automations.manage",
     },
     badges: {},
+  },
+  {
+    /**
+     * Relatório gerencial.
+     *
+     * **Tem tela própria** — é o que separa esta entidade da regra de
+     * automação: um relatório é aberto, lido, comparado com outro e baixado, e
+     * o snapshot não cabe num diálogo.
+     *
+     * Não é documento do Document Center. Os dois produzem PDF, e a semelhança
+     * para aí: um documento emitido pertence a uma execução de campo, tem
+     * revisão e pode ser revogado; um relatório gerencial é o retrato de um
+     * período, não tem revisão e se corrige gerando outro. Misturá-los faria a
+     * central de documentos responder por algo que o Artifact Engine não
+     * emitiu.
+     *
+     * A capability declarada é a **do motor**. Cada tipo exige ainda a do seu
+     * domínio — `financial.read` para o financeiro —, e isso o catálogo do
+     * backend publica por tipo; o registry não tem onde guardar uma exigência
+     * que varia por registro.
+     */
+    id: "management-report",
+    label: "Relatório gerencial",
+    labelPlural: "Relatórios",
+    description:
+      "Fotografia reproduzível de um período: os números como estavam quando alguém perguntou.",
+    icon: FileBarChart,
+    color: "text-chart-1",
+    basePath: ROUTES.managementReports,
+    capability: {
+      read: "reports.management.read",
+      manage: "reports.management.manage",
+    },
+    permissions: {
+      read: "reports.management.read",
+      create: "reports.management.manage",
+    },
+    badges: {
+      status: {
+        label: "Situação",
+        labels: REPORT_STATUS_LABELS,
+        classes: REPORT_STATUS_CLASSES,
+      },
+    },
+    href: (id) => `${ROUTES.managementReports}/${id}`,
   },
   {
     id: "artifact-template",

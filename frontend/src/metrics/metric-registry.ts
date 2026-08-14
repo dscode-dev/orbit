@@ -27,6 +27,8 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Cloud,
+  FileBarChart,
+  FileCheck2,
   Cog,
   Gauge,
   Handshake,
@@ -39,6 +41,7 @@ import {
   Send,
   Thermometer,
   Timer,
+  TriangleAlert,
   TrendingDown,
   TrendingUp,
   Users,
@@ -449,6 +452,61 @@ const DEFINITIONS: readonly MetricDefinition[] = [
    * filtrada por `status`: uma contagem do banco, feita no servidor, uma por
    * fila. O registry cuida só da apresentação.
    */
+  /* ---------------------------------------------------------------- */
+  /* Reports Center                                                    */
+  /* ---------------------------------------------------------------- */
+  /**
+   * Contagens do próprio motor de relatórios.
+   *
+   * Todas saem de `meta.total` de uma consulta com `limit: 1` — o servidor
+   * conta. Estão aqui, e não escritas na tela, pela mesma razão que as outras:
+   * rótulo, ícone e formato têm um dono só, e um cartão que decidisse o seu
+   * próprio seria o começo da divergência.
+   */
+  define({
+    id: "management_reports.total",
+    label: "Relatórios gerados",
+    description: "Total no histórico da organização.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: FileBarChart,
+    trendColor: neutralTrend,
+    priority: 9,
+    capability: "reports.management.read",
+  }),
+  define({
+    id: "management_reports.in_flight",
+    label: "Em composição",
+    description: "Na fila ou sendo compostos agora pelo servidor.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: Timer,
+    trendColor: neutralTrend,
+    priority: 9.1,
+    capability: "reports.management.read",
+  }),
+  define({
+    id: "management_reports.ready",
+    label: "Prontos",
+    description: "Relatórios com snapshot gravado e arquivo disponível.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: FileCheck2,
+    trendColor: higherIsBetter,
+    priority: 9.2,
+    capability: "reports.management.read",
+  }),
+  define({
+    id: "management_reports.failed",
+    label: "Falharam",
+    description: "Permanecem no histórico, com o motivo publicado.",
+    category: "OPERATIONS",
+    unit: "count",
+    icon: TriangleAlert,
+    trendColor: lowerIsBetter,
+    priority: 9.3,
+    capability: "reports.management.read",
+  }),
   define({
     id: "executions.total",
     label: "Execuções",

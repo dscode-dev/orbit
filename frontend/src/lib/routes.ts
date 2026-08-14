@@ -32,6 +32,15 @@ export const ROUTES = {
   financial: "/financeiro",
   /** Quotes Workspace — propostas comerciais. */
   quotes: "/orcamentos",
+  /**
+   * Reports Center — relatórios **gerenciais**.
+   *
+   * Não confundir com o Document Center (`/documentos`), que publica os
+   * documentos emitidos pelo Artifact Engine, nem com o relatório operacional
+   * de visita: aquele pertence a uma operação e é assinado; este é o retrato
+   * agregado de um período.
+   */
+  managementReports: "/relatorios",
   /** Settings Workspace — governança da plataforma. */
   settings: "/configuracoes",
   /** Profile Workspace — a própria conta. */
@@ -62,6 +71,7 @@ export const PROTECTED_PREFIXES: readonly string[] = [
   ROUTES.team,
   ROUTES.financial,
   ROUTES.quotes,
+  ROUTES.managementReports,
   ROUTES.settings,
   ROUTES.profile,
   ROUTES.organization,

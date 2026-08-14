@@ -58,6 +58,7 @@ import {
   Trash2,
   Undo2,
   UserPlus,
+  FileBarChart,
   Zap,
   type LucideProps,
 } from "lucide-react";
@@ -129,6 +130,68 @@ function define(
 }
 
 const DEFINITIONS: readonly ActionDefinition[] = [
+  /* ---------------------------------------------------------------- */
+  /* Relatórios gerenciais (recurso `management-reports` no backend)   */
+  /* ---------------------------------------------------------------- */
+  /**
+   * A capability declarada é a do **motor**.
+   *
+   * Cada tipo de relatório exige ainda a do seu domínio — o financeiro exige
+   * `financial.read` —, e quem publica essa exigência é o catálogo do backend,
+   * por tipo, com `allowed` já resolvido para a sessão. O registry não tem onde
+   * guardar uma exigência que muda de linha para linha, e duplicá-la aqui
+   * criaria uma segunda régua que divergiria no primeiro tipo novo.
+   */
+  define({
+    id: "management-report.create",
+    entity: "management-report",
+    label: "Gerar relatório",
+    description:
+      "Compõe o retrato de um período. A geração acontece em segundo plano.",
+    icon: FileBarChart,
+    category: "create",
+    permission: "reports.management.manage",
+    capability: "reports.management.manage",
+  }),
+  define({
+    id: "management-report.open",
+    entity: "management-report",
+    label: "Abrir",
+    icon: Eye,
+    category: "edit",
+    permission: "reports.management.read",
+    capability: "reports.management.read",
+  }),
+  define({
+    id: "management-report.download",
+    entity: "management-report",
+    label: "Baixar",
+    description: "URL assinada e temporária, emitida pelo backend.",
+    icon: Download,
+    category: "document",
+    permission: "reports.management.read",
+    capability: "reports.management.read",
+  }),
+  /**
+   * "Gerar de novo" é **criar outro**, não regenerar.
+   *
+   * Não existe rota que recomponha um relatório: o snapshot é imutável, e é
+   * essa imutabilidade que o torna prova. O que esta ação faz é abrir o
+   * gerador com os mesmos parâmetros — o resultado é um retrato novo, ao lado
+   * do antigo, e os dois ficam no histórico.
+   */
+  define({
+    id: "management-report.repeat",
+    entity: "management-report",
+    label: "Gerar de novo",
+    description:
+      "Abre a geração com os mesmos parâmetros. O relatório antigo permanece.",
+    icon: RefreshCw,
+    category: "workflow",
+    permission: "reports.management.manage",
+    capability: "reports.management.manage",
+  }),
+
   /* ---------------------------------------------------------------- */
   /* Automações (recurso `automations` no backend)                     */
   /* ---------------------------------------------------------------- */

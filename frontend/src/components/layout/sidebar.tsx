@@ -6,7 +6,6 @@ import Link from "next/link";
 import {
   LayoutGrid,
   Bell,
-  FileBarChart,
   FileStack,
   Settings,
   SlidersHorizontal,
@@ -52,18 +51,13 @@ const fromEntity = (id: EntityId): NavItem => {
 };
 
 /**
- * Item ainda sem tela.
+ * Não há mais item "em breve".
  *
- * O `SidebarItem` já renderiza um botão inerte quando não há `to` — era o caso
- * de "Relatórios" e "Suporte" antes desta PR. A diferença é a marca **em
- * breve**: um item que não leva a lugar nenhum precisa dizer isso, em vez de
- * parecer quebrado.
+ * "Relatórios" era o último — um botão inerte com a marca **em breve**, que o
+ * `SidebarItem` ainda sabe renderizar quando um `NavItem` não tem `to`. O
+ * suporte continua no componente para quando o próximo aparecer; o que sumiu
+ * foi o ajudante que ninguém mais chamava.
  */
-const planned = (label: string, icon: NavItem["icon"]): NavItem => ({
-  label,
-  icon,
-  badge: "em breve",
-});
 
 /**
  * Navegação por categoria de trabalho.
@@ -82,7 +76,15 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
       fromEntity("operation"),
       fromEntity("artifact-execution"),
       { label: "Documentos", icon: FileStack, to: ROUTES.documents },
-      planned("Relatórios", FileBarChart),
+      /**
+       * Relatórios gerenciais, e não os documentos de campo.
+       *
+       * Ficam em "Operação" porque é quem acompanha o mês que os abre — e ao
+       * lado de "Documentos" de propósito: a proximidade deixa visível que são
+       * coisas diferentes. Documento emitido pertence a uma execução; relatório
+       * gerencial é o retrato de um período.
+       */
+      fromEntity("management-report"),
     ],
   },
   {

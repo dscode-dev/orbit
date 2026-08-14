@@ -27,6 +27,7 @@ export const ALLOWED_API_ROOTS: readonly string[] = [
   "identity",
   "integrations",
   "inventory",
+  "management-reports",
   "notifications",
   "operations",
   "organizations",
