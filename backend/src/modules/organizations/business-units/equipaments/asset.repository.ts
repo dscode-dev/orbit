@@ -44,15 +44,13 @@ export class AssetRepository {
         : {}),
     };
     return this.rls.run(async (transaction) => {
-      const [data, total] = await Promise.all([
-        transaction.asset.findMany({
-          where,
-          include: assetInclude,
-          orderBy: [{ name: 'asc' }, { id: 'asc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        transaction.asset.count({ where }),
-      ]);
+      const data = await transaction.asset.findMany({
+        where,
+        include: assetInclude,
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await transaction.asset.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }

@@ -362,61 +362,57 @@ export class SchedulingRepository {
     },
   ) {
     return this.rls.run(async (tx) => {
-      const [businessUnit, customer, asset, users, allocationAssets] =
-        await Promise.all([
-          input.businessUnitId
-            ? tx.businessUnit.findFirst({
-                where: {
-                  id: input.businessUnitId,
-                  organizationId,
-                  deletedAt: null,
-                  status: 'ACTIVE',
-                },
-                select: { id: true },
-              })
-            : null,
-          input.customerId
-            ? tx.customer.findFirst({
-                where: {
-                  id: input.customerId,
-                  organizationId,
-                  deletedAt: null,
-                },
-                select: { id: true },
-              })
-            : null,
-          input.assetId
-            ? tx.asset.findFirst({
-                where: {
-                  id: input.assetId,
-                  organizationId,
-                  deletedAt: null,
-                },
-                select: { id: true, businessUnitId: true, customerId: true },
-              })
-            : null,
-          input.userIds.length
-            ? tx.organizationMembership.findMany({
-                where: {
-                  organizationId,
-                  userId: { in: input.userIds },
-                  status: 'ACTIVE',
-                  deletedAt: null,
-                },
-                select: { userId: true },
-              })
-            : [],
-          input.allocationAssetIds.length
-            ? tx.asset.findMany({
-                where: {
-                  id: { in: input.allocationAssetIds },
-                  organizationId,
-                  deletedAt: null,
-                },
-                select: { id: true },
-              })
-            : [],
-        ]);
+      /**
+       * Cinco verificações, uma de cada vez.
+       *
+       * Compartilham o mesmo cliente transacional — o `pg` já as serializava
+       * internamente, então o `Promise.all` só prendia a conexão por todo o
+       * intervalo sem ganho nenhum. Ver `docs/transaction-concurrency.md`.
+       */
+      const businessUnit = input.businessUnitId
+        ? await tx.businessUnit.findFirst({
+            where: {
+              id: input.businessUnitId,
+              organizationId,
+              deletedAt: null,
+              status: 'ACTIVE',
+            },
+            select: { id: true },
+          })
+        : null;
+      const customer = input.customerId
+        ? await tx.customer.findFirst({
+            where: { id: input.customerId, organizationId, deletedAt: null },
+            select: { id: true },
+          })
+        : null;
+      const asset = input.assetId
+        ? await tx.asset.findFirst({
+            where: { id: input.assetId, organizationId, deletedAt: null },
+            select: { id: true, businessUnitId: true, customerId: true },
+          })
+        : null;
+      const users = input.userIds.length
+        ? await tx.organizationMembership.findMany({
+            where: {
+              organizationId,
+              userId: { in: input.userIds },
+              status: 'ACTIVE',
+              deletedAt: null,
+            },
+            select: { userId: true },
+          })
+        : [];
+      const allocationAssets = input.allocationAssetIds.length
+        ? await tx.asset.findMany({
+            where: {
+              id: { in: input.allocationAssetIds },
+              organizationId,
+              deletedAt: null,
+            },
+            select: { id: true },
+          })
+        : [];
       return { businessUnit, customer, asset, users, allocationAssets };
     });
   }

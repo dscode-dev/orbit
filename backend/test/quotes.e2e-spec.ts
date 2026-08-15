@@ -21,7 +21,8 @@ import type { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApiVersioning } from './../src/configure-api';
 import { BackgroundJobWorker } from './../src/modules/jobs/background-job.worker';
-import { PrismaService } from './../src/database/prisma.service';
+import type { PrismaClient } from '@prisma/client';
+import { adminPrisma, disconnectAdminPrisma } from './support/admin-prisma';
 
 const digits = (length: number): string =>
   Array.from({ length }, () => Math.floor(Math.random() * 10)).join('');
@@ -80,7 +81,8 @@ interface QuoteBody {
 
 describe('Quotes (e2e)', () => {
   let app: INestApplication<App>;
-  let prisma: PrismaService;
+  /** Administrativo: monta cenário. A aplicação sob teste roda restrita. */
+  let prisma: PrismaClient;
   let worker: BackgroundJobWorker;
   let http: () => request.Agent;
   let tenant: Tenant;
@@ -171,7 +173,7 @@ describe('Quotes (e2e)', () => {
     await app.init();
     http = () => request(app.getHttpServer());
     worker = app.get(BackgroundJobWorker);
-    prisma = app.get(PrismaService);
+    prisma = adminPrisma();
 
     tenant = await register('principal');
     neighbour = await register('vizinha');
@@ -193,6 +195,7 @@ describe('Quotes (e2e)', () => {
 
   afterAll(async () => {
     await app?.close();
+    await disconnectAdminPrisma();
   });
 
   async function drain(rounds = 4): Promise<void> {

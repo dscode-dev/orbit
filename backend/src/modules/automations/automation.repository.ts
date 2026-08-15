@@ -98,15 +98,13 @@ export class AutomationRepository {
     };
 
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.automationRule.findMany({
-          where,
-          select: ruleView,
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.automationRule.count({ where }),
-      ]);
+      const data = await tx.automationRule.findMany({
+        where,
+        select: ruleView,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.automationRule.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }
@@ -340,15 +338,13 @@ export class AutomationRepository {
     };
 
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.automationExecution.findMany({
-          where,
-          select: executionView,
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.automationExecution.count({ where }),
-      ]);
+      const data = await tx.automationExecution.findMany({
+        where,
+        select: executionView,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.automationExecution.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }

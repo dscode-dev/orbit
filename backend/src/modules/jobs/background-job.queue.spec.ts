@@ -41,6 +41,8 @@ describe('BackgroundJobQueue.fail', () => {
     jobKey: '019f-exec',
     organizationId: '019f-org',
     businessUnitId: '019f-unit',
+    scope: 'BUSINESS_UNIT',
+    businessUnitIds: ['019f-unit'],
     payload: {},
     status: 'RUNNING',
     attempts: 1,
@@ -53,9 +55,19 @@ describe('BackgroundJobQueue.fail', () => {
     ...overrides,
   });
 
+  /**
+   * O cliente falso precisa de `$transaction` porque `fail` fecha o job pela
+   * transação que declara `app.job_worker` — sem ela, a política de
+   * `background_jobs` recusaria a escrita sob o papel restrito.
+   */
   const build = () => {
     const updates: Record<string, unknown>[] = [];
-    const prisma = {
+    const settings: string[] = [];
+    const tx = {
+      $queryRawUnsafe: (_sql: string, key: string) => {
+        settings.push(key);
+        return Promise.resolve([]);
+      },
       backgroundJob: {
         update: (args: { data: Record<string, unknown> }) => {
           updates.push(args.data);
@@ -63,15 +75,28 @@ describe('BackgroundJobQueue.fail', () => {
         },
       },
     };
+    const prisma = {
+      $transaction: (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+    };
     return {
       updates,
+      settings,
       queue: new BackgroundJobQueue(
         prisma as unknown as ConstructorParameters<
           typeof BackgroundJobQueue
         >[0],
+        {} as unknown as ConstructorParameters<typeof BackgroundJobQueue>[1],
       ),
     };
   };
+
+  it('fecha o job pela transação que declara o worker', async () => {
+    const { queue, settings } = build();
+
+    await queue.fail(job(), 'erro');
+
+    expect(settings).toEqual(['app.job_worker']);
+  });
 
   it('devolve o job à fila enquanto restam tentativas', async () => {
     const { queue, updates } = build();

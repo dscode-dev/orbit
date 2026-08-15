@@ -524,15 +524,13 @@ export class InventoryRepository {
         ? { ...where, id: { in: lowIds.map((row) => row.id) } }
         : where;
 
-      const [data, total] = await Promise.all([
-        tx.inventoryBalance.findMany({
-          where: scoped,
-          select: balanceView,
-          orderBy: [{ catalogItem: { name: 'asc' } }, { id: 'asc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.inventoryBalance.count({ where: scoped }),
-      ]);
+      const data = await tx.inventoryBalance.findMany({
+        where: scoped,
+        select: balanceView,
+        orderBy: [{ catalogItem: { name: 'asc' } }, { id: 'asc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.inventoryBalance.count({ where: scoped });
       return PaginationHelper.result(data, total, pagination);
     });
   }
@@ -589,15 +587,13 @@ export class InventoryRepository {
     };
 
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.inventoryMovement.findMany({
-          where,
-          select: movementView,
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.inventoryMovement.count({ where }),
-      ]);
+      const data = await tx.inventoryMovement.findMany({
+        where,
+        select: movementView,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.inventoryMovement.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }

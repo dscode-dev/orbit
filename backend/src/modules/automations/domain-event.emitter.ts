@@ -24,10 +24,11 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { RequestContextService } from '../../context';
 import type { PrismaTransactionClient } from '../../database/prisma.types';
 import { generateUuidV7 } from '../../utils';
 import { BackgroundJobQueue } from '../jobs/background-job.queue';
-import { JOB_QUEUES } from '../jobs/background-job.types';
+import { JOB_QUEUES, scopeFor } from '../jobs/background-job.types';
 import { findTrigger } from './automation.catalog';
 
 /** Versão do formato do payload. Sobe quando um campo muda de significado. */
@@ -49,7 +50,10 @@ export interface DomainEventInput {
 export class DomainEventEmitter {
   private readonly logger = new Logger(DomainEventEmitter.name);
 
-  constructor(private readonly jobs: BackgroundJobQueue) {}
+  constructor(
+    private readonly jobs: BackgroundJobQueue,
+    private readonly contexts: RequestContextService,
+  ) {}
 
   /**
    * Grava o evento e enfileira o despacho, na transação recebida.
@@ -97,7 +101,14 @@ export class DomainEventEmitter {
         /** Um despacho por ocorrência — reentrega não gera dois fan-outs. */
         jobKey: id,
         organizationId: input.organizationId,
-        businessUnitId: input.businessUnitId ?? null,
+        /**
+         * Todo evento de domínio publicado hoje carrega unidade — a emissão
+         * acontece dentro do agregado, e os agregados são de unidade. O caso
+         * organizacional existe no contrato porque o catálogo pode ganhar um
+         * evento de alcance mais amplo; quando ganhar, o escopo será o de quem
+         * provocou o fato, que é o contexto aberto nesta transação.
+         */
+        ...scopeFor(input.businessUnitId, this.contexts.get().businessUnitIds),
         payload: { eventId: id },
         correlationId,
         actorUserId: input.actorId ?? null,

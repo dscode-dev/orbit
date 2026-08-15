@@ -1689,29 +1689,33 @@ model AuditLog {
 /// acrescentar um componente ao deploy. A tabela é genérica de propósito —
 /// renderização é o primeiro uso, não o único previsto.
 model BackgroundJob {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
-  businessUnitId String?   @map("business_unit_id") @db.Uuid
-  queue          String    @db.VarChar(80)
+  id              String    @id @default(uuid(7)) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  businessUnitId  String?   @map("business_unit_id") @db.Uuid
+  /// `BUSINESS_UNIT` ou `ORGANIZATION`. Nunca derivado da ausência da unidade.
+  scope           String    @db.VarChar(20)
+  /// O escopo que o worker declara ao Postgres. Resolvido em quem enfileira.
+  businessUnitIds String[]  @map("business_unit_ids") @db.Uuid
+  queue           String    @db.VarChar(80)
   /// Chave de idempotência: enfileirar o mesmo trabalho duas vezes não duplica.
-  jobKey         String    @map("job_key") @db.VarChar(200)
-  payload        Json      @default("{}") @db.JsonB
-  status         String    @default("PENDING") @db.VarChar(20)
-  attempts       Int       @default(0)
-  maxAttempts    Int       @default(3) @map("max_attempts")
+  jobKey          String    @map("job_key") @db.VarChar(200)
+  payload         Json      @default("{}") @db.JsonB
+  status          String    @default("PENDING") @db.VarChar(20)
+  attempts        Int       @default(0)
+  maxAttempts     Int       @default(3) @map("max_attempts")
   /// Quando o job volta a ser elegível — é o backoff exponencial.
-  availableAt    DateTime  @default(now()) @map("available_at") @db.Timestamptz(3)
-  lockedAt       DateTime? @map("locked_at") @db.Timestamptz(3)
-  lockedBy       String?   @map("locked_by") @db.VarChar(120)
+  availableAt     DateTime  @default(now()) @map("available_at") @db.Timestamptz(3)
+  lockedAt        DateTime? @map("locked_at") @db.Timestamptz(3)
+  lockedBy        String?   @map("locked_by") @db.VarChar(120)
   /// Atravessa enfileiramento, execução, log e auditoria.
-  correlationId  String    @map("correlation_id") @db.VarChar(64)
+  correlationId   String    @map("correlation_id") @db.VarChar(64)
   /// Contexto do ator, para o worker reabrir a mesma RLS da requisição.
-  actorUserId    String?   @map("actor_user_id") @db.Uuid
-  lastError      String?   @map("last_error") @db.VarChar(1000)
-  startedAt      DateTime? @map("started_at") @db.Timestamptz(3)
-  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(3)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  actorUserId     String?   @map("actor_user_id") @db.Uuid
+  lastError       String?   @map("last_error") @db.VarChar(1000)
+  startedAt       DateTime? @map("started_at") @db.Timestamptz(3)
+  finishedAt      DateTime? @map("finished_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)

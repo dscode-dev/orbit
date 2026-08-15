@@ -20,7 +20,8 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApiVersioning } from './../src/configure-api';
-import { PrismaService } from './../src/database/prisma.service';
+import type { PrismaClient } from '@prisma/client';
+import { adminPrisma, disconnectAdminPrisma } from './support/admin-prisma';
 
 const digits = (length: number): string =>
   Array.from({ length }, () => Math.floor(Math.random() * 10)).join('');
@@ -72,7 +73,8 @@ interface Movement {
 
 describe('Inventory (e2e)', () => {
   let app: INestApplication<App>;
-  let prisma: PrismaService;
+  /** Administrativo: monta cenário. A aplicação sob teste roda restrita. */
+  let prisma: PrismaClient;
   let http: () => request.Agent;
   let token: string;
   let neighbourToken: string;
@@ -151,7 +153,7 @@ describe('Inventory (e2e)', () => {
     );
     await app.init();
     http = () => request(app.getHttpServer());
-    prisma = app.get(PrismaService);
+    prisma = adminPrisma();
 
     const principal = await register('principal');
     token = principal.token;
@@ -249,6 +251,7 @@ describe('Inventory (e2e)', () => {
 
   afterAll(async () => {
     await app?.close();
+    await disconnectAdminPrisma();
   });
 
   /* ---------------------------------------------------------------- */

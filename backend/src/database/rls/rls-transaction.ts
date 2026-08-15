@@ -1,8 +1,46 @@
+/**
+ * A transação que carrega o contexto do inquilino.
+ *
+ * Toda leitura e toda escrita do Orbit passam por aqui: abre-se a transação,
+ * declara-se quem está falando, e só então o trabalho acontece. As políticas de
+ * RLS leem exatamente esses ajustes.
+ *
+ * ## Uma ida ao banco, não sete
+ *
+ * O contexto tem sete campos, e a primeira versão os declarava em sete
+ * `SELECT set_config(...)` sequenciais. Funcionava — e custava sete idas ao
+ * banco **em toda transação da aplicação**, antes da primeira consulta útil.
+ *
+ * Isso deixou de ser detalhe de desempenho na PR-26.6.1: o tempo limite de uma
+ * transação interativa do Prisma corre desde o `BEGIN`, e sete idas somadas ao
+ * trabalho real deixavam a janela apertada quando o processo estava ocupado —
+ * uma renderização de PDF em andamento, por exemplo, prende o laço de eventos e
+ * o relógio da transação continua correndo. Transação expirada aparece como
+ * erro genérico bem longe daqui.
+ *
+ * `set_config` devolve valor, então os sete cabem numa projeção só. Mesma
+ * semântica, mesma localidade (`is_local = true`), uma ida.
+ */
 import { Injectable } from '@nestjs/common';
 import type { ITransactionManager } from '../../contracts';
 import { PrismaService } from '../prisma.service';
 import type { PrismaTransactionClient } from '../prisma.types';
 import { RlsContextProvider } from './rls-context.provider';
+
+/** A ordem importa: casa com os parâmetros posicionais de `APPLY_CONTEXT`. */
+const CONTEXT_KEYS = [
+  'app.user_id',
+  'app.organization_id',
+  'app.business_unit_id',
+  'app.business_unit_ids',
+  'app.roles',
+  'app.permissions',
+  'app.is_platform_admin',
+] as const;
+
+const APPLY_CONTEXT = `SELECT ${CONTEXT_KEYS.map(
+  (key, index) => `set_config('${key}', $${index + 1}, true)`,
+).join(', ')}`;
 
 @Injectable()
 export class RlsTransaction implements ITransactionManager<PrismaTransactionClient> {
@@ -24,22 +62,16 @@ export class RlsTransaction implements ITransactionManager<PrismaTransactionClie
     transaction: PrismaTransactionClient,
   ): Promise<void> {
     const context = this.contextProvider.get();
-    const settings: Readonly<Record<string, string>> = {
-      'app.user_id': context.userId,
-      'app.organization_id': context.organizationId,
-      'app.business_unit_id': context.businessUnitId,
-      'app.business_unit_ids': context.businessUnitIds,
-      'app.roles': context.roles,
-      'app.permissions': context.permissions,
-      'app.is_platform_admin': context.isPlatformAdmin,
-    };
-    for (const [key, value] of Object.entries(settings)) {
-      await transaction.$queryRawUnsafe(
-        'SELECT set_config($1, $2, true)',
-        key,
-        value,
-      );
-    }
+    await transaction.$queryRawUnsafe(
+      APPLY_CONTEXT,
+      context.userId,
+      context.organizationId,
+      context.businessUnitId,
+      context.businessUnitIds,
+      context.roles,
+      context.permissions,
+      context.isPlatformAdmin,
+    );
   }
 }
 

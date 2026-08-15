@@ -34,7 +34,7 @@ import {
 } from '../../exceptions';
 import { generateUuidV7 } from '../../utils';
 import { BackgroundJobQueue } from '../jobs/background-job.queue';
-import { JOB_QUEUES } from '../jobs/background-job.types';
+import { JOB_QUEUES, scopeFor } from '../jobs/background-job.types';
 import { StorageFileMapper } from '../storage/file-object.mapper';
 import { FileObjectService } from '../storage/file-object.service';
 import { SubscriptionPlanService } from '../subscription-plans/subscription-plan.service';
@@ -177,7 +177,16 @@ export class ReportService {
         queue: JOB_QUEUES.managementReport,
         jobKey: id,
         organizationId: actor.organizationId,
-        businessUnitId: unit?.id ?? null,
+        /**
+         * Sem filial escolhida, o relatório é da **organização inteira** — e
+         * "inteira" quer dizer as unidades que quem pediu podia ver.
+         *
+         * Resolver aqui, e não no worker, é o que corrigiu A-01: o worker
+         * declarava lista vazia e, sob RLS real, compunha zeros com situação
+         * `READY`. É a mesma decisão já tomada para `capabilities` — a
+         * autorização do pedido viaja com o trabalho.
+         */
+        ...scopeFor(unit?.id ?? null, actor.businessUnitIds),
         payload: {
           reportId: id,
           /** A autorização do momento do pedido acompanha o trabalho. */

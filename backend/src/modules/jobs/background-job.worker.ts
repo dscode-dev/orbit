@@ -13,9 +13,19 @@
  *
  * A solução **não** é rodar como administrador da plataforma: isso desligaria o
  * isolamento justamente no caminho que roda sem ninguém olhando. O job carrega
- * organização, unidade e ator, e o worker reabre exatamente esse contexto com
+ * organização, escopo e ator, e o worker reabre exatamente esse contexto com
  * `RequestContextStorage.run`. A política do banco é a mesma da requisição que
  * enfileirou.
+ *
+ * ## Escopo vem do job, não de uma dedução
+ *
+ * Até a PR-26.6 o worker montava `businessUnitIds` como `[job.businessUnitId]`
+ * ou, na falta dela, `[]`. Sob papel restrito isso é catastrófico e silencioso:
+ * `app.business_unit_ids` vazio faz toda tabela recortada por unidade devolver
+ * zero linha, e o relatório de organização inteira fecha `READY` com números
+ * zerados. Agora o job declara o escopo — `BUSINESS_UNIT` com a unidade, ou
+ * `ORGANIZATION` com a lista resolvida no pedido — e um escopo vazio **falha**
+ * em vez de produzir um retrato de nada.
  *
  * ## Desligável
  *
@@ -108,17 +118,32 @@ export class BackgroundJobWorker implements OnModuleInit, OnModuleDestroy {
     job: BackgroundJobRecord,
   ): Promise<void> {
     const started = Date.now();
+    const units = this.scopeOf(job);
 
-    await this.withTenantContext(job, async () => {
+    /**
+     * Contexto inválido não vira retrato vazio.
+     *
+     * Só um job legado — enfileirado antes da PR-26.6, quando escopo
+     * organizacional não carregava lista — pode chegar aqui sem unidade
+     * nenhuma. Enterrar é o comportamento correto: repetir não inventaria o
+     * escopo perdido, e executar produziria zeros que ninguém saberia
+     * distinguir de zeros verdadeiros.
+     */
+    if (units.length === 0) {
+      const reason =
+        'Job sem escopo de unidade resolvido: enfileirado antes da PR-26.6 ou com solicitante sem unidades ativas';
+      this.logger.error(JSON.stringify({ ...this.trace(job), reason }));
+      await this.queue.fail(job, reason, true);
+      return;
+    }
+
+    await this.withTenantContext(job, units, async () => {
       try {
         await processor.process(job);
         await this.queue.succeed(job.id);
         this.logger.log(
           JSON.stringify({
-            queue: job.queue,
-            jobId: job.id,
-            correlationId: job.correlationId,
-            attempt: job.attempts,
+            ...this.trace(job),
             outcome: 'SUCCEEDED',
             durationMs: Date.now() - started,
           }),
@@ -133,13 +158,41 @@ export class BackgroundJobWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Reabre o contexto do tenant que enfileirou.
+   * As unidades que este job pode enxergar.
    *
-   * `businessUnitIds` recebe a unidade do job para que as políticas que isolam
-   * por unidade — a do manifest, por exemplo — encontrem o que precisam.
+   * `BUSINESS_UNIT` responde a própria unidade; `ORGANIZATION` responde o que
+   * o solicitante enxergava quando pediu. Nenhuma consulta ao banco: resolver
+   * aqui exigiria ler `business_units`, cuja política já pede a lista de
+   * unidades — o impasse que a resolução no enfileiramento evita.
    */
+  private scopeOf(job: BackgroundJobRecord): readonly string[] {
+    return job.scope === 'BUSINESS_UNIT' && job.businessUnitId
+      ? [job.businessUnitId]
+      : job.businessUnitIds;
+  }
+
+  /**
+   * Rastro estruturado, sem payload e sem segredo.
+   *
+   * O que se precisa para explicar um job: onde ele estava, de quem era e que
+   * escopo ele declarou. O conteúdo do trabalho fica no domínio.
+   */
+  private trace(job: BackgroundJobRecord): Record<string, unknown> {
+    return {
+      queue: job.queue,
+      jobId: job.id,
+      organizationId: job.organizationId,
+      scope: job.scope,
+      businessUnitIds: this.scopeOf(job),
+      correlationId: job.correlationId,
+      attempt: job.attempts,
+    };
+  }
+
+  /** Reabre o contexto do tenant que enfileirou, com o escopo declarado. */
   private withTenantContext<T>(
     job: BackgroundJobRecord,
+    units: readonly string[],
     work: () => Promise<T>,
   ): Promise<T> {
     /** `UUID` é um tipo marcado; os valores vêm do banco já validados. */
@@ -151,7 +204,7 @@ export class BackgroundJobWorker implements OnModuleInit, OnModuleDestroy {
       userId: asUuid(job.actorUserId),
       organizationId: asUuid(job.organizationId),
       businessUnitId: asUuid(job.businessUnitId),
-      businessUnitIds: job.businessUnitId ? [job.businessUnitId as UUID] : [],
+      businessUnitIds: units as readonly UUID[],
       /**
        * O worker não herda papéis nem permissões do ator.
        *

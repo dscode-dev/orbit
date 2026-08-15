@@ -91,15 +91,13 @@ export class OperationRepository {
         : {}),
     };
     return this.rls.run(async (transaction) => {
-      const [data, total] = await Promise.all([
-        transaction.operation.findMany({
-          where,
-          include: operationInclude,
-          orderBy: [{ scheduledStart: 'asc' }, { createdAt: 'desc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        transaction.operation.count({ where }),
-      ]);
+      const data = await transaction.operation.findMany({
+        where,
+        include: operationInclude,
+        orderBy: [{ scheduledStart: 'asc' }, { createdAt: 'desc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await transaction.operation.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }
@@ -289,26 +287,24 @@ export class OperationRepository {
 
   timeline(id: string) {
     return this.rls.run(async (transaction) => {
-      const [history, attachments] = await Promise.all([
-        transaction.operationHistory.findMany({
-          where: { operationId: id },
-          include: {
-            user: {
-              select: { id: true, displayName: true, avatarUrl: true },
-            },
+      const history = await transaction.operationHistory.findMany({
+        where: { operationId: id },
+        include: {
+          user: {
+            select: { id: true, displayName: true, avatarUrl: true },
           },
-          orderBy: { createdAt: 'desc' },
-        }),
-        transaction.operationAttachment.findMany({
-          where: { operationId: id, deletedAt: null },
-          include: {
-            uploadedBy: {
-              select: { id: true, displayName: true, avatarUrl: true },
-            },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      const attachments = await transaction.operationAttachment.findMany({
+        where: { operationId: id, deletedAt: null },
+        include: {
+          uploadedBy: {
+            select: { id: true, displayName: true, avatarUrl: true },
           },
-          orderBy: { createdAt: 'desc' },
-        }),
-      ]);
+        },
+        orderBy: { createdAt: 'desc' },
+      });
       return { history, attachments };
     });
   }

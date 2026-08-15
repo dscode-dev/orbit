@@ -46,15 +46,13 @@ export class AiRepository {
         : {}),
     };
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.aiAgent.findMany({
-          where,
-          include: agentInclude,
-          orderBy: [{ key: 'asc' }, { version: 'desc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.aiAgent.count({ where }),
-      ]);
+      const data = await tx.aiAgent.findMany({
+        where,
+        include: agentInclude,
+        orderBy: [{ key: 'asc' }, { version: 'desc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.aiAgent.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }
@@ -133,15 +131,13 @@ export class AiRepository {
       status: query.status,
     };
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.aiExecution.findMany({
-          where,
-          include: executionInclude,
-          orderBy: { createdAt: 'desc' },
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.aiExecution.count({ where }),
-      ]);
+      const data = await tx.aiExecution.findMany({
+        where,
+        include: executionInclude,
+        orderBy: { createdAt: 'desc' },
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.aiExecution.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }
@@ -204,71 +200,69 @@ export class AiRepository {
     },
   ) {
     return this.rls.run(async (tx) => {
-      const [customer, operation, report] = await Promise.all([
-        references.customerId
-          ? tx.customer.findFirst({
-              where: {
-                id: references.customerId,
-                organizationId,
-                deletedAt: null,
-              },
-              select: {
-                id: true,
-                type: true,
-                legalName: true,
-                tradeName: true,
-                status: true,
-                notes: true,
-                address: true,
-              },
-            })
-          : null,
-        references.operationId
-          ? tx.operation.findFirst({
-              where: {
-                id: references.operationId,
-                organizationId,
-                deletedAt: null,
-              },
-              select: {
-                id: true,
-                businessUnitId: true,
-                customerId: true,
-                assetId: true,
-                code: true,
-                kind: true,
-                title: true,
-                description: true,
-                status: true,
-                priority: true,
-                scheduledStart: true,
-                scheduledEnd: true,
-                data: true,
-              },
-            })
-          : null,
-        references.reportId
-          ? tx.report.findFirst({
-              where: {
-                id: references.reportId,
-                organizationId,
-                deletedAt: null,
-              },
-              select: {
-                id: true,
-                businessUnitId: true,
-                customerId: true,
-                operationId: true,
-                code: true,
-                title: true,
-                status: true,
-                contentHash: true,
-                data: true,
-                finalizedAt: true,
-              },
-            })
-          : null,
-      ]);
+      const customer = references.customerId
+        ? await tx.customer.findFirst({
+            where: {
+              id: references.customerId,
+              organizationId,
+              deletedAt: null,
+            },
+            select: {
+              id: true,
+              type: true,
+              legalName: true,
+              tradeName: true,
+              status: true,
+              notes: true,
+              address: true,
+            },
+          })
+        : null;
+      const operation = references.operationId
+        ? await tx.operation.findFirst({
+            where: {
+              id: references.operationId,
+              organizationId,
+              deletedAt: null,
+            },
+            select: {
+              id: true,
+              businessUnitId: true,
+              customerId: true,
+              assetId: true,
+              code: true,
+              kind: true,
+              title: true,
+              description: true,
+              status: true,
+              priority: true,
+              scheduledStart: true,
+              scheduledEnd: true,
+              data: true,
+            },
+          })
+        : null;
+      const report = references.reportId
+        ? await tx.report.findFirst({
+            where: {
+              id: references.reportId,
+              organizationId,
+              deletedAt: null,
+            },
+            select: {
+              id: true,
+              businessUnitId: true,
+              customerId: true,
+              operationId: true,
+              code: true,
+              title: true,
+              status: true,
+              contentHash: true,
+              data: true,
+              finalizedAt: true,
+            },
+          })
+        : null;
       return { customer, operation, report };
     });
   }

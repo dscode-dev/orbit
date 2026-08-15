@@ -17,6 +17,17 @@ interface RequestWithId extends Request {
 export class FoundationExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(FoundationExceptionFilter.name);
 
+  /**
+   * Lido a cada uso, não na construção.
+   *
+   * O filtro é instanciado uma vez por aplicação, e em processo de teste isso
+   * acontece antes de a variável estar no lugar. Ler aqui custa um acesso a
+   * `process.env` por recusa — e recusa não é caminho quente.
+   */
+  private get logsClientErrors(): boolean {
+    return (process.env.LOG_CLIENT_ERRORS ?? '').trim() === 'true';
+  }
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const response = http.getResponse<Response>();
@@ -41,6 +52,26 @@ export class FoundationExceptionFilter implements ExceptionFilter {
     if (status >= 500) {
       this.logger.error(
         exception instanceof Error ? exception.stack : String(exception),
+      );
+    } else if (status >= 400 && this.logsClientErrors) {
+      /**
+       * Recusa de cliente, registrada sob demanda.
+       *
+       * Desligado por padrão: 4xx é conversa normal com o cliente e encheria o
+       * log. Ligado, é o que permite explicar um 404 que não deveria existir —
+       * a investigação da PR-26.6.1 dependeu exatamente disto, porque status
+       * sem mensagem não distingue "não existe" de "não vejo".
+       */
+      this.logger.warn(
+        JSON.stringify({
+          stage: 'client-error',
+          status,
+          method: request.method,
+          path: request.path,
+          code: 'code' in payload ? payload.code : null,
+          message: 'message' in payload ? payload.message : null,
+          requestId: request.id ?? null,
+        }),
       );
     }
     response.status(status).json({

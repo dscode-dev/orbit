@@ -26,6 +26,7 @@ import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { BackgroundJobQueue } from '../jobs/background-job.queue';
 import {
   JOB_QUEUES,
+  inheritScope,
   type BackgroundJobRecord,
   type JobProcessor,
   type JobQueue,
@@ -161,7 +162,8 @@ export class AutomationDispatchProcessor implements JobProcessor, OnModuleInit {
           /** A chave é a identidade da ação — a mesma da linha de execução. */
           jobKey: `${eventId}:${rule.id}:${action.id}`,
           organizationId: job.organizationId,
-          businessUnitId: event.businessUnitId,
+          /** A ação nunca enxerga mais do que o despacho que a gerou. */
+          ...inheritScope(job),
           payload: {
             eventId,
             ruleId: rule.id,

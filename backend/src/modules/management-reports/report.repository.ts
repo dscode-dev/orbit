@@ -199,16 +199,14 @@ export class ReportRepository {
     };
 
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.managementReport.findMany({
-          where,
-          /** A listagem não carrega o snapshot: são páginas de JSON por linha. */
-          select: { ...reportView, data: false },
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.managementReport.count({ where }),
-      ]);
+      const data = await tx.managementReport.findMany({
+        where,
+        /** A listagem não carrega o snapshot: são páginas de JSON por linha. */
+        select: { ...reportView, data: false },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.managementReport.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }

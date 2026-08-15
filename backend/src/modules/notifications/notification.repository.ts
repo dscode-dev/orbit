@@ -19,23 +19,21 @@ export class NotificationRepository {
       OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
     };
     return this.rls.run(async (tx) => {
-      const [data, total, unread] = await Promise.all([
-        tx.notification.findMany({
-          where,
-          include: { deliveries: true },
-          orderBy: { createdAt: 'desc' },
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.notification.count({ where }),
-        tx.notification.count({
-          where: {
-            organizationId,
-            recipientUserId: userId,
-            readAt: null,
-            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-          },
-        }),
-      ]);
+      const data = await tx.notification.findMany({
+        where,
+        include: { deliveries: true },
+        orderBy: { createdAt: 'desc' },
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.notification.count({ where });
+      const unread = await tx.notification.count({
+        where: {
+          organizationId,
+          recipientUserId: userId,
+          readAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      });
       return { ...PaginationHelper.result(data, total, pagination), unread };
     });
   }

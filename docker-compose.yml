@@ -35,7 +35,22 @@ services:
       NODE_ENV: production
       PORT: 5001
       HOST: ${API_HOST:-0.0.0.0}
+      # Credencial administrativa: continua disponível porque scripts de
+      # manutenção (seed do administrador global, templates) a usam. O runtime
+      # conecta pela APP_DATABASE_URL.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      # Papel restrito (PR-26.6): sem SUPERUSER e sem BYPASSRLS. É com ele que
+      # as políticas de RLS passam a ser efetivamente avaliadas.
+      APP_DATABASE_URL: postgresql://${APP_DATABASE_USER:-orbit_app}:${APP_DATABASE_PASSWORD:?APP_DATABASE_PASSWORD is required}@postgres:5432/${POSTGRES_DB}?schema=public
+      # Subir com um papel que contorna RLS passa a ser erro, não aviso.
+      DATABASE_ENFORCE_RESTRICTED_ROLE: "true"
+      # Transações e pool (PR-26.6.1). A janela conta tempo de parede desde o
+      # BEGIN, e o processo renderiza PDF de forma síncrona — os 5 s padrão do
+      # Prisma expiravam por trabalho alheio.
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-20}
+      DATABASE_TRANSACTION_TIMEOUT_MS: ${DATABASE_TRANSACTION_TIMEOUT_MS:-20000}
+      DATABASE_TRANSACTION_MAX_WAIT_MS: ${DATABASE_TRANSACTION_MAX_WAIT_MS:-10000}
+      LOG_CLIENT_ERRORS: ${LOG_CLIENT_ERRORS:-false}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
       JWT_ISSUER: ${JWT_ISSUER:-orbit-api}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-orbit}
@@ -101,7 +116,11 @@ services:
     restart: "no"
     environment:
       NODE_ENV: production
+      # Migrations e provisionamento rodam com a credencial administrativa —
+      # é a única que pode criar papel, conceder e alterar schema.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      APP_DATABASE_USER: ${APP_DATABASE_USER:-orbit_app}
+      APP_DATABASE_PASSWORD: ${APP_DATABASE_PASSWORD:?APP_DATABASE_PASSWORD is required}
     depends_on:
       postgres:
         condition: service_healthy

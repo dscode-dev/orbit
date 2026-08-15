@@ -45,15 +45,13 @@ export class CustomerRepository {
         : {}),
     };
     return this.rls.run(async (transaction) => {
-      const [data, total] = await Promise.all([
-        transaction.customer.findMany({
-          where,
-          include: customerInclude,
-          orderBy: [{ legalName: 'asc' }, { id: 'asc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        transaction.customer.count({ where }),
-      ]);
+      const data = await transaction.customer.findMany({
+        where,
+        include: customerInclude,
+        orderBy: [{ legalName: 'asc' }, { id: 'asc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await transaction.customer.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }

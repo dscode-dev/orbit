@@ -247,15 +247,13 @@ export class FinancialRepository {
     const where = this.entryWhere(organizationId, query);
 
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.financialEntry.findMany({
-          where,
-          select: entryView,
-          orderBy: [{ competenceDate: 'desc' }, { id: 'desc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.financialEntry.count({ where }),
-      ]);
+      const data = await tx.financialEntry.findMany({
+        where,
+        select: entryView,
+        orderBy: [{ competenceDate: 'desc' }, { id: 'desc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.financialEntry.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }

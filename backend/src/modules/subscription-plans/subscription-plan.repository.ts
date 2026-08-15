@@ -1,14 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService, RlsTransaction } from '../../database';
+import type { PrismaTransactionClient } from '../../database/prisma.types';
 
 export interface PlanTenantAccess {
   userId: string;
   businessUnitIds: readonly string[];
 }
 
+/** O que o Postgres diz estar valendo dentro da transação. */
+interface ContextProbe {
+  role: string;
+  organization: string | null;
+  units: string | null;
+}
+
 @Injectable()
 export class SubscriptionPlanRepository {
+  private readonly logger = new Logger(SubscriptionPlanRepository.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly rls: RlsTransaction,
@@ -54,7 +64,7 @@ export class SubscriptionPlanRepository {
           'app.business_unit_ids',
           access.businessUnitIds.join(','),
         );
-        return transaction.organization.findUnique({
+        const organization = await transaction.organization.findUnique({
           where: { id: organizationId, deletedAt: null },
           select: {
             id: true,
@@ -67,6 +77,22 @@ export class SubscriptionPlanRepository {
             plan: true,
           },
         });
+
+        /**
+         * A organização sumiu debaixo do próprio contexto que a declara.
+         *
+         * Este caminho é o guard de plano: se ele não enxerga a organização,
+         * toda rota do inquilino responde 404. Externamente o comportamento
+         * continua o mesmo — para quem não pode ver, "não existe" é a resposta
+         * certa. Internamente, a diferença entre *não existe* e *o contexto se
+         * perdeu* é o que separa um erro de dados de um defeito de isolamento,
+         * e sem ela a PR-26.6 ficou meio dia sem saber qual dos dois tinha.
+         */
+        if (!organization) {
+          await this.diagnose(transaction, organizationId, access);
+        }
+
+        return organization;
       });
     }
     return this.rls.run((transaction) =>
@@ -84,6 +110,52 @@ export class SubscriptionPlanRepository {
         },
       }),
     );
+  }
+
+  /**
+   * Pergunta ao Postgres o que ele acha que está valendo.
+   *
+   * Roda **dentro da mesma transação** da consulta que falhou — é a única
+   * forma de saber se o `set_config` chegou até aqui. Nenhum dado sensível: só
+   * papel, identificadores e o que o próprio processo já tinha em mãos.
+   */
+  private async diagnose(
+    transaction: PrismaTransactionClient,
+    organizationId: string,
+    access: PlanTenantAccess,
+  ): Promise<void> {
+    try {
+      const [probe] = await transaction.$queryRaw<ContextProbe[]>`
+        SELECT current_user::text AS role,
+               NULLIF(current_setting('app.organization_id', true), '') AS organization,
+               NULLIF(current_setting('app.business_unit_ids', true), '') AS units
+      `;
+
+      const declared = probe?.organization ?? null;
+      const reason =
+        declared === null
+          ? 'CONTEXT_MISSING'
+          : declared !== organizationId
+            ? 'CONTEXT_MISMATCH'
+            : 'POLICY_DENIED_OR_ABSENT';
+
+      this.logger.warn(
+        JSON.stringify({
+          stage: 'entitlements-not-found',
+          reason,
+          expectedOrganizationId: organizationId,
+          declaredOrganizationId: declared,
+          expectedUnits: access.businessUnitIds.length,
+          declaredUnits: probe?.units?.split(',').length ?? 0,
+          role: probe?.role ?? null,
+        }),
+      );
+    } catch (error) {
+      /** Diagnóstico nunca derruba a requisição — o 404 já é a resposta. */
+      this.logger.warn(
+        `[plans] diagnóstico falhou: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
+      );
+    }
   }
 
   changeSubscription(

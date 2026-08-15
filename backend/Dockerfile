@@ -19,7 +19,12 @@ RUN npm run build
 
 FROM builder AS migrator
 
-CMD ["npx", "prisma", "migrate", "deploy"]
+# Migrar e provisionar são o mesmo passo, nesta ordem.
+#
+# O provisionamento roda **depois** para que uma tabela criada pela migration
+# recém-aplicada já receba os GRANTs do papel de runtime — sem passo manual
+# depois do `docker compose up`. É idempotente: rodar de novo reconcilia.
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/scripts/provision-database-roles.js"]
 
 FROM builder AS production-dependencies
 

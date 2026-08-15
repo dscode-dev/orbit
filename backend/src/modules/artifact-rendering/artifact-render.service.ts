@@ -100,6 +100,8 @@ export class ArtifactRenderService {
       /** A execução é a chave: um pedido pendente por execução. */
       jobKey: executionId,
       organizationId: actor.organizationId,
+      /** Renderizar é sempre sobre uma execução, e execução tem unidade. */
+      scope: 'BUSINESS_UNIT',
       businessUnitId: execution.businessUnitId,
       payload: {
         executionId,

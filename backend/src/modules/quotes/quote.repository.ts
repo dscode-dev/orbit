@@ -130,15 +130,13 @@ export class QuoteRepository {
 
     return this.rls.run(async (tx) => {
       await this.expireStale(tx, organizationId);
-      const [data, total] = await Promise.all([
-        tx.quote.findMany({
-          where,
-          select: quoteView,
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.quote.count({ where }),
-      ]);
+      const data = await tx.quote.findMany({
+        where,
+        select: quoteView,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.quote.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }
@@ -549,6 +547,7 @@ export class QuoteRepository {
              */
             jobKey: `${input.id}:${input.to}`,
             organizationId: input.organizationId,
+            scope: 'BUSINESS_UNIT',
             businessUnitId: input.businessUnitId,
             payload: { quoteId: input.id, status: input.to },
             correlationId: generateUuidV7(),

@@ -91,7 +91,17 @@ export class SubscriptionPlanService {
     organizationId: string,
     access?: PlanTenantAccess,
   ): Promise<void> {
-    const entitlements = await this.getEntitlements(organizationId, access);
+    this.assertActiveOn(await this.getEntitlements(organizationId, access));
+  }
+
+  /**
+   * A mesma regra, sobre permissões já resolvidas.
+   *
+   * Os guardas resolvem as permissões **uma vez por requisição** e passam o
+   * resultado adiante — três consultas idênticas ao mesmo plano viravam três
+   * transações interativas antes de o handler começar. Ver `plan-access.ts`.
+   */
+  assertActiveOn(entitlements: OrganizationEntitlements): void {
     if (
       !SubscriptionPlanService.ALLOWED_STATUSES.has(
         entitlements.subscriptionStatus,
@@ -108,7 +118,16 @@ export class SubscriptionPlanService {
     acceptedPlans: readonly string[],
     access?: PlanTenantAccess,
   ): Promise<void> {
-    const entitlements = await this.getEntitlements(organizationId, access);
+    this.assertPlanOn(
+      await this.getEntitlements(organizationId, access),
+      acceptedPlans,
+    );
+  }
+
+  assertPlanOn(
+    entitlements: OrganizationEntitlements,
+    acceptedPlans: readonly string[],
+  ): void {
     if (!acceptedPlans.includes(entitlements.planKey)) {
       throw new ForbiddenException(
         'The current plan does not allow this action',
@@ -121,7 +140,16 @@ export class SubscriptionPlanService {
     required: readonly string[],
     access?: PlanTenantAccess,
   ): Promise<void> {
-    const entitlements = await this.getEntitlements(organizationId, access);
+    this.assertCapabilitiesOn(
+      await this.getEntitlements(organizationId, access),
+      required,
+    );
+  }
+
+  assertCapabilitiesOn(
+    entitlements: OrganizationEntitlements,
+    required: readonly string[],
+  ): void {
     const granted = new Set(entitlements.capabilities);
     if (
       !granted.has('*') &&

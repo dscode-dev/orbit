@@ -40,25 +40,18 @@ export class PlatformAdministrationRepository {
 
   overview() {
     return this.rls.run(async (tx) => {
-      const [
-        organizations,
-        users,
-        activeSubscriptions,
-        suspendedOrganizations,
-        plans,
-        modules,
-      ] = await Promise.all([
-        tx.organization.count({ where: { deletedAt: null } }),
-        tx.user.count({ where: { deletedAt: null } }),
-        tx.organization.count({
-          where: { deletedAt: null, subscriptionStatus: 'ACTIVE' },
-        }),
-        tx.organization.count({
-          where: { deletedAt: null, status: 'SUSPENDED' },
-        }),
-        tx.plan.count({ where: { isActive: true } }),
-        tx.module.count({ where: { isActive: true } }),
-      ]);
+      const organizations = await tx.organization.count({
+        where: { deletedAt: null },
+      });
+      const users = await tx.user.count({ where: { deletedAt: null } });
+      const activeSubscriptions = await tx.organization.count({
+        where: { deletedAt: null, subscriptionStatus: 'ACTIVE' },
+      });
+      const suspendedOrganizations = await tx.organization.count({
+        where: { deletedAt: null, status: 'SUSPENDED' },
+      });
+      const plans = await tx.plan.count({ where: { isActive: true } });
+      const modules = await tx.module.count({ where: { isActive: true } });
       return {
         organizations,
         users,
@@ -90,15 +83,13 @@ export class PlatformAdministrationRepository {
         : {}),
     };
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.organization.findMany({
-          where,
-          include: organizationView,
-          orderBy: { createdAt: 'desc' },
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.organization.count({ where }),
-      ]);
+      const data = await tx.organization.findMany({
+        where,
+        include: organizationView,
+        orderBy: { createdAt: 'desc' },
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.organization.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }
@@ -127,47 +118,45 @@ export class PlatformAdministrationRepository {
         : {}),
     };
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.user.findMany({
-          where,
-          select: {
-            id: true,
-            email: true,
-            displayName: true,
-            status: true,
-            emailVerifiedAt: true,
-            lastAuthenticatedAt: true,
-            createdAt: true,
-            organizationMemberships: {
-              where: { deletedAt: null },
-              select: {
-                organizationId: true,
-                status: true,
-                role: { select: { key: true } },
-              },
-            },
-            platformRoleAssignments: {
-              where: { revokedAt: null },
-              select: { role: { select: { key: true } } },
+      const data = await tx.user.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          status: true,
+          emailVerifiedAt: true,
+          lastAuthenticatedAt: true,
+          createdAt: true,
+          organizationMemberships: {
+            where: { deletedAt: null },
+            select: {
+              organizationId: true,
+              status: true,
+              role: { select: { key: true } },
             },
           },
-          orderBy: { createdAt: 'desc' },
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.user.count({ where }),
-      ]);
+          platformRoleAssignments: {
+            where: { revokedAt: null },
+            select: { role: { select: { key: true } } },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.user.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }
 
   plansAndModules() {
     return this.rls.run(async (tx) => {
-      const [plans, modules] = await Promise.all([
-        tx.plan.findMany({ orderBy: { monthlyPrice: 'asc' } }),
-        tx.module.findMany({
-          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-        }),
-      ]);
+      const plans = await tx.plan.findMany({
+        orderBy: { monthlyPrice: 'asc' },
+      });
+      const modules = await tx.module.findMany({
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      });
       return { plans, modules };
     });
   }

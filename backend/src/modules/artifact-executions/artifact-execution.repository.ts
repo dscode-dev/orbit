@@ -55,14 +55,12 @@ export class ArtifactExecutionRepository {
         : {}),
     };
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.artifactExecution.findMany({
-          where,
-          orderBy: { createdAt: 'desc' },
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.artifactExecution.count({ where }),
-      ]);
+      const data = await tx.artifactExecution.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.artifactExecution.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }

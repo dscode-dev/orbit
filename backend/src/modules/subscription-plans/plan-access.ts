@@ -10,6 +10,7 @@ import { PUBLIC_KEY } from '../../decorators';
 import { ForbiddenException } from '../../exceptions';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import type { AuthenticatedIdentity } from '../identity/domain/identity.types';
+import type { OrganizationEntitlements } from './subscription-plan.service';
 import { SubscriptionPlanService } from './subscription-plan.service';
 
 export const REQUIRED_PLAN_KEY = 'subscription:required-plan';
@@ -24,11 +25,56 @@ export const Capabilities = (...capabilities: string[]) =>
 
 export const RequiresActivePlan = () => SetMetadata(ACTIVE_PLAN_KEY, true);
 
+/**
+ * Onde a resposta do plano fica guardada durante a requisição.
+ *
+ * Três guardas perguntam a **mesma** coisa sobre a **mesma** organização na
+ * mesma requisição: se a assinatura está ativa, se o plano é aceito, se a
+ * capacidade existe. Cada pergunta abria uma transação interativa própria —
+ * três conexões do pool e três janelas de tempo limite para atravessar antes de
+ * o handler começar.
+ *
+ * Guardar a promessa (não o valor) no objeto da requisição resolve as três com
+ * uma transação. É memoização de escopo de requisição: nasce e morre com ela,
+ * então não há como servir o plano de um inquilino a outro.
+ */
+const ENTITLEMENTS = Symbol('orbit:entitlements');
+
+interface RequestWithEntitlements extends IdentityRequest {
+  [ENTITLEMENTS]?: Promise<OrganizationEntitlements>;
+}
+
 abstract class PlanMetadataGuard {
   constructor(
     protected readonly reflector: Reflector,
     protected readonly plans: SubscriptionPlanService,
   ) {}
+
+  /**
+   * As permissões de plano desta requisição, resolvidas uma vez só.
+   *
+   * A promessa é guardada antes de ser aguardada, então dois guardas que
+   * corram juntos compartilham a mesma resolução em vez de disputarem duas
+   * transações.
+   */
+  protected entitlements(
+    context: ExecutionContext,
+  ): Promise<OrganizationEntitlements> {
+    const request = context
+      .switchToHttp()
+      .getRequest<RequestWithEntitlements>();
+    const identity = this.identity(context);
+
+    request[ENTITLEMENTS] ??= this.plans.getEntitlements(
+      identity.organizationId,
+      {
+        userId: identity.id,
+        businessUnitIds: identity.businessUnitIds ?? [],
+      },
+    );
+
+    return request[ENTITLEMENTS];
+  }
 
   protected isPublic(context: ExecutionContext): boolean {
     return Boolean(
@@ -65,11 +111,7 @@ export class ActivePlanGuard extends PlanMetadataGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
     if (!required) return true;
-    const identity = this.identity(context);
-    await this.plans.assertActive(identity.organizationId, {
-      userId: identity.id,
-      businessUnitIds: identity.businessUnitIds,
-    });
+    this.plans.assertActiveOn(await this.entitlements(context));
     return true;
   }
 }
@@ -91,11 +133,7 @@ export class RequiredPlanGuard
         context.getClass(),
       ]) ?? [];
     if (required.length === 0) return true;
-    const identity = this.identity(context);
-    await this.plans.assertPlan(identity.organizationId, required, {
-      userId: identity.id,
-      businessUnitIds: identity.businessUnitIds,
-    });
+    this.plans.assertPlanOn(await this.entitlements(context), required);
     return true;
   }
 }
@@ -114,11 +152,7 @@ export class CapabilityGuard extends PlanMetadataGuard implements CanActivate {
         [context.getHandler(), context.getClass()],
       ) ?? [];
     if (required.length === 0) return true;
-    const identity = this.identity(context);
-    await this.plans.assertCapabilities(identity.organizationId, required, {
-      userId: identity.id,
-      businessUnitIds: identity.businessUnitIds,
-    });
+    this.plans.assertCapabilitiesOn(await this.entitlements(context), required);
     return true;
   }
 }

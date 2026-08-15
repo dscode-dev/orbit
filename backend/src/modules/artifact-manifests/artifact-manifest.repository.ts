@@ -218,6 +218,7 @@ export class ArtifactManifestRepository {
           queue: JOB_QUEUES.artifactManifestIssued,
           jobKey: manifest.id,
           organizationId,
+          scope: 'BUSINESS_UNIT',
           businessUnitId,
           payload: {
             manifestId: manifest.id,

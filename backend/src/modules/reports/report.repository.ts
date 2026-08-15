@@ -87,15 +87,13 @@ export class ReportRepository {
         : {}),
     };
     return this.rls.run(async (transaction) => {
-      const [data, total] = await Promise.all([
-        transaction.report.findMany({
-          where,
-          include: reportInclude,
-          orderBy: { createdAt: 'desc' },
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        transaction.report.count({ where }),
-      ]);
+      const data = await transaction.report.findMany({
+        where,
+        include: reportInclude,
+        orderBy: { createdAt: 'desc' },
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await transaction.report.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }

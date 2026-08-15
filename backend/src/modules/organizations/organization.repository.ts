@@ -234,14 +234,12 @@ export class OrganizationRepository {
   /** Quantas pessoas ainda dependem deste papel — o servidor recusa remover. */
   roleDependencies(id: string) {
     return this.rls.run(async (transaction) => {
-      const [members, invitations] = await Promise.all([
-        transaction.organizationMembership.count({
-          where: { roleId: id, deletedAt: null },
-        }),
-        transaction.identityInvitation.count({
-          where: { roleId: id, status: 'PENDING' },
-        }),
-      ]);
+      const members = await transaction.organizationMembership.count({
+        where: { roleId: id, deletedAt: null },
+      });
+      const invitations = await transaction.identityInvitation.count({
+        where: { roleId: id, status: 'PENDING' },
+      });
       return { members, invitations };
     });
   }

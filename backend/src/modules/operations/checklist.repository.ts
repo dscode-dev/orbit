@@ -27,14 +27,12 @@ export class ChecklistRepository {
         : {}),
     };
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.checklistTemplate.findMany({
-          where,
-          orderBy: [{ key: 'asc' }, { version: 'desc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.checklistTemplate.count({ where }),
-      ]);
+      const data = await tx.checklistTemplate.findMany({
+        where,
+        orderBy: [{ key: 'asc' }, { version: 'desc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.checklistTemplate.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }
@@ -91,18 +89,16 @@ export class ChecklistRepository {
       status: query.status,
     };
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.checklistExecution.findMany({
-          where,
-          include: {
-            template: { select: { id: true, key: true, name: true } },
-            createdBy: { select: { id: true, displayName: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.checklistExecution.count({ where }),
-      ]);
+      const data = await tx.checklistExecution.findMany({
+        where,
+        include: {
+          template: { select: { id: true, key: true, name: true } },
+          createdBy: { select: { id: true, displayName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.checklistExecution.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }

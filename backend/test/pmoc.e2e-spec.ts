@@ -28,7 +28,8 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApiVersioning } from './../src/configure-api';
-import { PrismaService } from './../src/database/prisma.service';
+import type { PrismaClient } from '@prisma/client';
+import { adminPrisma, disconnectAdminPrisma } from './support/admin-prisma';
 import { BackgroundJobWorker } from './../src/modules/jobs/background-job.worker';
 
 const digits = (length: number): string =>
@@ -111,7 +112,8 @@ function inDays(days: number): string {
 
 describe('PMOC (e2e)', () => {
   let app: INestApplication<App>;
-  let prisma: PrismaService;
+  /** Administrativo: monta cenário. A aplicação sob teste roda restrita. */
+  let prisma: PrismaClient;
   let worker: BackgroundJobWorker;
   let http: () => request.Agent;
 
@@ -234,7 +236,7 @@ describe('PMOC (e2e)', () => {
     );
     await app.init();
     http = () => request(app.getHttpServer());
-    prisma = app.get(PrismaService);
+    prisma = adminPrisma();
     worker = app.get(BackgroundJobWorker);
 
     const principal = await register('principal');
@@ -354,6 +356,7 @@ describe('PMOC (e2e)', () => {
 
   afterAll(async () => {
     await app?.close();
+    await disconnectAdminPrisma();
   });
 
   /* ================================================================ */

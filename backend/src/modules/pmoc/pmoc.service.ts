@@ -203,6 +203,11 @@ export class PmocService {
 
   async get(id: string, actor: PmocActor) {
     const plan = await this.plan(id, actor);
+    /**
+     * Paralelo de propósito: cada chamada abre a **própria** transação, então
+     * não há conexão compartilhada. O que a PR-26.6.1 proíbe é concorrência de
+     * consultas sobre o mesmo cliente transacional — outra coisa.
+     */
     const [coverages, current, recent] = await Promise.all([
       this.repository.listCoverages(id, actor.organizationId),
       this.repository.currentExecution(id, actor.organizationId),
@@ -764,6 +769,8 @@ export class PmocService {
         queue: JOB_QUEUES.pmocDueCheck,
         jobKey: `pmoc:${plan.id}:${dueOn}:${phase}`,
         organizationId: actor.organizationId,
+        /** O aviso é do plano, e o plano é de uma unidade. */
+        scope: 'BUSINESS_UNIT',
         businessUnitId: plan.businessUnit.id,
         payload: { planId: plan.id, dueOn, phase },
         correlationId: generateUuidV7(),

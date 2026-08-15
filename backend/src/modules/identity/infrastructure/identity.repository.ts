@@ -361,22 +361,20 @@ export class IdentityRepository {
         data: { status: 'EXPIRED' },
       });
 
-      const [data, total] = await Promise.all([
-        transaction.identityInvitation.findMany({
-          where,
-          include: {
-            role: { select: { id: true, key: true, name: true } },
-            businessUnit: {
-              select: { id: true, legalName: true, tradeName: true },
-            },
-            invitedBy: { select: { id: true, displayName: true } },
+      const data = await transaction.identityInvitation.findMany({
+        where,
+        include: {
+          role: { select: { id: true, key: true, name: true } },
+          businessUnit: {
+            select: { id: true, legalName: true, tradeName: true },
           },
-          orderBy: { createdAt: 'desc' },
-          skip: query.skip,
-          take: query.take,
-        }),
-        transaction.identityInvitation.count({ where }),
-      ]);
+          invitedBy: { select: { id: true, displayName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: query.skip,
+        take: query.take,
+      });
+      const total = await transaction.identityInvitation.count({ where });
       return { data, total };
     });
   }

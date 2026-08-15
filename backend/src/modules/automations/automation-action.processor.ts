@@ -28,6 +28,7 @@ import { BackgroundJobQueue } from '../jobs/background-job.queue';
 import {
   JOB_QUEUES,
   PermanentJobError,
+  inheritScope,
   type BackgroundJobRecord,
   type JobProcessor,
   type JobQueue,
@@ -396,7 +397,8 @@ export class AutomationActionProcessor implements JobProcessor, OnModuleInit {
       /** A identidade da ação vira a do trabalho: retry não enfileira dois. */
       jobKey: `automation:${event.id}:${action.id}`,
       organizationId: job.organizationId,
-      businessUnitId: event.businessUnitId,
+      /** O trabalho gerado herda o escopo da ação, não o inventa. */
+      ...inheritScope(job),
       payload,
       correlationId: event.correlationId,
       actorUserId: job.actorUserId,

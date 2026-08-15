@@ -46,14 +46,12 @@ export class ArtifactTemplateRepository {
         : {}),
     };
     return this.rls.run(async (tx) => {
-      const [data, total] = await Promise.all([
-        tx.artifactTemplate.findMany({
-          where,
-          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        tx.artifactTemplate.count({ where }),
-      ]);
+      const data = await tx.artifactTemplate.findMany({
+        where,
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await tx.artifactTemplate.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }
@@ -314,10 +312,12 @@ export class ArtifactTemplateRepository {
 
   dependencies(id: string) {
     return this.rls.run(async (tx) => {
-      const [reports, checklists] = await Promise.all([
-        tx.reportTemplate.count({ where: { artifactTemplateId: id } }),
-        tx.checklistTemplate.count({ where: { artifactTemplateId: id } }),
-      ]);
+      const reports = await tx.reportTemplate.count({
+        where: { artifactTemplateId: id },
+      });
+      const checklists = await tx.checklistTemplate.count({
+        where: { artifactTemplateId: id },
+      });
       return reports + checklists;
     });
   }

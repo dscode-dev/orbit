@@ -48,14 +48,12 @@ export class CatalogRepository {
 
   categoryDependencies(id: string) {
     return this.rls.run(async (transaction) => {
-      const [children, products] = await Promise.all([
-        transaction.productCategory.count({
-          where: { parentId: id, deletedAt: null },
-        }),
-        transaction.product.count({
-          where: { categoryId: id, deletedAt: null },
-        }),
-      ]);
+      const children = await transaction.productCategory.count({
+        where: { parentId: id, deletedAt: null },
+      });
+      const products = await transaction.product.count({
+        where: { categoryId: id, deletedAt: null },
+      });
       return { children, products };
     });
   }
@@ -91,15 +89,13 @@ export class CatalogRepository {
         : {}),
     };
     return this.rls.run(async (transaction) => {
-      const [data, total] = await Promise.all([
-        transaction.product.findMany({
-          where,
-          include: productInclude,
-          orderBy: [{ name: 'asc' }, { id: 'asc' }],
-          ...PaginationHelper.toPrisma(pagination),
-        }),
-        transaction.product.count({ where }),
-      ]);
+      const data = await transaction.product.findMany({
+        where,
+        include: productInclude,
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        ...PaginationHelper.toPrisma(pagination),
+      });
+      const total = await transaction.product.count({ where });
       return PaginationHelper.result(data, total, pagination);
     });
   }
