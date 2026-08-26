@@ -12,6 +12,7 @@ export class ForecastEngine {
   execute(trends: TrendReadModel): ForecastReadModel {
     return {
       generatedAt: new Date().toISOString(),
+      availability: trends.availability,
       forecasts: trends.series.map((series) => {
         const forecast = this.project(series.points);
         return {

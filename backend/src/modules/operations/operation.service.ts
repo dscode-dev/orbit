@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import {
-  OperationStatus,
-  type OperationStatus as OperationStatusType,
-} from '../../contracts';
+import { OperationStatus } from '../../contracts';
 import {
   ConflictException,
   EntityNotFoundException,
@@ -18,29 +15,7 @@ import type {
 } from './dto/operation.dto';
 import { OperationRepository } from './operation.repository';
 import { OperationStorageService } from './operation-storage.service';
-
-const transitions: Readonly<
-  Record<OperationStatusType, OperationStatusType[]>
-> = {
-  OPEN: [
-    OperationStatus.SCHEDULED,
-    OperationStatus.IN_PROGRESS,
-    OperationStatus.CANCELLED,
-  ],
-  SCHEDULED: [
-    OperationStatus.OPEN,
-    OperationStatus.IN_PROGRESS,
-    OperationStatus.CANCELLED,
-  ],
-  IN_PROGRESS: [
-    OperationStatus.PAUSED,
-    OperationStatus.COMPLETED,
-    OperationStatus.CANCELLED,
-  ],
-  PAUSED: [OperationStatus.IN_PROGRESS, OperationStatus.CANCELLED],
-  COMPLETED: [],
-  CANCELLED: [OperationStatus.OPEN],
-};
+import { OperationStateMachine } from './operation-state-machine';
 
 @Injectable()
 export class OperationService {
@@ -158,7 +133,7 @@ export class OperationService {
   ) {
     const current = await this.get(id, organizationId);
     const from = current.status;
-    if (!transitions[from]?.includes(input.status)) {
+    if (!OperationStateMachine.allows(from, input.status)) {
       throw new ValidationException(
         `Status transition from ${from} to ${input.status} is not allowed`,
       );

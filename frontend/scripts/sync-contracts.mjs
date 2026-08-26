@@ -20,6 +20,7 @@
  * Uso: npm run contracts:sync
  */
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,27 +35,17 @@ const target = resolve(frontendRoot, "src", "types", "contracts");
  * Read Models expostos pela API e consumidos pelo frontend.
  * Caminhos relativos a `backend/src`.
  */
-const READ_MODELS = [
-  "modules/dashboards/dashboard.read-models.ts",
-  "modules/analytics/analytics.read-models.ts",
-  "modules/scheduling/scheduling.read-models.ts",
-  "modules/identity/identity.read-models.ts",
-  "modules/organizations/organization.read-models.ts",
-  "modules/operations/operation.read-models.ts",
-  "modules/artifact-templates/artifact-template.read-models.ts",
-  "modules/artifact-executions/artifact-execution.read-models.ts",
-  "modules/organizations/business-units/customers/customer.read-models.ts",
-  "modules/storage/file-object.read-models.ts",
-  "modules/artifact-manifests/artifact-manifest.read-models.ts",
-  "modules/artifact-rendering/artifact-render.read-models.ts",
-  "modules/workforce/workforce.read-models.ts",
-  "modules/financial/financial.read-models.ts",
-  "modules/quotes/quote.read-models.ts",
-  "modules/inventory/inventory.read-models.ts",
-  "modules/automations/automation.read-models.ts",
-  "modules/management-reports/report.read-models.ts",
-  "modules/pmoc/pmoc.read-models.ts",
-];
+execFileSync("npm", ["run", "contracts:guard"], {
+  cwd: resolve(frontendRoot, "..", "backend"),
+  stdio: "inherit",
+});
+const manifest = JSON.parse(
+  await readFile(
+    resolve(frontendRoot, "..", "backend", "contracts-sync.manifest.json"),
+    "utf8",
+  ),
+);
+const READ_MODELS = manifest.readModels;
 
 const BANNER = `/**
  * ARQUIVO GERADO — NÃO EDITE MANUALMENTE.

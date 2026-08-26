@@ -131,6 +131,7 @@ export class KpiEngine {
     return {
       generatedAt: new Date().toISOString(),
       period: this.period(snapshot),
+      availability: [],
       indicators,
     };
   }

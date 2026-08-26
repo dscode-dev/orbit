@@ -202,8 +202,8 @@ const segmentWidgets: DashboardWidgetDefinition[] = [
     order: 110,
     tags: ['hvac-r', 'pmoc', 'compliance'],
     supportedSegments: ['HVAC_R'],
-    requiredModules: ['reports'],
-    requiredPermissions: ['reports.read'],
+    requiredModules: [],
+    requiredPermissions: ['pmoc.read'],
   }),
   segmentWidget({
     id: 'hvac-equipment-health',

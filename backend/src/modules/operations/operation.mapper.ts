@@ -15,6 +15,7 @@ import type {
   OperationTimelineReadModel,
   OperationUserReadModel,
 } from './operation.read-models';
+import { OperationStateMachine } from './operation-state-machine';
 
 type DateValue = Date | string;
 
@@ -118,10 +119,17 @@ export class OperationReadModelMapper {
   }
 
   listItem(source: OperationSource): OperationListItemReadModel {
-    return this.details(source);
+    return this.base(source);
   }
 
   details(source: OperationSource): OperationDetailsReadModel {
+    return {
+      ...this.base(source),
+      transitions: OperationStateMachine.allowedTransitions(source.status),
+    };
+  }
+
+  private base(source: OperationSource): OperationListItemReadModel {
     return {
       id: source.id,
       organizationId: source.organizationId,

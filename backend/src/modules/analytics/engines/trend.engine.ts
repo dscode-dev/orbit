@@ -34,6 +34,7 @@ export class TrendEngine {
         to: snapshot.range.to.toISOString(),
         granularity: snapshot.range.granularity,
       },
+      availability: [],
       series: [
         this.series(
           'operations.created',

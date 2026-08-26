@@ -16,6 +16,7 @@ describe('WidgetResolver', () => {
       'dashboard.read',
       'operations.read',
       'reports.read',
+      'pmoc.read',
       'assets.read',
       'customers.read',
       'catalog.read',
@@ -68,5 +69,24 @@ describe('WidgetResolver', () => {
     expect(widgets.map((widget) => widget.id)).toEqual([
       'weather-environmental-intelligence',
     ]);
+  });
+
+  it('uses pmoc.read rather than reports.read for the PMOC widget', () => {
+    const withPmoc = resolver.resolve(registry.all(), {
+      ...base,
+      segment: 'HVAC-R',
+      modules: base.modules.filter((module) => module !== 'reports'),
+      permissions: ['dashboard.read', 'pmoc.read'],
+    });
+    expect(withPmoc.map((widget) => widget.id)).toContain('hvac-pmoc-status');
+
+    const reportsOnly = resolver.resolve(registry.all(), {
+      ...base,
+      segment: 'HVAC-R',
+      permissions: ['dashboard.read', 'reports.read'],
+    });
+    expect(reportsOnly.map((widget) => widget.id)).not.toContain(
+      'hvac-pmoc-status',
+    );
   });
 });

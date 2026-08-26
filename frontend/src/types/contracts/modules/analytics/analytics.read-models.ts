@@ -16,6 +16,14 @@ export type AnalyticsDomain =
 export type AnalyticsDirection = 'UP' | 'DOWN' | 'STABLE';
 export type AnalyticsStatus = 'HEALTHY' | 'ATTENTION' | 'CRITICAL';
 
+export type AnalyticsDomainAvailability = {
+  domain: AnalyticsDomain;
+  available: boolean;
+  requiredCapabilities: readonly string[];
+  missingCapabilities: readonly string[];
+  blockedReason: 'MISSING_DOMAIN_CAPABILITY' | null;
+};
+
 export type AnalyticsPeriod = {
   from: string;
   to: string;
@@ -39,6 +47,7 @@ export type AnalyticsKpi = {
 export type KpiReadModel = {
   generatedAt: string;
   period: AnalyticsPeriod;
+  availability: readonly AnalyticsDomainAvailability[];
   indicators: AnalyticsKpi[];
 };
 
@@ -55,6 +64,7 @@ export type AnalyticsTrend = {
 export type TrendReadModel = {
   generatedAt: string;
   period: AnalyticsPeriod;
+  availability: readonly AnalyticsDomainAvailability[];
   series: AnalyticsTrend[];
 };
 
@@ -71,6 +81,7 @@ export type AnalyticsHealthReadModel = {
   generatedAt: string;
   score: number;
   status: AnalyticsStatus;
+  availability: readonly AnalyticsDomainAvailability[];
   dimensions: HealthDimension[];
 };
 
@@ -86,6 +97,7 @@ export type AnalyticsForecast = {
 };
 export type ForecastReadModel = {
   generatedAt: string;
+  availability: readonly AnalyticsDomainAvailability[];
   forecasts: AnalyticsForecast[];
 };
 
@@ -106,6 +118,7 @@ export type EnvironmentalImpactReadModel = {
 export type AnalyticsOverviewReadModel = {
   generatedAt: string;
   period: AnalyticsPeriod;
+  availability: readonly AnalyticsDomainAvailability[];
   kpis: KpiReadModel;
   trends: TrendReadModel;
   health: AnalyticsHealthReadModel;
@@ -115,11 +128,12 @@ export type AnalyticsOverviewReadModel = {
 
 export type AnalyticsDashboardReadModel = {
   generatedAt: string;
+  availability: readonly AnalyticsDomainAvailability[];
   headline: {
     healthScore: number;
-    openOperations: number;
-    slaCompliance: number;
-    equipmentAvailability: number;
+    openOperations: number | null;
+    slaCompliance: number | null;
+    equipmentAvailability: number | null;
   };
   metrics: AnalyticsKpi[];
   series: AnalyticsTrend[];
@@ -130,6 +144,7 @@ export type AnalyticsDashboardReadModel = {
 /** Stable, UI-agnostic input contract for Orbit Intelligence. */
 export type OrbitIntelligenceAnalyticsContext = {
   generatedAt: string;
+  availability: readonly AnalyticsDomainAvailability[];
   healthScore: number;
   priorities: Array<{
     domain: AnalyticsDomain;

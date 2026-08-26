@@ -9,13 +9,19 @@ import { DashboardRepository } from './dashboard.repository';
 export class WidgetFactory {
   constructor(private readonly repository: DashboardRepository) {}
 
-  create(
+  async create(
     definition: DashboardWidgetDefinition,
     range: string,
-  ): ResolvedDashboardWidget {
+    organizationId: string,
+  ): Promise<ResolvedDashboardWidget> {
     return {
       ...definition,
-      data: this.repository.read(definition.id, definition.readModel, range),
+      data: await this.repository.read(
+        organizationId,
+        definition.id,
+        definition.readModel,
+        range,
+      ),
     };
   }
 }

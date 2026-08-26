@@ -3,11 +3,8 @@
 /**
  * Status da operação.
  *
- * As transições válidas são regra do backend (`OperationService.transitions`).
- * O frontend **não** as replica: oferece todos os status e deixa o backend
- * recusar o que for inválido, mostrando a mensagem que ele devolver.
- * Duplicar a máquina de estados aqui criaria duas fontes de verdade que
- * divergem no primeiro ajuste de regra.
+ * As transições válidas vêm no Read Model de detalhe. A mesma state machine
+ * autoritativa valida o PATCH no backend; o cliente apenas apresenta a lista.
  */
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
@@ -26,7 +23,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useChangeOperationStatus } from "@/hooks/operations/use-operations";
 import { useSession } from "@/providers/session-provider";
-import { OperationStatus } from "@/types/contracts";
 import { OPERATION_STATUS_LABELS, type Operation } from "@/types/operations";
 import { OperationStatusBadge } from "../operation-badges";
 
@@ -77,6 +73,7 @@ function StatusForm({
   const [status, setStatus] = useState<string>(operation.status);
   const [reason, setReason] = useState("");
   const changeStatus = useChangeOperationStatus(operationId);
+  const options = [operation.status, ...operation.transitions];
 
   const dirty = status !== operation.status;
 
@@ -108,8 +105,12 @@ function StatusForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {Object.values(OperationStatus).map((option) => (
-              <SelectItem key={option} value={option}>
+            {options.map((option) => (
+              <SelectItem
+                key={option}
+                value={option}
+                disabled={option === operation.status}
+              >
                 {OPERATION_STATUS_LABELS[option] ?? option}
               </SelectItem>
             ))}

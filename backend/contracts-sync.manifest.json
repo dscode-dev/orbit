@@ -1,0 +1,23 @@
+{
+  "readModels": [
+    "modules/dashboards/dashboard.read-models.ts",
+    "modules/analytics/analytics.read-models.ts",
+    "modules/scheduling/scheduling.read-models.ts",
+    "modules/identity/identity.read-models.ts",
+    "modules/organizations/organization.read-models.ts",
+    "modules/operations/operation.read-models.ts",
+    "modules/artifact-templates/artifact-template.read-models.ts",
+    "modules/artifact-executions/artifact-execution.read-models.ts",
+    "modules/organizations/business-units/customers/customer.read-models.ts",
+    "modules/storage/file-object.read-models.ts",
+    "modules/artifact-manifests/artifact-manifest.read-models.ts",
+    "modules/artifact-rendering/artifact-render.read-models.ts",
+    "modules/workforce/workforce.read-models.ts",
+    "modules/financial/financial.read-models.ts",
+    "modules/quotes/quote.read-models.ts",
+    "modules/inventory/inventory.read-models.ts",
+    "modules/automations/automation.read-models.ts",
+    "modules/management-reports/report.read-models.ts",
+    "modules/pmoc/pmoc.read-models.ts"
+  ]
+}

@@ -7,8 +7,9 @@ describe('DashboardRepository mock Read Models', () => {
     new EnvironmentalIntelligenceProvider(),
   );
 
-  it('exposes weather and environmental intelligence as a stable contract', () => {
-    const model = repository.read(
+  it('exposes weather and environmental intelligence as a stable contract', async () => {
+    const model = await repository.read(
+      'organization-id',
       'weather-environmental-intelligence',
       'weather-environmental-intelligence',
       '30D',
@@ -29,8 +30,9 @@ describe('DashboardRepository mock Read Models', () => {
     );
   });
 
-  it('returns a modeled Orbit Intelligence payload', () => {
-    const model = repository.read(
+  it('returns a modeled Orbit Intelligence payload', async () => {
+    const model = await repository.read(
+      'organization-id',
       'orbit-intelligence',
       'orbit-intelligence',
       '30D',

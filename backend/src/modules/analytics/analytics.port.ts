@@ -10,9 +10,11 @@ export interface AnalyticsReadPort {
   dashboard(
     organizationId: string,
     query: AnalyticsQueryDto,
+    permissions: readonly string[],
   ): Promise<AnalyticsDashboardReadModel>;
   intelligenceContext(
     organizationId: string,
     query: AnalyticsQueryDto,
+    permissions: readonly string[],
   ): Promise<OrbitIntelligenceAnalyticsContext>;
 }

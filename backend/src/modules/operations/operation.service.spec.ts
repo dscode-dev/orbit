@@ -3,6 +3,7 @@ import { ValidationException } from '../../exceptions';
 import type { OperationRepository } from './operation.repository';
 import { OperationService } from './operation.service';
 import type { OperationStorageService } from './operation-storage.service';
+import { OperationStateMachine } from './operation-state-machine';
 
 describe('OperationService', () => {
   const repository = {
@@ -68,6 +69,34 @@ describe('OperationService', () => {
         status: OperationStatus.COMPLETED,
       }),
     ).rejects.toBeInstanceOf(ValidationException);
+  });
+
+  it('keeps every published transition consistent with the status action', async () => {
+    const statuses = Object.values(OperationStatus);
+    for (const from of statuses) {
+      for (const to of statuses) {
+        repository.find.mockResolvedValue({
+          id: 'operation-id',
+          status: from,
+          startedAt: null,
+        });
+        repository.changeStatus.mockResolvedValue({
+          id: 'operation-id',
+          status: to,
+        });
+        const action = service.changeStatus(
+          'operation-id',
+          'organization-id',
+          'actor-id',
+          { status: to },
+        );
+        if (OperationStateMachine.allowedTransitions(from).includes(to)) {
+          await expect(action).resolves.toMatchObject({ status: to });
+        } else {
+          await expect(action).rejects.toBeInstanceOf(ValidationException);
+        }
+      }
+    }
   });
 
   it('only assigns active members of the operation unit', async () => {

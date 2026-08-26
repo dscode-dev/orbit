@@ -72,7 +72,13 @@ export class DashboardRepository {
     });
   }
 
-  read(widgetId: string, readModel: string, range: string): DashboardReadModel {
+  async read(
+    organizationId: string,
+    widgetId: string,
+    readModel: string,
+    range: string,
+  ): Promise<DashboardReadModel> {
+    if (widgetId === 'hvac-pmoc-status') return this.pmocStatus(organizationId);
     switch (readModel) {
       case 'attention-center':
         return this.attention();
@@ -95,6 +101,64 @@ export class DashboardRepository {
       default:
         return this.segmentMetric(widgetId);
     }
+  }
+
+  private pmocStatus(organizationId: string): Promise<SegmentMetricReadModel> {
+    return this.rls.run(async (tx) => {
+      const plans = await tx.pmocPlan.groupBy({
+        by: ['status'],
+        where: { organizationId, deletedAt: null },
+        _count: { _all: true },
+      });
+      const executions = await tx.pmocExecution.groupBy({
+        by: ['status'],
+        where: { organizationId },
+        _count: { _all: true },
+      });
+      const count = (rows: typeof plans, status: string) =>
+        rows.find((row) => row.status === status)?._count._all ?? 0;
+      const active = count(plans, 'ACTIVE');
+      const suspended = count(plans, 'SUSPENDED');
+      const completed = count(executions, 'COMPLETED');
+      const totalCycles = executions.reduce(
+        (total, row) => total + row._count._all,
+        0,
+      );
+      const compliance = totalCycles
+        ? Math.round((completed / totalCycles) * 10_000) / 100
+        : 100;
+      return {
+        generatedAt: this.now(),
+        status:
+          suspended > 0
+            ? 'CRITICAL'
+            : compliance < 85
+              ? 'ATTENTION'
+              : 'HEALTHY',
+        metrics: [
+          { key: 'active', label: 'Planos ativos', value: active },
+          { key: 'attention', label: 'Planos suspensos', value: suspended },
+          {
+            key: 'compliance',
+            label: 'Ciclos concluídos',
+            value: compliance,
+            unit: '%',
+            target: 95,
+          },
+        ],
+        highlights:
+          suspended > 0
+            ? [
+                {
+                  id: 'pmoc-suspended-plans',
+                  title: 'Planos suspensos exigem atenção',
+                  description: `${suspended} plano(s) PMOC estão suspensos.`,
+                  severity: 'WARNING',
+                },
+              ]
+            : [],
+      };
+    });
   }
 
   private now() {

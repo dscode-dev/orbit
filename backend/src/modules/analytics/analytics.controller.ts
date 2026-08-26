@@ -30,7 +30,11 @@ export class AnalyticsController {
     description: 'KPIs, trends, health, forecasts and environmental impact',
   })
   overview(@Req() request: IdentityRequest, @Query() query: AnalyticsQueryDto) {
-    return this.analytics.overview(this.org(request), query);
+    return this.analytics.overview(
+      this.org(request),
+      query,
+      request.identity!.permissions,
+    );
   }
 
   @Get('kpis')
@@ -39,17 +43,29 @@ export class AnalyticsController {
       'Return operational, PMOC, equipment, technician and contract KPIs',
   })
   kpis(@Req() request: IdentityRequest, @Query() query: AnalyticsQueryDto) {
-    return this.analytics.kpis(this.org(request), query);
+    return this.analytics.kpis(
+      this.org(request),
+      query,
+      request.identity!.permissions,
+    );
   }
 
   @Get('trends')
   trends(@Req() request: IdentityRequest, @Query() query: AnalyticsQueryDto) {
-    return this.analytics.trends(this.org(request), query);
+    return this.analytics.trends(
+      this.org(request),
+      query,
+      request.identity!.permissions,
+    );
   }
 
   @Get('health')
   health(@Req() request: IdentityRequest, @Query() query: AnalyticsQueryDto) {
-    return this.analytics.health(this.org(request), query);
+    return this.analytics.health(
+      this.org(request),
+      query,
+      request.identity!.permissions,
+    );
   }
 
   @Get('forecasts')
@@ -60,7 +76,11 @@ export class AnalyticsController {
     @Req() request: IdentityRequest,
     @Query() query: AnalyticsQueryDto,
   ) {
-    return this.analytics.forecasts(this.org(request), query);
+    return this.analytics.forecasts(
+      this.org(request),
+      query,
+      request.identity!.permissions,
+    );
   }
 
   @Get('environmental-impact')
@@ -81,7 +101,11 @@ export class AnalyticsController {
     @Req() request: IdentityRequest,
     @Query() query: AnalyticsQueryDto,
   ) {
-    return this.analytics.dashboard(this.org(request), query);
+    return this.analytics.dashboard(
+      this.org(request),
+      query,
+      request.identity!.permissions,
+    );
   }
 
   @Get('intelligence')
@@ -92,7 +116,11 @@ export class AnalyticsController {
     @Req() request: IdentityRequest,
     @Query() query: AnalyticsQueryDto,
   ) {
-    return this.analytics.intelligenceContext(this.org(request), query);
+    return this.analytics.intelligenceContext(
+      this.org(request),
+      query,
+      request.identity!.permissions,
+    );
   }
 
   private org(request: IdentityRequest) {

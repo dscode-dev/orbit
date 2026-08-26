@@ -2,15 +2,20 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { RlsTransaction } from '../../database';
 import { EntityNotFoundException } from '../../exceptions';
+import type { AnalyticsDomain } from './analytics.read-models';
 import type { AnalyticsRange, AnalyticsSnapshot } from './analytics.types';
 
-const operationSelect = {
+const operationCoreSelect = {
   id: true,
   status: true,
   scheduledEnd: true,
   startedAt: true,
   completedAt: true,
   createdAt: true,
+} satisfies Prisma.OperationSelect;
+
+const operationSelect = {
+  ...operationCoreSelect,
   users: { select: { user: { select: { id: true, displayName: true } } } },
 } satisfies Prisma.OperationSelect;
 
@@ -25,6 +30,7 @@ export class AnalyticsRepository {
   snapshot(
     organizationId: string,
     range: AnalyticsRange,
+    domains: ReadonlySet<AnalyticsDomain>,
   ): Promise<AnalyticsSnapshot> {
     return this.rls.run(async (tx) => {
       const scope = {
@@ -45,19 +51,57 @@ export class AnalyticsRepository {
         where: { id: organizationId, deletedAt: null },
         select: { id: true, primarySegment: true },
       });
-      const operations = await tx.operation.findMany({
-        where: { ...scope, createdAt: { gte: range.from, lte: range.to } },
-        select: operationSelect,
-        orderBy: { createdAt: 'asc' },
-      });
-      const previousOperations = await tx.operation.findMany({
-        where: {
-          ...scope,
-          createdAt: { gte: range.previousFrom, lte: range.previousTo },
-        },
-        select: operationSelect,
-        orderBy: { createdAt: 'asc' },
-      });
+      const readsOperations =
+        domains.has('OPERATIONS') || domains.has('TECHNICIANS');
+      const readsTechnicians = domains.has('TECHNICIANS');
+      const operations = readsOperations
+        ? readsTechnicians
+          ? await tx.operation.findMany({
+              where: {
+                ...scope,
+                createdAt: { gte: range.from, lte: range.to },
+              },
+              select: operationSelect,
+              orderBy: { createdAt: 'asc' },
+            })
+          : (
+              await tx.operation.findMany({
+                where: {
+                  ...scope,
+                  createdAt: { gte: range.from, lte: range.to },
+                },
+                select: operationCoreSelect,
+                orderBy: { createdAt: 'asc' },
+              })
+            ).map((operation) => ({ ...operation, users: [] }))
+        : [];
+      const previousOperations = readsOperations
+        ? readsTechnicians
+          ? await tx.operation.findMany({
+              where: {
+                ...scope,
+                createdAt: {
+                  gte: range.previousFrom,
+                  lte: range.previousTo,
+                },
+              },
+              select: operationSelect,
+              orderBy: { createdAt: 'asc' },
+            })
+          : (
+              await tx.operation.findMany({
+                where: {
+                  ...scope,
+                  createdAt: {
+                    gte: range.previousFrom,
+                    lte: range.previousTo,
+                  },
+                },
+                select: operationCoreSelect,
+                orderBy: { createdAt: 'asc' },
+              })
+            ).map((operation) => ({ ...operation, users: [] }))
+        : [];
       /**
        * PMOC vem do **domínio de PMOC**, não do documento (PR-26).
        *
@@ -67,37 +111,43 @@ export class AnalyticsRepository {
        * quando. O formato devolvido é o mesmo, então os motores de KPI e de
        * tendência não mudam.
        */
-      const pmocs = await tx.pmocExecution
-        .findMany({
-          where: {
-            organizationId,
-            plan: {
+      const pmocs = domains.has('PMOC')
+        ? await tx.pmocExecution
+            .findMany({
+              where: {
+                organizationId,
+                plan: {
+                  businessUnitId: range.businessUnitId,
+                  deletedAt: null,
+                },
+                dueOn: { gte: range.from, lte: range.to },
+              },
+              select: { status: true, dueOn: true, performedAt: true },
+            })
+            .then((rows) =>
+              rows.map((row) => ({
+                status: row.status,
+                createdAt: row.dueOn,
+                finalizedAt: row.performedAt,
+              })),
+            )
+        : [];
+      const assets = domains.has('EQUIPMENT')
+        ? await tx.asset.findMany({
+            where: {
+              organizationId,
               businessUnitId: range.businessUnitId,
               deletedAt: null,
             },
-            dueOn: { gte: range.from, lte: range.to },
-          },
-          select: { status: true, dueOn: true, performedAt: true },
-        })
-        .then((rows) =>
-          rows.map((row) => ({
-            status: row.status,
-            createdAt: row.dueOn,
-            finalizedAt: row.performedAt,
-          })),
-        );
-      const assets = await tx.asset.findMany({
-        where: {
-          organizationId,
-          businessUnitId: range.businessUnitId,
-          deletedAt: null,
-        },
-        select: { status: true },
-      });
-      const customers = await tx.customer.findMany({
-        where: { organizationId, deletedAt: null },
-        select: { status: true },
-      });
+            select: { status: true },
+          })
+        : [];
+      const customers = domains.has('CONTRACTS')
+        ? await tx.customer.findMany({
+            where: { organizationId, deletedAt: null },
+            select: { status: true },
+          })
+        : [];
       if (!organization)
         throw new EntityNotFoundException('Organization', organizationId);
       return {

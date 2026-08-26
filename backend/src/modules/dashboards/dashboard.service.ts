@@ -34,8 +34,14 @@ export class DashboardService {
       },
       layout: {
         version: 1,
-        widgets: definitions.map((definition) =>
-          this.factory.create(definition, query.range),
+        widgets: await Promise.all(
+          definitions.map((definition) =>
+            this.factory.create(
+              definition,
+              query.range,
+              context.organizationId,
+            ),
+          ),
         ),
       },
       generatedAt: new Date().toISOString(),
@@ -58,7 +64,7 @@ export class DashboardService {
       throw new ForbiddenException(
         'Widget is not available for the current dashboard context',
       );
-    return this.factory.create(available, query.range);
+    return this.factory.create(available, query.range, context.organizationId);
   }
 
   private async context(identity: AuthenticatedIdentity) {

@@ -64,6 +64,7 @@ export class HealthEngine {
       generatedAt: new Date().toISOString(),
       score,
       status: statusFor(score, 75, 55),
+      availability: [],
       dimensions,
     };
   }

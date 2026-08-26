@@ -109,8 +109,10 @@ export interface OperationListItemReadModel {
   checklistExecutions: readonly OperationChecklistReadModel[];
 }
 
-/** Detalhe permanece compatível com o payload legado, mas é contrato próprio. */
-export type OperationDetailsReadModel = OperationListItemReadModel;
+/** A lista permanece compacta; somente o detalhe publica ações autoritativas. */
+export type OperationDetailsReadModel = OperationListItemReadModel & {
+  transitions: readonly OperationStatus[];
+};
 
 export interface OperationListReadModel {
   data: readonly OperationListItemReadModel[];

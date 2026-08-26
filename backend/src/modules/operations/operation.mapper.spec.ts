@@ -44,6 +44,11 @@ describe('OperationReadModelMapper', () => {
     });
 
     expect(result.createdAt).toBe('2026-01-01T00:00:00.000Z');
+    expect(result.transitions).toEqual([
+      'SCHEDULED',
+      'IN_PROGRESS',
+      'CANCELLED',
+    ]);
     expect(result.attachments[0]).not.toHaveProperty('storageKey');
   });
 });
