@@ -1,13 +1,16 @@
 import {
   type CanActivate,
   type ExecutionContext,
+  HttpException,
   Injectable,
+  Logger,
   SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { UUID } from '../../contracts';
 import { PUBLIC_KEY } from '../../decorators';
 import { ForbiddenException } from '../../exceptions';
+import { classifyInternalError, internalErrorStack } from '../../errors';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import type { AuthenticatedIdentity } from '../identity/domain/identity.types';
 import type { OrganizationEntitlements } from './subscription-plan.service';
@@ -45,6 +48,7 @@ interface RequestWithEntitlements extends IdentityRequest {
 }
 
 abstract class PlanMetadataGuard {
+  private readonly logger = new Logger(PlanMetadataGuard.name);
   constructor(
     protected readonly reflector: Reflector,
     protected readonly plans: SubscriptionPlanService,
@@ -74,6 +78,38 @@ abstract class PlanMetadataGuard {
     );
 
     return request[ENTITLEMENTS];
+  }
+
+  protected async guardedEntitlements(
+    context: ExecutionContext,
+    guard: string,
+  ): Promise<OrganizationEntitlements> {
+    try {
+      return await this.entitlements(context);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      const request = context
+        .switchToHttp()
+        .getRequest<RequestWithEntitlements>();
+      const classified = classifyInternalError(error);
+      const requestId = (request as { id?: unknown }).id;
+      this.logger.error(
+        JSON.stringify({
+          stage: 'guard-internal-error',
+          guard,
+          method: request.method,
+          path: request.path,
+          requestId: typeof requestId === 'string' ? requestId : null,
+          actorId: request.identity?.id ?? null,
+          organizationId: request.identity?.organizationId ?? null,
+          errorCategory: classified.category,
+          exceptionClass: classified.exceptionClass,
+          errorCode: classified.code,
+        }),
+        internalErrorStack(error),
+      );
+      throw error;
+    }
   }
 
   protected isPublic(context: ExecutionContext): boolean {
@@ -111,7 +147,9 @@ export class ActivePlanGuard extends PlanMetadataGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
     if (!required) return true;
-    this.plans.assertActiveOn(await this.entitlements(context));
+    this.plans.assertActiveOn(
+      await this.guardedEntitlements(context, ActivePlanGuard.name),
+    );
     return true;
   }
 }
@@ -133,7 +171,10 @@ export class RequiredPlanGuard
         context.getClass(),
       ]) ?? [];
     if (required.length === 0) return true;
-    this.plans.assertPlanOn(await this.entitlements(context), required);
+    this.plans.assertPlanOn(
+      await this.guardedEntitlements(context, RequiredPlanGuard.name),
+      required,
+    );
     return true;
   }
 }
@@ -152,7 +193,10 @@ export class CapabilityGuard extends PlanMetadataGuard implements CanActivate {
         [context.getHandler(), context.getClass()],
       ) ?? [];
     if (required.length === 0) return true;
-    this.plans.assertCapabilitiesOn(await this.entitlements(context), required);
+    this.plans.assertCapabilitiesOn(
+      await this.guardedEntitlements(context, CapabilityGuard.name),
+      required,
+    );
     return true;
   }
 }

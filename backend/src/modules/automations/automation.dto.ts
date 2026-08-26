@@ -15,6 +15,7 @@ import {
   Min,
   MinLength,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
 import { IsUUIDv7 } from '../../validators';
 import {
@@ -166,6 +167,13 @@ export class UpdateAutomationRuleDto {
   @IsString()
   @MaxLength(2000)
   description?: string;
+
+  /** UUID muda para unidade; `null` muda para escopo organizacional. */
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @ValidateIf((_, value: unknown) => value !== null)
+  @IsUUIDv7()
+  businessUnitId?: string | null;
 
   @ApiPropertyOptional({ type: [AutomationConditionDto] })
   @IsOptional()

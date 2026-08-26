@@ -42,6 +42,7 @@ import {
 import { hostname } from 'node:os';
 import type { UUID } from '../../contracts';
 import { RequestContext, RequestContextStorage } from '../../context';
+import { internalErrorStack } from '../../errors';
 import { generateUuidV7 } from '../../utils';
 import { BackgroundJobQueue } from './background-job.queue';
 import {
@@ -59,7 +60,8 @@ export class BackgroundJobWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(BackgroundJobWorker.name);
   private readonly identity = `${hostname()}:${process.pid}`;
   private timer: NodeJS.Timeout | null = null;
-  private running = false;
+  private activeTick: Promise<number> | null = null;
+  private stopping = false;
 
   constructor(
     private readonly queue: BackgroundJobQueue,
@@ -79,9 +81,17 @@ export class BackgroundJobWorker implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`[jobs] worker ativo (${this.identity})`);
   }
 
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
+    this.stopping = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    /**
+     * `clearInterval` impede novos claims, mas não cancela o tick que já
+     * atravessou a fila. Fechar Prisma enquanto ele finaliza um job deixava a
+     * promise e o pool disputarem o teardown. Aguardar o único tick permitido
+     * mantém a ordem: parar claims -> terminar trabalho -> fechar o banco.
+     */
+    await this.activeTick;
   }
 
   /**
@@ -91,8 +101,17 @@ export class BackgroundJobWorker implements OnModuleInit, OnModuleDestroy {
    * em cima. Exposto para o teste controlar o tempo em vez de esperar.
    */
   async tick(): Promise<number> {
-    if (this.running) return 0;
-    this.running = true;
+    if (this.stopping || this.activeTick) return 0;
+    const active = this.processTick();
+    this.activeTick = active;
+    try {
+      return await active;
+    } finally {
+      if (this.activeTick === active) this.activeTick = null;
+    }
+  }
+
+  private async processTick(): Promise<number> {
     let processed = 0;
     try {
       for (const processor of this.registry.all()) {
@@ -107,8 +126,6 @@ export class BackgroundJobWorker implements OnModuleInit, OnModuleDestroy {
       this.logger.error(
         `[jobs] ciclo falhou: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
       );
-    } finally {
-      this.running = false;
     }
     return processed;
   }
@@ -152,6 +169,18 @@ export class BackgroundJobWorker implements OnModuleInit, OnModuleDestroy {
         const permanent = error instanceof PermanentJobError;
         const reason =
           error instanceof Error ? error.message : 'erro desconhecido';
+        this.logger.error(
+          JSON.stringify({
+            ...this.trace(job),
+            outcome: 'FAILED',
+            permanent,
+            durationMs: Date.now() - started,
+            exceptionClass:
+              error instanceof Error ? error.constructor.name : typeof error,
+            reason,
+          }),
+          internalErrorStack(error),
+        );
         await this.queue.fail(job, reason, permanent);
       }
     });

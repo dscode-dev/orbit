@@ -203,8 +203,8 @@ export interface JobProcessor {
  * terceira tentativa — repetir só gasta janela de trabalho e polui o log.
  */
 export class PermanentJobError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, cause?: unknown) {
+    super(message, { cause });
     this.name = 'PermanentJobError';
   }
 }

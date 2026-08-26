@@ -66,10 +66,18 @@ export class UnauthorizedException extends BaseException {
 }
 
 export class InfrastructureException extends BaseException {
-  constructor(message = 'Infrastructure operation failed') {
+  readonly internalCategory?: string;
+  override readonly cause: unknown;
+
+  constructor(
+    message = 'Infrastructure operation failed',
+    options?: { cause?: unknown; category?: string },
+  ) {
     super(
       { code: 'INFRASTRUCTURE_ERROR', message },
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
+    this.cause = options?.cause;
+    this.internalCategory = options?.category;
   }
 }

@@ -32,7 +32,7 @@
  * mesmo `correlationId`.
  */
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { ArtifactRendererRegistry } from '../artifact-rendering/renderers/renderer.registry';
 import {
   JOB_QUEUES,
@@ -210,6 +210,9 @@ export class ReportGenerationProcessor implements JobProcessor, OnModuleInit {
         }),
       );
 
+      if (this.isPermanentCompositionError(error)) {
+        throw new PermanentJobError(reason, error);
+      }
       throw error;
     }
   }
@@ -310,5 +313,39 @@ export class ReportGenerationProcessor implements JobProcessor, OnModuleInit {
       return `Falha ao compor o relatório: ${error.message}`;
     }
     return 'Falha desconhecida ao compor o relatório';
+  }
+
+  /** Input/configuração inválida não fica bloqueando a fila com retry inútil. */
+  private isPermanentCompositionError(error: unknown): boolean {
+    if (error instanceof PermanentJobError) return true;
+    if (!error || typeof error !== 'object') return false;
+
+    /**
+     * Não use `instanceof` aqui. O client gerado e o runtime carregado pelo
+     * Jest podem materializar cópias diferentes da classe do Prisma, embora o
+     * contrato público do erro (`code`/`meta`) seja o mesmo.
+     */
+    const candidate = error as {
+      code?: unknown;
+      meta?: { code?: unknown } | null;
+      message?: unknown;
+    };
+    if (candidate.code !== 'P2010') return false;
+
+    const rawDatabaseCode = candidate.meta?.code;
+    const databaseCode =
+      typeof rawDatabaseCode === 'string' || typeof rawDatabaseCode === 'number'
+        ? String(rawDatabaseCode)
+        : '';
+    if (databaseCode === '22023') return true;
+
+    // Prisma 7 pode omitir `meta.code` na instância reidratada, mas conserva
+    // o código SQLSTATE na mensagem. Exigimos também a assinatura de timezone
+    // para que outro P2010/22023 continue seguindo a política normal de retry.
+    const message =
+      typeof candidate.message === 'string' ? candidate.message : '';
+    return (
+      message.includes('22023') && /time zone .*not recognized/i.test(message)
+    );
   }
 }

@@ -2275,23 +2275,25 @@ model DomainEvent {
 
 /// Uma regra: quando isto acontecer, e se for assim, faça aquilo.
 model AutomationRule {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
+  id                   String    @id @default(uuid(7)) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
   /// Nula = vale para toda a organização; preenchida = só naquela unidade.
-  businessUnitId String?   @map("business_unit_id") @db.Uuid
-  name           String    @db.VarChar(180)
-  description    String?   @db.Text
-  enabled        Boolean   @default(true)
+  businessUnitId       String?   @map("business_unit_id") @db.Uuid
+  /// Snapshot fail-closed das unidades autorizadas na configuração.
+  scopeBusinessUnitIds String[]  @default([]) @map("scope_business_unit_ids") @db.Uuid
+  name                 String    @db.VarChar(180)
+  description          String?   @db.Text
+  enabled              Boolean   @default(true)
   /// Tipo de evento que dispara a regra.
-  trigger        String    @db.VarChar(80)
+  trigger              String    @db.VarChar(80)
   /// Lista de condições declarativas, todas verdadeiras para a regra valer.
-  conditions     Json      @default("[]") @db.JsonB
+  conditions           Json      @default("[]") @db.JsonB
   /// Lista de ações, cada uma com tipo, atraso e configuração própria.
-  actions        Json      @default("[]") @db.JsonB
-  createdById    String    @map("created_by_id") @db.Uuid
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  actions              Json      @default("[]") @db.JsonB
+  createdById          String    @map("created_by_id") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt            DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   businessUnit BusinessUnit?         @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
@@ -2523,6 +2525,7 @@ model PmocExecution {
   schedulingEvent   SchedulingEvent?   @relation(fields: [schedulingEventId], references: [id], onDelete: SetNull)
   completedBy       User?              @relation("PmocExecutionCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
 
+  @@unique([planId, dueOn])
   @@index([organizationId, planId, dueOn])
   @@index([organizationId, status, dueOn])
   @@map("pmoc_executions")

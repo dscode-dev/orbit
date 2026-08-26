@@ -2,12 +2,18 @@ import {
   type CanActivate,
   type ExecutionContext,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import type { UUID } from '../../../contracts';
 import { PUBLIC_KEY } from '../../../decorators';
 import { UnauthorizedException } from '../../../exceptions';
+import {
+  classifyInternalError,
+  internalErrorStack,
+  isJwtValidationError,
+} from '../../../errors';
 import type { AuthenticatedIdentity } from '../domain/identity.types';
 import { IdentityRepository } from './identity.repository';
 import { IdentityTokenService } from '../application/token.service';
@@ -26,6 +32,7 @@ export interface IdentityRequest extends Request {
 
 @Injectable()
 export class JwtAuthenticationGuard implements CanActivate {
+  private readonly logger = new Logger(JwtAuthenticationGuard.name);
   constructor(
     private readonly reflector: Reflector,
     private readonly tokens: IdentityTokenService,
@@ -41,8 +48,17 @@ export class JwtAuthenticationGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<IdentityRequest>();
     const header = request.header('authorization');
     if (!header?.startsWith('Bearer ')) throw new UnauthorizedException();
+    let claims: Awaited<ReturnType<IdentityTokenService['verifyAccessToken']>>;
     try {
-      const claims = await this.tokens.verifyAccessToken(header.slice(7));
+      claims = await this.tokens.verifyAccessToken(header.slice(7));
+    } catch (error) {
+      if (isJwtValidationError(error)) {
+        throw new UnauthorizedException('Invalid or expired access token');
+      }
+      this.logInternalFailure(request, error);
+      throw error;
+    }
+    try {
       const session = await this.repository.findSessionById(claims.sid);
       if (
         !session ||
@@ -83,7 +99,28 @@ export class JwtAuthenticationGuard implements CanActivate {
       return true;
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
-      throw new UnauthorizedException('Invalid or expired access token');
+      this.logInternalFailure(request, error);
+      throw error;
     }
+  }
+
+  private logInternalFailure(request: IdentityRequest, error: unknown): void {
+    const classified = classifyInternalError(error);
+    const requestId = (request as { id?: unknown }).id;
+    this.logger.error(
+      JSON.stringify({
+        stage: 'guard-internal-error',
+        guard: JwtAuthenticationGuard.name,
+        method: request.method,
+        path: request.path,
+        requestId: typeof requestId === 'string' ? requestId : null,
+        actorId: request.identity?.id ?? null,
+        organizationId: request.identity?.organizationId ?? null,
+        errorCategory: classified.category,
+        exceptionClass: classified.exceptionClass,
+        errorCode: classified.code,
+      }),
+      internalErrorStack(error),
+    );
   }
 }

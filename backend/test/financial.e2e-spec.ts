@@ -282,7 +282,7 @@ describe('Financial (e2e)', () => {
         forbidNonWhitelisted: true,
       }),
     );
-    await app.init();
+    await app.listen(0, '127.0.0.1');
     http = () => request(app.getHttpServer());
     worker = app.get(BackgroundJobWorker);
 

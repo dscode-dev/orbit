@@ -39,6 +39,32 @@ export class SchedulingRepository {
     );
   }
 
+  /** Autoridade da visão: unidade explícita, calendário default, fallback. */
+  agendaTimezone(organizationId: string, businessUnitId?: string) {
+    return this.rls.run(async (tx) => {
+      if (businessUnitId) {
+        const unit = await tx.businessUnit.findFirst({
+          where: { id: businessUnitId, organizationId, deletedAt: null },
+          select: { timezone: true },
+        });
+        if (unit?.timezone) return unit.timezone;
+      }
+      const calendar = await tx.schedulingCalendar.findFirst({
+        where: {
+          organizationId,
+          deletedAt: null,
+          isActive: true,
+          isDefault: true,
+          OR: businessUnitId
+            ? [{ businessUnitId }, { businessUnitId: null }]
+            : [{ businessUnitId: null }],
+        },
+        select: { timezone: true },
+      });
+      return calendar?.timezone ?? 'America/Recife';
+    });
+  }
+
   findCalendar(id: string, organizationId: string) {
     return this.rls.run((tx) =>
       tx.schedulingCalendar.findFirst({
@@ -303,6 +329,11 @@ export class SchedulingRepository {
     from: Date,
     to: Date,
   ) {
+    // `date` é DATE civil, enquanto from/to são instantes. Como cada regra
+    // pode ter seu próprio timezone, uma margem indexável de um dia busca os
+    // candidatos; `ruleApplies` faz a comparação civil exata em memória.
+    const dateFrom = new Date(from.getTime() - 86_400_000);
+    const dateTo = new Date(to.getTime() + 86_400_000);
     return this.rls.run((tx) =>
       tx.schedulingAvailability.findMany({
         where: {
@@ -318,7 +349,7 @@ export class SchedulingRepository {
           ],
           AND: [
             {
-              OR: [{ date: null }, { date: { gte: from, lt: to } }],
+              OR: [{ date: null }, { date: { gte: dateFrom, lt: dateTo } }],
             },
             {
               OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: to } }],

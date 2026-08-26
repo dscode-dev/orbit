@@ -86,7 +86,7 @@ describe('Artifact Rendering (e2e)', () => {
         forbidNonWhitelisted: true,
       }),
     );
-    await app.init();
+    await app.listen(0, '127.0.0.1');
     worker = app.get(BackgroundJobWorker);
     http = () => request(app.getHttpServer());
 

@@ -8,9 +8,14 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { BaseException } from '../exceptions';
+import { classifyInternalError, internalErrorStack } from '../errors';
 
 interface RequestWithId extends Request {
   id?: string;
+  identity?: {
+    id?: string;
+    organizationId?: string | null;
+  };
 }
 
 @Catch()
@@ -36,7 +41,7 @@ export class FoundationExceptionFilter implements ExceptionFilter {
       exception instanceof HttpException
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
-    const payload =
+    const domainPayload =
       exception instanceof BaseException
         ? {
             code: exception.code,
@@ -49,9 +54,32 @@ export class FoundationExceptionFilter implements ExceptionFilter {
               code: 'INTERNAL_SERVER_ERROR',
               message: 'An unexpected error occurred',
             };
+    const payload =
+      status >= 500
+        ? {
+            code:
+              exception instanceof BaseException
+                ? exception.code
+                : 'INTERNAL_SERVER_ERROR',
+            message: 'An unexpected error occurred',
+          }
+        : domainPayload;
     if (status >= 500) {
+      const classified = classifyInternalError(exception);
       this.logger.error(
-        exception instanceof Error ? exception.stack : String(exception),
+        JSON.stringify({
+          stage: 'internal-error',
+          status,
+          method: request.method,
+          path: request.originalUrl ?? request.path,
+          requestId: request.id ?? null,
+          actorId: request.identity?.id ?? null,
+          organizationId: request.identity?.organizationId ?? null,
+          errorCategory: classified.category,
+          exceptionClass: classified.exceptionClass,
+          errorCode: classified.code,
+        }),
+        internalErrorStack(exception) ?? String(exception),
       );
     } else if (status >= 400 && this.logsClientErrors) {
       /**

@@ -30,6 +30,7 @@ import {
   type BackgroundJobRecord,
   type JobProcessor,
   type JobQueue,
+  type JobScope,
 } from '../jobs/background-job.types';
 import { JobProcessorRegistry } from '../jobs/job-processor.registry';
 import {
@@ -84,6 +85,11 @@ export class AutomationDispatchProcessor implements JobProcessor, OnModuleInit {
     let skipped = 0;
 
     for (const rule of rules) {
+      const actionScope = this.constrainedScope(job, rule.scopeBusinessUnitIds);
+      if (!actionScope) {
+        skipped += 1;
+        continue;
+      }
       const conditions = (rule.conditions ?? []) as unknown as RuleCondition[];
       const result = evaluate(conditions, payload);
 
@@ -163,7 +169,7 @@ export class AutomationDispatchProcessor implements JobProcessor, OnModuleInit {
           jobKey: `${eventId}:${rule.id}:${action.id}`,
           organizationId: job.organizationId,
           /** A ação nunca enxerga mais do que o despacho que a gerou. */
-          ...inheritScope(job),
+          ...actionScope,
           payload: {
             eventId,
             ruleId: rule.id,
@@ -188,5 +194,20 @@ export class AutomationDispatchProcessor implements JobProcessor, OnModuleInit {
         skipped,
       }),
     );
+  }
+
+  private constrainedScope(
+    job: BackgroundJobRecord,
+    allowed: readonly string[],
+  ): JobScope | null {
+    const inherited = inheritScope(job);
+    if (inherited.scope === 'BUSINESS_UNIT')
+      return allowed.includes(inherited.businessUnitId) ? inherited : null;
+    const businessUnitIds = inherited.businessUnitIds.filter((id) =>
+      allowed.includes(id),
+    );
+    return businessUnitIds.length
+      ? { scope: 'ORGANIZATION', businessUnitIds }
+      : null;
   }
 }

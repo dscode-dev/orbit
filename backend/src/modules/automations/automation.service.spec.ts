@@ -6,7 +6,11 @@
  * permitida. Descobrir isso meses depois, quando o lembrete não apareceu, é o
  * pior momento possível.
  */
-import { ConflictException, ValidationException } from '../../exceptions';
+import {
+  ConflictException,
+  EntityNotFoundException,
+  ValidationException,
+} from '../../exceptions';
 import type { AutomationRepository } from './automation.repository';
 import { AutomationService } from './automation.service';
 
@@ -21,6 +25,7 @@ describe('AutomationService', () => {
     listExecutions: jest.fn(),
     findUser: jest.fn(),
     findBusinessUnit: jest.fn(),
+    activeBusinessUnitIds: jest.fn(),
   };
 
   const service = new AutomationService(
@@ -38,6 +43,7 @@ describe('AutomationService', () => {
     repository.create.mockResolvedValue({ id: 'rule-id' });
     repository.findBusinessUnit.mockResolvedValue({ id: 'unit-id' });
     repository.findUser.mockResolvedValue({ userId: 'user-id' });
+    repository.activeBusinessUnitIds.mockResolvedValue(['unit-a', 'unit-b']);
   });
 
   /* ---------------------------------------------------------------- */
@@ -90,6 +96,41 @@ describe('AutomationService', () => {
       actions: [reminder],
     });
     expect(repository.create).toHaveBeenCalled();
+  });
+
+  it('persiste snapshot explícito para regra organizacional', async () => {
+    await service.create(
+      'org-id',
+      { id: 'user-id', businessUnitIds: ['unit-a'] },
+      {
+        name: 'Escopo A',
+        trigger: 'operation.completed',
+        actions: [reminder],
+      },
+    );
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessUnitId: null,
+        scopeBusinessUnitIds: ['unit-a'],
+      }),
+      'user-id',
+    );
+  });
+
+  it('não revela unidade same-tenant fora do escopo do ator', async () => {
+    await expect(
+      service.create(
+        'org-id',
+        { id: 'user-id', businessUnitIds: ['unit-a'] },
+        {
+          name: 'Escape',
+          trigger: 'operation.completed',
+          businessUnitId: 'unit-b',
+          actions: [reminder],
+        },
+      ),
+    ).rejects.toBeInstanceOf(EntityNotFoundException);
+    expect(repository.findBusinessUnit).not.toHaveBeenCalled();
   });
 
   it('`in` exige lista não vazia', async () => {

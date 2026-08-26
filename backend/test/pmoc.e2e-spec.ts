@@ -234,7 +234,7 @@ describe('PMOC (e2e)', () => {
         forbidNonWhitelisted: true,
       }),
     );
-    await app.init();
+    await app.listen(0, '127.0.0.1');
     http = () => request(app.getHttpServer());
     prisma = adminPrisma();
     worker = app.get(BackgroundJobWorker);
@@ -396,11 +396,39 @@ describe('PMOC (e2e)', () => {
 
     const event = await prisma.schedulingEvent.findFirstOrThrow({
       where: { id: full.currentExecution!.schedulingEventId! },
-      select: { sourceModule: true, sourceEntityId: true, type: true },
+      select: {
+        sourceModule: true,
+        sourceEntityId: true,
+        type: true,
+        startsAt: true,
+        timezone: true,
+      },
     });
     expect(event.sourceModule).toBe('pmoc');
     expect(event.sourceEntityId).toBe(created.id);
     expect(event.type).toBe('MAINTENANCE');
+    expect(event.timezone).toBe('America/Recife');
+
+    /** `nextDueOn` é DATE; Agenda deve publicar o mesmo dia civil. */
+    const agendaResponse = await auth(
+      http().get(
+        `/api/v1/scheduling/agenda?view=DAY&date=${plan.compliance.nextDueOn}&businessUnitId=${unitA}`,
+      ),
+    ).expect(200);
+    const agenda = (
+      agendaResponse.body as Envelope<{
+        range: { timezone: string };
+        days: Array<{ date: string; events: Array<{ eventId: string }> }>;
+      }>
+    ).data;
+    expect(agenda.range.timezone).toBe('America/Recife');
+    expect(
+      agenda.days
+        .find((day) => day.date === plan.compliance.nextDueOn)
+        ?.events.some(
+          (item) => item.eventId === full.currentExecution!.schedulingEventId,
+        ),
+    ).toBe(true);
   }, 90000);
 
   it('3 · suspender para a avaliação; cancelar é terminal', async () => {
@@ -1194,4 +1222,161 @@ describe('PMOC (e2e)', () => {
       (after.body as Envelope<{ sourceHash: string }>).data.sourceHash,
     ).toBe(hash);
   }, 240000);
+
+  /**
+   * Stress por último: cada ativação agenda jobs reais. Executá-lo antes dos
+   * testes de worker mudava deliberadamente a fila que eles precisavam drenar
+   * e transformava repetição em dependência entre casos.
+   */
+  it('ativa concorrentemente sem duplicar ciclo, agenda ou due jobs', async () => {
+    const plan = await createPlan({ startsOn: inDays(1) });
+    const responses = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)),
+      ),
+    );
+    expect(
+      responses.filter((response) => response.status === 201).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      responses.every((response) => [201, 409].includes(response.status)),
+    ).toBe(true);
+
+    expect(
+      await prisma.pmocExecution.count({ where: { planId: plan.id } }),
+    ).toBe(1);
+    expect(
+      await prisma.schedulingEvent.count({
+        where: { sourceModule: 'pmoc', sourceEntityId: plan.id },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.backgroundJob.count({
+        where: {
+          queue: 'pmoc.due-check',
+          jobKey: { startsWith: `pmoc:${plan.id}:` },
+        },
+      }),
+    ).toBe(2);
+
+    const current = await prisma.pmocExecution.findFirstOrThrow({
+      where: { planId: plan.id, status: 'PENDING' },
+      select: { id: true },
+    });
+    const completions = await Promise.all(
+      Array.from({ length: 3 }, () =>
+        auth(
+          http().post(
+            `/api/v1/pmoc/plans/${plan.id}/executions/${current.id}/complete`,
+          ),
+        ).send({}),
+      ),
+    );
+    expect(
+      completions.filter((response) => response.status === 201),
+    ).toHaveLength(1);
+    expect(
+      completions.every((response) => [201, 409].includes(response.status)),
+    ).toBe(true);
+    expect(
+      await prisma.pmocExecution.count({ where: { planId: plan.id } }),
+    ).toBe(2);
+  }, 120000);
+
+  it('faz rollback de ACTIVE quando a criação do ciclo falha e aceita retry', async () => {
+    const plan = await createPlan({ startsOn: inDays(1) });
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION test_pmoc_cycle_fault() RETURNS trigger AS $$
+      BEGIN
+        IF NEW.plan_id = '${plan.id}'::uuid THEN
+          RAISE EXCEPTION 'injected PMOC cycle failure';
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER test_pmoc_cycle_fault_trigger
+      BEFORE INSERT ON pmoc_executions
+      FOR EACH ROW EXECUTE FUNCTION test_pmoc_cycle_fault()
+    `);
+    try {
+      await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
+        500,
+      );
+      const rolledBack = await prisma.pmocPlan.findUniqueOrThrow({
+        where: { id: plan.id },
+        select: { status: true, nextDueOn: true },
+      });
+      expect(rolledBack.status).toBe('DRAFT');
+      expect(rolledBack.nextDueOn).toBeNull();
+      expect(
+        await prisma.pmocExecution.count({ where: { planId: plan.id } }),
+      ).toBe(0);
+    } finally {
+      await prisma.$executeRawUnsafe(
+        'DROP TRIGGER IF EXISTS test_pmoc_cycle_fault_trigger ON pmoc_executions',
+      );
+      await prisma.$executeRawUnsafe(
+        'DROP FUNCTION IF EXISTS test_pmoc_cycle_fault()',
+      );
+    }
+
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
+      201,
+    );
+    expect(
+      await prisma.pmocExecution.count({ where: { planId: plan.id } }),
+    ).toBe(1);
+  }, 120000);
+
+  it('conclui vinte ciclos completos sem not-found espúrio', async () => {
+    for (let iteration = 0; iteration < 20; iteration += 1) {
+      const correlation = `pmoc-repeat-${iteration}`;
+      const plan = await createPlan({
+        startsOn: inDays(0),
+        frequencyAmount: 6,
+        frequencyUnit: 'MONTHS',
+      });
+      await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+        .set('x-request-id', `${correlation}-coverage`)
+        .send({ assetId: assetA })
+        .expect(201);
+      await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`))
+        .set('x-request-id', `${correlation}-activate`)
+        .expect(201);
+
+      const active = await detail(plan.id);
+      const executionId = active.currentExecution!.id;
+      const operation = await auth(
+        http().post(
+          `/api/v1/pmoc/plans/${plan.id}/executions/${executionId}/operation`,
+        ),
+      )
+        .set('x-request-id', `${correlation}-operation`)
+        .send({})
+        .expect(201);
+      const operationId = (operation.body as Envelope<{ operationId: string }>)
+        .data.operationId;
+
+      const completed = await auth(
+        http().post(
+          `/api/v1/pmoc/plans/${plan.id}/executions/${executionId}/complete`,
+        ),
+      )
+        .set('x-request-id', `${correlation}-complete`)
+        .send({ notes: `Repetição ${iteration}` })
+        .expect(201);
+      const result = (completed.body as Envelope<Plan>).data;
+      expect(result.id).toBe(plan.id);
+      expect(result.compliance.lastExecutedAt).not.toBeNull();
+      expect(
+        result.recentExecutions?.some(
+          (execution) =>
+            execution.id === executionId && execution.status === 'COMPLETED',
+        ),
+      ).toBe(true);
+      expect(operationId).toEqual(expect.any(String));
+    }
+  }, 600_000);
 });

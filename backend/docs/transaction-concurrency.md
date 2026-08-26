@@ -111,30 +111,30 @@ Mesma semântica, mesma localidade (`is_local = true`), **1 round trip em vez de
 
 ### 2. Janela de transação e pool dimensionados
 
-| Ajuste | Antes | Agora | Variável |
-|---|---|---|---|
-| Tempo limite da transação | 5 s (padrão Prisma) | 20 s | `DATABASE_TRANSACTION_TIMEOUT_MS` |
-| Espera por conexão | 2 s (padrão Prisma) | 10 s | `DATABASE_TRANSACTION_MAX_WAIT_MS` |
-| Conexões no pool | 10 (padrão `pg`) | 20 | `DATABASE_POOL_MAX` |
+| Ajuste                    | Antes               | Agora | Variável                           |
+| ------------------------- | ------------------- | ----- | ---------------------------------- |
+| Tempo limite da transação | 5 s (padrão Prisma) | 20 s  | `DATABASE_TRANSACTION_TIMEOUT_MS`  |
+| Espera por conexão        | 2 s (padrão Prisma) | 10 s  | `DATABASE_TRANSACTION_MAX_WAIT_MS` |
+| Conexões no pool          | 10 (padrão `pg`)    | 20    | `DATABASE_POOL_MAX`                |
 
 Aumentar a janela **não** é licença para transação longa. É reconhecer que o
 relógio mede tempo de parede num processo que também renderiza documento. A
 regra de escopo continua a mesma: transação faz trabalho de banco, e nada mais.
 
 > O trabalho síncrono de renderização prendendo o laço de eventos continua sendo
-> um problema — só não é *este* problema. Fica registrado como dívida: mover a
+> um problema — só não é _este_ problema. Fica registrado como dívida: mover a
 > renderização para fora do processo (worker dedicado ou `worker_threads`).
 
 ### 3. Consultas do mesmo cliente transacional, sequenciais
 
 31 ocorrências auditadas, todas na mesma classe:
 
-| Classe | Ocorrências |
-|---|---|
-| `UNSAFE_SAME_TRANSACTION` — consultas concorrentes sobre `tx` | **31** |
+| Classe                                                                              | Ocorrências   |
+| ----------------------------------------------------------------------------------- | ------------- |
+| `UNSAFE_SAME_TRANSACTION` — consultas concorrentes sobre `tx`                       | **31**        |
 | `SAFE_DIFFERENT_CONNECTIONS` — `Promise.all` de métodos que abrem transação própria | 15 (mantidas) |
-| `SAFE_OUTSIDE_TRANSACTION` | — |
-| `UNKNOWN` | 0 |
+| `SAFE_OUTSIDE_TRANSACTION`                                                          | —             |
+| `UNKNOWN`                                                                           | 0             |
 
 As 31 viraram `await` sequencial. Não porque corrompessem — o driver já as
 serializava —, mas porque o paralelismo era **ilusório** e o custo era real: a
@@ -196,8 +196,8 @@ Duas superfícies novas, ambas desligadas ou silenciosas por padrão:
 - **`SubscriptionPlanRepository`** — quando o guard de plano não enxerga a
   organização, pergunta ao Postgres, na mesma transação, qual contexto está
   valendo, e classifica: `CONTEXT_MISSING`, `CONTEXT_MISMATCH` ou
-  `POLICY_DENIED_OR_ABSENT`. Externamente continua sendo 404; internamente a
-  diferença entre "não existe" e "não vejo" fica registrada.
+  `POLICY_DENIED_OR_ABSENT`. Desde a PR-26.6.2, contexto ausente/divergente é
+  5xx; somente ausência sob contexto comprovadamente válido continua 404.
 - **`LOG_CLIENT_ERRORS=true`** — registra 4xx com rota, código e mensagem. Foi o
   que encontrou a causa raiz; sem ele, status sem mensagem não distingue nada.
 
@@ -205,15 +205,15 @@ Duas superfícies novas, ambas desligadas ou silenciosas por padrão:
 
 ## Prova
 
-| Verificação | Resultado |
-|---|---|
+| Verificação                                                          | Resultado                      |
+| -------------------------------------------------------------------- | ------------------------------ |
 | Estresse de concorrência (336 requisições, 2 inquilinos, 4 unidades) | 0 erro espúrio, 0 cross-tenant |
-| Transações de guard por requisição | 3 → 1 |
-| Contexto vale da primeira à última consulta, com `pg_sleep` no meio | ✓ |
-| Duas transações concorrentes não compartilham contexto | ✓ |
-| Contexto não sobrevive a `COMMIT` nem a `ROLLBACK` | ✓ |
-| 19 testes de RLS real | ✓ |
-| `expired transaction` no log da suíte completa | **0** |
+| Transações de guard por requisição                                   | 3 → 1                          |
+| Contexto vale da primeira à última consulta, com `pg_sleep` no meio  | ✓                              |
+| Duas transações concorrentes não compartilham contexto               | ✓                              |
+| Contexto não sobrevive a `COMMIT` nem a `ROLLBACK`                   | ✓                              |
+| 19 testes de RLS real                                                | ✓                              |
+| `expired transaction` no log da suíte completa                       | **0**                          |
 
 ---
 

@@ -33,7 +33,7 @@ export class RequestIdInterceptor implements NestInterceptor {
     const request = context.switchToHttp().getRequest<FoundationRequest>();
     const response = context.switchToHttp().getResponse<Response>();
     const incoming = request.header('x-request-id')?.trim();
-    request.id =
+    request.id ??=
       incoming && incoming.length <= 128 ? incoming : generateUuidV7();
     response.setHeader('x-request-id', request.id);
     return next.handle();

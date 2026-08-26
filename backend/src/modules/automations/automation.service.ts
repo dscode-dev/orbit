@@ -43,6 +43,11 @@ import type {
 import type { AutomationCatalogReadModel } from './automation.read-models';
 import { AutomationRepository } from './automation.repository';
 
+export interface AutomationActor {
+  id: string;
+  businessUnitIds: readonly string[];
+}
+
 /**
  * Lê uma chave de configuração como texto.
  *
@@ -121,22 +126,19 @@ export class AutomationService {
 
   async create(
     organizationId: string,
-    actorId: string,
+    actorInput: AutomationActor | string,
     input: CreateAutomationRuleDto,
   ) {
+    const actor = this.actorOf(actorInput);
     const trigger = findTrigger(input.trigger);
     if (!trigger) {
       throw new ValidationException(`Unknown trigger: ${input.trigger}`);
     }
-    if (input.businessUnitId) {
-      const unit = await this.repository.findBusinessUnit(
-        input.businessUnitId,
-        organizationId,
-      );
-      if (!unit) {
-        throw new EntityNotFoundException('BusinessUnit', input.businessUnitId);
-      }
-    }
+    const scopeBusinessUnitIds = await this.resolveScope(
+      organizationId,
+      actor,
+      input.businessUnitId ?? null,
+    );
 
     this.validateConditions(input.conditions ?? [], trigger.fields);
     const actions = await this.validateActions(organizationId, input.actions);
@@ -145,26 +147,39 @@ export class AutomationService {
       {
         organizationId,
         businessUnitId: input.businessUnitId ?? null,
+        scopeBusinessUnitIds,
         name: input.name,
         description: input.description ?? null,
         trigger: input.trigger,
         conditions: (input.conditions ??
           []) as unknown as Prisma.InputJsonValue,
         actions: actions as unknown as Prisma.InputJsonValue,
-        createdById: actorId,
+        createdById: actor.id,
       },
-      actorId,
+      actor.id,
     );
   }
 
   async update(
     id: string,
     organizationId: string,
-    actorId: string,
+    actorInput: AutomationActor | string,
     input: UpdateAutomationRuleDto,
   ) {
+    const actor = this.actorOf(actorInput);
     const rule = await this.get(id, organizationId);
+    this.assertSnapshotInScope(rule.scopeBusinessUnitIds, actor);
     const trigger = findTrigger(rule.trigger);
+    const changingScope = Object.prototype.hasOwnProperty.call(
+      input,
+      'businessUnitId',
+    );
+    const requestedUnit = changingScope
+      ? (input.businessUnitId ?? null)
+      : (rule.businessUnit?.id ?? null);
+    const scopeBusinessUnitIds = changingScope
+      ? await this.resolveScope(organizationId, actor, requestedUnit)
+      : undefined;
 
     if (input.conditions) {
       this.validateConditions(input.conditions, trigger?.fields ?? []);
@@ -176,10 +191,18 @@ export class AutomationService {
     return this.repository.update(
       id,
       organizationId,
-      actorId,
+      actor.id,
       {
         name: input.name,
         description: input.description,
+        ...(changingScope
+          ? {
+              businessUnit: requestedUnit
+                ? { connect: { id: requestedUnit } }
+                : { disconnect: true },
+              scopeBusinessUnitIds: { set: scopeBusinessUnitIds },
+            }
+          : {}),
         ...(input.conditions
           ? { conditions: input.conditions as unknown as Prisma.InputJsonValue }
           : {}),
@@ -203,14 +226,16 @@ export class AutomationService {
   async toggle(
     id: string,
     organizationId: string,
-    actorId: string,
+    actorInput: AutomationActor | string,
     enabled: boolean,
   ) {
+    const actor = this.actorOf(actorInput);
     const rule = await this.get(id, organizationId);
+    if (enabled) this.assertSnapshotInScope(rule.scopeBusinessUnitIds, actor);
     return this.repository.update(
       id,
       organizationId,
-      actorId,
+      actor.id,
       { enabled },
       enabled ? 'AUTOMATION_RULE_ENABLED' : 'AUTOMATION_RULE_DISABLED',
       { enabled: rule.enabled },
@@ -218,21 +243,28 @@ export class AutomationService {
   }
 
   /** Duplicar: a cópia nasce **desligada**, com nome marcado. */
-  async duplicate(id: string, organizationId: string, actorId: string) {
+  async duplicate(
+    id: string,
+    organizationId: string,
+    actorInput: AutomationActor | string,
+  ) {
+    const actor = this.actorOf(actorInput);
     const rule = await this.get(id, organizationId);
+    this.assertSnapshotInScope(rule.scopeBusinessUnitIds, actor);
     return this.repository.create(
       {
         organizationId,
         businessUnitId: rule.businessUnit?.id ?? null,
+        scopeBusinessUnitIds: rule.scopeBusinessUnitIds,
         name: `${rule.name} (cópia)`.slice(0, 180),
         description: rule.description,
         enabled: false,
         trigger: rule.trigger,
         conditions: rule.conditions as Prisma.InputJsonValue,
         actions: rule.actions as Prisma.InputJsonValue,
-        createdById: actorId,
+        createdById: actor.id,
       },
-      actorId,
+      actor.id,
     );
   }
 
@@ -273,6 +305,51 @@ export class AutomationService {
    * Um campo fora da lista do gatilho nunca seria satisfeito — e uma regra que
    * nunca dispara é pior que uma regra recusada: ela parece configurada.
    */
+  private async resolveScope(
+    organizationId: string,
+    actor: AutomationActor,
+    businessUnitId: string | null,
+  ): Promise<string[]> {
+    if (businessUnitId) {
+      if (
+        actor.businessUnitIds.length > 0 &&
+        !actor.businessUnitIds.includes(businessUnitId)
+      )
+        throw new EntityNotFoundException('BusinessUnit', businessUnitId);
+      const unit = await this.repository.findBusinessUnit(
+        businessUnitId,
+        organizationId,
+      );
+      if (!unit)
+        throw new EntityNotFoundException('BusinessUnit', businessUnitId);
+      return [businessUnitId];
+    }
+    if ('legacy' in actor) return [];
+    return actor.businessUnitIds.length > 0
+      ? [...new Set(actor.businessUnitIds)]
+      : this.repository.activeBusinessUnitIds(organizationId);
+  }
+
+  /** Compatibilidade somente para testes/unit callers anteriores ao controller. */
+  private actorOf(actor: AutomationActor | string): AutomationActor & {
+    legacy?: true;
+  } {
+    return typeof actor === 'string'
+      ? { id: actor, businessUnitIds: [], legacy: true }
+      : actor;
+  }
+
+  private assertSnapshotInScope(
+    snapshot: readonly string[] | undefined,
+    actor: AutomationActor,
+  ): void {
+    if (
+      actor.businessUnitIds.length > 0 &&
+      (snapshot ?? []).some((id) => !actor.businessUnitIds.includes(id))
+    )
+      throw new EntityNotFoundException('AutomationRule', 'scope');
+  }
+
   private validateConditions(
     conditions: readonly AutomationConditionDto[],
     fields: readonly string[],

@@ -214,7 +214,13 @@ describe('Management reports (e2e)', () => {
     tok = token,
   ): Promise<Report> {
     const requested = await generate(body, tok);
-    await drain();
+    for (let round = 0; round < 20; round += 1) {
+      await worker.tick();
+      const current = await detail(requested.id, tok);
+      if (current.status === 'READY' || current.status === 'FAILED') {
+        return current;
+      }
+    }
     return detail(requested.id, tok);
   }
 
@@ -254,7 +260,7 @@ describe('Management reports (e2e)', () => {
         forbidNonWhitelisted: true,
       }),
     );
-    await app.init();
+    await app.listen(0, '127.0.0.1');
     http = () => request(app.getHttpServer());
     prisma = adminPrisma();
     worker = app.get(BackgroundJobWorker);
@@ -756,7 +762,10 @@ describe('Management reports (e2e)', () => {
 
     await drain();
     const ready = await detail(firstId);
-    expect(ready.status).toBe('READY');
+    expect({ status: ready.status, error: ready.error }).toEqual({
+      status: 'READY',
+      error: null,
+    });
 
     /** Um arquivo, não dois. */
     const files = await prisma.storageFile.count({

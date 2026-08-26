@@ -1,4 +1,10 @@
-import { Global, Module } from '@nestjs/common';
+import {
+  Global,
+  MiddlewareConsumer,
+  Module,
+  type NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { RequestContextModule } from '../context';
 import {
@@ -10,12 +16,14 @@ import {
 import { CommonProvidersModule } from '../providers';
 import { IsJsonObjectConstraint } from '../validators';
 import { FoundationExceptionFilter } from './foundation-exception.filter';
+import { RequestIdMiddleware } from './request-id.middleware';
 
 @Global()
 @Module({
   imports: [RequestContextModule, CommonProvidersModule],
   providers: [
     IsJsonObjectConstraint,
+    RequestIdMiddleware,
     { provide: APP_FILTER, useClass: FoundationExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: RequestIdInterceptor },
     { provide: APP_INTERCEPTOR, useClass: RequestContextInterceptor },
@@ -24,4 +32,10 @@ import { FoundationExceptionFilter } from './foundation-exception.filter';
   ],
   exports: [RequestContextModule, CommonProvidersModule],
 })
-export class FoundationModule {}
+export class FoundationModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer
+      .apply(RequestIdMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+  }
+}

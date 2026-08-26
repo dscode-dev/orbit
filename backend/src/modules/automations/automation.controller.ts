@@ -43,7 +43,7 @@ import {
   UpdateAutomationRuleDto,
 } from './automation.dto';
 import { AutomationMapper } from './automation.mapper';
-import { AutomationService } from './automation.service';
+import { AutomationService, type AutomationActor } from './automation.service';
 
 @ApiTags('Automations')
 @Controller('automations')
@@ -117,7 +117,7 @@ export class AutomationController {
     return this.mapper.rule(
       await this.automations.create(
         this.org(request),
-        this.actor(request),
+        this.actorScope(request),
         input,
       ),
     );
@@ -136,7 +136,7 @@ export class AutomationController {
       await this.automations.update(
         id,
         this.org(request),
-        this.actor(request),
+        this.actorScope(request),
         input,
       ),
     );
@@ -154,7 +154,7 @@ export class AutomationController {
       await this.automations.toggle(
         id,
         this.org(request),
-        this.actor(request),
+        this.actorScope(request),
         input.enabled,
       ),
     );
@@ -172,7 +172,7 @@ export class AutomationController {
       await this.automations.duplicate(
         id,
         this.org(request),
-        this.actor(request),
+        this.actorScope(request),
       ),
     );
   }
@@ -199,5 +199,12 @@ export class AutomationController {
     const id = request.identity?.id;
     if (!id) throw new ForbiddenException('User context is required');
     return id;
+  }
+
+  private actorScope(request: IdentityRequest): AutomationActor {
+    return {
+      id: this.actor(request),
+      businessUnitIds: request.identity?.businessUnitIds ?? [],
+    };
   }
 }

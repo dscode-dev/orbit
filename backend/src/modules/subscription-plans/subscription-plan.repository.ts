@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService, RlsTransaction } from '../../database';
 import type { PrismaTransactionClient } from '../../database/prisma.types';
+import { InfrastructureException } from '../../exceptions';
 
 export interface PlanTenantAccess {
   userId: string;
@@ -50,18 +51,11 @@ export class SubscriptionPlanRepository {
     if (access) {
       return this.prisma.$transaction(async (transaction) => {
         await transaction.$queryRawUnsafe(
-          'SELECT set_config($1, $2, true)',
-          'app.user_id',
+          `SELECT set_config('app.user_id', $1, true),
+                  set_config('app.organization_id', $2, true),
+                  set_config('app.business_unit_ids', $3, true)`,
           access.userId,
-        );
-        await transaction.$queryRawUnsafe(
-          'SELECT set_config($1, $2, true)',
-          'app.organization_id',
           organizationId,
-        );
-        await transaction.$queryRawUnsafe(
-          'SELECT set_config($1, $2, true)',
-          'app.business_unit_ids',
           access.businessUnitIds.join(','),
         );
         const organization = await transaction.organization.findUnique({
@@ -82,14 +76,28 @@ export class SubscriptionPlanRepository {
          * A organização sumiu debaixo do próprio contexto que a declara.
          *
          * Este caminho é o guard de plano: se ele não enxerga a organização,
-         * toda rota do inquilino responde 404. Externamente o comportamento
-         * continua o mesmo — para quem não pode ver, "não existe" é a resposta
-         * certa. Internamente, a diferença entre *não existe* e *o contexto se
+         * toda rota do inquilino poderia responder 404. Um contexto ausente ou
+         * divergente agora é tratado como falha interna; somente um contexto
+         * válido pode resultar em ausência real/invisível. A diferença entre
+         * *não existe* e *o contexto se
          * perdeu* é o que separa um erro de dados de um defeito de isolamento,
          * e sem ela a PR-26.6 ficou meio dia sem saber qual dos dois tinha.
          */
         if (!organization) {
-          await this.diagnose(transaction, organizationId, access);
+          const diagnosis = await this.diagnose(
+            transaction,
+            organizationId,
+            access,
+          );
+          if (
+            diagnosis === 'CONTEXT_MISSING' ||
+            diagnosis === 'CONTEXT_MISMATCH'
+          ) {
+            throw new InfrastructureException(
+              'Infrastructure operation failed',
+              { category: 'TRANSACTION_FAILURE' },
+            );
+          }
         }
 
         return organization;
@@ -123,7 +131,9 @@ export class SubscriptionPlanRepository {
     transaction: PrismaTransactionClient,
     organizationId: string,
     access: PlanTenantAccess,
-  ): Promise<void> {
+  ): Promise<
+    'CONTEXT_MISSING' | 'CONTEXT_MISMATCH' | 'POLICY_DENIED_OR_ABSENT'
+  > {
     try {
       const [probe] = await transaction.$queryRaw<ContextProbe[]>`
         SELECT current_user::text AS role,
@@ -150,11 +160,12 @@ export class SubscriptionPlanRepository {
           role: probe?.role ?? null,
         }),
       );
+      return reason;
     } catch (error) {
-      /** Diagnóstico nunca derruba a requisição — o 404 já é a resposta. */
-      this.logger.warn(
-        `[plans] diagnóstico falhou: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
-      );
+      throw new InfrastructureException('Infrastructure operation failed', {
+        cause: error,
+        category: 'TRANSACTION_FAILURE',
+      });
     }
   }
 

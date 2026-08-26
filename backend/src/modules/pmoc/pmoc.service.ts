@@ -55,6 +55,7 @@ import type {
   PmocComplianceSummaryReadModel,
   PmocUpcomingReadModel,
 } from './pmoc.read-models';
+import { instantFromCivilDate } from '../scheduling/scheduling-time';
 import { PmocRepository } from './pmoc.repository';
 
 /** Quem pediu, e o que ele pode. */
@@ -236,6 +237,17 @@ export class PmocService {
    */
   async activate(id: string, actor: PmocActor) {
     const plan = await this.plan(id, actor);
+    if (plan.status === 'ACTIVE') {
+      const cycle = await this.repository.currentExecution(
+        plan.id,
+        actor.organizationId,
+      );
+      if (!cycle)
+        throw new ConflictException('Active PMOC plan has no current cycle');
+      await this.ensureSchedulingEvent(plan, cycle.id, actor);
+      await this.scheduleDueChecks(plan, actor);
+      return this.mapper.summary(plan);
+    }
     this.assertTransition(plan.status, 'ACTIVE');
 
     if (plan.endsOn && plan.endsOn < this.today()) {
@@ -253,8 +265,13 @@ export class PmocService {
       throw new ConflictException('This plan is no longer activatable');
     }
 
-    await this.openCycleAndSchedule(activated, actor);
-    return this.mapper.summary(activated);
+    await this.ensureSchedulingEvent(
+      activated.plan,
+      activated.executionId,
+      actor,
+    );
+    await this.scheduleDueChecks(activated.plan, actor);
+    return this.mapper.summary(activated.plan);
   }
 
   async suspend(id: string, actor: PmocActor) {
@@ -711,10 +728,14 @@ export class PmocService {
     /** Sem calendário não há onde marcar — e o plano continua válido. */
     if (!calendar || !plan.nextDueOn) return;
 
-    const startsAt = new Date(`${toDateOnly(plan.nextDueOn)}T12:00:00.000Z`);
+    const startsAt = instantFromCivilDate(
+      toDateOnly(plan.nextDueOn),
+      calendar.timezone,
+      12,
+    );
     const endsAt = new Date(startsAt.getTime() + 2 * 60 * 60 * 1000);
 
-    const event = await this.repository.createSchedulingEvent({
+    await this.repository.ensureSchedulingEvent(executionId, {
       id: generateUuidV7(),
       organizationId: actor.organizationId,
       businessUnitId: plan.businessUnit.id,
@@ -733,8 +754,6 @@ export class PmocService {
       sourceEntityId: plan.id,
       metadata: { executionId, dueOn: toDateOnly(plan.nextDueOn) },
     });
-
-    await this.repository.attachSchedulingEvent(executionId, event.id);
   }
 
   /**

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ValidationException } from '../../exceptions';
+import { addCivilDays, civilParts, instantFromCivil } from './scheduling-time';
 
 export type RecurrenceRule = {
   frequency: string;
@@ -57,7 +58,7 @@ export class RecurrenceEngine {
     const dates: Date[] = [];
     if (rule.frequency === 'DAILY') {
       for (let index = 0; index < 2000; index += 1) {
-        const date = this.addDays(seed, index * rule.interval);
+        const date = addCivilDays(seed, index * rule.interval, rule.timezone);
         if (date >= horizon) break;
         dates.push(date);
       }
@@ -65,34 +66,43 @@ export class RecurrenceEngine {
     }
     if (rule.frequency === 'WEEKLY') {
       const weekdays = new Set(
-        rule.byWeekday.length ? rule.byWeekday : [seed.getUTCDay()],
+        rule.byWeekday.length
+          ? rule.byWeekday
+          : [civilParts(seed, rule.timezone).weekday],
       );
       for (let day = 0; day < 3660 && dates.length < 2000; day += 1) {
-        const date = this.addDays(seed, day);
+        const date = addCivilDays(seed, day, rule.timezone);
         if (date >= horizon) break;
         const week = Math.floor(day / 7);
-        if (week % rule.interval === 0 && weekdays.has(date.getUTCDay()))
+        if (
+          week % rule.interval === 0 &&
+          weekdays.has(civilParts(date, rule.timezone).weekday)
+        )
           dates.push(date);
       }
       return dates;
     }
     if (rule.frequency === 'MONTHLY') {
-      const day = rule.byMonthDay ?? seed.getUTCDate();
+      const seedPart = civilParts(seed, rule.timezone);
+      const day = rule.byMonthDay ?? seedPart.day;
       for (let index = 0; index < 1200 && dates.length < 2000; index += 1) {
-        const month = new Date(
-          Date.UTC(
-            seed.getUTCFullYear(),
-            seed.getUTCMonth() + index * rule.interval,
-            1,
-            seed.getUTCHours(),
-            seed.getUTCMinutes(),
-            seed.getUTCSeconds(),
-            seed.getUTCMilliseconds(),
-          ),
+        const monthIndex = seedPart.month - 1 + index * rule.interval;
+        const year = seedPart.year + Math.floor(monthIndex / 12);
+        const month = (((monthIndex % 12) + 12) % 12) + 1;
+        const candidate = instantFromCivil(
+          {
+            year,
+            month,
+            day,
+            hour: seedPart.hour,
+            minute: seedPart.minute,
+            second: seedPart.second,
+          },
+          rule.timezone,
         );
-        const candidate = new Date(month);
-        candidate.setUTCDate(day);
-        if (candidate.getUTCMonth() !== month.getUTCMonth()) continue;
+        const candidatePart = civilParts(candidate, rule.timezone);
+        if (candidatePart.month !== month || candidatePart.day !== day)
+          continue;
         if (candidate < seed) continue;
         if (candidate >= horizon) break;
         dates.push(candidate);
@@ -115,11 +125,5 @@ export class RecurrenceEngine {
         (date, index, all) =>
           index === 0 || date.getTime() !== all[index - 1]?.getTime(),
       );
-  }
-
-  private addDays(value: Date, days: number) {
-    const date = new Date(value);
-    date.setUTCDate(date.getUTCDate() + days);
-    return date;
   }
 }

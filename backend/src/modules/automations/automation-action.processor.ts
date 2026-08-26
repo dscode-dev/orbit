@@ -115,6 +115,23 @@ export class AutomationActionProcessor implements JobProcessor, OnModuleInit {
       return;
     }
 
+    const jobUnits =
+      job.scope === 'BUSINESS_UNIT' && job.businessUnitId
+        ? [job.businessUnitId]
+        : job.businessUnitIds;
+    const escapedScope =
+      (event.businessUnitId !== null &&
+        !rule.scopeBusinessUnitIds.includes(event.businessUnitId)) ||
+      jobUnits.some((id) => !rule.scopeBusinessUnitIds.includes(id));
+    if (escapedScope) {
+      await this.repository.finish({
+        id: claimed.id,
+        status: 'SKIPPED',
+        detail: 'Evento ou job fora do escopo configurado da regra.',
+      });
+      return;
+    }
+
     /**
      * A regra pode ter sido desligada **depois** do agendamento.
      *

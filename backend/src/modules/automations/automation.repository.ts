@@ -36,6 +36,7 @@ const ruleView = {
   trigger: true,
   conditions: true,
   actions: true,
+  scopeBusinessUnitIds: true,
   createdAt: true,
   updatedAt: true,
   businessUnit: { select: { id: true, legalName: true, tradeName: true } },
@@ -225,7 +226,13 @@ export class AutomationRepository {
           enabled: true,
           deletedAt: null,
           OR: businessUnitId
-            ? [{ businessUnitId: null }, { businessUnitId }]
+            ? [
+                {
+                  businessUnitId: null,
+                  scopeBusinessUnitIds: { has: businessUnitId },
+                },
+                { businessUnitId },
+              ]
             : [{ businessUnitId: null }],
         },
         select: ruleView,
@@ -433,6 +440,18 @@ export class AutomationRepository {
         where: { id, organizationId, deletedAt: null },
         select: { id: true },
       }),
+    );
+  }
+
+  activeBusinessUnitIds(organizationId: string) {
+    return this.rls.run(async (tx) =>
+      (
+        await tx.businessUnit.findMany({
+          where: { organizationId, deletedAt: null, status: 'ACTIVE' },
+          select: { id: true },
+          orderBy: { id: 'asc' },
+        })
+      ).map((unit) => unit.id),
     );
   }
 

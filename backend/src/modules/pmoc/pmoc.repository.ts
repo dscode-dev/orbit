@@ -21,8 +21,9 @@
  * ciclo, não dois. E como a ordem de serviço pendura no ciclo, não há como
  * nascerem duas ordens para a mesma manutenção.
  */
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { RequestContextService } from '../../context';
 import { PaginationHelper, RlsTransaction } from '../../database';
 import type { PrismaTransactionClient } from '../../database/prisma.types';
 import { generateUuidV7 } from '../../utils';
@@ -113,8 +114,11 @@ export interface CreatePlanData {
 
 @Injectable()
 export class PmocRepository {
+  private readonly logger = new Logger(PmocRepository.name);
+
   constructor(
     private readonly rls: RlsTransaction,
+    private readonly contexts: RequestContextService,
     /**
      * Os eventos saem **de dentro da transação do domínio**.
      *
@@ -190,10 +194,14 @@ export class PmocRepository {
   find(id: string, organizationId: string) {
     return this.rls.run(async (tx) => {
       await this.expireStale(tx, organizationId);
-      return tx.pmocPlan.findFirst({
+      const plan = await tx.pmocPlan.findFirst({
         where: { id, organizationId, deletedAt: null },
         select: planView,
       });
+      if (!plan) {
+        await this.logNotFoundContext(tx, 'PmocPlan', id, organizationId);
+      }
+      return plan;
     });
   }
 
@@ -345,6 +353,19 @@ export class PmocRepository {
       `;
       if (rows.length === 0) return null;
 
+      const cycles = await tx.$queryRaw<{ id: string }[]>`
+        INSERT INTO pmoc_executions (
+          id, organization_id, plan_id, due_on, status, updated_at
+        ) VALUES (
+          ${generateUuidV7()}::uuid, ${organizationId}::uuid,
+          ${id}::uuid, ${rows[0]!.next_due_on}::date, 'PENDING', now()
+        )
+        ON CONFLICT (plan_id, due_on) DO UPDATE
+          SET updated_at = pmoc_executions.updated_at
+        RETURNING id
+      `;
+      const executionId = cycles[0]!.id;
+
       await this.audit(
         tx,
         id,
@@ -380,7 +401,7 @@ export class PmocRepository {
         },
       });
 
-      return plan;
+      return { plan, executionId };
     });
   }
 
@@ -532,10 +553,53 @@ export class PmocRepository {
   }
 
   findExecution(id: string, organizationId: string) {
-    return this.rls.run((tx) =>
-      tx.pmocExecution.findFirst({
+    return this.rls.run(async (tx) => {
+      const execution = await tx.pmocExecution.findFirst({
         where: { id, organizationId },
         select: { ...executionView, planId: true },
+      });
+      if (!execution) {
+        await this.logNotFoundContext(tx, 'PmocExecution', id, organizationId);
+      }
+      return execution;
+    });
+  }
+
+  private async logNotFoundContext(
+    tx: PrismaTransactionClient,
+    entity: 'PmocPlan' | 'PmocExecution',
+    entityId: string,
+    expectedOrganizationId: string,
+  ): Promise<void> {
+    const [probe] = await tx.$queryRaw<
+      {
+        role: string;
+        organization: string | null;
+        units: string | null;
+        actor: string | null;
+      }[]
+    >`
+      SELECT current_user::text AS role,
+             NULLIF(current_setting('app.organization_id', true), '') AS organization,
+             NULLIF(current_setting('app.business_unit_ids', true), '') AS units,
+             NULLIF(current_setting('app.actor_id', true), '') AS actor
+    `;
+    const context = this.contexts.getOptional();
+    this.logger.warn(
+      JSON.stringify({
+        stage: 'pmoc-not-found',
+        entity,
+        entityId,
+        requestId: context?.requestId ?? null,
+        actorId: context?.userId ?? null,
+        expectedOrganizationId,
+        requestOrganizationId: context?.organizationId ?? null,
+        requestBusinessUnitId: context?.businessUnitId ?? null,
+        requestBusinessUnitIds: context?.businessUnitIds ?? [],
+        databaseRole: probe?.role ?? null,
+        rlsOrganizationId: probe?.organization ?? null,
+        rlsBusinessUnitIds: probe?.units?.split(',').filter(Boolean) ?? [],
+        rlsActorId: probe?.actor ?? null,
       }),
     );
   }
@@ -1039,10 +1103,27 @@ export class PmocRepository {
     );
   }
 
-  createSchedulingEvent(data: Prisma.SchedulingEventUncheckedCreateInput) {
-    return this.rls.run((tx) =>
-      tx.schedulingEvent.create({ data, select: { id: true } }),
-    );
+  ensureSchedulingEvent(
+    executionId: string,
+    data: Prisma.SchedulingEventUncheckedCreateInput,
+  ) {
+    return this.rls.run(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pmoc:schedule:${executionId}`}))`;
+      const current = await tx.pmocExecution.findFirstOrThrow({
+        where: { id: executionId },
+        select: { schedulingEventId: true },
+      });
+      if (current.schedulingEventId) return current.schedulingEventId;
+      const event = await tx.schedulingEvent.create({
+        data,
+        select: { id: true },
+      });
+      await tx.pmocExecution.update({
+        where: { id: executionId },
+        data: { schedulingEventId: event.id },
+      });
+      return event.id;
+    });
   }
 
   /** Próximo código de operação livre — a autoridade é o índice único. */

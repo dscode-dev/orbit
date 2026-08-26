@@ -157,7 +157,6 @@ describe('Concorrência e contexto RLS (e2e)', () => {
         forbidNonWhitelisted: true,
       }),
     );
-    await app.init();
     /**
      * Um servidor de verdade, escutando uma vez.
      *
@@ -167,7 +166,7 @@ describe('Concorrência e contexto RLS (e2e)', () => {
      * limitação do arreio de teste, não do produto. Escutar uma vez faz as 28
      * dividirem o mesmo servidor, que é o que acontece em produção.
      */
-    await app.listen(0);
+    await app.listen(0, '127.0.0.1');
     http = () => request(app.getHttpServer());
 
     const a = await register('alfa');

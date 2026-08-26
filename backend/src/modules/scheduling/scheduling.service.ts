@@ -18,11 +18,7 @@ import type {
   UpdateCalendarDto,
   UpdateEventDto,
 } from './dto/scheduling.dto';
-import {
-  AgendaView,
-  RecurrenceFrequency,
-  ResourceType,
-} from './dto/scheduling.dto';
+import { RecurrenceFrequency, ResourceType } from './dto/scheduling.dto';
 import { RecurrenceEngine, type RecurrenceRule } from './recurrence.engine';
 import type {
   AgendaReadModel,
@@ -33,6 +29,14 @@ import type {
   SchedulingTimelineReadModel,
 } from './scheduling.read-models';
 import { SchedulingRepository } from './scheduling.repository';
+import {
+  addCivilDays,
+  assertIanaTimezone,
+  availabilityRuleApplies,
+  civilDateKey,
+  civilMinute,
+  localViewRange,
+} from './scheduling-time';
 
 type SchedulingEventRecord = NonNullable<
   Awaited<ReturnType<SchedulingRepository['findEvent']>>
@@ -272,7 +276,12 @@ export class SchedulingService {
     organizationId: string,
     query: AgendaQueryDto,
   ): Promise<AgendaReadModel> {
-    const range = this.viewRange(query.view, query.date);
+    const timezone = await this.repository.agendaTimezone(
+      organizationId,
+      query.businessUnitId,
+    );
+    assertIanaTimezone(timezone);
+    const range = localViewRange(query.view, query.date, timezone);
     const events = await this.occurrences(organizationId, {
       from: range.from,
       to: range.to,
@@ -284,7 +293,7 @@ export class SchedulingService {
     });
     const days = new Map<string, SchedulingOccurrenceReadModel[]>();
     for (const event of events) {
-      const date = event.startsAt.slice(0, 10);
+      const date = civilDateKey(new Date(event.startsAt), timezone);
       days.set(date, [...(days.get(date) ?? []), event]);
     }
     return {
@@ -292,7 +301,7 @@ export class SchedulingService {
       range: {
         from: range.from.toISOString(),
         to: range.to.toISOString(),
-        timezone: 'UTC',
+        timezone,
       },
       summary: {
         total: events.length,
@@ -542,10 +551,14 @@ export class SchedulingService {
   async dashboardReadModel(
     organizationId: string,
   ): Promise<DashboardSchedulingReadModel> {
-    const start = new Date();
-    start.setUTCHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setUTCDate(end.getUTCDate() + 7);
+    const timezone = await this.repository.agendaTimezone(organizationId);
+    const today = civilDateKey(new Date(), timezone);
+    const start = localViewRange(
+      'DAY',
+      new Date(`${today}T00:00:00.000Z`),
+      timezone,
+    ).from;
+    const end = addCivilDays(start, 7, timezone);
     const query = { from: start, to: end };
     const [events, conflicts, organization] = await Promise.all([
       this.occurrences(organizationId, query),
@@ -557,8 +570,7 @@ export class SchedulingService {
       generatedAt: new Date().toISOString(),
       today: {
         total: events.filter(
-          (event) =>
-            event.startsAt.slice(0, 10) === start.toISOString().slice(0, 10),
+          (event) => civilDateKey(new Date(event.startsAt), timezone) === today,
         ).length,
         completed: events.filter((event) => event.status === 'COMPLETED')
           .length,
@@ -1157,27 +1169,10 @@ export class SchedulingService {
   }
 
   private conflictHorizon(input: CreateEventDto) {
-    const maximum = new Date(input.startsAt);
-    maximum.setUTCDate(maximum.getUTCDate() + 90);
+    const maximum = addCivilDays(input.startsAt, 90, input.timezone);
     if (input.recurrence?.until && input.recurrence.until < maximum)
       return new Date(input.recurrence.until.getTime() + 1);
     return maximum;
-  }
-
-  private viewRange(view: string, date: Date) {
-    const from = new Date(date);
-    from.setUTCHours(0, 0, 0, 0);
-    if (view === AgendaView.WEEK) {
-      const weekday = from.getUTCDay();
-      from.setUTCDate(from.getUTCDate() - weekday);
-    } else if (view === AgendaView.MONTH) {
-      from.setUTCDate(1);
-    }
-    const to = new Date(from);
-    if (view === AgendaView.DAY) to.setUTCDate(to.getUTCDate() + 1);
-    else if (view === AgendaView.WEEK) to.setUTCDate(to.getUTCDate() + 7);
-    else to.setUTCMonth(to.getUTCMonth() + 1);
-    return { from, to };
   }
 
   private ruleApplies(
@@ -1186,41 +1181,30 @@ export class SchedulingService {
       date: Date | null;
       effectiveFrom: Date | null;
       effectiveUntil: Date | null;
+      timezone: string;
     },
     startsAtIso: string,
   ) {
-    const startsAt = new Date(startsAtIso);
-    const date = startsAt.toISOString().slice(0, 10);
-    if (rule.date && rule.date.toISOString().slice(0, 10) !== date)
-      return false;
-    if (rule.date === null && rule.dayOfWeek !== startsAt.getUTCDay())
-      return false;
-    if (rule.effectiveFrom && startsAt < rule.effectiveFrom) return false;
-    if (rule.effectiveUntil && startsAt > rule.effectiveUntil) return false;
-    return true;
+    return availabilityRuleApplies(rule, new Date(startsAtIso));
   }
 
   private minuteOverlap(
-    rule: { startMinute: number; endMinute: number },
+    rule: { startMinute: number; endMinute: number; timezone: string },
     startsAtIso: string,
     endsAtIso: string,
   ) {
-    const start = new Date(startsAtIso);
-    const end = new Date(endsAtIso);
-    const startMinute = start.getUTCHours() * 60 + start.getUTCMinutes();
-    const endMinute = end.getUTCHours() * 60 + end.getUTCMinutes();
+    const startMinute = civilMinute(new Date(startsAtIso), rule.timezone);
+    const endMinute = civilMinute(new Date(endsAtIso), rule.timezone);
     return startMinute < rule.endMinute && endMinute > rule.startMinute;
   }
 
   private minuteContains(
-    rule: { startMinute: number; endMinute: number },
+    rule: { startMinute: number; endMinute: number; timezone: string },
     startsAtIso: string,
     endsAtIso: string,
   ) {
-    const start = new Date(startsAtIso);
-    const end = new Date(endsAtIso);
-    const startMinute = start.getUTCHours() * 60 + start.getUTCMinutes();
-    const endMinute = end.getUTCHours() * 60 + end.getUTCMinutes();
+    const startMinute = civilMinute(new Date(startsAtIso), rule.timezone);
+    const endMinute = civilMinute(new Date(endsAtIso), rule.timezone);
     return startMinute >= rule.startMinute && endMinute <= rule.endMinute;
   }
 

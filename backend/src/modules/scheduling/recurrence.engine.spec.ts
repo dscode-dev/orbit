@@ -102,4 +102,29 @@ describe('RecurrenceEngine', () => {
       '2026-08-17T09:00:00.000Z',
     ]);
   });
+
+  it('preserves 09:00 civil time across a DST offset change', () => {
+    const result = engine.expand(
+      new Date('2026-03-07T14:00:00.000Z'),
+      new Date('2026-03-07T15:00:00.000Z'),
+      {
+        frequency: 'DAILY',
+        interval: 1,
+        byWeekday: [],
+        byMonthDay: null,
+        count: 3,
+        until: null,
+        customRule: null,
+        exceptions: [],
+        timezone: 'America/New_York',
+      },
+      new Date('2026-03-07T00:00:00.000Z'),
+      new Date('2026-03-11T00:00:00.000Z'),
+    );
+    expect(result.map((item) => item.startsAt.toISOString())).toEqual([
+      '2026-03-07T14:00:00.000Z',
+      '2026-03-08T13:00:00.000Z',
+      '2026-03-09T13:00:00.000Z',
+    ]);
+  });
 });

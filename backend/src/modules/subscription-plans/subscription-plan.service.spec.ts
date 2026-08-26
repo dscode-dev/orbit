@@ -1,4 +1,8 @@
-import { ForbiddenException, ValidationException } from '../../exceptions';
+import {
+  EntityNotFoundException,
+  ForbiddenException,
+  ValidationException,
+} from '../../exceptions';
 import type { SubscriptionPlanRepository } from './subscription-plan.repository';
 import { SubscriptionPlanService } from './subscription-plan.service';
 
@@ -49,6 +53,23 @@ describe('SubscriptionPlanService', () => {
     await expect(
       service.assertCapabilities('organization-id', ['reports.create']),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('keeps a successful null lookup as not found', async () => {
+    repository.getOrganizationEntitlements.mockResolvedValue(null);
+    await expect(service.getEntitlements('missing')).rejects.toBeInstanceOf(
+      EntityNotFoundException,
+    );
+  });
+
+  it('does not convert an infrastructure lookup failure to 404', async () => {
+    const failure = Object.assign(new Error('connection terminated'), {
+      code: 'ECONNRESET',
+    });
+    repository.getOrganizationEntitlements.mockRejectedValue(failure);
+    await expect(service.getEntitlements('organization-id')).rejects.toBe(
+      failure,
+    );
   });
 
   it('rejects invalid plan limits before persistence', () => {
