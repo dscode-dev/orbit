@@ -46,6 +46,13 @@ const planView = {
   frequencyAmount: true,
   frequencyUnit: true,
   dueSoonDays: true,
+  technicalResponsibleUserId: true,
+  serviceLocation: true,
+  scope: true,
+  serviceTypes: true,
+  procedure: true,
+  schedulingPaused: true,
+  reviewRequired: true,
   lastExecutedAt: true,
   nextDueOn: true,
   activatedAt: true,
@@ -54,6 +61,7 @@ const planView = {
   businessUnit: { select: { id: true, legalName: true, tradeName: true } },
   customer: { select: { id: true, legalName: true, tradeName: true } },
   technician: { select: { id: true, displayName: true } },
+  technicalResponsible: { select: { id: true, displayName: true } },
   createdBy: { select: { id: true, displayName: true } },
   _count: { select: { coverages: true } },
 } satisfies Prisma.PmocPlanSelect;
@@ -77,6 +85,7 @@ const coverageView = {
 
 const executionView = {
   id: true,
+  sequenceNumber: true,
   dueOn: true,
   status: true,
   performedAt: true,
@@ -88,12 +97,66 @@ const executionView = {
   artifactExecution: { select: { id: true, code: true, status: true } },
 } satisfies Prisma.PmocExecutionSelect;
 
+const equipmentExecutionView = {
+  id: true,
+  status: true,
+  performedAt: true,
+  startedAt: true,
+  completedAt: true,
+  notes: true,
+  procedureSnapshot: true,
+  technicalResponsibleSnapshot: true,
+  asset: {
+    select: {
+      id: true,
+      name: true,
+      identifier: true,
+      serialNumber: true,
+      category: true,
+    },
+  },
+  responsibleFieldTechnician: { select: { id: true, displayName: true } },
+  operation: {
+    select: {
+      id: true,
+      code: true,
+      status: true,
+      auxiliaryTechnicians: {
+        where: { removedAt: null },
+        select: { user: { select: { id: true, displayName: true } } },
+      },
+    },
+  },
+  artifactExecution: { select: { id: true, code: true, status: true } },
+  evidence: {
+    orderBy: { createdAt: 'asc' as const },
+    select: {
+      id: true,
+      kind: true,
+      caption: true,
+      createdAt: true,
+      storageFile: {
+        select: {
+          id: true,
+          fileName: true,
+          mimeType: true,
+          sizeBytes: true,
+          status: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.PmocEquipmentExecutionSelect;
+
 export type PlanRecord = Prisma.PmocPlanGetPayload<{ select: typeof planView }>;
 export type CoverageRecord = Prisma.PmocEquipmentCoverageGetPayload<{
   select: typeof coverageView;
 }>;
 export type ExecutionRecord = Prisma.PmocExecutionGetPayload<{
   select: typeof executionView;
+}>;
+export type EquipmentExecutionRecord = Prisma.PmocEquipmentExecutionGetPayload<{
+  select: typeof equipmentExecutionView;
 }>;
 
 export interface CreatePlanData {
@@ -108,6 +171,13 @@ export interface CreatePlanData {
   frequencyUnit: FrequencyUnit;
   dueSoonDays: number;
   technicianUserId: string | null;
+  technicalResponsibleUserId: string | null;
+  serviceLocation?: Prisma.InputJsonValue;
+  scope?: Prisma.InputJsonValue;
+  serviceTypes: Prisma.InputJsonValue;
+  procedure: Prisma.InputJsonValue;
+  schedulingPaused: boolean;
+  reviewRequired: boolean;
   notes: string | null;
   createdById: string;
 }
@@ -149,6 +219,13 @@ export class PmocRepository {
           frequencyUnit: data.frequencyUnit,
           dueSoonDays: data.dueSoonDays,
           technicianUserId: data.technicianUserId,
+          technicalResponsibleUserId: data.technicalResponsibleUserId,
+          serviceLocation: data.serviceLocation,
+          scope: data.scope,
+          serviceTypes: data.serviceTypes,
+          procedure: data.procedure,
+          schedulingPaused: data.schedulingPaused,
+          reviewRequired: data.reviewRequired,
           notes: data.notes,
           createdById: data.createdById,
         },
@@ -355,10 +432,11 @@ export class PmocRepository {
 
       const cycles = await tx.$queryRaw<{ id: string }[]>`
         INSERT INTO pmoc_executions (
-          id, organization_id, plan_id, due_on, status, updated_at
+          id, organization_id, plan_id, due_on, status, sequence_number, updated_at
         ) VALUES (
           ${generateUuidV7()}::uuid, ${organizationId}::uuid,
-          ${id}::uuid, ${rows[0]!.next_due_on}::date, 'PENDING', now()
+          ${id}::uuid, ${rows[0]!.next_due_on}::date, 'PENDING',
+          COALESCE((SELECT max(sequence_number)+1 FROM pmoc_executions WHERE plan_id=${id}::uuid),1), now()
         )
         ON CONFLICT (plan_id, due_on) DO UPDATE
           SET updated_at = pmoc_executions.updated_at
@@ -470,10 +548,11 @@ export class PmocRepository {
       if (nextDueOn) {
         await tx.$executeRaw`
           INSERT INTO pmoc_executions (
-            id, organization_id, plan_id, due_on, status, updated_at
+            id, organization_id, plan_id, due_on, status, sequence_number, updated_at
           )
           SELECT ${generateUuidV7()}::uuid, ${input.organizationId}::uuid,
-                 ${input.planId}::uuid, ${nextDueOn}::date, 'PENDING', now()
+                 ${input.planId}::uuid, ${nextDueOn}::date, 'PENDING',
+                 COALESCE((SELECT max(sequence_number)+1 FROM pmoc_executions WHERE plan_id=${input.planId}::uuid),1), now()
             FROM pmoc_plans p
            WHERE p.id = ${input.planId}::uuid
              AND (p.ends_on IS NULL OR p.ends_on >= ${nextDueOn}::date)
@@ -524,10 +603,11 @@ export class PmocRepository {
     return this.rls.run(async (tx) => {
       const rows = await tx.$queryRaw<{ id: string }[]>`
         INSERT INTO pmoc_executions (
-          id, organization_id, plan_id, due_on, status, updated_at
+          id, organization_id, plan_id, due_on, status, sequence_number, updated_at
         ) VALUES (
           ${generateUuidV7()}::uuid, ${organizationId}::uuid,
-          ${planId}::uuid, ${dueOn}::date, 'PENDING', now()
+          ${planId}::uuid, ${dueOn}::date, 'PENDING',
+          COALESCE((SELECT max(sequence_number)+1 FROM pmoc_executions WHERE plan_id=${planId}::uuid),1), now()
         )
         ON CONFLICT DO NOTHING
         RETURNING id
@@ -712,6 +792,409 @@ export class PmocRepository {
   }
 
   /* ---------------------------------------------------------------- */
+  /* Execução física por equipamento (V2)                             */
+  /* ---------------------------------------------------------------- */
+
+  executionPreparation(
+    organizationId: string,
+    planId: string,
+    cycleId: string,
+    assetId: string,
+  ) {
+    return this.rls.run(async (tx) => {
+      const plan = await tx.pmocPlan.findFirst({
+        where: { id: planId, organizationId, deletedAt: null },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          status: true,
+          businessUnitId: true,
+          customer: { select: { id: true, legalName: true, tradeName: true } },
+          procedure: true,
+          reviewRequired: true,
+          technicalResponsible: { select: { id: true, displayName: true } },
+          technicalResponsibleUserId: true,
+        },
+      });
+      if (!plan) return null;
+      const cycle = await tx.pmocExecution.findFirst({
+        where: { id: cycleId, planId, organizationId },
+        select: { id: true, dueOn: true, status: true, sequenceNumber: true },
+      });
+      const coverage = await tx.pmocEquipmentCoverage.findFirst({
+        where: { planId, organizationId, assetId, deletedAt: null },
+        select: {
+          id: true,
+          startsOn: true,
+          endsOn: true,
+          asset: {
+            select: {
+              id: true,
+              name: true,
+              category: true,
+              identifier: true,
+              serialNumber: true,
+              status: true,
+            },
+          },
+        },
+      });
+      if (!cycle || !coverage) return null;
+      const existing = await tx.pmocEquipmentExecution.findUnique({
+        where: { cycleId_coverageId: { cycleId, coverageId: coverage.id } },
+        select: equipmentExecutionView,
+      });
+      const signature = plan.technicalResponsibleUserId
+        ? await tx.userSignature.findFirst({
+            where: {
+              organizationId,
+              userId: plan.technicalResponsibleUserId,
+              active: true,
+              revokedAt: null,
+            },
+            select: { id: true, version: true, sha256: true },
+          })
+        : null;
+      return {
+        plan,
+        cycle,
+        coverage,
+        existing,
+        technicalResponsibleSignature: signature,
+      };
+    });
+  }
+
+  listEquipmentExecutions(
+    organizationId: string,
+    planId: string,
+    cycleId: string,
+  ) {
+    return this.rls.run((tx) =>
+      tx.pmocEquipmentCoverage.findMany({
+        where: { organizationId, planId, deletedAt: null },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          asset: {
+            select: {
+              id: true,
+              name: true,
+              category: true,
+              identifier: true,
+              serialNumber: true,
+              status: true,
+            },
+          },
+          equipmentExecutions: {
+            where: { cycleId },
+            select: equipmentExecutionView,
+          },
+        },
+      }),
+    );
+  }
+
+  startEquipmentExecution(input: {
+    organizationId: string;
+    planId: string;
+    cycleId: string;
+    coverageId: string;
+    assetId: string;
+    businessUnitId: string;
+    customerId: string;
+    responsibleFieldTechnicianId: string;
+    auxiliaryTechnicianIds: string[];
+    actorId: string;
+    procedureSnapshot: Prisma.InputJsonValue;
+    technicalResponsibleSnapshot: Prisma.InputJsonValue;
+    code: string;
+    title: string;
+  }) {
+    return this.rls.run(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pmoc:equipment:${input.cycleId}:${input.coverageId}`}))`;
+      const existing = await tx.pmocEquipmentExecution.findUnique({
+        where: {
+          cycleId_coverageId: {
+            cycleId: input.cycleId,
+            coverageId: input.coverageId,
+          },
+        },
+        select: equipmentExecutionView,
+      });
+      if (existing) return { execution: existing, created: false };
+
+      const operation = await tx.operation.create({
+        data: {
+          organizationId: input.organizationId,
+          businessUnitId: input.businessUnitId,
+          customerId: input.customerId,
+          assetId: input.assetId,
+          code: input.code,
+          kind: 'PMOC',
+          title: input.title,
+          status: 'IN_PROGRESS',
+          priority: 'NORMAL',
+          responsibleFieldTechnicianId: input.responsibleFieldTechnicianId,
+          startedByUserId: input.actorId,
+          startedAt: new Date(),
+          createdById: input.actorId,
+        },
+        select: { id: true },
+      });
+      await tx.operationUser.create({
+        data: {
+          operationId: operation.id,
+          userId: input.responsibleFieldTechnicianId,
+          assignedById: input.actorId,
+        },
+      });
+      if (input.auxiliaryTechnicianIds.length) {
+        await tx.operationAuxiliaryTechnician.createMany({
+          data: input.auxiliaryTechnicianIds.map((userId) => ({
+            id: generateUuidV7(),
+            organizationId: input.organizationId,
+            operationId: operation.id,
+            userId,
+            assignedById: input.actorId,
+          })),
+        });
+      }
+      await tx.operationHistory.create({
+        data: {
+          operationId: operation.id,
+          userId: input.actorId,
+          action: 'PMOC_EQUIPMENT_EXECUTION_STARTED',
+          toStatus: 'IN_PROGRESS',
+          details: { cycleId: input.cycleId, assetId: input.assetId },
+        },
+      });
+      const execution = await tx.pmocEquipmentExecution.create({
+        data: {
+          organizationId: input.organizationId,
+          businessUnitId: input.businessUnitId,
+          cycleId: input.cycleId,
+          coverageId: input.coverageId,
+          assetId: input.assetId,
+          operationId: operation.id,
+          responsibleFieldTechnicianId: input.responsibleFieldTechnicianId,
+          procedureSnapshot: input.procedureSnapshot,
+          technicalResponsibleSnapshot: input.technicalResponsibleSnapshot,
+          startedById: input.actorId,
+        },
+        select: equipmentExecutionView,
+      });
+      await this.audit(
+        tx,
+        input.planId,
+        input.organizationId,
+        input.actorId,
+        'PMOC_EQUIPMENT_EXECUTION_STARTED',
+        {},
+        {
+          cycleId: input.cycleId,
+          assetId: input.assetId,
+          executionId: execution.id,
+        },
+      );
+      return { execution, created: true };
+    });
+  }
+
+  addEquipmentEvidence(input: {
+    organizationId: string;
+    executionId: string;
+    storageFileId: string;
+    kind: string;
+    caption: string | null;
+    actorId: string;
+  }) {
+    return this.rls.run(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pmoc:evidence:${input.executionId}`}))`;
+      const execution = await tx.pmocEquipmentExecution.findFirst({
+        where: { id: input.executionId, organizationId: input.organizationId },
+        select: { id: true },
+      });
+      const file = await tx.storageFile.findFirst({
+        where: {
+          id: input.storageFileId,
+          organizationId: input.organizationId,
+          status: 'AVAILABLE',
+          deletedAt: null,
+        },
+        select: { id: true, mimeType: true },
+      });
+      if (!execution || !file) return null;
+      const count = await tx.pmocEquipmentEvidence.count({
+        where: { equipmentExecutionId: input.executionId },
+      });
+      if (count >= 6) return { limitReached: true as const };
+      const evidence = await tx.pmocEquipmentEvidence.create({
+        data: {
+          organizationId: input.organizationId,
+          equipmentExecutionId: input.executionId,
+          storageFileId: input.storageFileId,
+          kind: input.kind,
+          caption: input.caption,
+          uploadedById: input.actorId,
+        },
+        select: { id: true },
+      });
+      return { limitReached: false as const, evidence };
+    });
+  }
+
+  linkEquipmentArtifact(
+    organizationId: string,
+    executionId: string,
+    artifactExecutionId: string,
+  ) {
+    return this.rls.run(async (tx) => {
+      const execution = await tx.pmocEquipmentExecution.findFirst({
+        where: { id: executionId, organizationId },
+        select: { id: true, businessUnitId: true, assetId: true },
+      });
+      if (!execution) return null;
+      const artifact = await tx.artifactExecution.findFirst({
+        where: {
+          id: artifactExecutionId,
+          organizationId,
+          businessUnitId: execution.businessUnitId,
+          assetId: execution.assetId,
+          deletedAt: null,
+          template: { artifactType: { contains: 'PMOC', mode: 'insensitive' } },
+        },
+        select: { id: true },
+      });
+      if (!artifact) return { invalidArtifact: true as const };
+      await tx.pmocEquipmentExecution.update({
+        where: { id: executionId },
+        data: { artifactExecutionId },
+      });
+      return { invalidArtifact: false as const };
+    });
+  }
+
+  completeEquipmentExecution(input: {
+    organizationId: string;
+    planId: string;
+    cycleId: string;
+    executionId: string;
+    actorId: string;
+    performedAt: Date;
+    notes: string | null;
+  }) {
+    return this.rls.run(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pmoc:cycle-completion:${input.cycleId}`}))`;
+      const claimed = await tx.pmocEquipmentExecution.updateMany({
+        where: {
+          id: input.executionId,
+          organizationId: input.organizationId,
+          cycleId: input.cycleId,
+          status: 'IN_PROGRESS',
+        },
+        data: {
+          status: 'COMPLETED',
+          performedAt: input.performedAt,
+          completedAt: new Date(),
+          completedById: input.actorId,
+          notes: input.notes,
+        },
+      });
+      if (!claimed.count) return null;
+      const row = await tx.pmocEquipmentExecution.findFirstOrThrow({
+        where: { id: input.executionId },
+        select: { operationId: true },
+      });
+      if (row.operationId)
+        await tx.operation.update({
+          where: { id: row.operationId },
+          data: {
+            status: 'COMPLETED',
+            completedAt: new Date(),
+            completedByUserId: input.actorId,
+          },
+        });
+      const required = await tx.pmocEquipmentCoverage.count({
+        where: {
+          planId: input.planId,
+          organizationId: input.organizationId,
+          deletedAt: null,
+        },
+      });
+      const resolved = await tx.pmocEquipmentExecution.count({
+        where: {
+          cycleId: input.cycleId,
+          organizationId: input.organizationId,
+          status: { in: ['COMPLETED', 'CANCELLED'] },
+        },
+      });
+      const allResolved = required > 0 && resolved >= required;
+      let nextDueOn: Date | null = null;
+      if (allResolved) {
+        const cycle = await tx.pmocExecution.updateMany({
+          where: {
+            id: input.cycleId,
+            planId: input.planId,
+            organizationId: input.organizationId,
+            status: 'PENDING',
+          },
+          data: {
+            status: 'COMPLETED',
+            performedAt: input.performedAt,
+            completedById: input.actorId,
+          },
+        });
+        if (cycle.count) {
+          const rolled = await tx.$queryRaw<{ next_due_on: Date }[]>`
+            UPDATE pmoc_plans SET last_executed_at=${input.performedAt},
+              next_due_on=(${input.performedAt}::date + make_interval(
+                years=>CASE WHEN frequency_unit='YEARS' THEN frequency_amount ELSE 0 END,
+                months=>CASE WHEN frequency_unit='MONTHS' THEN frequency_amount ELSE 0 END,
+                weeks=>CASE WHEN frequency_unit='WEEKS' THEN frequency_amount ELSE 0 END,
+                days=>CASE WHEN frequency_unit='DAYS' THEN frequency_amount ELSE 0 END))::date,
+              due_soon_notified_for=NULL, overdue_notified_for=NULL, updated_at=now()
+            WHERE id=${input.planId}::uuid AND organization_id=${input.organizationId}::uuid
+            RETURNING next_due_on
+          `;
+          nextDueOn = rolled[0]?.next_due_on ?? null;
+          if (nextDueOn)
+            await tx.$executeRaw`
+            INSERT INTO pmoc_executions(id,organization_id,plan_id,due_on,status,sequence_number,updated_at)
+            SELECT ${generateUuidV7()}::uuid,${input.organizationId}::uuid,${input.planId}::uuid,${nextDueOn}::date,'PENDING',
+              COALESCE((SELECT max(sequence_number)+1 FROM pmoc_executions WHERE plan_id=${input.planId}::uuid),1),now()
+            FROM pmoc_plans p WHERE p.id=${input.planId}::uuid AND (p.ends_on IS NULL OR p.ends_on>=${nextDueOn}::date)
+            ON CONFLICT DO NOTHING
+          `;
+        }
+      }
+      await this.audit(
+        tx,
+        input.planId,
+        input.organizationId,
+        input.actorId,
+        'PMOC_EQUIPMENT_EXECUTION_COMPLETED',
+        {},
+        {
+          cycleId: input.cycleId,
+          executionId: input.executionId,
+          allResolved,
+          nextDueOn,
+        },
+      );
+      return {
+        allResolved,
+        nextDueOn,
+        execution: await tx.pmocEquipmentExecution.findFirstOrThrow({
+          where: { id: input.executionId },
+          select: equipmentExecutionView,
+        }),
+      };
+    });
+  }
+
+  /* ---------------------------------------------------------------- */
   /* Cobertura                                                         */
   /* ---------------------------------------------------------------- */
 
@@ -871,18 +1354,20 @@ export class PmocRepository {
         { completed: bigint; pending: bigint; overdue: bigint }[]
       >`
         SELECT
-          COUNT(*) FILTER (
-            WHERE e.status = 'COMPLETED' AND e.performed_at BETWEEN ${from} AND ${to}
-          ) AS completed,
-          COUNT(*) FILTER (WHERE e.status = 'PENDING') AS pending,
-          COUNT(*) FILTER (
-            WHERE e.status = 'PENDING' AND e.due_on < current_date
-          ) AS overdue
-        FROM pmoc_executions e
-        JOIN pmoc_plans p ON p.id = e.plan_id
-       WHERE e.organization_id = ${organizationId}::uuid
-         AND p.deleted_at IS NULL
-         ${unit}
+          (SELECT COUNT(*) FROM pmoc_equipment_executions pe
+            JOIN pmoc_executions ce ON ce.id=pe.cycle_id
+            JOIN pmoc_plans p ON p.id=ce.plan_id
+           WHERE pe.organization_id=${organizationId}::uuid AND pe.status='COMPLETED'
+             AND pe.performed_at BETWEEN ${from} AND ${to} AND p.deleted_at IS NULL ${unit}) AS completed,
+          COALESCE(SUM(GREATEST(c.covered - c.resolved, 0)) FILTER (WHERE c.status='PENDING'),0) AS pending,
+          COALESCE(SUM(GREATEST(c.covered - c.resolved, 0)) FILTER (WHERE c.status='PENDING' AND c.due_on<current_date),0) AS overdue
+        FROM (
+          SELECT e.id,e.status,e.due_on,
+            (SELECT COUNT(*) FROM pmoc_equipment_coverages pc WHERE pc.plan_id=e.plan_id AND pc.deleted_at IS NULL) AS covered,
+            (SELECT COUNT(*) FROM pmoc_equipment_executions pe WHERE pe.cycle_id=e.id AND pe.status IN ('COMPLETED','CANCELLED')) AS resolved
+          FROM pmoc_executions e JOIN pmoc_plans p ON p.id=e.plan_id
+          WHERE e.organization_id=${organizationId}::uuid AND p.deleted_at IS NULL ${unit}
+        ) c
       `;
 
       return { plans, equipment, executions, period: { from, to } };

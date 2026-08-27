@@ -29,60 +29,74 @@ model User {
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  credential                    Credential?
-  sessions                      Session[]
-  ownedOrganizations            Organization[]                 @relation("OrganizationOwner")
-  organizationMemberships       OrganizationMembership[]
-  platformRoleAssignments       PlatformRoleAssignment[]
-  businessUnitMemberships       BusinessUnitMembership[]
-  operationAssignments          OperationUser[]                @relation("OperationAssignedUser")
-  assignedOperations            OperationUser[]                @relation("OperationAssignedBy")
-  operationHistory              OperationHistory[]
-  operationAttachments          OperationAttachment[]
-  createdReports                Report[]                       @relation("ReportCreatedBy")
-  signatures                    Signature[]                    @relation("SignatureUser")
-  notifications                 Notification[]
-  checklistExecutions           ChecklistExecution[]           @relation("ChecklistCreatedBy")
-  requestedAiExecutions         AiExecution[]                  @relation("AiExecutionUser")
-  createdSchedulingEvents       SchedulingEvent[]              @relation("SchedulingEventCreatedBy")
-  schedulingAllocations         SchedulingResourceAllocation[]
-  schedulingAvailability        SchedulingAvailability[]
-  specialties                   MemberSpecialty[]
-  certifications                MemberCertification[]
-  teamMemberships               TeamMembership[]
-  ledTeams                      Team[]                         @relation("TeamLeader")
-  locations                     MemberLocation[]
-  financialEntriesCreated       FinancialEntry[]               @relation("FinancialEntryCreatedBy")
-  financialEntriesConfirmed     FinancialEntry[]               @relation("FinancialEntryConfirmedBy")
-  financialEntriesCancelled     FinancialEntry[]               @relation("FinancialEntryCancelledBy")
-  quotesCreated                 Quote[]                        @relation("QuoteCreatedBy")
-  quotesSent                    Quote[]                        @relation("QuoteSentBy")
-  quotesDecided                 Quote[]                        @relation("QuoteDecidedBy")
-  inventoryMovements            InventoryMovement[]            @relation("InventoryMovementActor")
-  automationRules               AutomationRule[]               @relation("AutomationRuleCreatedBy")
-  managementReports             ManagementReport[]             @relation("ManagementReportGeneratedBy")
-  pmocPlansCreated              PmocPlan[]                     @relation("PmocPlanCreatedBy")
-  pmocPlansResponsible          PmocPlan[]                     @relation("PmocPlanTechnician")
-  pmocExecutionsCompleted       PmocExecution[]                @relation("PmocExecutionCompletedBy")
-  schedulingHistory             SchedulingEventHistory[]
-  notificationPreferences       NotificationPreference[]
-  notificationDeliveries        NotificationDelivery[]
-  pushSubscriptions             PushSubscription[]
-  auditLogs                     AuditLog[]
-  invitationsSent               IdentityInvitation[]           @relation("InvitationInviter")
-  passwordResetTokens           PasswordResetToken[]
-  mfaFactors                    MfaFactor[]
-  createdArtifactTemplates      ArtifactTemplate[]             @relation("ArtifactTemplateCreatedBy")
-  createdArtifactVersions       ArtifactTemplateVersion[]      @relation("ArtifactTemplateVersionCreatedBy")
-  artifactExecutionsResponsible ArtifactExecution[]            @relation("ArtifactExecutionResponsible")
-  artifactExecutionsCreated     ArtifactExecution[]            @relation("ArtifactExecutionCreatedBy")
-  artifactExecutionTeam         ArtifactExecutionTeam[]
-  artifactResponses             ArtifactExecutionResponse[]    @relation("ArtifactResponseAnsweredBy")
-  artifactAttachments           ArtifactExecutionAttachment[]  @relation("ArtifactAttachmentUploadedBy")
-  artifactSignatures            ArtifactExecutionSignature[]   @relation("ArtifactSignatureUser")
-  storageFilesCreated           StorageFile[]                  @relation("StorageFileCreatedBy")
-  artifactManifestsIssued       ArtifactManifest[]             @relation("ArtifactManifestIssuedBy")
-  artifactManifestsCreated      ArtifactManifest[]             @relation("ArtifactManifestCreatedBy")
+  credential                         Credential?
+  sessions                           Session[]
+  ownedOrganizations                 Organization[]                 @relation("OrganizationOwner")
+  organizationMemberships            OrganizationMembership[]
+  platformRoleAssignments            PlatformRoleAssignment[]
+  businessUnitMemberships            BusinessUnitMembership[]
+  operationAssignments               OperationUser[]                @relation("OperationAssignedUser")
+  assignedOperations                 OperationUser[]                @relation("OperationAssignedBy")
+  responsibleFieldOperations         Operation[]                    @relation("OperationResponsibleFieldTechnician")
+  startedOperations                  Operation[]                    @relation("OperationStartedBy")
+  completedOperations                Operation[]                    @relation("OperationCompletedBy")
+  auxiliaryOperationAssignments      OperationAuxiliaryTechnician[] @relation("OperationAuxiliaryUser")
+  auxiliaryAssignmentsCreated        OperationAuxiliaryTechnician[] @relation("OperationAuxiliaryAssignedBy")
+  auxiliaryAssignmentsRemoved        OperationAuxiliaryTechnician[] @relation("OperationAuxiliaryRemovedBy")
+  operationHistory                   OperationHistory[]
+  operationAttachments               OperationAttachment[]
+  createdReports                     Report[]                       @relation("ReportCreatedBy")
+  signatures                         Signature[]                    @relation("SignatureUser")
+  notifications                      Notification[]
+  checklistExecutions                ChecklistExecution[]           @relation("ChecklistCreatedBy")
+  requestedAiExecutions              AiExecution[]                  @relation("AiExecutionUser")
+  createdSchedulingEvents            SchedulingEvent[]              @relation("SchedulingEventCreatedBy")
+  schedulingAllocations              SchedulingResourceAllocation[]
+  schedulingAvailability             SchedulingAvailability[]
+  specialties                        MemberSpecialty[]
+  certifications                     MemberCertification[]
+  teamMemberships                    TeamMembership[]
+  ledTeams                           Team[]                         @relation("TeamLeader")
+  locations                          MemberLocation[]
+  financialEntriesCreated            FinancialEntry[]               @relation("FinancialEntryCreatedBy")
+  financialEntriesConfirmed          FinancialEntry[]               @relation("FinancialEntryConfirmedBy")
+  financialEntriesCancelled          FinancialEntry[]               @relation("FinancialEntryCancelledBy")
+  quotesCreated                      Quote[]                        @relation("QuoteCreatedBy")
+  quotesSent                         Quote[]                        @relation("QuoteSentBy")
+  quotesDecided                      Quote[]                        @relation("QuoteDecidedBy")
+  inventoryMovements                 InventoryMovement[]            @relation("InventoryMovementActor")
+  automationRules                    AutomationRule[]               @relation("AutomationRuleCreatedBy")
+  managementReports                  ManagementReport[]             @relation("ManagementReportGeneratedBy")
+  pmocPlansCreated                   PmocPlan[]                     @relation("PmocPlanCreatedBy")
+  pmocPlansResponsible               PmocPlan[]                     @relation("PmocPlanTechnician")
+  pmocPlansTechnicalResponsible      PmocPlan[]                     @relation("PmocPlanTechnicalResponsible")
+  pmocExecutionsCompleted            PmocExecution[]                @relation("PmocExecutionCompletedBy")
+  pmocEquipmentExecutionsStarted     PmocEquipmentExecution[]       @relation("PmocEquipmentExecutionStartedBy")
+  pmocEquipmentExecutionsCompleted   PmocEquipmentExecution[]       @relation("PmocEquipmentExecutionCompletedBy")
+  pmocEquipmentExecutionsResponsible PmocEquipmentExecution[]       @relation("PmocEquipmentExecutionResponsible")
+  pmocEquipmentEvidenceUploaded      PmocEquipmentEvidence[]        @relation("PmocEquipmentEvidenceUploadedBy")
+  schedulingHistory                  SchedulingEventHistory[]
+  notificationPreferences            NotificationPreference[]
+  notificationDeliveries             NotificationDelivery[]
+  pushSubscriptions                  PushSubscription[]
+  auditLogs                          AuditLog[]
+  invitationsSent                    IdentityInvitation[]           @relation("InvitationInviter")
+  passwordResetTokens                PasswordResetToken[]
+  mfaFactors                         MfaFactor[]
+  createdArtifactTemplates           ArtifactTemplate[]             @relation("ArtifactTemplateCreatedBy")
+  createdArtifactVersions            ArtifactTemplateVersion[]      @relation("ArtifactTemplateVersionCreatedBy")
+  artifactExecutionsResponsible      ArtifactExecution[]            @relation("ArtifactExecutionResponsible")
+  artifactExecutionsCreated          ArtifactExecution[]            @relation("ArtifactExecutionCreatedBy")
+  artifactExecutionTeam              ArtifactExecutionTeam[]
+  artifactResponses                  ArtifactExecutionResponse[]    @relation("ArtifactResponseAnsweredBy")
+  artifactAttachments                ArtifactExecutionAttachment[]  @relation("ArtifactAttachmentUploadedBy")
+  artifactSignatures                 ArtifactExecutionSignature[]   @relation("ArtifactSignatureUser")
+  storageFilesCreated                StorageFile[]                  @relation("StorageFileCreatedBy")
+  artifactManifestsIssued            ArtifactManifest[]             @relation("ArtifactManifestIssuedBy")
+  artifactManifestsCreated           ArtifactManifest[]             @relation("ArtifactManifestCreatedBy")
+  professionalProfiles               ProfessionalProfile[]
+  professionalCredentials            ProfessionalCredential[]
+  professionalSignatures             UserSignature[]                @relation("ProfessionalSignatureUser")
 
   @@index([status, deletedAt])
   @@map("users")
@@ -206,65 +220,71 @@ model Organization {
   updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt              DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  owner                    User                          @relation("OrganizationOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  plan                     Plan                          @relation(fields: [planId], references: [id], onDelete: Restrict)
-  businessUnits            BusinessUnit[]
-  memberships              OrganizationMembership[]
-  roles                    Role[]
-  usages                   PlanUsage[]
-  integrations             Integration[]
-  sessions                 Session[]
-  customers                Customer[]
-  categories               ProductCategory[]
-  products                 Product[]
-  assets                   Asset[]
-  operations               Operation[]
-  reportTemplates          ReportTemplate[]
-  artifactTemplates        ArtifactTemplate[]
-  artifactTemplateVersions ArtifactTemplateVersion[]
-  artifactSnapshots        ArtifactSnapshot[]
-  artifactExecutions       ArtifactExecution[]
-  artifactResponses        ArtifactExecutionResponse[]
-  artifactAttachments      ArtifactExecutionAttachment[]
-  artifactSignatures       ArtifactExecutionSignature[]
-  artifactInsights         ArtifactExecutionInsight[]
-  storageFiles             StorageFile[]
-  artifactManifests        ArtifactManifest[]
-  backgroundJobs           BackgroundJob[]
-  reports                  Report[]
-  checklistTemplates       ChecklistTemplate[]
-  checklistExecutions      ChecklistExecution[]
-  notifications            Notification[]
-  notificationPreferences  NotificationPreference[]
-  pushSubscriptions        PushSubscription[]
-  aiAgents                 AiAgent[]
-  aiExecutions             AiExecution[]
-  auditLogs                AuditLog[]
-  calendars                SchedulingCalendar[]
-  schedulingEvents         SchedulingEvent[]
-  schedulingAvailability   SchedulingAvailability[]
-  invitations              IdentityInvitation[]
-  businessUnitMemberships  BusinessUnitMembership[]
-  specialties              Specialty[]
-  memberSpecialties        MemberSpecialty[]
-  memberCertifications     MemberCertification[]
-  teams                    Team[]
-  teamMemberships          TeamMembership[]
-  memberLocations          MemberLocation[]
-  financialCategories      FinancialCategory[]
-  financialEntries         FinancialEntry[]
-  financialSettings        FinancialSettings?
-  quotes                   Quote[]
-  quoteItems               QuoteItem[]
-  inventoryMovements       InventoryMovement[]
-  inventoryBalances        InventoryBalance[]
-  domainEvents             DomainEvent[]
-  automationRules          AutomationRule[]
-  automationExecutions     AutomationExecution[]
-  managementReports        ManagementReport[]
-  pmocPlans                PmocPlan[]
-  pmocCoverages            PmocEquipmentCoverage[]
-  pmocExecutions           PmocExecution[]
+  owner                         User                           @relation("OrganizationOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  plan                          Plan                           @relation(fields: [planId], references: [id], onDelete: Restrict)
+  businessUnits                 BusinessUnit[]
+  memberships                   OrganizationMembership[]
+  roles                         Role[]
+  usages                        PlanUsage[]
+  integrations                  Integration[]
+  sessions                      Session[]
+  customers                     Customer[]
+  categories                    ProductCategory[]
+  products                      Product[]
+  assets                        Asset[]
+  operations                    Operation[]
+  operationAuxiliaryTechnicians OperationAuxiliaryTechnician[]
+  pmocEquipmentExecutions       PmocEquipmentExecution[]
+  pmocEquipmentEvidence         PmocEquipmentEvidence[]
+  reportTemplates               ReportTemplate[]
+  artifactTemplates             ArtifactTemplate[]
+  artifactTemplateVersions      ArtifactTemplateVersion[]
+  artifactSnapshots             ArtifactSnapshot[]
+  artifactExecutions            ArtifactExecution[]
+  artifactResponses             ArtifactExecutionResponse[]
+  artifactAttachments           ArtifactExecutionAttachment[]
+  artifactSignatures            ArtifactExecutionSignature[]
+  artifactInsights              ArtifactExecutionInsight[]
+  storageFiles                  StorageFile[]
+  artifactManifests             ArtifactManifest[]
+  backgroundJobs                BackgroundJob[]
+  reports                       Report[]
+  checklistTemplates            ChecklistTemplate[]
+  checklistExecutions           ChecklistExecution[]
+  notifications                 Notification[]
+  notificationPreferences       NotificationPreference[]
+  pushSubscriptions             PushSubscription[]
+  aiAgents                      AiAgent[]
+  aiExecutions                  AiExecution[]
+  auditLogs                     AuditLog[]
+  calendars                     SchedulingCalendar[]
+  schedulingEvents              SchedulingEvent[]
+  schedulingAvailability        SchedulingAvailability[]
+  invitations                   IdentityInvitation[]
+  businessUnitMemberships       BusinessUnitMembership[]
+  specialties                   Specialty[]
+  memberSpecialties             MemberSpecialty[]
+  memberCertifications          MemberCertification[]
+  teams                         Team[]
+  teamMemberships               TeamMembership[]
+  memberLocations               MemberLocation[]
+  financialCategories           FinancialCategory[]
+  financialEntries              FinancialEntry[]
+  financialSettings             FinancialSettings?
+  quotes                        Quote[]
+  quoteItems                    QuoteItem[]
+  inventoryMovements            InventoryMovement[]
+  inventoryBalances             InventoryBalance[]
+  domainEvents                  DomainEvent[]
+  automationRules               AutomationRule[]
+  automationExecutions          AutomationExecution[]
+  managementReports             ManagementReport[]
+  pmocPlans                     PmocPlan[]
+  pmocCoverages                 PmocEquipmentCoverage[]
+  pmocExecutions                PmocExecution[]
+  professionalProfiles          ProfessionalProfile[]
+  professionalCredentials       ProfessionalCredential[]
+  professionalSignatures        UserSignature[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -307,27 +327,28 @@ model BusinessUnit {
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt             DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  parent                 BusinessUnit?            @relation("BusinessUnitHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
-  children               BusinessUnit[]           @relation("BusinessUnitHierarchy")
-  memberships            BusinessUnitMembership[]
-  sessions               Session[]
-  contacts               Contact[]
-  assets                 Asset[]
-  products               Product[]
-  operations             Operation[]
-  reports                Report[]
-  notifications          Notification[]
-  checklistExecutions    ChecklistExecution[]
-  auditLogs              AuditLog[]
-  calendars              SchedulingCalendar[]
-  schedulingEvents       SchedulingEvent[]
-  schedulingAvailability SchedulingAvailability[]
-  invitations            IdentityInvitation[]
-  artifactExecutions     ArtifactExecution[]
-  storageFiles           StorageFile[]
-  artifactManifests      ArtifactManifest[]
-  backgroundJobs         BackgroundJob[]
+  organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent                  BusinessUnit?            @relation("BusinessUnitHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children                BusinessUnit[]           @relation("BusinessUnitHierarchy")
+  memberships             BusinessUnitMembership[]
+  sessions                Session[]
+  contacts                Contact[]
+  assets                  Asset[]
+  products                Product[]
+  operations              Operation[]
+  reports                 Report[]
+  notifications           Notification[]
+  checklistExecutions     ChecklistExecution[]
+  auditLogs               AuditLog[]
+  calendars               SchedulingCalendar[]
+  schedulingEvents        SchedulingEvent[]
+  schedulingAvailability  SchedulingAvailability[]
+  invitations             IdentityInvitation[]
+  artifactExecutions      ArtifactExecution[]
+  storageFiles            StorageFile[]
+  artifactManifests       ArtifactManifest[]
+  backgroundJobs          BackgroundJob[]
+  pmocEquipmentExecutions PmocEquipmentExecution[]
 
   teams Team[]
 
@@ -657,14 +678,15 @@ model Asset {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization          Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit          BusinessUnit                   @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
-  customer              Customer?                      @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  operations            Operation[]
-  schedulingEvents      SchedulingEvent[]
-  schedulingAllocations SchedulingResourceAllocation[]
-  artifactExecutions    ArtifactExecution[]
-  pmocCoverages         PmocEquipmentCoverage[]
+  organization            Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit            BusinessUnit                   @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  customer                Customer?                      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  operations              Operation[]
+  schedulingEvents        SchedulingEvent[]
+  schedulingAllocations   SchedulingResourceAllocation[]
+  artifactExecutions      ArtifactExecution[]
+  pmocEquipmentExecutions PmocEquipmentExecution[]
+  pmocCoverages           PmocEquipmentCoverage[]
 
   @@unique([organizationId, identifier])
   @@index([organizationId, businessUnitId, status, deletedAt])
@@ -678,39 +700,46 @@ model Asset {
 // -----------------------------------------------------------------------------
 
 model Operation {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
-  businessUnitId String    @map("business_unit_id") @db.Uuid
-  customerId     String?   @map("customer_id") @db.Uuid
-  assetId        String?   @map("asset_id") @db.Uuid
-  code           String    @db.VarChar(60)
-  kind           String    @db.VarChar(60)
-  title          String    @db.VarChar(220)
-  description    String?   @db.Text
-  status         String    @default("OPEN") @db.VarChar(40)
-  priority       String    @default("NORMAL") @db.VarChar(30)
-  scheduledStart DateTime? @map("scheduled_start") @db.Timestamptz(3)
-  scheduledEnd   DateTime? @map("scheduled_end") @db.Timestamptz(3)
-  startedAt      DateTime? @map("started_at") @db.Timestamptz(3)
-  completedAt    DateTime? @map("completed_at") @db.Timestamptz(3)
-  location       Json?     @db.JsonB
-  data           Json?     @db.JsonB
-  createdById    String?   @map("created_by_id") @db.Uuid
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  id                           String    @id @default(uuid(7)) @db.Uuid
+  organizationId               String    @map("organization_id") @db.Uuid
+  businessUnitId               String    @map("business_unit_id") @db.Uuid
+  customerId                   String?   @map("customer_id") @db.Uuid
+  assetId                      String?   @map("asset_id") @db.Uuid
+  code                         String    @db.VarChar(60)
+  kind                         String    @db.VarChar(60)
+  title                        String    @db.VarChar(220)
+  description                  String?   @db.Text
+  status                       String    @default("OPEN") @db.VarChar(40)
+  priority                     String    @default("NORMAL") @db.VarChar(30)
+  scheduledStart               DateTime? @map("scheduled_start") @db.Timestamptz(3)
+  scheduledEnd                 DateTime? @map("scheduled_end") @db.Timestamptz(3)
+  startedAt                    DateTime? @map("started_at") @db.Timestamptz(3)
+  completedAt                  DateTime? @map("completed_at") @db.Timestamptz(3)
+  location                     Json?     @db.JsonB
+  data                         Json?     @db.JsonB
+  createdById                  String?   @map("created_by_id") @db.Uuid
+  responsibleFieldTechnicianId String?   @map("responsible_field_technician_id") @db.Uuid
+  startedByUserId              String?   @map("started_by_user_id") @db.Uuid
+  completedByUserId            String?   @map("completed_by_user_id") @db.Uuid
+  createdAt                    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt                    DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit        BusinessUnit          @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
-  customer            Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  asset               Asset?                @relation(fields: [assetId], references: [id], onDelete: SetNull)
-  users               OperationUser[]
-  history             OperationHistory[]
-  attachments         OperationAttachment[]
-  reports             Report[]
-  checklistExecutions ChecklistExecution[]
-  aiExecutions        AiExecution[]
-  artifactExecutions  ArtifactExecution[]
+  organization               Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit               BusinessUnit                   @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  customer                   Customer?                      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  asset                      Asset?                         @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  responsibleFieldTechnician User?                          @relation("OperationResponsibleFieldTechnician", fields: [responsibleFieldTechnicianId], references: [id], onDelete: SetNull)
+  startedBy                  User?                          @relation("OperationStartedBy", fields: [startedByUserId], references: [id], onDelete: SetNull)
+  completedBy                User?                          @relation("OperationCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  auxiliaryTechnicians       OperationAuxiliaryTechnician[]
+  users                      OperationUser[]
+  history                    OperationHistory[]
+  attachments                OperationAttachment[]
+  reports                    Report[]
+  checklistExecutions        ChecklistExecution[]
+  aiExecutions               AiExecution[]
+  artifactExecutions         ArtifactExecution[]
 
   financialEntries FinancialEntry[]
 
@@ -718,7 +747,8 @@ model Operation {
 
   inventoryMovements InventoryMovement[]
 
-  pmocExecution PmocExecution?
+  pmocExecution          PmocExecution?
+  pmocEquipmentExecution PmocEquipmentExecution?
 
   @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, scheduledStart])
@@ -727,6 +757,7 @@ model Operation {
   /// Relatórios gerenciais: "tudo da organização entre duas datas".
   @@index([organizationId, createdAt])
   @@index([organizationId, completedAt])
+  @@index([organizationId, responsibleFieldTechnicianId, status, scheduledStart])
   @@map("operations")
 }
 
@@ -743,6 +774,27 @@ model OperationUser {
   @@id([operationId, userId])
   @@index([userId, assignedAt])
   @@map("operation_users")
+}
+
+model OperationAuxiliaryTechnician {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  operationId    String    @map("operation_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  assignedById   String    @map("assigned_by_id") @db.Uuid
+  assignedAt     DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(3)
+  removedById    String?   @map("removed_by_id") @db.Uuid
+  removedAt      DateTime? @map("removed_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  operation    Operation    @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  user         User         @relation("OperationAuxiliaryUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy   User         @relation("OperationAuxiliaryAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  removedBy    User?        @relation("OperationAuxiliaryRemovedBy", fields: [removedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, userId, removedAt])
+  @@index([operationId, removedAt, assignedAt])
+  @@map("operation_auxiliary_technicians")
 }
 
 model OperationHistory {
@@ -938,22 +990,23 @@ model ArtifactExecution {
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization  Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit  BusinessUnit                  @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
-  operation     Operation?                    @relation(fields: [operationId], references: [id], onDelete: SetNull)
-  customer      Customer?                     @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  asset         Asset?                        @relation(fields: [assetId], references: [id], onDelete: SetNull)
-  template      ArtifactTemplate              @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  snapshot      ArtifactSnapshot              @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
-  responsible   User?                         @relation("ArtifactExecutionResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
-  createdBy     User                          @relation("ArtifactExecutionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  team          ArtifactExecutionTeam[]
-  responses     ArtifactExecutionResponse[]
-  attachments   ArtifactExecutionAttachment[]
-  signatures    ArtifactExecutionSignature[]
-  insights      ArtifactExecutionInsight[]
-  manifests     ArtifactManifest[]
-  pmocExecution PmocExecution?
+  organization           Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit           BusinessUnit                  @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  operation              Operation?                    @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  customer               Customer?                     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  asset                  Asset?                        @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  template               ArtifactTemplate              @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  snapshot               ArtifactSnapshot              @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  responsible            User?                         @relation("ArtifactExecutionResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  createdBy              User                          @relation("ArtifactExecutionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  team                   ArtifactExecutionTeam[]
+  responses              ArtifactExecutionResponse[]
+  attachments            ArtifactExecutionAttachment[]
+  signatures             ArtifactExecutionSignature[]
+  insights               ArtifactExecutionInsight[]
+  manifests              ArtifactManifest[]
+  pmocExecution          PmocExecution?
+  pmocEquipmentExecution PmocEquipmentExecution?
 
   @@unique([organizationId, code])
   @@index([organizationId, businessUnitId, status, createdAt])
@@ -1033,23 +1086,31 @@ model ArtifactExecutionAttachment {
 }
 
 model ArtifactExecutionSignature {
-  id             String            @id @default(uuid(7)) @db.Uuid
-  organizationId String            @map("organization_id") @db.Uuid
-  executionId    String            @map("execution_id") @db.Uuid
-  slotId         String            @map("slot_id") @db.VarChar(120)
-  signerRole     String            @map("signer_role") @db.VarChar(80)
-  userId         String?           @map("user_id") @db.Uuid
-  signerName     String            @map("signer_name") @db.VarChar(180)
-  signerDocument String?           @map("signer_document") @db.VarChar(32)
-  signatureData  Json              @map("signature_data") @db.JsonB
-  signatureHash  String            @map("signature_hash") @db.Char(64)
-  consentText    String?           @map("consent_text") @db.Text
-  geolocation    Json?             @db.JsonB
-  signedAt       DateTime          @default(now()) @map("signed_at") @db.Timestamptz(3)
-  revokedAt      DateTime?         @map("revoked_at") @db.Timestamptz(3)
-  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  execution      ArtifactExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
-  user           User?             @relation("ArtifactSignatureUser", fields: [userId], references: [id], onDelete: SetNull)
+  id                 String            @id @default(uuid(7)) @db.Uuid
+  organizationId     String            @map("organization_id") @db.Uuid
+  executionId        String            @map("execution_id") @db.Uuid
+  slotId             String            @map("slot_id") @db.VarChar(120)
+  signerRole         String            @map("signer_role") @db.VarChar(80)
+  signedAs           String?           @map("signed_as") @db.VarChar(40)
+  userId             String?           @map("user_id") @db.Uuid
+  signerName         String            @map("signer_name") @db.VarChar(180)
+  signerDocument     String?           @map("signer_document") @db.VarChar(32)
+  signatureData      Json              @map("signature_data") @db.JsonB
+  signatureHash      String            @map("signature_hash") @db.Char(64)
+  signatureAssetId   String?           @map("signature_asset_id") @db.Uuid
+  signatureAssetHash String?           @map("signature_asset_hash") @db.Char(64)
+  professionalRole   String?           @map("professional_role") @db.VarChar(40)
+  credentialType     String?           @map("credential_type") @db.VarChar(20)
+  credentialNumber   String?           @map("credential_number") @db.VarChar(100)
+  credentialRegion   String?           @map("credential_region") @db.VarChar(40)
+  capturedAt         DateTime?         @map("captured_at") @db.Timestamptz(3)
+  consentText        String?           @map("consent_text") @db.Text
+  geolocation        Json?             @db.JsonB
+  signedAt           DateTime          @default(now()) @map("signed_at") @db.Timestamptz(3)
+  revokedAt          DateTime?         @map("revoked_at") @db.Timestamptz(3)
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  execution          ArtifactExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  user               User?             @relation("ArtifactSignatureUser", fields: [userId], references: [id], onDelete: SetNull)
 
   @@unique([executionId, slotId])
   @@index([organizationId, signedAt])
@@ -1100,14 +1161,16 @@ model StorageFile {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization      Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit      BusinessUnit?                 @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
-  createdBy         User?                         @relation("StorageFileCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  manifests         ArtifactManifest[]
-  managementReports ManagementReport[]
-  attachments       ArtifactExecutionAttachment[]
+  organization          Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit          BusinessUnit?                 @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  createdBy             User?                         @relation("StorageFileCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  manifests             ArtifactManifest[]
+  managementReports     ManagementReport[]
+  attachments           ArtifactExecutionAttachment[]
+  pmocEquipmentEvidence PmocEquipmentEvidence[]
 
-  memberCertifications MemberCertification[]
+  memberCertifications   MemberCertification[]
+  professionalSignatures UserSignature[]
 
   @@unique([provider, bucket, objectKey])
   @@index([organizationId, status, createdAt])
@@ -1886,6 +1949,82 @@ model MemberLocation {
 }
 
 // -----------------------------------------------------------------------------
+// PROFESSIONAL IDENTITY
+// -----------------------------------------------------------------------------
+
+/// Identidade profissional tenant-scoped. Não concede permissões RBAC.
+/// O perfil pertence à organização; o escopo por unidade continua sendo
+/// determinado pelos BusinessUnitMemberships ativos da mesma identidade.
+model ProfessionalProfile {
+  id                          String   @id @default(uuid(7)) @db.Uuid
+  organizationId              String   @map("organization_id") @db.Uuid
+  userId                      String   @map("user_id") @db.Uuid
+  fieldTechnicianEnabled      Boolean  @default(false) @map("field_technician_enabled")
+  technicalResponsibleEnabled Boolean  @default(false) @map("technical_responsible_enabled")
+  active                      Boolean  @default(true)
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentials  ProfessionalCredential[]
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, active, fieldTechnicianEnabled])
+  @@index([organizationId, active, technicalResponsibleEnabled])
+  @@map("professional_profiles")
+}
+
+/// Registro emitido por conselho/autoridade. É evidência descritiva e nunca
+/// concede papel profissional automaticamente.
+model ProfessionalCredential {
+  id                    String    @id @default(uuid(7)) @db.Uuid
+  organizationId        String    @map("organization_id") @db.Uuid
+  professionalProfileId String    @map("professional_profile_id") @db.Uuid
+  userId                String    @map("user_id") @db.Uuid
+  type                  String    @db.VarChar(20)
+  registrationNumber    String    @map("registration_number") @db.VarChar(100)
+  region                String?   @db.VarChar(40)
+  issuingAuthority      String?   @map("issuing_authority") @db.VarChar(120)
+  displayLabel          String?   @map("display_label") @db.VarChar(180)
+  active                Boolean   @default(true)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  revokedAt             DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profile      ProfessionalProfile @relation(fields: [professionalProfileId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([professionalProfileId, type, registrationNumber])
+  @@index([organizationId, userId, active])
+  @@map("professional_credentials")
+}
+
+/// Uma única assinatura gráfica ativa por pessoa e organização. O binário
+/// vive no Storage; esta tabela mantém versão, hash e ciclo de revogação.
+model UserSignature {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  storageObjectId String    @map("storage_object_id") @db.Uuid
+  sha256          String    @db.Char(64)
+  version         Int       @default(1)
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user          User         @relation("ProfessionalSignatureUser", fields: [userId], references: [id], onDelete: Cascade)
+  storageObject StorageFile  @relation(fields: [storageObjectId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, userId, version])
+  @@index([organizationId, userId, active])
+  @@map("user_signatures")
+}
+
+// -----------------------------------------------------------------------------
 // FINANCIAL CORE
 //
 // Registro de entradas e saídas de dinheiro. **Não é contabilidade**: não há
@@ -2436,6 +2575,16 @@ model PmocPlan {
   /// Responsável técnico — referência **operacional**, não registro profissional.
   technicianUserId String? @map("technician_user_id") @db.Uuid
 
+  /// Responsável técnico profissional (PR-27). O campo anterior permanece
+  /// apenas para leitura de históricos legados.
+  technicalResponsibleUserId String? @map("technical_responsible_user_id") @db.Uuid
+  serviceLocation            Json?   @map("service_location") @db.JsonB
+  scope                      Json?   @db.JsonB
+  serviceTypes               Json    @default("[]") @map("service_types") @db.JsonB
+  procedure                  Json    @default("{}") @db.JsonB
+  schedulingPaused           Boolean @default(false) @map("scheduling_paused")
+  reviewRequired             Boolean @default(false) @map("review_required")
+
   /// Derivados mantidos pelo servidor, nunca escritos pelo cliente.
   lastExecutedAt DateTime? @map("last_executed_at") @db.Timestamptz(3)
   nextDueOn      DateTime? @map("next_due_on") @db.Date
@@ -2450,11 +2599,12 @@ model PmocPlan {
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
-  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  technician   User?        @relation("PmocPlanTechnician", fields: [technicianUserId], references: [id], onDelete: SetNull)
-  createdBy    User         @relation("PmocPlanCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit         BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  customer             Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  technician           User?        @relation("PmocPlanTechnician", fields: [technicianUserId], references: [id], onDelete: SetNull)
+  technicalResponsible User?        @relation("PmocPlanTechnicalResponsible", fields: [technicalResponsibleUserId], references: [id], onDelete: SetNull)
+  createdBy            User         @relation("PmocPlanCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   coverages  PmocEquipmentCoverage[]
   executions PmocExecution[]
@@ -2482,9 +2632,10 @@ model PmocEquipmentCoverage {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  plan         PmocPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)
-  asset        Asset        @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan                PmocPlan                 @relation(fields: [planId], references: [id], onDelete: Cascade)
+  asset               Asset                    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  equipmentExecutions PmocEquipmentExecution[]
 
   @@index([organizationId, planId])
   @@index([organizationId, assetId])
@@ -2504,6 +2655,7 @@ model PmocExecution {
   /// Vencimento previsto deste ciclo.
   dueOn          DateTime @map("due_on") @db.Date
   status         String   @default("PENDING") @db.VarChar(20)
+  sequenceNumber Int      @default(1) @map("sequence_number")
 
   /// A ordem de serviço que cumpriu o ciclo. Única: um ciclo, uma ordem.
   operationId         String? @unique @map("operation_id") @db.Uuid
@@ -2518,15 +2670,79 @@ model PmocExecution {
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  plan              PmocPlan           @relation(fields: [planId], references: [id], onDelete: Cascade)
-  operation         Operation?         @relation(fields: [operationId], references: [id], onDelete: SetNull)
-  artifactExecution ArtifactExecution? @relation(fields: [artifactExecutionId], references: [id], onDelete: SetNull)
-  schedulingEvent   SchedulingEvent?   @relation(fields: [schedulingEventId], references: [id], onDelete: SetNull)
-  completedBy       User?              @relation("PmocExecutionCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan                PmocPlan                 @relation(fields: [planId], references: [id], onDelete: Cascade)
+  operation           Operation?               @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  artifactExecution   ArtifactExecution?       @relation(fields: [artifactExecutionId], references: [id], onDelete: SetNull)
+  schedulingEvent     SchedulingEvent?         @relation(fields: [schedulingEventId], references: [id], onDelete: SetNull)
+  completedBy         User?                    @relation("PmocExecutionCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  equipmentExecutions PmocEquipmentExecution[]
 
   @@unique([planId, dueOn])
+  @@unique([planId, sequenceNumber])
   @@index([organizationId, planId, dueOn])
   @@index([organizationId, status, dueOn])
   @@map("pmoc_executions")
+}
+
+/// Execução física de um equipamento em um ciclo PMOC. O índice composto é a
+/// autoridade contra duas execuções para o mesmo equipamento e vencimento.
+model PmocEquipmentExecution {
+  id                           String    @id @default(uuid(7)) @db.Uuid
+  organizationId               String    @map("organization_id") @db.Uuid
+  businessUnitId               String    @map("business_unit_id") @db.Uuid
+  cycleId                      String    @map("cycle_id") @db.Uuid
+  coverageId                   String    @map("coverage_id") @db.Uuid
+  assetId                      String    @map("asset_id") @db.Uuid
+  operationId                  String?   @unique @map("operation_id") @db.Uuid
+  artifactExecutionId          String?   @unique @map("artifact_execution_id") @db.Uuid
+  responsibleFieldTechnicianId String    @map("responsible_field_technician_id") @db.Uuid
+  status                       String    @default("IN_PROGRESS") @db.VarChar(24)
+  performedAt                  DateTime? @map("performed_at") @db.Timestamptz(3)
+  procedureSnapshot            Json      @map("procedure_snapshot") @db.JsonB
+  technicalResponsibleSnapshot Json      @map("technical_responsible_snapshot") @db.JsonB
+  notes                        String?   @db.VarChar(1000)
+  startedById                  String    @map("started_by_id") @db.Uuid
+  completedById                String?   @map("completed_by_id") @db.Uuid
+  startedAt                    DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  completedAt                  DateTime? @map("completed_at") @db.Timestamptz(3)
+  createdAt                    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization               Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit               BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  cycle                      PmocExecution           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  coverage                   PmocEquipmentCoverage   @relation(fields: [coverageId], references: [id], onDelete: Restrict)
+  asset                      Asset                   @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  operation                  Operation?              @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  artifactExecution          ArtifactExecution?      @relation(fields: [artifactExecutionId], references: [id], onDelete: SetNull)
+  responsibleFieldTechnician User                    @relation("PmocEquipmentExecutionResponsible", fields: [responsibleFieldTechnicianId], references: [id], onDelete: Restrict)
+  startedBy                  User                    @relation("PmocEquipmentExecutionStartedBy", fields: [startedById], references: [id], onDelete: Restrict)
+  completedBy                User?                   @relation("PmocEquipmentExecutionCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  evidence                   PmocEquipmentEvidence[]
+
+  @@unique([cycleId, coverageId])
+  @@index([organizationId, cycleId, status])
+  @@index([organizationId, responsibleFieldTechnicianId, status])
+  @@map("pmoc_equipment_executions")
+}
+
+model PmocEquipmentEvidence {
+  id                   String   @id @default(uuid(7)) @db.Uuid
+  organizationId       String   @map("organization_id") @db.Uuid
+  equipmentExecutionId String   @map("equipment_execution_id") @db.Uuid
+  storageFileId        String   @map("storage_file_id") @db.Uuid
+  kind                 String   @default("PHOTO") @db.VarChar(24)
+  caption              String?  @db.VarChar(500)
+  uploadedById         String   @map("uploaded_by_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  equipmentExecution PmocEquipmentExecution @relation(fields: [equipmentExecutionId], references: [id], onDelete: Cascade)
+  storageFile        StorageFile            @relation(fields: [storageFileId], references: [id], onDelete: Restrict)
+  uploadedBy         User                   @relation("PmocEquipmentEvidenceUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@unique([equipmentExecutionId, storageFileId])
+  @@index([organizationId, equipmentExecutionId, createdAt])
+  @@map("pmoc_equipment_evidence")
 }

@@ -15,6 +15,22 @@ const operationInclude = {
   asset: {
     select: { id: true, name: true, identifier: true, status: true },
   },
+  responsibleFieldTechnician: {
+    select: { id: true, displayName: true, avatarUrl: true },
+  },
+  startedBy: { select: { id: true, displayName: true, avatarUrl: true } },
+  completedBy: { select: { id: true, displayName: true, avatarUrl: true } },
+  auxiliaryTechnicians: {
+    where: { removedAt: null },
+    select: {
+      id: true,
+      userId: true,
+      assignedById: true,
+      assignedAt: true,
+      user: { select: { id: true, displayName: true, avatarUrl: true } },
+    },
+    orderBy: { assignedAt: 'asc' as const },
+  },
   users: {
     include: {
       user: {
@@ -73,9 +89,19 @@ export class OperationRepository {
       kind: query.kind,
       status: query.status,
       priority: query.priority,
-      users: query.assignedUserId
-        ? { some: { userId: query.assignedUserId } }
-        : undefined,
+      ...(query.assignedUserId
+        ? {
+            OR: [
+              { responsibleFieldTechnicianId: query.assignedUserId },
+              {
+                auxiliaryTechnicians: {
+                  some: { userId: query.assignedUserId, removedAt: null },
+                },
+              },
+              { users: { some: { userId: query.assignedUserId } } },
+            ],
+          }
+        : {}),
       scheduledStart:
         query.scheduledFrom || query.scheduledTo
           ? { gte: query.scheduledFrom, lte: query.scheduledTo }
@@ -115,10 +141,22 @@ export class OperationRepository {
     data: Prisma.OperationUncheckedCreateInput,
     userId: string,
     details: Prisma.InputJsonValue,
+    auxiliaryUserIds: string[] = [],
   ) {
     return this.rls.run(async (transaction) => {
       const operation = await transaction.operation.create({
-        data,
+        data: {
+          ...data,
+          auxiliaryTechnicians: auxiliaryUserIds.length
+            ? {
+                create: auxiliaryUserIds.map((auxiliaryUserId) => ({
+                  organizationId: data.organizationId,
+                  userId: auxiliaryUserId,
+                  assignedById: userId,
+                })),
+              }
+            : undefined,
+        },
         include: operationInclude,
       });
       await transaction.operationHistory.create({
@@ -153,6 +191,235 @@ export class OperationRepository {
     });
   }
 
+  replaceResponsibleFieldTechnician(
+    id: string,
+    organizationId: string,
+    previousUserId: string | null,
+    newUserId: string,
+    actorId: string,
+  ) {
+    return this.rls.run(async (tx) => {
+      await tx.operationAuxiliaryTechnician.updateMany({
+        where: { operationId: id, userId: newUserId, removedAt: null },
+        data: { removedAt: new Date(), removedById: actorId },
+      });
+      const operation = await tx.operation.update({
+        where: { id },
+        data: { responsibleFieldTechnicianId: newUserId },
+        include: operationInclude,
+      });
+      const eventIds = (
+        await tx.schedulingEvent.findMany({
+          where: {
+            organizationId,
+            sourceModule: 'operations',
+            sourceEntityType: 'OPERATION',
+            sourceEntityId: id,
+            deletedAt: null,
+          },
+          select: { id: true },
+        })
+      ).map((event) => event.id);
+      if (eventIds.length) {
+        await tx.schedulingResourceAllocation.updateMany({
+          where: {
+            eventId: { in: eventIds },
+            deletedAt: null,
+            OR: [
+              { role: 'RESPONSIBLE_FIELD_TECHNICIAN' },
+              { userId: newUserId, role: 'AUXILIARY_TECHNICIAN' },
+            ],
+          },
+          data: { deletedAt: new Date(), status: 'RELEASED' },
+        });
+        await tx.schedulingResourceAllocation.createMany({
+          data: eventIds.map((eventId) => ({
+            eventId,
+            resourceType: 'USER',
+            userId: newUserId,
+            role: 'RESPONSIBLE_FIELD_TECHNICIAN',
+          })),
+        });
+      }
+      const details = { previousUserId, newUserId };
+      await tx.operationHistory.create({
+        data: {
+          operationId: id,
+          userId: actorId,
+          action: 'RESPONSIBLE_FIELD_TECHNICIAN_REPLACED',
+          details,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          organizationId,
+          businessUnitId: operation.businessUnitId,
+          userId: actorId,
+          action: 'operation.responsible.changed',
+          entityType: 'OPERATION',
+          entityId: id,
+          before: previousUserId
+            ? { responsibleFieldTechnicianId: previousUserId }
+            : undefined,
+          after: { responsibleFieldTechnicianId: newUserId },
+        },
+      });
+      await this.events.emit(tx, {
+        type: 'operation.responsible.changed',
+        organizationId,
+        businessUnitId: operation.businessUnitId,
+        actorId,
+        entityType: 'OPERATION',
+        entityId: id,
+        payload: details,
+      });
+      return operation;
+    });
+  }
+
+  addAuxiliaryTechnician(
+    id: string,
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) {
+    return this.rls.run(async (tx) => {
+      const operation = await tx.operation.findFirstOrThrow({
+        where: { id, organizationId, deletedAt: null },
+      });
+      if (
+        await tx.operationAuxiliaryTechnician.findFirst({
+          where: { operationId: id, userId, removedAt: null },
+        })
+      )
+        return null;
+      await tx.operationAuxiliaryTechnician.create({
+        data: {
+          organizationId,
+          operationId: id,
+          userId,
+          assignedById: actorId,
+        },
+      });
+      const events = await tx.schedulingEvent.findMany({
+        where: {
+          organizationId,
+          sourceModule: 'operations',
+          sourceEntityType: 'OPERATION',
+          sourceEntityId: id,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (events.length)
+        await tx.schedulingResourceAllocation.createMany({
+          data: events.map((event) => ({
+            eventId: event.id,
+            resourceType: 'USER',
+            userId,
+            role: 'AUXILIARY_TECHNICIAN',
+          })),
+        });
+      await tx.operationHistory.create({
+        data: {
+          operationId: id,
+          userId: actorId,
+          action: 'AUXILIARY_TECHNICIAN_ADDED',
+          details: { auxiliaryUserId: userId },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          organizationId,
+          businessUnitId: operation.businessUnitId,
+          userId: actorId,
+          action: 'operation.auxiliary.added',
+          entityType: 'OPERATION',
+          entityId: id,
+          after: { auxiliaryUserId: userId },
+        },
+      });
+      await this.events.emit(tx, {
+        type: 'operation.auxiliary.added',
+        organizationId,
+        businessUnitId: operation.businessUnitId,
+        actorId,
+        entityType: 'OPERATION',
+        entityId: id,
+        payload: { auxiliaryUserId: userId },
+      });
+      return tx.operation.findUniqueOrThrow({
+        where: { id },
+        include: operationInclude,
+      });
+    });
+  }
+
+  removeAuxiliaryTechnician(
+    id: string,
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) {
+    return this.rls.run(async (tx) => {
+      const operation = await tx.operation.findFirstOrThrow({
+        where: { id, organizationId, deletedAt: null },
+      });
+      const changed = await tx.operationAuxiliaryTechnician.updateMany({
+        where: { operationId: id, userId, removedAt: null },
+        data: { removedAt: new Date(), removedById: actorId },
+      });
+      if (!changed.count) return null;
+      await tx.schedulingResourceAllocation.updateMany({
+        where: {
+          userId,
+          role: 'AUXILIARY_TECHNICIAN',
+          deletedAt: null,
+          event: {
+            organizationId,
+            sourceModule: 'operations',
+            sourceEntityType: 'OPERATION',
+            sourceEntityId: id,
+            deletedAt: null,
+          },
+        },
+        data: { deletedAt: new Date(), status: 'RELEASED' },
+      });
+      await tx.operationHistory.create({
+        data: {
+          operationId: id,
+          userId: actorId,
+          action: 'AUXILIARY_TECHNICIAN_REMOVED',
+          details: { auxiliaryUserId: userId },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          organizationId,
+          businessUnitId: operation.businessUnitId,
+          userId: actorId,
+          action: 'operation.auxiliary.removed',
+          entityType: 'OPERATION',
+          entityId: id,
+          before: { auxiliaryUserId: userId },
+        },
+      });
+      await this.events.emit(tx, {
+        type: 'operation.auxiliary.removed',
+        organizationId,
+        businessUnitId: operation.businessUnitId,
+        actorId,
+        entityType: 'OPERATION',
+        entityId: id,
+        payload: { auxiliaryUserId: userId },
+      });
+      return tx.operation.findUniqueOrThrow({
+        where: { id },
+        include: operationInclude,
+      });
+    });
+  }
+
   update(
     id: string,
     data: Prisma.OperationUpdateInput,
@@ -176,7 +443,7 @@ export class OperationRepository {
     id: string,
     fromStatus: string,
     toStatus: string,
-    data: Prisma.OperationUpdateInput,
+    data: Prisma.OperationUncheckedUpdateManyInput,
     userId: string,
     details: Prisma.InputJsonValue,
   ) {

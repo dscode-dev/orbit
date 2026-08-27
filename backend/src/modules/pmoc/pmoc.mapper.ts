@@ -19,12 +19,14 @@ import type {
   PmocComplianceReadModel,
   PmocCoverageReadModel,
   PmocExecutionReadModel,
+  PmocEquipmentExecutionReadModel,
   PmocPlanReadModel,
   PmocPlanSummaryReadModel,
 } from './pmoc.read-models';
 import type {
   CoverageRecord,
   ExecutionRecord,
+  EquipmentExecutionRecord,
   PlanRecord,
 } from './pmoc.repository';
 
@@ -81,6 +83,15 @@ export class PmocMapper {
     return {
       ...this.summary(source, now),
       notes: source.notes,
+      technicalResponsible: source.technicalResponsible,
+      configuration: {
+        serviceLocation: source.serviceLocation,
+        scope: source.scope,
+        serviceTypes: source.serviceTypes,
+        procedure: source.procedure,
+        schedulingPaused: source.schedulingPaused,
+        reviewRequired: source.reviewRequired,
+      },
       activatedAt: source.activatedAt?.toISOString() ?? null,
       createdBy: {
         id: source.createdBy.id,
@@ -138,6 +149,7 @@ export class PmocMapper {
   execution(source: ExecutionRecord): PmocExecutionReadModel {
     return {
       id: source.id,
+      sequenceNumber: source.sequenceNumber,
       dueOn: toDateOnly(source.dueOn),
       status: source.status,
       performedAt: source.performedAt?.toISOString() ?? null,
@@ -164,6 +176,41 @@ export class PmocMapper {
         : null,
       schedulingEventId: source.schedulingEventId,
       createdAt: source.createdAt.toISOString(),
+    };
+  }
+
+  equipmentExecution(
+    source: EquipmentExecutionRecord,
+  ): PmocEquipmentExecutionReadModel {
+    return {
+      id: source.id,
+      status: source.status,
+      performedAt: source.performedAt?.toISOString() ?? null,
+      startedAt: source.startedAt.toISOString(),
+      completedAt: source.completedAt?.toISOString() ?? null,
+      notes: source.notes,
+      asset: source.asset,
+      responsibleFieldTechnician: source.responsibleFieldTechnician,
+      auxiliaryTechnicians:
+        source.operation?.auxiliaryTechnicians.map((item) => item.user) ?? [],
+      operation: source.operation
+        ? {
+            id: source.operation.id,
+            code: source.operation.code,
+            status: source.operation.status,
+          }
+        : null,
+      artifactExecution: source.artifactExecution,
+      evidence: source.evidence.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        caption: item.caption,
+        createdAt: item.createdAt.toISOString(),
+        file: {
+          ...item.storageFile,
+          sizeBytes: item.storageFile.sizeBytes.toString(),
+        },
+      })),
     };
   }
 }

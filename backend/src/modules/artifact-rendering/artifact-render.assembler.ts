@@ -80,6 +80,10 @@ export interface AssembleSource {
     signerName: string;
     signerDocument: string | null;
     signatureHash: string;
+    signedAs: string | null;
+    credentialType: string | null;
+    credentialNumber: string | null;
+    credentialRegion: string | null;
     signedAt: Date;
     revokedAt: Date | null;
   }[];
@@ -208,6 +212,17 @@ export class ArtifactRenderAssembler {
           signerDocument: signature?.signerDocument ?? null,
           signedAt: signature?.signedAt.toISOString(),
           signatureHash: signature?.signatureHash,
+          signedAs: signature?.signedAs ?? undefined,
+          professionalCredential:
+            signature?.credentialType && signature.credentialNumber
+              ? [
+                  signature.credentialType,
+                  signature.credentialRegion,
+                  signature.credentialNumber,
+                ]
+                  .filter(Boolean)
+                  .join('-')
+              : undefined,
         };
       })
       .sort((left, right) => left.order - right.order);

@@ -54,6 +54,8 @@ export interface RenderSignatureInput {
   readonly signerDocument?: string | null;
   readonly signedAt?: string;
   readonly signatureHash?: string;
+  readonly signedAs?: string;
+  readonly professionalCredential?: string;
 }
 
 /**

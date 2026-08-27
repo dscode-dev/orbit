@@ -185,6 +185,12 @@ export class CollectArtifactSignatureDto {
   @MaxLength(32)
   signerDocument?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() userId?: string;
+  @ApiPropertyOptional({
+    enum: ['FIELD_TECHNICIAN', 'TECHNICAL_RESPONSIBLE', 'CUSTOMER'],
+  })
+  @IsOptional()
+  @IsIn(['FIELD_TECHNICIAN', 'TECHNICAL_RESPONSIBLE', 'CUSTOMER'])
+  signedAs?: 'FIELD_TECHNICIAN' | 'TECHNICAL_RESPONSIBLE' | 'CUSTOMER';
   @ApiProperty({ type: Object }) @IsObject() signatureData!: Record<
     string,
     unknown

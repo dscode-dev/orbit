@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
   IsDate,
   IsIn,
   IsInt,
@@ -155,6 +158,19 @@ export class CreateOperationDto {
   @IsOptional()
   @IsObject()
   data?: Record<string, unknown>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUIDv7()
+  responsibleFieldTechnicianId?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'auxiliares técnico' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ArrayUnique()
+  @IsUUIDv7({ each: true })
+  auxiliaryTechnicianIds?: string[];
 }
 
 export class UpdateOperationDto extends PartialType(CreateOperationDto) {}
@@ -177,3 +193,11 @@ export class AssignOperationUserDto {
   @IsUUIDv7()
   userId!: string;
 }
+
+export class ReplaceResponsibleFieldTechnicianDto {
+  @ApiProperty()
+  @IsUUIDv7()
+  userId!: string;
+}
+
+export class AddAuxiliaryTechnicianDto extends ReplaceResponsibleFieldTechnicianDto {}

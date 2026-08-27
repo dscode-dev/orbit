@@ -473,3 +473,12 @@ export const PmocExecutionStatus = {
 } as const;
 export type PmocExecutionStatus =
   (typeof PmocExecutionStatus)[keyof typeof PmocExecutionStatus];
+
+/** Estado da manutenção física de um equipamento dentro do ciclo. */
+export const PmocEquipmentExecutionStatus = {
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+} as const;
+export type PmocEquipmentExecutionStatus =
+  (typeof PmocEquipmentExecutionStatus)[keyof typeof PmocEquipmentExecutionStatus];

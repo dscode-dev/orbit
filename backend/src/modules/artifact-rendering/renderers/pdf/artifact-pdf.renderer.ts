@@ -267,6 +267,13 @@ export class ArtifactPdfRenderer implements ArtifactRenderer {
           .fillColor('#5b6478')
           .text(signature.signerDocument);
       }
+      if (signature.professionalCredential) {
+        document
+          .font('Helvetica')
+          .fontSize(8)
+          .fillColor('#5b6478')
+          .text(signature.professionalCredential);
+      }
       if (signature.signedAt) {
         document
           .font('Helvetica')

@@ -7,8 +7,10 @@ import { ChecklistController } from './checklist.controller';
 import { ChecklistRepository } from './checklist.repository';
 import { ChecklistService } from './checklist.service';
 import { OperationReadModelMapper } from './operation.mapper';
+import { WorkforceModule } from '../workforce/workforce.module';
 
 @Module({
+  imports: [WorkforceModule],
   controllers: [OperationController, ChecklistController],
   providers: [
     OperationRepository,

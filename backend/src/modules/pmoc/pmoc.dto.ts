@@ -2,9 +2,12 @@ import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsDate,
+  IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
+  IsObject,
   IsString,
   Matches,
   Max,
@@ -91,6 +94,42 @@ export class CreatePmocPlanDto {
   @IsOptional()
   @IsUUIDv7()
   technicianUserId?: string;
+
+  @ApiPropertyOptional({ description: 'PR-27 eligible technical responsible' })
+  @IsOptional()
+  @IsUUIDv7()
+  technicalResponsibleUserId?: string;
+
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  serviceLocation?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  scope?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  serviceTypes?: string[];
+
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  procedure?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  schedulingPaused?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  reviewRequired?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -198,6 +237,54 @@ export class CreatePmocOperationDto {
   @Type(() => Date)
   @IsDate()
   scheduledEnd?: Date;
+}
+
+export class StartPmocEquipmentExecutionDto {
+  @ApiProperty()
+  @IsUUIDv7()
+  responsibleFieldTechnicianId!: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUIDv7({ each: true })
+  auxiliaryTechnicianIds?: string[];
+}
+
+export class CompletePmocEquipmentExecutionDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  performedAt?: Date;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(1000)
+  notes?: string;
+}
+
+export class AddPmocEquipmentEvidenceDto {
+  @ApiProperty()
+  @IsUUIDv7()
+  storageFileId!: string;
+
+  @ApiPropertyOptional({
+    enum: ['PHOTO', 'VIDEO', 'DOCUMENT'],
+    default: 'PHOTO',
+  })
+  @IsOptional()
+  @IsIn(['PHOTO', 'VIDEO', 'DOCUMENT'])
+  kind?: 'PHOTO' | 'VIDEO' | 'DOCUMENT';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(500)
+  caption?: string;
 }
 
 export class PmocPlanQueryDto {

@@ -41,6 +41,8 @@ import {
 } from './pmoc.domain';
 import type {
   AddPmocCoverageDto,
+  AddPmocEquipmentEvidenceDto,
+  CompletePmocEquipmentExecutionDto,
   CompletePmocExecutionDto,
   CreatePmocOperationDto,
   CreatePmocPlanDto,
@@ -48,6 +50,7 @@ import type {
   PmocAnalyticsQueryDto,
   PmocPlanQueryDto,
   PmocUpcomingQueryDto,
+  StartPmocEquipmentExecutionDto,
   UpdatePmocPlanDto,
 } from './pmoc.dto';
 import { PmocMapper } from './pmoc.mapper';
@@ -57,6 +60,7 @@ import type {
 } from './pmoc.read-models';
 import { instantFromCivilDate } from '../scheduling/scheduling-time';
 import { PmocRepository } from './pmoc.repository';
+import { WorkforceService } from '../workforce/workforce.service';
 
 /** Quem pediu, e o que ele pode. */
 export interface PmocActor {
@@ -74,6 +78,7 @@ export class PmocService {
     private readonly repository: PmocRepository,
     private readonly mapper: PmocMapper,
     private readonly jobs: BackgroundJobQueue,
+    private readonly workforce: WorkforceService,
   ) {}
 
   /* ---------------------------------------------------------------- */
@@ -109,6 +114,13 @@ export class PmocService {
         );
       }
     }
+    if (input.technicalResponsibleUserId) {
+      await this.assertTechnicalResponsible(
+        input.technicalResponsibleUserId,
+        actor,
+        input.businessUnitId,
+      );
+    }
 
     this.assertValidity(input.startsOn, input.endsOn ?? null);
 
@@ -131,6 +143,13 @@ export class PmocService {
         frequencyUnit: input.frequencyUnit,
         dueSoonDays: input.dueSoonDays ?? 15,
         technicianUserId: input.technicianUserId ?? null,
+        technicalResponsibleUserId: input.technicalResponsibleUserId ?? null,
+        serviceLocation: input.serviceLocation as never,
+        scope: input.scope as never,
+        serviceTypes: input.serviceTypes ?? [],
+        procedure: (input.procedure ?? {}) as never,
+        schedulingPaused: input.schedulingPaused ?? false,
+        reviewRequired: input.reviewRequired ?? false,
         notes: input.notes ?? null,
         createdById: actor.actorId,
       },
@@ -165,6 +184,13 @@ export class PmocService {
         );
       }
     }
+    if (input.technicalResponsibleUserId) {
+      await this.assertTechnicalResponsible(
+        input.technicalResponsibleUserId,
+        actor,
+        plan.businessUnit.id,
+      );
+    }
 
     const updated = await this.repository.update(
       id,
@@ -187,6 +213,29 @@ export class PmocService {
         ...(input.technicianUserId
           ? { technician: { connect: { id: input.technicianUserId } } }
           : {}),
+        ...(input.technicalResponsibleUserId
+          ? {
+              technicalResponsible: {
+                connect: { id: input.technicalResponsibleUserId },
+              },
+            }
+          : {}),
+        ...(input.serviceLocation === undefined
+          ? {}
+          : { serviceLocation: input.serviceLocation as never }),
+        ...(input.scope === undefined ? {} : { scope: input.scope as never }),
+        ...(input.serviceTypes === undefined
+          ? {}
+          : { serviceTypes: input.serviceTypes }),
+        ...(input.procedure === undefined
+          ? {}
+          : { procedure: input.procedure as never }),
+        ...(input.schedulingPaused === undefined
+          ? {}
+          : { schedulingPaused: input.schedulingPaused }),
+        ...(input.reviewRequired === undefined
+          ? {}
+          : { reviewRequired: input.reviewRequired }),
       },
       'PMOC_PLAN_UPDATED',
       { name: plan.name, status: plan.status },
@@ -579,6 +628,278 @@ export class PmocService {
     };
   }
 
+  async equipmentExecutionPreparation(
+    planId: string,
+    cycleId: string,
+    assetId: string,
+    actor: PmocActor,
+  ) {
+    const data = await this.repository.executionPreparation(
+      actor.organizationId,
+      planId,
+      cycleId,
+      assetId,
+    );
+    if (!data)
+      throw new EntityNotFoundException('PmocEquipmentCoverage', assetId);
+    this.assertUnitInScope(actor, data.plan.businessUnitId);
+    const technicalResponsibleEligibility = data.plan.technicalResponsibleUserId
+      ? await this.workforce.professionalEligibility(
+          actor.organizationId,
+          data.plan.technicalResponsibleUserId,
+          {
+            signedAs: 'TECHNICAL_RESPONSIBLE',
+            documentType: 'PMOC',
+            businessUnitId: data.plan.businessUnitId,
+          },
+        )
+      : null;
+    const [fieldTechnicians, auxiliaryTechnicians] = await Promise.all([
+      this.workforce.listProfessionals(
+        actor.organizationId,
+        'FIELD_TECHNICIAN',
+        data.plan.businessUnitId,
+      ),
+      this.workforce.listProfessionals(
+        actor.organizationId,
+        'FIELD_TECHNICIAN',
+        data.plan.businessUnitId,
+      ),
+    ]);
+    const blockedReasons: string[] = [];
+    if (data.plan.status !== 'ACTIVE') blockedReasons.push('PLAN_NOT_ACTIVE');
+    if (data.cycle.status !== 'PENDING')
+      blockedReasons.push('CYCLE_NOT_PENDING');
+    if (!data.plan.technicalResponsibleUserId)
+      blockedReasons.push('TECHNICAL_RESPONSIBLE_MISSING');
+    else if (!technicalResponsibleEligibility?.eligible)
+      blockedReasons.push(
+        technicalResponsibleEligibility?.blockedReason ??
+          'TECHNICAL_RESPONSIBLE_INELIGIBLE',
+      );
+    return {
+      plan: {
+        id: data.plan.id,
+        code: data.plan.code,
+        name: data.plan.name,
+        reviewRequired: data.plan.reviewRequired,
+      },
+      cycle: { ...data.cycle, dueOn: toDateOnly(data.cycle.dueOn) },
+      customer: {
+        id: data.plan.customer.id,
+        name: data.plan.customer.tradeName ?? data.plan.customer.legalName,
+      },
+      equipment: data.coverage.asset,
+      procedure: data.plan.procedure,
+      technicalResponsible: data.plan.technicalResponsible,
+      technicalResponsibleEligibility,
+      fieldTechnicians,
+      auxiliaryTechnicians,
+      evidencePolicy: {
+        minimumPhotos: 0,
+        maximumPhotos: 6,
+        acceptedKinds: ['PHOTO', 'VIDEO', 'DOCUMENT'],
+      },
+      documentPolicy: {
+        artifactType: 'PMOC',
+        signatory: 'TECHNICAL_RESPONSIBLE',
+        fieldTechnicianAutoSigns: false,
+      },
+      eligibility: { ready: blockedReasons.length === 0, blockedReasons },
+      existingExecution: data.existing
+        ? this.mapper.equipmentExecution(data.existing)
+        : null,
+      allowedActions: data.existing
+        ? data.existing.status === 'IN_PROGRESS'
+          ? ['COMPLETE', 'ADD_EVIDENCE']
+          : ['VIEW']
+        : blockedReasons.length
+          ? []
+          : ['START'],
+    };
+  }
+
+  async equipmentExecutions(planId: string, cycleId: string, actor: PmocActor) {
+    await this.plan(planId, actor);
+    const rows = await this.repository.listEquipmentExecutions(
+      actor.organizationId,
+      planId,
+      cycleId,
+    );
+    return rows.map((row) => ({
+      coverageId: row.id,
+      equipment: row.asset,
+      execution: row.equipmentExecutions[0]
+        ? this.mapper.equipmentExecution(row.equipmentExecutions[0])
+        : null,
+      status: row.equipmentExecutions[0]?.status ?? 'NOT_STARTED',
+    }));
+  }
+
+  async startEquipmentExecution(
+    planId: string,
+    cycleId: string,
+    assetId: string,
+    actor: PmocActor,
+    input: StartPmocEquipmentExecutionDto,
+  ) {
+    this.assertPermission(
+      actor,
+      'operations.create',
+      'Starting PMOC equipment execution requires operations.create',
+    );
+    const preparation = await this.repository.executionPreparation(
+      actor.organizationId,
+      planId,
+      cycleId,
+      assetId,
+    );
+    if (!preparation)
+      throw new EntityNotFoundException('PmocEquipmentCoverage', assetId);
+    if (
+      preparation.plan.status !== 'ACTIVE' ||
+      preparation.cycle.status !== 'PENDING'
+    )
+      throw new ConflictException(
+        'PMOC plan and cycle must be active and pending',
+      );
+    if (!preparation.plan.technicalResponsibleUserId)
+      throw new ValidationException('TECHNICAL_RESPONSIBLE_MISSING');
+    await this.assertTechnicalResponsible(
+      preparation.plan.technicalResponsibleUserId,
+      actor,
+      preparation.plan.businessUnitId,
+      true,
+    );
+    const professionals = await this.workforce.listProfessionals(
+      actor.organizationId,
+      'FIELD_TECHNICIAN',
+      preparation.plan.businessUnitId,
+    );
+    const eligible = new Set(professionals.map((item) => item.id));
+    if (!eligible.has(input.responsibleFieldTechnicianId))
+      throw new ValidationException(
+        'Responsible field technician is not eligible for this business unit',
+      );
+    const auxiliaries = [...new Set(input.auxiliaryTechnicianIds ?? [])].filter(
+      (id) => id !== input.responsibleFieldTechnicianId,
+    );
+    if (auxiliaries.some((id) => !eligible.has(id)))
+      throw new ValidationException(
+        'One or more auxiliary technicians are not eligible for this business unit',
+      );
+    const result = await this.repository.startEquipmentExecution({
+      organizationId: actor.organizationId,
+      planId,
+      cycleId,
+      coverageId: preparation.coverage.id,
+      assetId,
+      businessUnitId: preparation.plan.businessUnitId,
+      customerId: preparation.plan.customer.id,
+      responsibleFieldTechnicianId: input.responsibleFieldTechnicianId,
+      auxiliaryTechnicianIds: auxiliaries,
+      actorId: actor.actorId,
+      procedureSnapshot: preparation.plan.procedure as never,
+      technicalResponsibleSnapshot: {
+        userId: preparation.plan.technicalResponsible!.id,
+        displayName: preparation.plan.technicalResponsible!.displayName,
+        signature: preparation.technicalResponsibleSignature,
+      },
+      code: await this.operationCode(
+        actor.organizationId,
+        `${preparation.plan.code}-${preparation.coverage.asset.identifier ?? preparation.coverage.asset.id.slice(0, 8)}`,
+        preparation.cycle.dueOn,
+      ),
+      title: `${preparation.plan.name} — ${preparation.coverage.asset.name}`,
+    });
+    return {
+      created: result.created,
+      execution: this.mapper.equipmentExecution(result.execution),
+    };
+  }
+
+  async addEquipmentEvidence(
+    executionId: string,
+    actor: PmocActor,
+    input: AddPmocEquipmentEvidenceDto,
+  ) {
+    const result = await this.repository.addEquipmentEvidence({
+      organizationId: actor.organizationId,
+      executionId,
+      storageFileId: input.storageFileId,
+      kind: input.kind ?? 'PHOTO',
+      caption: input.caption ?? null,
+      actorId: actor.actorId,
+    });
+    if (!result)
+      throw new EntityNotFoundException(
+        'PmocEquipmentExecutionOrStorageFile',
+        executionId,
+      );
+    if (result.limitReached)
+      throw new ConflictException(
+        'A PMOC equipment execution accepts at most 6 evidence files',
+      );
+    return { id: result.evidence.id };
+  }
+
+  async linkEquipmentArtifact(
+    executionId: string,
+    actor: PmocActor,
+    input: LinkPmocEvidenceDto,
+  ) {
+    this.assertPermission(
+      actor,
+      'artifact_executions.read',
+      'Linking the PMOC document requires artifact_executions.read',
+    );
+    const result = await this.repository.linkEquipmentArtifact(
+      actor.organizationId,
+      executionId,
+      input.artifactExecutionId,
+    );
+    if (!result)
+      throw new EntityNotFoundException('PmocEquipmentExecution', executionId);
+    if (result.invalidArtifact)
+      throw new ValidationException(
+        'Artifact must be a PMOC execution for the same equipment and business unit',
+      );
+    return { executionId, artifactExecutionId: input.artifactExecutionId };
+  }
+
+  async completeEquipmentExecution(
+    planId: string,
+    cycleId: string,
+    executionId: string,
+    actor: PmocActor,
+    input: CompletePmocEquipmentExecutionDto,
+  ) {
+    const performedAt = input.performedAt ?? new Date();
+    if (performedAt.getTime() > Date.now() + 60_000)
+      throw new ValidationException(
+        'A maintenance cannot be recorded in the future',
+      );
+    const result = await this.repository.completeEquipmentExecution({
+      organizationId: actor.organizationId,
+      planId,
+      cycleId,
+      executionId,
+      actorId: actor.actorId,
+      performedAt,
+      notes: input.notes ?? null,
+    });
+    if (!result)
+      throw new ConflictException('Equipment execution is not in progress');
+    if (result.allResolved) {
+      const refreshed = await this.plan(planId, actor);
+      await this.openCycleAndSchedule(refreshed, actor);
+    }
+    return {
+      execution: this.mapper.equipmentExecution(result.execution),
+      cycleCompleted: result.allResolved,
+    };
+  }
+
   /* ---------------------------------------------------------------- */
   /* Conformidade                                                      */
   /* ---------------------------------------------------------------- */
@@ -715,6 +1036,7 @@ export class PmocService {
     executionId: string,
     actor: PmocActor,
   ): Promise<void> {
+    if (plan.schedulingPaused) return;
     const execution = await this.repository.findExecution(
       executionId,
       actor.organizationId,
@@ -771,7 +1093,7 @@ export class PmocService {
     plan: NonNullable<Awaited<ReturnType<PmocRepository['find']>>>,
     actor: PmocActor,
   ): Promise<void> {
-    if (!plan.nextDueOn) return;
+    if (!plan.nextDueOn || plan.schedulingPaused) return;
 
     const dueOn = toDateOnly(plan.nextDueOn);
     const dueAt = new Date(`${dueOn}T09:00:00.000Z`);
@@ -804,6 +1126,28 @@ export class PmocService {
     if (!canTransition(from, to)) {
       throw new ConflictException(
         `A ${from.toLowerCase()} plan cannot become ${to.toLowerCase()}`,
+      );
+    }
+  }
+
+  private async assertTechnicalResponsible(
+    userId: string,
+    actor: PmocActor,
+    businessUnitId: string,
+    requireSignature = false,
+  ): Promise<void> {
+    const professionals = await this.workforce.listProfessionals(
+      actor.organizationId,
+      'TECHNICAL_RESPONSIBLE',
+      businessUnitId,
+    );
+    const professional = professionals.find((item) => item.id === userId);
+    if (
+      !professional ||
+      (requireSignature && !professional.signatureAvailable)
+    ) {
+      throw new ValidationException(
+        `Technical responsible is not eligible for PMOC: ${professional ? 'SIGNATURE_MISSING' : 'PROFESSIONAL_ROLE_OR_SCOPE_MISSING'}`,
       );
     }
   }

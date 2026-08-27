@@ -188,6 +188,9 @@ export class ArtifactHtmlRenderer implements ArtifactRenderer {
         const document = signature.signerDocument
           ? `<p class="meta">${escapeHtml(signature.signerDocument)}</p>`
           : '';
+        const credential = signature.professionalCredential
+          ? `<p class="meta">${escapeHtml(signature.professionalCredential)}</p>`
+          : '';
         const when = signature.signedAt
           ? `<p class="meta">Assinado em ${escapeHtml(signature.signedAt)}</p>`
           : '';
@@ -206,6 +209,7 @@ export class ArtifactHtmlRenderer implements ArtifactRenderer {
           `<p><strong>${escapeHtml(signature.label)}</strong> · ${escapeHtml(signature.signerRole)}</p>`,
           `<p>${name}</p>`,
           document,
+          credential,
           when,
           hash,
           '</div>',

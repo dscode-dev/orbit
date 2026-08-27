@@ -55,6 +55,7 @@ export interface PmocCoverageReadModel {
 
 export interface PmocExecutionReadModel {
   id: string;
+  sequenceNumber: number;
   dueOn: string;
   status: string;
   performedAt: string | null;
@@ -67,6 +68,39 @@ export interface PmocExecutionReadModel {
   /** O compromisso na Agenda existente. */
   schedulingEventId: string | null;
   createdAt: string;
+}
+
+export interface PmocEquipmentExecutionReadModel {
+  id: string;
+  status: string;
+  performedAt: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  notes: string | null;
+  asset: {
+    id: string;
+    name: string;
+    category: string;
+    identifier: string | null;
+    serialNumber: string | null;
+  };
+  responsibleFieldTechnician: { id: string; displayName: string };
+  auxiliaryTechnicians: readonly { id: string; displayName: string }[];
+  operation: { id: string; code: string; status: string } | null;
+  artifactExecution: { id: string; code: string; status: string } | null;
+  evidence: readonly {
+    id: string;
+    kind: string;
+    caption: string | null;
+    file: {
+      id: string;
+      fileName: string;
+      mimeType: string;
+      sizeBytes: string;
+      status: string;
+    };
+    createdAt: string;
+  }[];
 }
 
 export interface PmocPlanSummaryReadModel {
@@ -87,6 +121,15 @@ export interface PmocPlanSummaryReadModel {
 
 export interface PmocPlanReadModel extends PmocPlanSummaryReadModel {
   notes: string | null;
+  technicalResponsible: { id: string; displayName: string } | null;
+  configuration: {
+    serviceLocation: unknown;
+    scope: unknown;
+    serviceTypes: unknown;
+    procedure: unknown;
+    schedulingPaused: boolean;
+    reviewRequired: boolean;
+  };
   activatedAt: string | null;
   createdBy: { id: string; displayName: string };
   coverages: readonly PmocCoverageReadModel[];

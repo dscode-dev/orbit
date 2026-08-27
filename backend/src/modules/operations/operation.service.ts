@@ -4,6 +4,7 @@ import { OperationStatus } from '../../contracts';
 import {
   ConflictException,
   EntityNotFoundException,
+  ForbiddenException,
   ValidationException,
 } from '../../exceptions';
 import type {
@@ -16,12 +17,14 @@ import type {
 import { OperationRepository } from './operation.repository';
 import { OperationStorageService } from './operation-storage.service';
 import { OperationStateMachine } from './operation-state-machine';
+import { WorkforceRepository } from '../workforce/workforce.repository';
 
 @Injectable()
 export class OperationService {
   constructor(
     private readonly repository: OperationRepository,
     private readonly storage: OperationStorageService,
+    private readonly workforce: WorkforceRepository,
   ) {}
 
   list(organizationId: string, query: OperationQueryDto) {
@@ -47,6 +50,12 @@ export class OperationService {
       input.customerId,
       input.assetId,
     );
+    await this.validateTechnicianAssignments(
+      organizationId,
+      input.businessUnitId,
+      input.responsibleFieldTechnicianId,
+      input.auxiliaryTechnicianIds ?? [],
+    );
     try {
       return await this.repository.create(
         {
@@ -67,9 +76,11 @@ export class OperationService {
           location: input.location as Prisma.InputJsonValue | undefined,
           data: input.data as Prisma.InputJsonValue | undefined,
           createdById: actorId,
+          responsibleFieldTechnicianId: input.responsibleFieldTechnicianId,
         },
         actorId,
         this.json({ code: input.code, title: input.title }),
+        input.auxiliaryTechnicianIds ?? [],
       );
     } catch (error) {
       this.mapConflict(error);
@@ -82,6 +93,13 @@ export class OperationService {
     actorId: string,
     input: UpdateOperationDto,
   ) {
+    if (
+      input.responsibleFieldTechnicianId !== undefined ||
+      input.auxiliaryTechnicianIds !== undefined
+    )
+      throw new ValidationException(
+        'Use explicit assignment commands to change operation technicians',
+      );
     const current = await this.get(id, organizationId);
     const businessUnitId = input.businessUnitId ?? current.businessUnitId;
     const customerId = input.customerId ?? current.customerId ?? undefined;
@@ -130,8 +148,25 @@ export class OperationService {
     organizationId: string,
     actorId: string,
     input: ChangeOperationStatusDto,
+    permissions?: readonly string[],
   ) {
     const current = await this.get(id, organizationId);
+    if (
+      current.responsibleFieldTechnicianId &&
+      permissions &&
+      !permissions.includes('operations.assign') &&
+      !permissions.includes('operations.update')
+    ) {
+      const assigned =
+        current.responsibleFieldTechnicianId === actorId ||
+        current.auxiliaryTechnicians.some(
+          (assignment) => assignment.userId === actorId,
+        );
+      if (!assigned)
+        throw new ForbiddenException(
+          'Operation execution requires assignment and permission',
+        );
+    }
     const from = current.status;
     if (!OperationStateMachine.allows(from, input.status)) {
       throw new ValidationException(
@@ -149,8 +184,15 @@ export class OperationService {
           input.status === OperationStatus.IN_PROGRESS
             ? (current.startedAt ?? now)
             : undefined,
+        startedByUserId:
+          input.status === OperationStatus.IN_PROGRESS &&
+          !current.startedByUserId
+            ? actorId
+            : undefined,
         completedAt:
           input.status === OperationStatus.COMPLETED ? now : undefined,
+        completedByUserId:
+          input.status === OperationStatus.COMPLETED ? actorId : undefined,
       },
       actorId,
       this.json({ reason: input.reason }),
@@ -170,18 +212,19 @@ export class OperationService {
     input: AssignOperationUserDto,
   ) {
     const operation = await this.get(id, organizationId);
-    const member = await this.repository.findAssignableUser(
-      input.userId,
+    await this.assertFieldTechnician(
       organizationId,
       operation.businessUnitId,
+      input.userId,
     );
-    if (!member) {
-      throw new ValidationException(
-        'User is not active in the operation business unit',
-      );
-    }
-    await this.repository.assign(id, input.userId, actorId);
-    return this.get(id, organizationId);
+    return operation.responsibleFieldTechnicianId
+      ? this.addAuxiliaryTechnician(id, organizationId, actorId, input.userId)
+      : this.replaceResponsibleFieldTechnician(
+          id,
+          organizationId,
+          actorId,
+          input.userId,
+        );
   }
 
   async unassign(
@@ -190,9 +233,92 @@ export class OperationService {
     organizationId: string,
     actorId: string,
   ): Promise<void> {
+    const operation = await this.get(id, organizationId);
+    if (operation.responsibleFieldTechnicianId === userId)
+      throw new ValidationException(
+        'Responsible field technician must be replaced explicitly',
+      );
+    const removed = await this.repository.removeAuxiliaryTechnician(
+      id,
+      organizationId,
+      userId,
+      actorId,
+    );
+    if (!removed)
+      throw new EntityNotFoundException('Operation auxiliary technician');
+  }
+
+  async replaceResponsibleFieldTechnician(
+    id: string,
+    organizationId: string,
+    actorId: string,
+    userId: string,
+  ) {
+    const operation = await this.get(id, organizationId);
+    await this.assertFieldTechnician(
+      organizationId,
+      operation.businessUnitId,
+      userId,
+    );
+    if (operation.responsibleFieldTechnicianId === userId)
+      throw new ConflictException(
+        'User is already the responsible field technician',
+      );
+    return this.repository.replaceResponsibleFieldTechnician(
+      id,
+      organizationId,
+      operation.responsibleFieldTechnicianId,
+      userId,
+      actorId,
+    );
+  }
+
+  async addAuxiliaryTechnician(
+    id: string,
+    organizationId: string,
+    actorId: string,
+    userId: string,
+  ) {
+    const operation = await this.get(id, organizationId);
+    if (operation.responsibleFieldTechnicianId === userId)
+      throw new ValidationException(
+        'Responsible field technician cannot also be an auxiliary technician',
+      );
+    await this.assertFieldTechnician(
+      organizationId,
+      operation.businessUnitId,
+      userId,
+    );
+    const result = await this.repository.addAuxiliaryTechnician(
+      id,
+      organizationId,
+      userId,
+      actorId,
+    );
+    if (!result)
+      throw new ConflictException('Auxiliary technician is already assigned');
+    return result;
+  }
+
+  async removeAuxiliaryTechnician(
+    id: string,
+    organizationId: string,
+    actorId: string,
+    userId: string,
+  ) {
     await this.get(id, organizationId);
-    const removed = await this.repository.unassign(id, userId, actorId);
-    if (!removed) throw new EntityNotFoundException('Operation assignment');
+    const result = await this.repository.removeAuxiliaryTechnician(
+      id,
+      organizationId,
+      userId,
+      actorId,
+    );
+    if (!result)
+      throw new EntityNotFoundException(
+        'Operation auxiliary technician',
+        userId,
+      );
+    return result;
   }
 
   async history(id: string, organizationId: string) {
@@ -342,6 +468,48 @@ export class OperationService {
         'Scheduled end cannot precede scheduled start',
       );
     }
+  }
+
+  private async validateTechnicianAssignments(
+    organizationId: string,
+    businessUnitId: string,
+    responsibleUserId?: string,
+    auxiliaryUserIds: readonly string[] = [],
+  ) {
+    if (responsibleUserId && auxiliaryUserIds.includes(responsibleUserId))
+      throw new ValidationException(
+        'Responsible field technician cannot also be an auxiliary technician',
+      );
+    if (!responsibleUserId && auxiliaryUserIds.length)
+      throw new ValidationException(
+        'Auxiliary technicians require a responsible field technician',
+      );
+    const ids = [responsibleUserId, ...auxiliaryUserIds].filter(
+      (value): value is string => Boolean(value),
+    );
+    if (!ids.length) return;
+    const eligible = await this.workforce.listProfessionals(
+      organizationId,
+      'FIELD_TECHNICIAN',
+      businessUnitId,
+    );
+    const eligibleIds = new Set(eligible.map((profile) => profile.userId));
+    if (ids.some((id) => !eligibleIds.has(id)))
+      throw new ValidationException(
+        'Every assigned technician must be an active FIELD_TECHNICIAN in the operation business unit',
+      );
+  }
+
+  private assertFieldTechnician(
+    organizationId: string,
+    businessUnitId: string,
+    userId: string,
+  ) {
+    return this.validateTechnicianAssignments(
+      organizationId,
+      businessUnitId,
+      userId,
+    );
   }
 
   private fileName(value: string): string {

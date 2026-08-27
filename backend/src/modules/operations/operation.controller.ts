@@ -28,9 +28,11 @@ import {
 } from '../subscription-plans/plan-access';
 import {
   AssignOperationUserDto,
+  AddAuxiliaryTechnicianDto,
   ChangeOperationStatusDto,
   CreateOperationDto,
   OperationQueryDto,
+  ReplaceResponsibleFieldTechnicianDto,
   UpdateOperationDto,
 } from './dto/operation.dto';
 import { OperationService } from './operation.service';
@@ -54,6 +56,62 @@ export class OperationController {
   ) {
     return this.readModels.list(
       await this.operations.list(this.organizationId(request), query),
+      this.actor(request),
+    );
+  }
+
+  @Patch(':id/responsible-field-technician')
+  @Capabilities('operations.manage')
+  @Permissions('operations.assign')
+  async replaceResponsibleFieldTechnician(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+    @Body() input: ReplaceResponsibleFieldTechnicianDto,
+  ) {
+    return this.readModels.details(
+      await this.operations.replaceResponsibleFieldTechnician(
+        id,
+        this.organizationId(request),
+        request.identity!.id,
+        input.userId,
+      ),
+      this.actor(request),
+    );
+  }
+
+  @Post(':id/auxiliary-technicians')
+  @Capabilities('operations.manage')
+  @Permissions('operations.assign')
+  async addAuxiliaryTechnician(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+    @Body() input: AddAuxiliaryTechnicianDto,
+  ) {
+    return this.readModels.details(
+      await this.operations.addAuxiliaryTechnician(
+        id,
+        this.organizationId(request),
+        request.identity!.id,
+        input.userId,
+      ),
+      this.actor(request),
+    );
+  }
+
+  @Delete(':id/auxiliary-technicians/:userId')
+  @Capabilities('operations.manage')
+  @Permissions('operations.assign')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeAuxiliaryTechnician(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Param('userId', ParseUUIDv7Pipe) userId: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.operations.removeAuxiliaryTechnician(
+      id,
+      this.organizationId(request),
+      request.identity!.id,
+      userId,
     );
   }
 
@@ -66,6 +124,7 @@ export class OperationController {
   ) {
     return this.readModels.details(
       await this.operations.get(id, this.organizationId(request)),
+      this.actor(request),
     );
   }
 
@@ -82,6 +141,7 @@ export class OperationController {
         request.identity!.id,
         input,
       ),
+      this.actor(request),
     );
   }
 
@@ -100,6 +160,7 @@ export class OperationController {
         request.identity!.id,
         input,
       ),
+      this.actor(request),
     );
   }
 
@@ -117,7 +178,9 @@ export class OperationController {
         this.organizationId(request),
         request.identity!.id,
         input,
+        request.identity!.permissions,
       ),
+      this.actor(request),
     );
   }
 
@@ -136,6 +199,7 @@ export class OperationController {
         request.identity!.id,
         input,
       ),
+      this.actor(request),
     );
   }
 
@@ -265,5 +329,12 @@ export class OperationController {
     const id = request.identity?.organizationId;
     if (!id) throw new ForbiddenException('Organization context is required');
     return id;
+  }
+
+  private actor(request: IdentityRequest) {
+    return {
+      id: request.identity!.id,
+      permissions: request.identity!.permissions,
+    };
   }
 }

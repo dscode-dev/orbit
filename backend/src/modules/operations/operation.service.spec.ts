@@ -4,6 +4,7 @@ import type { OperationRepository } from './operation.repository';
 import { OperationService } from './operation.service';
 import type { OperationStorageService } from './operation-storage.service';
 import { OperationStateMachine } from './operation-state-machine';
+import type { WorkforceRepository } from '../workforce/workforce.repository';
 
 describe('OperationService', () => {
   const repository = {
@@ -13,13 +14,15 @@ describe('OperationService', () => {
     findAsset: jest.fn(),
     create: jest.fn(),
     changeStatus: jest.fn(),
-    findAssignableUser: jest.fn(),
-    assign: jest.fn(),
+    replaceResponsibleFieldTechnician: jest.fn(),
+    addAuxiliaryTechnician: jest.fn(),
   };
   const storage = { store: jest.fn(), remove: jest.fn(), read: jest.fn() };
+  const workforce = { listProfessionals: jest.fn() };
   const service = new OperationService(
     repository as unknown as OperationRepository,
     storage as unknown as OperationStorageService,
+    workforce as unknown as WorkforceRepository,
   );
 
   beforeEach(() => {
@@ -43,6 +46,7 @@ describe('OperationService', () => {
       }),
       'actor-id',
       expect.any(Object),
+      [],
     );
   });
 
@@ -105,7 +109,7 @@ describe('OperationService', () => {
       businessUnitId: 'unit-id',
       status: OperationStatus.OPEN,
     });
-    repository.findAssignableUser.mockResolvedValue(null);
+    workforce.listProfessionals.mockResolvedValue([]);
     await expect(
       service.assign('operation-id', 'organization-id', 'actor-id', {
         userId: 'user-id',

@@ -13,6 +13,7 @@ import type {
   OperationListReadModel,
   OperationTimelineAttachmentReadModel,
   OperationTimelineReadModel,
+  OperationAllowedAction,
   OperationUserReadModel,
 } from './operation.read-models';
 import { OperationStateMachine } from './operation-state-machine';
@@ -74,6 +75,16 @@ interface OperationSource {
   scheduledEnd: DateValue | null;
   startedAt: DateValue | null;
   completedAt: DateValue | null;
+  responsibleFieldTechnicianId?: string | null;
+  responsibleFieldTechnician?: UserSource | null;
+  auxiliaryTechnicians?: ReadonlyArray<{
+    userId: string;
+    assignedById: string | null;
+    assignedAt: DateValue;
+    user: UserSource;
+  }>;
+  startedBy?: UserSource | null;
+  completedBy?: UserSource | null;
   location: unknown;
   data: unknown;
   createdById: string | null;
@@ -104,6 +115,11 @@ interface OperationSource {
   }>;
 }
 
+interface ActorContext {
+  id: string;
+  permissions: readonly string[];
+}
+
 interface PaginationSource {
   data: readonly OperationSource[];
   meta: OperationListReadModel['meta'];
@@ -111,25 +127,34 @@ interface PaginationSource {
 
 @Injectable()
 export class OperationReadModelMapper {
-  list(source: PaginationSource): OperationListReadModel {
+  list(source: PaginationSource, actor?: ActorContext): OperationListReadModel {
     return {
-      data: source.data.map((operation) => this.listItem(operation)),
+      data: source.data.map((operation) => this.listItem(operation, actor)),
       meta: { ...source.meta },
     };
   }
 
-  listItem(source: OperationSource): OperationListItemReadModel {
-    return this.base(source);
+  listItem(
+    source: OperationSource,
+    actor?: ActorContext,
+  ): OperationListItemReadModel {
+    return this.base(source, actor);
   }
 
-  details(source: OperationSource): OperationDetailsReadModel {
+  details(
+    source: OperationSource,
+    actor?: ActorContext,
+  ): OperationDetailsReadModel {
     return {
-      ...this.base(source),
+      ...this.base(source, actor),
       transitions: OperationStateMachine.allowedTransitions(source.status),
     };
   }
 
-  private base(source: OperationSource): OperationListItemReadModel {
+  private base(
+    source: OperationSource,
+    actor?: ActorContext,
+  ): OperationListItemReadModel {
     return {
       id: source.id,
       organizationId: source.organizationId,
@@ -146,6 +171,20 @@ export class OperationReadModelMapper {
       scheduledEnd: this.nullableDate(source.scheduledEnd),
       startedAt: this.nullableDate(source.startedAt),
       completedAt: this.nullableDate(source.completedAt),
+      responsibleFieldTechnicianId: source.responsibleFieldTechnicianId ?? null,
+      responsibleFieldTechnician: source.responsibleFieldTechnician
+        ? this.user(source.responsibleFieldTechnician)
+        : null,
+      auxiliaryTechnicians: (source.auxiliaryTechnicians ?? []).map(
+        (assignment) => ({
+          userId: assignment.userId,
+          assignedById: assignment.assignedById,
+          assignedAt: this.date(assignment.assignedAt),
+          user: this.user(assignment.user),
+        }),
+      ),
+      startedBy: source.startedBy ? this.user(source.startedBy) : null,
+      completedBy: source.completedBy ? this.user(source.completedBy) : null,
       location: source.location,
       data: source.data,
       createdById: source.createdById,
@@ -167,7 +206,43 @@ export class OperationReadModelMapper {
         completedAt: this.nullableDate(checklist.completedAt),
         updatedAt: this.date(checklist.updatedAt),
       })),
+      allowedActions: this.allowedActions(source, actor),
     };
+  }
+
+  private allowedActions(
+    source: OperationSource,
+    actor?: ActorContext,
+  ): readonly OperationAllowedAction[] {
+    if (!actor) return [];
+    const permissions = new Set(actor.permissions);
+    const participant =
+      source.responsibleFieldTechnicianId === actor.id ||
+      (source.auxiliaryTechnicians ?? []).some(
+        (assignment) => assignment.userId === actor.id,
+      );
+    const manager =
+      permissions.has('operations.assign') ||
+      permissions.has('operations.update');
+    const canExecute = participant || manager;
+    const actions: OperationAllowedAction[] = [];
+    if (permissions.has('operations.read')) actions.push('VIEW');
+    if (permissions.has('operations.update')) actions.push('EDIT');
+    if (manager) actions.push('MANAGE_ASSIGNMENTS');
+    if (permissions.has('operations.status.update') && canExecute) {
+      actions.push('CHANGE_STATUS');
+      if (
+        OperationStateMachine.allowedTransitions(source.status).includes(
+          'IN_PROGRESS',
+        )
+      )
+        actions.push('START');
+    }
+    if (permissions.has('operations.attachments.create') && canExecute)
+      actions.push('ADD_EVIDENCE');
+    if (permissions.has('reports.create') && canExecute)
+      actions.push('GENERATE_REPORT');
+    return actions;
   }
 
   assignment(source: AssignmentSource): OperationAssignmentReadModel {

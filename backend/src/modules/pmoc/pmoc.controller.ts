@@ -40,6 +40,8 @@ import {
 } from '../subscription-plans/plan-access';
 import {
   AddPmocCoverageDto,
+  AddPmocEquipmentEvidenceDto,
+  CompletePmocEquipmentExecutionDto,
   CompletePmocExecutionDto,
   CreatePmocOperationDto,
   CreatePmocPlanDto,
@@ -47,6 +49,7 @@ import {
   PmocAnalyticsQueryDto,
   PmocPlanQueryDto,
   PmocUpcomingQueryDto,
+  StartPmocEquipmentExecutionDto,
   UpdatePmocPlanDto,
 } from './pmoc.dto';
 import { PmocService, type PmocActor } from './pmoc.service';
@@ -228,6 +231,120 @@ export class PmocController {
     @Req() request: IdentityRequest,
   ) {
     return this.pmoc.executions(id, this.actor(request));
+  }
+
+  @Get('plans/:id/cycles/:cycleId/equipment-executions')
+  @Capabilities('pmoc.read')
+  @Permissions('pmoc.read')
+  @ApiOperation({
+    summary: 'Equipment execution status for every covered asset in a cycle',
+  })
+  equipmentExecutions(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Param('cycleId', ParseUUIDv7Pipe) cycleId: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.pmoc.equipmentExecutions(id, cycleId, this.actor(request));
+  }
+
+  @Get('plans/:id/cycles/:cycleId/equipment/:assetId/execution-preparation')
+  @Capabilities('pmoc.read')
+  @Permissions('pmoc.read')
+  @ApiOperation({
+    summary: 'Authoritative PMOC execution preparation for Web and Mobile',
+  })
+  equipmentExecutionPreparation(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Param('cycleId', ParseUUIDv7Pipe) cycleId: string,
+    @Param('assetId', ParseUUIDv7Pipe) assetId: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.pmoc.equipmentExecutionPreparation(
+      id,
+      cycleId,
+      assetId,
+      this.actor(request),
+    );
+  }
+
+  @Post('plans/:id/cycles/:cycleId/equipment/:assetId/executions')
+  @Capabilities('pmoc.manage', 'operations.manage')
+  @Permissions('pmoc.manage')
+  @ApiOperation({
+    summary: 'Start one physical execution and its 1:1 operation',
+  })
+  startEquipmentExecution(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Param('cycleId', ParseUUIDv7Pipe) cycleId: string,
+    @Param('assetId', ParseUUIDv7Pipe) assetId: string,
+    @Req() request: IdentityRequest,
+    @Body() input: StartPmocEquipmentExecutionDto,
+  ) {
+    return this.pmoc.startEquipmentExecution(
+      id,
+      cycleId,
+      assetId,
+      this.actor(request),
+      input,
+    );
+  }
+
+  @Post('plans/:id/cycles/:cycleId/equipment-executions/:executionId/complete')
+  @Capabilities('pmoc.manage', 'operations.manage')
+  @Permissions('pmoc.manage')
+  @ApiOperation({
+    summary: 'Complete one equipment; closes cycle only after all are resolved',
+  })
+  completeEquipmentExecution(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Param('cycleId', ParseUUIDv7Pipe) cycleId: string,
+    @Param('executionId', ParseUUIDv7Pipe) executionId: string,
+    @Req() request: IdentityRequest,
+    @Body() input: CompletePmocEquipmentExecutionDto,
+  ) {
+    return this.pmoc.completeEquipmentExecution(
+      id,
+      cycleId,
+      executionId,
+      this.actor(request),
+      input,
+    );
+  }
+
+  @Post('equipment-executions/:executionId/evidence')
+  @Capabilities('pmoc.manage')
+  @Permissions('pmoc.manage')
+  @ApiOperation({
+    summary: 'Attach tenant-scoped evidence to one equipment execution (max 6)',
+  })
+  addEquipmentEvidence(
+    @Param('executionId', ParseUUIDv7Pipe) executionId: string,
+    @Req() request: IdentityRequest,
+    @Body() input: AddPmocEquipmentEvidenceDto,
+  ) {
+    return this.pmoc.addEquipmentEvidence(
+      executionId,
+      this.actor(request),
+      input,
+    );
+  }
+
+  @Post('equipment-executions/:executionId/artifact')
+  @Capabilities('pmoc.manage', 'artifact_executions.read')
+  @Permissions('pmoc.manage')
+  @ApiOperation({
+    summary: 'Link the real PMOC artifact to one physical equipment execution',
+  })
+  linkEquipmentArtifact(
+    @Param('executionId', ParseUUIDv7Pipe) executionId: string,
+    @Req() request: IdentityRequest,
+    @Body() input: LinkPmocEvidenceDto,
+  ) {
+    return this.pmoc.linkEquipmentArtifact(
+      executionId,
+      this.actor(request),
+      input,
+    );
   }
 
   @Post('plans/:id/executions/:executionId/complete')

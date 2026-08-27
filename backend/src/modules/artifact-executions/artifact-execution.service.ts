@@ -27,6 +27,11 @@ import type {
   SaveArtifactResponseDto,
   UpdateArtifactExecutionDto,
 } from './dto/artifact-execution.dto';
+import { WorkforceRepository } from '../workforce/workforce.repository';
+import {
+  ProfessionalSignatoryPolicy,
+  type DocumentType,
+} from '../workforce/professional-signatory.policy';
 
 @Injectable()
 export class ArtifactExecutionService {
@@ -37,6 +42,8 @@ export class ArtifactExecutionService {
     private readonly stateMachine: ArtifactExecutionStateMachine,
     private readonly policy: ArtifactExecutionPolicy,
     private readonly progress: ArtifactExecutionProgressCalculator,
+    private readonly workforce: WorkforceRepository,
+    private readonly signatoryPolicy: ProfessionalSignatoryPolicy,
   ) {}
 
   async list(
@@ -188,17 +195,83 @@ export class ArtifactExecutionService {
       current.snapshot.signatureSlots,
       input.slotId,
     );
+    const signedAs = input.signedAs ?? this.signedAsFor(slot.signerRole);
+    const documentType = this.documentType(current.snapshot.artifactType);
+    let signatorySnapshot:
+      | Parameters<ArtifactExecutionRepository['collectSignature']>[6]
+      | undefined;
+    let normalizedInput = input;
+    if (signedAs === 'CUSTOMER') {
+      normalizedInput = { ...input, signedAs };
+    } else {
+      if (!input.userId)
+        throw new ValidationException('Professional signer userId is required');
+      const profile = await this.workforce.findProfessionalProfile(
+        organizationId,
+        input.userId,
+      );
+      const signature = await this.workforce.activeSignature(
+        organizationId,
+        input.userId,
+      );
+      const roleEnabled =
+        signedAs === 'FIELD_TECHNICIAN'
+          ? profile?.fieldTechnicianEnabled
+          : profile?.technicalResponsibleEnabled;
+      const inScope = (
+        await this.workforce.listProfessionals(
+          organizationId,
+          signedAs,
+          current.businessUnitId,
+        )
+      ).some((item) => item.userId === input.userId);
+      if (!profile?.active || !roleEnabled || !inScope)
+        throw new ValidationException(
+          'Signer is not eligible for this professional role and scope',
+        );
+      if (!documentType || !this.signatoryPolicy.allows(documentType, signedAs))
+        throw new ValidationException(
+          'Professional role is not allowed by the document policy',
+        );
+      if (!signature)
+        throw new BusinessException(
+          'Professional signature is required',
+          'SIGNATURE_MISSING',
+        );
+      const credential = profile.credentials[0];
+      signatorySnapshot = {
+        signedAs,
+        signatureAssetId: signature.storageObjectId,
+        signatureAssetHash: signature.sha256,
+        professionalRole: signedAs,
+        credentialType: credential?.type,
+        credentialNumber: credential?.registrationNumber,
+        credentialRegion: credential?.region ?? undefined,
+        capturedAt: new Date(),
+      };
+      normalizedInput = {
+        ...input,
+        signedAs,
+        signerName: profile.user.displayName,
+        signatureData: {
+          storageObjectId: signature.storageObjectId,
+          sha256: signature.sha256,
+          version: signature.version,
+        },
+      };
+    }
     const signatureHash = createHash('sha256')
-      .update(JSON.stringify(input.signatureData))
+      .update(JSON.stringify(normalizedInput.signatureData))
       .digest('hex');
     try {
       const updated = await this.repository.collectSignature(
         id,
         organizationId,
         actorId,
-        input,
+        normalizedInput,
         slot.signerRole,
         signatureHash,
+        signatorySnapshot,
       );
       return this.mapper.details(
         await this.repository.updateProgress(
@@ -209,6 +282,27 @@ export class ArtifactExecutionService {
     } catch (error) {
       this.mapPersistence(error);
     }
+  }
+
+  private signedAsFor(
+    signerRole: string,
+  ): 'FIELD_TECHNICIAN' | 'TECHNICAL_RESPONSIBLE' | 'CUSTOMER' {
+    if (signerRole === 'CUSTOMER') return 'CUSTOMER';
+    if (['TECHNICAL_MANAGER', 'TECHNICAL_RESPONSIBLE'].includes(signerRole))
+      return 'TECHNICAL_RESPONSIBLE';
+    return 'FIELD_TECHNICIAN';
+  }
+
+  private documentType(artifactType: string): DocumentType | null {
+    const mapping: Record<string, DocumentType> = {
+      ORDEM_SERVICO: 'SERVICE_ORDER',
+      RELATORIO_VISITA: 'RVT',
+      PMOC: 'PMOC',
+      RELATORIO_TECNICO: 'TECHNICAL_REPORT',
+      QUALIDADE_AR: 'TECHNICAL_REPORT',
+      RECIBO: 'RECEIPT',
+    };
+    return mapping[artifactType] ?? null;
   }
 
   async progressOf(

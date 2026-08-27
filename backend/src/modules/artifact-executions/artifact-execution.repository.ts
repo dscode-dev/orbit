@@ -425,6 +425,16 @@ export class ArtifactExecutionRepository {
     input: CollectArtifactSignatureDto,
     signerRole: string,
     signatureHash: string,
+    signatorySnapshot?: {
+      signedAs: string;
+      signatureAssetId: string;
+      signatureAssetHash: string;
+      professionalRole: string;
+      credentialType?: string;
+      credentialNumber?: string;
+      credentialRegion?: string;
+      capturedAt: Date;
+    },
   ) {
     return this.rls.run(async (tx) => {
       const execution = await tx.artifactExecution.findFirstOrThrow({
@@ -441,6 +451,14 @@ export class ArtifactExecutionRepository {
           signerDocument: input.signerDocument,
           signatureData: this.json(input.signatureData),
           signatureHash,
+          signedAs: signatorySnapshot?.signedAs ?? input.signedAs,
+          signatureAssetId: signatorySnapshot?.signatureAssetId,
+          signatureAssetHash: signatorySnapshot?.signatureAssetHash,
+          professionalRole: signatorySnapshot?.professionalRole,
+          credentialType: signatorySnapshot?.credentialType,
+          credentialNumber: signatorySnapshot?.credentialNumber,
+          credentialRegion: signatorySnapshot?.credentialRegion,
+          capturedAt: signatorySnapshot?.capturedAt,
           consentText: input.consentText,
           geolocation: input.geolocation
             ? this.json(input.geolocation)
@@ -455,7 +473,11 @@ export class ArtifactExecutionRepository {
         'ARTIFACT_SIGNATURE_COLLECTED',
         id,
         null,
-        { slotId: input.slotId, signerRole },
+        {
+          slotId: input.slotId,
+          signerRole,
+          signedAs: signatorySnapshot?.signedAs ?? input.signedAs,
+        },
       );
       return tx.artifactExecution.findUniqueOrThrow({
         where: { id },

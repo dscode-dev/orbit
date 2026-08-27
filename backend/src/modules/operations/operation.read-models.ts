@@ -19,6 +19,22 @@ export interface OperationAssignmentReadModel {
   user: OperationUserReadModel;
 }
 
+export interface OperationTechnicianAssignmentReadModel {
+  userId: string;
+  assignedById: string | null;
+  assignedAt: string;
+  user: OperationUserReadModel;
+}
+
+export type OperationAllowedAction =
+  | 'VIEW'
+  | 'EDIT'
+  | 'START'
+  | 'CHANGE_STATUS'
+  | 'ADD_EVIDENCE'
+  | 'GENERATE_REPORT'
+  | 'MANAGE_ASSIGNMENTS';
+
 export interface OperationAttachmentReadModel {
   id: string;
   fileName: string;
@@ -96,6 +112,11 @@ export interface OperationListItemReadModel {
   scheduledEnd: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  responsibleFieldTechnicianId: string | null;
+  responsibleFieldTechnician: OperationUserReadModel | null;
+  auxiliaryTechnicians: readonly OperationTechnicianAssignmentReadModel[];
+  startedBy: OperationUserReadModel | null;
+  completedBy: OperationUserReadModel | null;
   location: unknown;
   data: unknown;
   createdById: string | null;
@@ -107,6 +128,7 @@ export interface OperationListItemReadModel {
   users: readonly OperationAssignmentReadModel[];
   attachments: readonly OperationAttachmentReadModel[];
   checklistExecutions: readonly OperationChecklistReadModel[];
+  allowedActions: readonly OperationAllowedAction[];
 }
 
 /** A lista permanece compacta; somente o detalhe publica ações autoritativas. */

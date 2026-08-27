@@ -243,6 +243,36 @@ Duas propriedades úteis a qualquer cliente:
   `ARTIFACT_EXECUTION_INCOMPLETE`, `ARTIFACT_EXECUTION_NOT_EDITABLE`), o que
   permite reagir a uma regra sem reproduzi-la.
 
+### 6.6 Professional Roles & Signatures
+
+| Endpoint | Web | Mobile |
+| --- | --- | --- |
+| `GET /workforce/field-technicians` | contrato sincronizado | contrato público disponível |
+| `GET /workforce/eligible-technical-responsibles` | contrato sincronizado | contrato público disponível |
+| `GET/PATCH /workforce/members/:userId/professional-profile` | contrato sincronizado | administração futura |
+| `POST /workforce/members/:userId/professional-credentials` | contrato sincronizado | administração futura |
+| `POST /workforce/members/:userId/signature` | contrato sincronizado | coleta futura |
+| `GET /workforce/members/:userId/document-eligibility` | contrato sincronizado | contrato público disponível |
+
+`ProfessionalProfileReadModel` separa `professionalRoles` de RBAC.
+Seletores usam `EligibleProfessionalReadModel`, que publica somente nome,
+credential apropriada e `signatureAvailable`; asset, hash e storage key não
+atravessam essa fronteira. `ArtifactExecutionSignatureReadModel` preserva
+`signedAs` e o snapshot profissional imutável usado por Web e Mobile.
+
+### 6.7 Operation assignments
+
+`OperationListItemReadModel` distingue `responsibleFieldTechnician` de
+`auxiliaryTechnicians`, preserva `startedBy`/`completedBy` e publica
+`allowedActions` por ator. `SchedulingOccurrenceReadModel` expõe os mesmos
+papéis e `assignmentAuthority` (`OPERATION` ou `SCHEDULING`). Assignment nunca
+é interpretado pelo cliente como autorização nem abre informações comerciais.
+
+Os comandos explícitos são `PATCH /operations/:id/responsible-field-technician`,
+`POST /operations/:id/auxiliary-technicians` e
+`DELETE /operations/:id/auxiliary-technicians/:userId`, disponíveis nas rotas
+legadas e `/api/v1`.
+
 ---
 
 ## 7. Procedência dos indicadores
@@ -481,6 +511,7 @@ Ausências de contrato levantadas pelos clientes, sem contorno improvisado:
 | Management Reports Engine (backend)             | `backend/docs/management-reports.md`            |
 | Management Reports Center (web)                 | `frontend/docs/management-reports-center.md`    |
 | PMOC & Compliance Engine (backend)              | `backend/docs/pmoc-compliance.md`               |
+| PMOC V2 — execução por equipamento (backend)    | `backend/docs/pmoc-v2-execution-model.md`       |
 | BFF, cliente HTTP e Query Layer (web)           | `frontend/docs/frontend-core.md`                |
 | Autenticação e sessão (web)                     | `frontend/docs/authentication.md`               |
 | Dashboard e procedência (web)                   | `frontend/docs/dashboard.md`                    |
