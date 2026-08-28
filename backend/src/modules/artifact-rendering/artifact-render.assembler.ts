@@ -80,13 +80,17 @@ export interface AssembleSource {
     signerName: string;
     signerDocument: string | null;
     signatureHash: string;
+    signatureAssetId?: string | null;
     signedAs: string | null;
     credentialType: string | null;
     credentialNumber: string | null;
     credentialRegion: string | null;
     signedAt: Date;
     revokedAt: Date | null;
+    signatureImage?: Buffer;
+    signatureImageMimeType?: string;
   }[];
+  evidence?: NonNullable<RenderInput['evidence']>;
   organizationName: string;
   correlationId: string;
 }
@@ -140,6 +144,7 @@ export class ArtifactRenderAssembler {
       },
       sections: this.sections(source.snapshot.sections, answers),
       signatures: this.signatures(source.snapshot.signatureSlots, collected),
+      evidence: source.evidence ?? [],
       branding: this.branding(source.snapshot.layout, source.organizationName),
       layout: record(source.snapshot.layout),
       metadata: record(source.snapshot.metadata),
@@ -223,6 +228,8 @@ export class ArtifactRenderAssembler {
                   .filter(Boolean)
                   .join('-')
               : undefined,
+          signatureImage: signature?.signatureImage,
+          signatureImageMimeType: signature?.signatureImageMimeType,
         };
       })
       .sort((left, right) => left.order - right.order);

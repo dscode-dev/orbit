@@ -48,17 +48,40 @@ export class ArtifactRenderRepository {
 
   /** Tudo que a montagem da entrada precisa, em uma leitura. */
   findRenderSource(executionId: string, organizationId: string) {
-    return this.rls.run((tx) =>
-      tx.artifactExecution.findFirst({
+    return this.rls.run(async (tx) => {
+      const source = await tx.artifactExecution.findFirst({
         where: { id: executionId, organizationId, deletedAt: null },
         include: {
           snapshot: true,
           responses: { orderBy: [{ sectionId: 'asc' }, { fieldId: 'asc' }] },
           signatures: { orderBy: { signedAt: 'asc' } },
+          pmocEquipmentExecution: {
+            include: {
+              evidence: {
+                orderBy: { createdAt: 'asc' },
+                include: { storageFile: true },
+              },
+            },
+          },
           organization: { select: { displayName: true } },
         },
-      }),
-    );
+      });
+      if (!source) return null;
+      const signatureAssetIds = source.signatures.flatMap((signature) =>
+        signature.signatureAssetId ? [signature.signatureAssetId] : [],
+      );
+      const signatureAssets = signatureAssetIds.length
+        ? await tx.storageFile.findMany({
+            where: {
+              organizationId,
+              id: { in: signatureAssetIds },
+              status: 'AVAILABLE',
+              deletedAt: null,
+            },
+          })
+        : [];
+      return { ...source, signatureAssets };
+    });
   }
 
   /**

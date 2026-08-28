@@ -16,6 +16,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { IsUUIDv7 } from '../../validators';
+import { CursorDto } from '../../dtos/foundation.dto';
 import {
   COMPLIANCE_STATUSES,
   FREQUENCY_UNITS,
@@ -28,6 +29,24 @@ const trim = ({ value }: { value: unknown }): unknown =>
 
 /** `YYYY-MM-DD` — vigência e vencimento são **dias**, não instantes. */
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+export class PmocCoveragePageQueryDto extends CursorDto {
+  @ApiPropertyOptional({
+    description: 'Equipment name, identifier or serial number',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(120)
+  search?: string;
+
+  @ApiPropertyOptional({ enum: ['ACTIVE', 'INACTIVE'] })
+  @IsOptional()
+  @IsIn(['ACTIVE', 'INACTIVE'])
+  status?: 'ACTIVE' | 'INACTIVE';
+}
+
+export class PmocTimelineQueryDto extends CursorDto {}
 
 export class CreatePmocPlanDto {
   @ApiProperty()
@@ -285,6 +304,15 @@ export class AddPmocEquipmentEvidenceDto {
   @IsString()
   @MaxLength(500)
   caption?: string;
+}
+
+export class GeneratePmocEquipmentArtifactDto {
+  @ApiPropertyOptional({ example: 'pdf.default', default: 'pdf.default' })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Matches(/^[a-z][a-z0-9._-]*$/)
+  renderer = 'pdf.default';
 }
 
 export class PmocPlanQueryDto {

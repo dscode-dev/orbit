@@ -42,12 +42,15 @@ import {
   AddPmocCoverageDto,
   AddPmocEquipmentEvidenceDto,
   CompletePmocEquipmentExecutionDto,
+  GeneratePmocEquipmentArtifactDto,
   CompletePmocExecutionDto,
   CreatePmocOperationDto,
   CreatePmocPlanDto,
   LinkPmocEvidenceDto,
   PmocAnalyticsQueryDto,
+  PmocCoveragePageQueryDto,
   PmocPlanQueryDto,
+  PmocTimelineQueryDto,
   PmocUpcomingQueryDto,
   StartPmocEquipmentExecutionDto,
   UpdatePmocPlanDto,
@@ -191,6 +194,32 @@ export class PmocController {
     @Req() request: IdentityRequest,
   ) {
     return this.pmoc.coverages(id, this.actor(request));
+  }
+
+  @Get('plans/:id/equipment-page')
+  @Capabilities('pmoc.read')
+  @Permissions('pmoc.read')
+  @ApiOperation({
+    summary: 'Server-side cursor page of equipment covered by the plan',
+  })
+  coveragesPage(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+    @Query() query: PmocCoveragePageQueryDto,
+  ) {
+    return this.pmoc.coveragesPage(id, this.actor(request), query);
+  }
+
+  @Get('plans/:id/timeline')
+  @Capabilities('pmoc.read')
+  @Permissions('pmoc.read')
+  @ApiOperation({ summary: 'Public PMOC V2 business timeline' })
+  timeline(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+    @Query() query: PmocTimelineQueryDto,
+  ) {
+    return this.pmoc.timeline(id, this.actor(request), query);
   }
 
   @Post('plans/:id/equipment')
@@ -341,6 +370,24 @@ export class PmocController {
     @Body() input: LinkPmocEvidenceDto,
   ) {
     return this.pmoc.linkEquipmentArtifact(
+      executionId,
+      this.actor(request),
+      input,
+    );
+  }
+
+  @Post('equipment-executions/:executionId/artifact/generate')
+  @Capabilities('pmoc.manage', 'artifact_rendering.render')
+  @Permissions('pmoc.manage')
+  @ApiOperation({
+    summary: 'Idempotently create and render the PMOC V2 document',
+  })
+  generateEquipmentArtifact(
+    @Param('executionId', ParseUUIDv7Pipe) executionId: string,
+    @Req() request: IdentityRequest,
+    @Body() input: GeneratePmocEquipmentArtifactDto,
+  ) {
+    return this.pmoc.generateEquipmentArtifact(
       executionId,
       this.actor(request),
       input,

@@ -6,6 +6,7 @@ import {
   Logger,
   SetMetadata,
 } from '@nestjs/common';
+import { redactSensitivePath } from '../../common/redact-sensitive-path';
 import { Reflector } from '@nestjs/core';
 import type { UUID } from '../../contracts';
 import { PUBLIC_KEY } from '../../decorators';
@@ -98,7 +99,7 @@ abstract class PlanMetadataGuard {
           stage: 'guard-internal-error',
           guard,
           method: request.method,
-          path: request.path,
+          path: redactSensitivePath(request.path),
           requestId: typeof requestId === 'string' ? requestId : null,
           actorId: request.identity?.id ?? null,
           organizationId: request.identity?.organizationId ?? null,

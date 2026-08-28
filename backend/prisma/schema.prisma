@@ -232,6 +232,7 @@ model Organization {
   categories                    ProductCategory[]
   products                      Product[]
   assets                        Asset[]
+  equipmentQrIdentities         EquipmentQrIdentity[]
   operations                    Operation[]
   operationAuxiliaryTechnicians OperationAuxiliaryTechnician[]
   pmocEquipmentExecutions       PmocEquipmentExecution[]
@@ -333,6 +334,7 @@ model BusinessUnit {
   memberships             BusinessUnitMembership[]
   sessions                Session[]
   contacts                Contact[]
+  equipmentQrIdentities   EquipmentQrIdentity[]
   assets                  Asset[]
   products                Product[]
   operations              Operation[]
@@ -687,12 +689,38 @@ model Asset {
   artifactExecutions      ArtifactExecution[]
   pmocEquipmentExecutions PmocEquipmentExecution[]
   pmocCoverages           PmocEquipmentCoverage[]
+  qrIdentities            EquipmentQrIdentity[]
 
   @@unique([organizationId, identifier])
   @@index([organizationId, businessUnitId, status, deletedAt])
   @@index([organizationId, customerId])
   @@index([organizationId, serialNumber])
   @@map("assets")
+}
+
+/// Stable, physical QR identity for an Equipment. The random token is not an
+/// authorization credential; every resolution still runs under authenticated
+/// tenant and Business Unit RLS context.
+model EquipmentQrIdentity {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  businessUnitId String    @map("business_unit_id") @db.Uuid
+  equipmentId    String    @map("equipment_id") @db.Uuid
+  token          String    @unique @db.VarChar(64)
+  tokenHash      String    @unique @map("token_hash") @db.Char(64)
+  status         String    @default("ACTIVE") @db.VarChar(20)
+  metadata       Json      @default("{}") @db.JsonB
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  rotatedAt      DateTime? @map("rotated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  equipment    Asset        @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, businessUnitId, status])
+  @@index([equipmentId, status])
+  @@map("equipment_qr_identities")
 }
 
 // -----------------------------------------------------------------------------
@@ -2745,4 +2773,170 @@ model PmocEquipmentEvidence {
   @@unique([equipmentExecutionId, storageFileId])
   @@index([organizationId, equipmentExecutionId, createdAt])
   @@map("pmoc_equipment_evidence")
+}
+
+// -----------------------------------------------------------------------------
+// RVT V2 — TECHNICAL VISIT REPORT
+// -----------------------------------------------------------------------------
+
+model RvtConfiguration {
+  id                                  String    @id @default(uuid(7)) @db.Uuid
+  organizationId                      String    @map("organization_id") @db.Uuid
+  businessUnitId                      String    @map("business_unit_id") @db.Uuid
+  customerId                          String    @map("customer_id") @db.Uuid
+  code                                String    @db.VarChar(60)
+  name                                String    @db.VarChar(220)
+  visitType                           String    @map("visit_type") @db.VarChar(24)
+  scheduleMode                        String    @map("schedule_mode") @db.VarChar(20)
+  coverageStart                       DateTime  @map("coverage_start") @db.Date
+  coverageEnd                         DateTime? @map("coverage_end") @db.Date
+  timezone                            String    @db.VarChar(80)
+  serviceLocation                     Json      @map("service_location") @db.JsonB
+  recurrence                          Json?     @db.JsonB
+  procedure                           Json      @default("{}") @db.JsonB
+  technicalResponsibleUserId          String?   @map("technical_responsible_user_id") @db.Uuid
+  defaultResponsibleFieldTechnicianId String?   @map("default_responsible_field_technician_id") @db.Uuid
+  requiresTechnicalResponsible        Boolean   @default(false) @map("requires_technical_responsible")
+  status                              String    @default("ACTIVE") @db.VarChar(20)
+  metadata                            Json      @default("{}") @db.JsonB
+  createdById                         String    @map("created_by_id") @db.Uuid
+  createdAt                           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt                           DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  equipment  RvtConfigurationEquipment[]
+  occurrences RvtOccurrence[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, businessUnitId, status])
+  @@index([organizationId, customerId, status])
+  @@map("rvt_configurations")
+}
+
+model RvtConfigurationEquipment {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  configurationId String    @map("configuration_id") @db.Uuid
+  assetId         String    @map("asset_id") @db.Uuid
+  addedAt         DateTime  @default(now()) @map("added_at") @db.Timestamptz(3)
+  removedAt       DateTime? @map("removed_at") @db.Timestamptz(3)
+
+  configuration RvtConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@unique([configurationId, assetId])
+  @@index([organizationId, assetId, removedAt])
+  @@map("rvt_configuration_equipment")
+}
+
+model RvtOccurrence {
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  businessUnitId    String    @map("business_unit_id") @db.Uuid
+  configurationId   String    @map("configuration_id") @db.Uuid
+  sequenceNumber    Int       @map("sequence_number")
+  scheduledFor      DateTime? @map("scheduled_for") @db.Timestamptz(3)
+  localScheduledDate DateTime? @map("local_scheduled_date") @db.Date
+  status            String    @default("SCHEDULED") @db.VarChar(20)
+  schedulingEventId String?   @unique @map("scheduling_event_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  configuration RvtConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+  execution     RvtExecution?
+
+  @@unique([configurationId, sequenceNumber])
+  @@unique([configurationId, localScheduledDate])
+  @@index([organizationId, businessUnitId, status, scheduledFor])
+  @@index([organizationId, configurationId, scheduledFor])
+  @@map("rvt_occurrences")
+}
+
+model RvtExecution {
+  id                           String    @id @default(uuid(7)) @db.Uuid
+  organizationId               String    @map("organization_id") @db.Uuid
+  businessUnitId               String    @map("business_unit_id") @db.Uuid
+  occurrenceId                 String    @unique @map("occurrence_id") @db.Uuid
+  operationId                  String?   @unique @map("operation_id") @db.Uuid
+  artifactExecutionId          String?   @unique @map("artifact_execution_id") @db.Uuid
+  responsibleFieldTechnicianId String    @map("responsible_field_technician_id") @db.Uuid
+  technicalResponsibleUserId   String?   @map("technical_responsible_user_id") @db.Uuid
+  status                       String    @default("IN_PROGRESS") @db.VarChar(20)
+  procedureSnapshot            Json      @map("procedure_snapshot") @db.JsonB
+  configurationSnapshot        Json      @map("configuration_snapshot") @db.JsonB
+  observations                 Json      @default("[]") @db.JsonB
+  recommendations              Json      @default("[]") @db.JsonB
+  freeTextRecommendation       String?   @map("free_text_recommendation") @db.Text
+  customerAcknowledgement      Json?     @map("customer_acknowledgement") @db.JsonB
+  fieldTechnicianSignature     Json?     @map("field_technician_signature") @db.JsonB
+  technicalResponsibleSignature Json?    @map("technical_responsible_signature") @db.JsonB
+  performedAt                  DateTime? @map("performed_at") @db.Timestamptz(3)
+  startedById                  String    @map("started_by_id") @db.Uuid
+  completedById                String?   @map("completed_by_id") @db.Uuid
+  startedAt                    DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  completedAt                  DateTime? @map("completed_at") @db.Timestamptz(3)
+  createdAt                    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  occurrence RvtOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
+  equipment  RvtExecutionEquipment[]
+  evidence   RvtExecutionEvidence[]
+
+  @@index([organizationId, businessUnitId, status])
+  @@index([organizationId, responsibleFieldTechnicianId, status])
+  @@map("rvt_executions")
+}
+
+model RvtExecutionEquipment {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  executionId    String   @map("execution_id") @db.Uuid
+  assetId        String   @map("asset_id") @db.Uuid
+  assetSnapshot  Json     @map("asset_snapshot") @db.JsonB
+  addedDuringExecution Boolean @default(false) @map("added_during_execution")
+  addedById      String   @map("added_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  execution RvtExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, assetId])
+  @@index([organizationId, assetId])
+  @@map("rvt_execution_equipment")
+}
+
+model RvtExecutionEvidence {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  executionId    String   @map("execution_id") @db.Uuid
+  storageFileId  String   @map("storage_file_id") @db.Uuid
+  assetId        String?  @map("asset_id") @db.Uuid
+  kind           String   @default("PHOTO") @db.VarChar(24)
+  caption        String?  @db.VarChar(500)
+  uploadedById   String   @map("uploaded_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  execution RvtExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, storageFileId])
+  @@index([organizationId, executionId, createdAt])
+  @@map("rvt_execution_evidence")
+}
+
+model RvtAdHocCommand {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  businessUnitId String   @map("business_unit_id") @db.Uuid
+  actorId        String   @map("actor_id") @db.Uuid
+  idempotencyKey String   @map("idempotency_key") @db.VarChar(160)
+  payloadHash    String   @map("payload_hash") @db.Char(64)
+  configurationId String  @map("configuration_id") @db.Uuid
+  occurrenceId   String   @map("occurrence_id") @db.Uuid
+  executionId    String   @map("execution_id") @db.Uuid
+  operationId    String   @map("operation_id") @db.Uuid
+  customerId     String   @map("customer_id") @db.Uuid
+  assetId        String?  @map("asset_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, actorId, idempotencyKey])
+  @@index([organizationId, businessUnitId, createdAt])
+  @@map("rvt_ad_hoc_commands")
 }

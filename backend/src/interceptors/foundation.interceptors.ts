@@ -7,6 +7,7 @@ import {
   Logger,
   type NestInterceptor,
 } from '@nestjs/common';
+import { redactSensitivePath } from '../common/redact-sensitive-path';
 import type { Request, Response } from 'express';
 import { defer, type Observable, tap, map } from 'rxjs';
 import type {
@@ -106,7 +107,7 @@ export class LoggingInterceptor implements NestInterceptor {
       JSON.stringify({
         requestId: request.id,
         method: request.method,
-        path: request.originalUrl,
+        path: redactSensitivePath(request.originalUrl),
         statusCode,
         durationMs: Number(durationMs.toFixed(2)),
       }),

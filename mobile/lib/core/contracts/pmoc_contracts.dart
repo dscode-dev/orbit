@@ -93,3 +93,63 @@ class PmocExecutionPreparationContract {
   final List<String> allowedActions;
   final PmocEquipmentExecutionContract? existingExecution;
 }
+
+class PmocCursorPageContract<T> {
+  const PmocCursorPageContract({
+    required this.data,
+    required this.hasNextPage,
+    this.nextCursor,
+  });
+  final List<T> data;
+  final String? nextCursor;
+  final bool hasNextPage;
+}
+
+class PmocTimelineItemContract {
+  const PmocTimelineItemContract({
+    required this.id,
+    required this.type,
+    required this.message,
+    required this.occurredAt,
+    required this.data,
+    this.actor,
+    this.equipment,
+  });
+  factory PmocTimelineItemContract.fromJson(PmocJson json) =>
+      PmocTimelineItemContract(
+        id: json['id'] as String? ?? '',
+        type: json['type'] as String? ?? '',
+        message: json['message'] as String? ?? '',
+        occurredAt: DateTime.parse(json['occurredAt'] as String),
+        actor: json['actor'] as PmocJson?,
+        equipment: json['equipment'] as PmocJson?,
+        data: json['data'] as PmocJson? ?? const {},
+      );
+  final String id;
+  final String type;
+  final String message;
+  final DateTime occurredAt;
+  final PmocJson? actor;
+  final PmocJson? equipment;
+  final PmocJson data;
+}
+
+class PmocGeneratedArtifactContract {
+  const PmocGeneratedArtifactContract({
+    required this.artifactExecutionId,
+    required this.created,
+    required this.sourceType,
+    required this.sourceEntityId,
+  });
+  factory PmocGeneratedArtifactContract.fromJson(PmocJson json) =>
+      PmocGeneratedArtifactContract(
+        artifactExecutionId: json['artifactExecutionId'] as String? ?? '',
+        created: json['created'] as bool? ?? false,
+        sourceType: json['sourceType'] as String? ?? '',
+        sourceEntityId: json['sourceEntityId'] as String? ?? '',
+      );
+  final String artifactExecutionId;
+  final bool created;
+  final String sourceType;
+  final String sourceEntityId;
+}

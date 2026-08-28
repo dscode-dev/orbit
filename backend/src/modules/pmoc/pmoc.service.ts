@@ -43,12 +43,15 @@ import type {
   AddPmocCoverageDto,
   AddPmocEquipmentEvidenceDto,
   CompletePmocEquipmentExecutionDto,
+  GeneratePmocEquipmentArtifactDto,
   CompletePmocExecutionDto,
   CreatePmocOperationDto,
   CreatePmocPlanDto,
   LinkPmocEvidenceDto,
   PmocAnalyticsQueryDto,
   PmocPlanQueryDto,
+  PmocCoveragePageQueryDto,
+  PmocTimelineQueryDto,
   PmocUpcomingQueryDto,
   StartPmocEquipmentExecutionDto,
   UpdatePmocPlanDto,
@@ -57,10 +60,14 @@ import { PmocMapper } from './pmoc.mapper';
 import type {
   PmocComplianceSummaryReadModel,
   PmocUpcomingReadModel,
+  PmocCursorPageReadModel,
+  PmocCoverageReadModel,
+  PmocTimelineItemReadModel,
 } from './pmoc.read-models';
 import { instantFromCivilDate } from '../scheduling/scheduling-time';
 import { PmocRepository } from './pmoc.repository';
 import { WorkforceService } from '../workforce/workforce.service';
+import { ArtifactRenderService } from '../artifact-rendering/artifact-render.service';
 
 /** Quem pediu, e o que ele pode. */
 export interface PmocActor {
@@ -79,6 +86,7 @@ export class PmocService {
     private readonly mapper: PmocMapper,
     private readonly jobs: BackgroundJobQueue,
     private readonly workforce: WorkforceService,
+    private readonly rendering: ArtifactRenderService,
   ) {}
 
   /* ---------------------------------------------------------------- */
@@ -442,6 +450,89 @@ export class PmocService {
     );
   }
 
+  async coveragesPage(
+    id: string,
+    actor: PmocActor,
+    query: PmocCoveragePageQueryDto,
+  ): Promise<PmocCursorPageReadModel<PmocCoverageReadModel>> {
+    await this.plan(id, actor);
+    const cursor = this.decodeCursor<{ name: string; id: string }>(
+      query.cursor,
+    );
+    const rows = await this.repository.listCoveragesPage({
+      planId: id,
+      organizationId: actor.organizationId,
+      limit: query.limit,
+      cursor,
+      search: query.search,
+      status: query.status,
+    });
+    const hasNextPage = rows.length > query.limit;
+    const page = rows.slice(0, query.limit);
+    const last = page.at(-1);
+    return {
+      data: page.map((row) => this.mapper.coverage(row)),
+      hasNextPage,
+      nextCursor:
+        hasNextPage && last
+          ? this.encodeCursor({ name: last.asset.name, id: last.id })
+          : null,
+    };
+  }
+
+  async timeline(
+    id: string,
+    actor: PmocActor,
+    query: PmocTimelineQueryDto,
+  ): Promise<PmocCursorPageReadModel<PmocTimelineItemReadModel>> {
+    await this.plan(id, actor);
+    const decoded = this.decodeCursor<{ occurredAt: string; id: string }>(
+      query.cursor,
+    );
+    const cursor = decoded
+      ? { occurredAt: new Date(decoded.occurredAt), id: decoded.id }
+      : null;
+    if (cursor && Number.isNaN(cursor.occurredAt.getTime()))
+      throw new ValidationException('Invalid timeline cursor');
+    const result = await this.repository.listTimelinePage({
+      planId: id,
+      organizationId: actor.organizationId,
+      limit: query.limit,
+      cursor,
+    });
+    const hasNextPage = result.rows.length > query.limit;
+    const rows = result.rows.slice(0, query.limit);
+    const assets = new Map(result.assets.map((asset) => [asset.id, asset]));
+    const data = rows.map((row) => {
+      const values = (row.after ?? {}) as Record<string, unknown>;
+      const equipment =
+        typeof values.assetId === 'string'
+          ? (assets.get(values.assetId) ?? null)
+          : null;
+      return {
+        id: row.id,
+        type: row.action,
+        message: this.timelineMessage(row.action, equipment?.name),
+        occurredAt: row.createdAt.toISOString(),
+        actor: row.user,
+        equipment,
+        data: values,
+      };
+    });
+    const last = rows.at(-1);
+    return {
+      data,
+      hasNextPage,
+      nextCursor:
+        hasNextPage && last
+          ? this.encodeCursor({
+              occurredAt: last.createdAt.toISOString(),
+              id: last.id,
+            })
+          : null,
+    };
+  }
+
   /* ---------------------------------------------------------------- */
   /* Ciclos                                                            */
   /* ---------------------------------------------------------------- */
@@ -670,6 +761,8 @@ export class PmocService {
     if (data.plan.status !== 'ACTIVE') blockedReasons.push('PLAN_NOT_ACTIVE');
     if (data.cycle.status !== 'PENDING')
       blockedReasons.push('CYCLE_NOT_PENDING');
+    if (data.coverage.asset.status !== 'ACTIVE')
+      blockedReasons.push('EQUIPMENT_INACTIVE');
     if (!data.plan.technicalResponsibleUserId)
       blockedReasons.push('TECHNICAL_RESPONSIBLE_MISSING');
     else if (!technicalResponsibleEligibility?.eligible)
@@ -690,6 +783,9 @@ export class PmocService {
         name: data.plan.customer.tradeName ?? data.plan.customer.legalName,
       },
       equipment: data.coverage.asset,
+      serviceLocation: data.plan.serviceLocation,
+      scope: data.plan.scope,
+      serviceTypes: data.plan.serviceTypes,
       procedure: data.plan.procedure,
       technicalResponsible: data.plan.technicalResponsible,
       technicalResponsibleEligibility,
@@ -704,6 +800,10 @@ export class PmocService {
         artifactType: 'PMOC',
         signatory: 'TECHNICAL_RESPONSIBLE',
         fieldTechnicianAutoSigns: false,
+      },
+      suggestedExecutionTime: {
+        dueOn: toDateOnly(data.cycle.dueOn),
+        timezone: 'America/Recife',
       },
       eligibility: { ready: blockedReasons.length === 0, blockedReasons },
       existingExecution: data.existing
@@ -763,6 +863,8 @@ export class PmocService {
       throw new ConflictException(
         'PMOC plan and cycle must be active and pending',
       );
+    if (preparation.coverage.asset.status !== 'ACTIVE')
+      throw new ConflictException('Equipment is inactive');
     if (!preparation.plan.technicalResponsibleUserId)
       throw new ValidationException('TECHNICAL_RESPONSIBLE_MISSING');
     await this.assertTechnicalResponsible(
@@ -804,6 +906,7 @@ export class PmocService {
         userId: preparation.plan.technicalResponsible!.id,
         displayName: preparation.plan.technicalResponsible!.displayName,
         signature: preparation.technicalResponsibleSignature,
+        credential: preparation.technicalResponsibleCredential,
       },
       code: await this.operationCode(
         actor.organizationId,
@@ -865,6 +968,50 @@ export class PmocService {
         'Artifact must be a PMOC execution for the same equipment and business unit',
       );
     return { executionId, artifactExecutionId: input.artifactExecutionId };
+  }
+
+  async generateEquipmentArtifact(
+    executionId: string,
+    actor: PmocActor,
+    input: GeneratePmocEquipmentArtifactDto,
+  ) {
+    this.assertPermission(
+      actor,
+      'artifact_rendering.render',
+      'Generating the PMOC document requires artifact_rendering.render',
+    );
+    const result = await this.repository.createEquipmentArtifact(
+      actor.organizationId,
+      executionId,
+      actor.actorId,
+    );
+    if (!result)
+      throw new EntityNotFoundException(
+        'CompletedPmocEquipmentExecutionOrTemplate',
+        executionId,
+      );
+    if (
+      result.renderStatus === 'NOT_RENDERED' ||
+      result.renderStatus === 'FAILED'
+    ) {
+      await this.rendering.request(
+        result.artifactExecutionId,
+        { organizationId: actor.organizationId, actorId: actor.actorId },
+        {
+          renderer: input.renderer,
+          metadata: {
+            sourceType: 'PMOC_EQUIPMENT_EXECUTION',
+            sourceEntityId: executionId,
+          },
+        },
+      );
+    }
+    return {
+      artifactExecutionId: result.artifactExecutionId,
+      created: result.created,
+      sourceType: 'PMOC_EQUIPMENT_EXECUTION',
+      sourceEntityId: executionId,
+    };
   }
 
   async completeEquipmentExecution(
@@ -1254,6 +1401,39 @@ export class PmocService {
     return `${seed}-${Date.now().toString(36).slice(-4)}`
       .toUpperCase()
       .slice(0, 60);
+  }
+
+  private encodeCursor(value: Record<string, string>): string {
+    return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+  }
+
+  private decodeCursor<T>(cursor?: string): T | null {
+    if (!cursor) return null;
+    try {
+      const value = JSON.parse(
+        Buffer.from(cursor, 'base64url').toString('utf8'),
+      ) as T;
+      if (!value || typeof value !== 'object') throw new Error('invalid');
+      return value;
+    } catch {
+      throw new ValidationException('Invalid pagination cursor');
+    }
+  }
+
+  private timelineMessage(action: string, equipmentName?: string): string {
+    const equipment = equipmentName ? ` ${equipmentName}` : '';
+    const messages: Record<string, string> = {
+      PMOC_PLAN_CREATED: 'Plano PMOC criado.',
+      PMOC_PLAN_ACTIVATED: 'Plano PMOC ativado e primeiro ciclo criado.',
+      PMOC_COVERAGE_ADDED: `Equipamento${equipment} adicionado à cobertura.`,
+      PMOC_COVERAGE_REMOVED: 'Equipamento removido da cobertura.',
+      PMOC_EQUIPMENT_EXECUTION_STARTED: `Execução do equipamento${equipment} iniciada.`,
+      PMOC_EQUIPMENT_EXECUTION_COMPLETED: `Execução do equipamento${equipment} concluída.`,
+      PMOC_EQUIPMENT_ARTIFACT_CREATED: `Documento do equipamento${equipment} gerado.`,
+      PMOC_EXECUTION_COMPLETED:
+        'Ciclo PMOC concluído e próximo ciclo programado.',
+    };
+    return messages[action] ?? 'Plano PMOC atualizado.';
   }
 
   private today(): Date {

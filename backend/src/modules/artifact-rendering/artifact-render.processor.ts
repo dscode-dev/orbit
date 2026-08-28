@@ -30,7 +30,7 @@
  * O efeito colateral honesto de uma reexecução é uma revisão a mais, com o
  * mesmo conteúdo — visível no histórico, que é onde deve estar.
  */
-import { Injectable, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import { ArtifactManifestService } from '../artifact-manifests/artifact-manifest.service';
 import { JobProcessorRegistry } from '../jobs/job-processor.registry';
 import {
@@ -45,6 +45,10 @@ import { ArtifactRenderMetrics } from './artifact-render.metrics';
 import { ArtifactRenderRepository } from './artifact-render.repository';
 import { ArtifactRendererRegistry } from './renderers/renderer.registry';
 import type { RenderJobPayload } from './artifact-render.service';
+import {
+  STORAGE_PROVIDER,
+  type StorageProvider,
+} from '../storage/storage.types';
 
 /** Nome do arquivo emitido — o código da execução é o que identifica. */
 const fileNameFor = (code: string, format: string): string =>
@@ -61,6 +65,7 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
     private readonly manifests: ArtifactManifestService,
     private readonly metrics: ArtifactRenderMetrics,
     private readonly registry: JobProcessorRegistry,
+    @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
   ) {}
 
   onModuleInit(): void {
@@ -105,11 +110,57 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
     try {
       const renderer = this.renderers.get(payload.renderer);
 
+      const evidence = await Promise.all(
+        (source.pmocEquipmentExecution?.evidence ?? []).map(async (item) => ({
+          id: item.id,
+          kind: item.kind,
+          caption: item.caption,
+          fileName: item.storageFile.fileName,
+          mimeType: item.storageFile.mimeType,
+          sha256: item.storageFile.sha256,
+          bytes:
+            item.storageFile.status === 'AVAILABLE'
+              ? await this.storage.get({
+                  bucket: item.storageFile.bucket,
+                  objectKey: item.storageFile.objectKey,
+                })
+              : undefined,
+        })),
+      );
+      const signatureImages = new Map(
+        await Promise.all(
+          source.signatureAssets.map(
+            async (asset) =>
+              [
+                asset.id,
+                {
+                  bytes: await this.storage.get({
+                    bucket: asset.bucket,
+                    objectKey: asset.objectKey,
+                  }),
+                  mimeType: asset.mimeType,
+                },
+              ] as const,
+          ),
+        ),
+      );
+      const signatures = source.signatures.map((signature) => {
+        const image = signature.signatureAssetId
+          ? signatureImages.get(signature.signatureAssetId)
+          : undefined;
+        return {
+          ...signature,
+          signatureImage: image?.bytes,
+          signatureImageMimeType: image?.mimeType,
+        };
+      });
+
       const input = this.assembler.assemble({
         execution: source,
         snapshot: source.snapshot,
         responses: source.responses,
-        signatures: source.signatures,
+        signatures,
+        evidence,
         organizationName: source.organization.displayName,
         correlationId: job.correlationId,
       });

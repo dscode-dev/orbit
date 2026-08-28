@@ -14,6 +14,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../database/prisma.module';
 import { SubscriptionPlansModule } from '../subscription-plans/subscription-plans.module';
 import { WorkforceModule } from '../workforce/workforce.module';
+import { ArtifactRenderingModule } from '../artifact-rendering/artifact-rendering.module';
 import { PmocDueProcessor } from './pmoc-due.processor';
 import { PmocController } from './pmoc.controller';
 import { PmocMapper } from './pmoc.mapper';
@@ -21,7 +22,12 @@ import { PmocRepository } from './pmoc.repository';
 import { PmocService } from './pmoc.service';
 
 @Module({
-  imports: [PrismaModule, SubscriptionPlansModule, WorkforceModule],
+  imports: [
+    PrismaModule,
+    SubscriptionPlansModule,
+    WorkforceModule,
+    ArtifactRenderingModule,
+  ],
   controllers: [PmocController],
   providers: [PmocRepository, PmocMapper, PmocService, PmocDueProcessor],
   exports: [PmocService, PmocRepository],

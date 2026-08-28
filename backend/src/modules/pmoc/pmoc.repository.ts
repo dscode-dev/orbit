@@ -23,6 +23,7 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { RequestContextService } from '../../context';
 import { PaginationHelper, RlsTransaction } from '../../database';
 import type { PrismaTransactionClient } from '../../database/prisma.types';
@@ -812,6 +813,9 @@ export class PmocRepository {
           businessUnitId: true,
           customer: { select: { id: true, legalName: true, tradeName: true } },
           procedure: true,
+          serviceLocation: true,
+          scope: true,
+          serviceTypes: true,
           reviewRequired: true,
           technicalResponsible: { select: { id: true, displayName: true } },
           technicalResponsibleUserId: true,
@@ -836,6 +840,10 @@ export class PmocRepository {
               identifier: true,
               serialNumber: true,
               status: true,
+              manufacturer: true,
+              model: true,
+              location: true,
+              specifications: true,
             },
           },
         },
@@ -853,7 +861,30 @@ export class PmocRepository {
               active: true,
               revokedAt: null,
             },
-            select: { id: true, version: true, sha256: true },
+            select: {
+              id: true,
+              storageObjectId: true,
+              version: true,
+              sha256: true,
+            },
+          })
+        : null;
+      const credential = plan.technicalResponsibleUserId
+        ? await tx.professionalCredential.findFirst({
+            where: {
+              organizationId,
+              userId: plan.technicalResponsibleUserId,
+              active: true,
+              revokedAt: null,
+            },
+            orderBy: { createdAt: 'asc' },
+            select: {
+              type: true,
+              registrationNumber: true,
+              region: true,
+              issuingAuthority: true,
+              displayLabel: true,
+            },
           })
         : null;
       return {
@@ -862,6 +893,7 @@ export class PmocRepository {
         coverage,
         existing,
         technicalResponsibleSignature: signature,
+        technicalResponsibleCredential: credential,
       };
     });
   }
@@ -1076,6 +1108,275 @@ export class PmocRepository {
     });
   }
 
+  createEquipmentArtifact(
+    organizationId: string,
+    equipmentExecutionId: string,
+    actorId: string,
+  ) {
+    return this.rls.run(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pmoc:artifact:${equipmentExecutionId}`}))`;
+      const physical = await tx.pmocEquipmentExecution.findFirst({
+        where: {
+          id: equipmentExecutionId,
+          organizationId,
+          status: 'COMPLETED',
+        },
+        include: {
+          cycle: {
+            include: {
+              plan: {
+                include: {
+                  customer: true,
+                  businessUnit: true,
+                },
+              },
+            },
+          },
+          asset: true,
+          responsibleFieldTechnician: {
+            select: { id: true, displayName: true },
+          },
+          operation: {
+            include: {
+              auxiliaryTechnicians: {
+                where: { removedAt: null },
+                include: { user: { select: { id: true, displayName: true } } },
+              },
+            },
+          },
+          evidence: {
+            orderBy: { createdAt: 'asc' },
+            include: { storageFile: true },
+          },
+        },
+      });
+      if (!physical) return null;
+      if (physical.artifactExecutionId) {
+        const current = await tx.artifactExecution.findUniqueOrThrow({
+          where: { id: physical.artifactExecutionId },
+          select: { id: true, renderStatus: true },
+        });
+        return {
+          artifactExecutionId: current.id,
+          renderStatus: current.renderStatus,
+          created: false,
+        };
+      }
+      const template = await tx.artifactTemplate.findFirst({
+        where: {
+          artifactType: { contains: 'PMOC', mode: 'insensitive' },
+          status: 'ACTIVE',
+          deletedAt: null,
+          OR: [
+            { organizationId },
+            { organizationId: null, visibility: 'GLOBAL' },
+          ],
+        },
+        include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
+        orderBy: { createdAt: 'asc' },
+      });
+      const version = template?.versions[0];
+      if (!template || !version) return null;
+      const technical = physical.technicalResponsibleSnapshot as Record<
+        string,
+        unknown
+      >;
+      const signature = (technical.signature ?? {}) as Record<string, unknown>;
+      const credential = (technical.credential ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const evidence = physical.evidence.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        caption: item.caption,
+        fileId: item.storageFile.id,
+        fileName: item.storageFile.fileName,
+        mimeType: item.storageFile.mimeType,
+        sha256: item.storageFile.sha256,
+      }));
+      const context = {
+        sourceType: 'PMOC_EQUIPMENT_EXECUTION',
+        sourceEntityId: physical.id,
+        plan: {
+          id: physical.cycle.plan.id,
+          code: physical.cycle.plan.code,
+          name: physical.cycle.plan.name,
+        },
+        cycle: {
+          id: physical.cycle.id,
+          sequenceNumber: physical.cycle.sequenceNumber,
+          dueOn: physical.cycle.dueOn.toISOString().slice(0, 10),
+        },
+        performedAt: physical.performedAt?.toISOString() ?? null,
+        customer: {
+          id: physical.cycle.plan.customer.id,
+          name:
+            physical.cycle.plan.customer.tradeName ??
+            physical.cycle.plan.customer.legalName,
+        },
+        serviceLocation: physical.cycle.plan.serviceLocation,
+        scope: physical.cycle.plan.scope,
+        serviceTypes: physical.cycle.plan.serviceTypes,
+        equipment: {
+          id: physical.asset.id,
+          name: physical.asset.name,
+          manufacturer: physical.asset.manufacturer,
+          model: physical.asset.model,
+          serialNumber: physical.asset.serialNumber,
+          identifier: physical.asset.identifier,
+          location: physical.asset.location,
+        },
+        procedure: physical.procedureSnapshot,
+        fieldTechnician: physical.responsibleFieldTechnician,
+        auxiliaries:
+          physical.operation?.auxiliaryTechnicians.map((item) => item.user) ??
+          [],
+        technicalResponsible: technical,
+        evidence,
+        reviewRequired: physical.cycle.plan.reviewRequired,
+      };
+      const sections = [
+        {
+          id: 'pmoc_context',
+          title: 'Execução PMOC por equipamento',
+          order: 1,
+          type: 'FORM',
+          fields: Object.keys(context).map((key, index) => ({
+            id: key,
+            label: key,
+            type: 'TEXT',
+            order: index + 1,
+            required: true,
+          })),
+        },
+      ];
+      const signatureSlots = [
+        {
+          id: 'technical_responsible',
+          label: 'Responsável Técnico',
+          signerRole: 'TECHNICAL_RESPONSIBLE',
+          required: true,
+          order: 1,
+        },
+      ];
+      const structureHash = createHash('sha256')
+        .update(JSON.stringify({ sections, signatureSlots, context }))
+        .digest('hex');
+      const snapshot = await tx.artifactSnapshot.create({
+        data: {
+          organizationId,
+          templateId: template.id,
+          templateVersionId: version.id,
+          templateVersion: version.version,
+          templateKey: template.key,
+          templateName: template.name,
+          artifactType: template.artifactType,
+          segment: template.segment,
+          metadata: context as Prisma.InputJsonValue,
+          sections,
+          signatureSlots,
+          layout: version.layout ?? {},
+          structureHash,
+        },
+      });
+      const artifact = await tx.artifactExecution.create({
+        data: {
+          organizationId,
+          businessUnitId: physical.businessUnitId,
+          operationId: physical.operationId,
+          customerId: physical.cycle.plan.customerId,
+          assetId: physical.assetId,
+          templateId: template.id,
+          snapshotId: snapshot.id,
+          responsibleUserId:
+            typeof technical.userId === 'string' ? technical.userId : null,
+          createdById: actorId,
+          code: `PMOC-${physical.id.replaceAll('-', '').slice(0, 20).toUpperCase()}`,
+          title: `PMOC — Execução ${physical.cycle.sequenceNumber} — ${physical.asset.name}`,
+          status: physical.cycle.plan.reviewRequired
+            ? 'UNDER_REVIEW'
+            : 'COMPLETED',
+          startedAt: physical.startedAt,
+          completedAt: physical.completedAt,
+          context: context as Prisma.InputJsonValue,
+          responses: {
+            create: Object.entries(context).map(([key, value]) => ({
+              organizationId,
+              sectionId: 'pmoc_context',
+              fieldId: key,
+              value:
+                value === null
+                  ? Prisma.JsonNull
+                  : (value as Prisma.InputJsonValue),
+              valueType: typeof value === 'object' ? 'JSON' : 'TEXT',
+              provenance: 'SYSTEM',
+              answeredById: actorId,
+            })),
+          },
+        },
+      });
+      if (
+        typeof technical.userId === 'string' &&
+        typeof signature.sha256 === 'string'
+      ) {
+        await tx.artifactExecutionSignature.create({
+          data: {
+            organizationId,
+            executionId: artifact.id,
+            slotId: 'technical_responsible',
+            signerRole: 'TECHNICAL_RESPONSIBLE',
+            signedAs: 'TECHNICAL_RESPONSIBLE',
+            userId: technical.userId,
+            signerName:
+              typeof technical.displayName === 'string'
+                ? technical.displayName
+                : '',
+            signatureData: signature as Prisma.InputJsonValue,
+            signatureHash: signature.sha256,
+            signatureAssetId:
+              typeof signature.storageObjectId === 'string'
+                ? signature.storageObjectId
+                : null,
+            signatureAssetHash: signature.sha256,
+            professionalRole: 'TECHNICAL_RESPONSIBLE',
+            credentialType:
+              typeof credential.type === 'string' ? credential.type : null,
+            credentialNumber:
+              typeof credential.registrationNumber === 'string'
+                ? credential.registrationNumber
+                : null,
+            credentialRegion:
+              typeof credential.region === 'string' ? credential.region : null,
+            capturedAt: physical.startedAt,
+          },
+        });
+      }
+      await tx.pmocEquipmentExecution.update({
+        where: { id: physical.id },
+        data: { artifactExecutionId: artifact.id },
+      });
+      await this.audit(
+        tx,
+        physical.cycle.plan.id,
+        organizationId,
+        actorId,
+        'PMOC_EQUIPMENT_ARTIFACT_CREATED',
+        {},
+        {
+          equipmentExecutionId: physical.id,
+          artifactExecutionId: artifact.id,
+          assetId: physical.assetId,
+        },
+      );
+      return {
+        artifactExecutionId: artifact.id,
+        renderStatus: artifact.renderStatus,
+        created: true,
+      };
+    });
+  }
+
   completeEquipmentExecution(input: {
     organizationId: string;
     planId: string;
@@ -1105,7 +1406,7 @@ export class PmocRepository {
       if (!claimed.count) return null;
       const row = await tx.pmocEquipmentExecution.findFirstOrThrow({
         where: { id: input.executionId },
-        select: { operationId: true },
+        select: { operationId: true, businessUnitId: true, assetId: true },
       });
       if (row.operationId)
         await tx.operation.update({
@@ -1179,10 +1480,39 @@ export class PmocRepository {
         {
           cycleId: input.cycleId,
           executionId: input.executionId,
+          assetId: row.assetId,
           allResolved,
           nextDueOn,
         },
       );
+      await this.events.emit(tx, {
+        type: 'pmoc.equipment_execution.completed',
+        organizationId: input.organizationId,
+        businessUnitId: row.businessUnitId,
+        actorId: input.actorId,
+        entityType: 'PMOC_EQUIPMENT_EXECUTION',
+        entityId: input.executionId,
+        payload: {
+          planId: input.planId,
+          cycleId: input.cycleId,
+          assetId: row.assetId,
+          performedAt: input.performedAt.toISOString(),
+        },
+      });
+      if (allResolved) {
+        await this.events.emit(tx, {
+          type: 'pmoc.execution.completed',
+          organizationId: input.organizationId,
+          businessUnitId: row.businessUnitId,
+          actorId: input.actorId,
+          entityType: 'PMOC_PLAN',
+          entityId: input.planId,
+          payload: {
+            cycleId: input.cycleId,
+            nextDueOn: nextDueOn?.toISOString().slice(0, 10) ?? '',
+          },
+        });
+      }
       return {
         allResolved,
         nextDueOn,
@@ -1265,6 +1595,119 @@ export class PmocRepository {
         orderBy: { createdAt: 'asc' },
       }),
     );
+  }
+
+  listCoveragesPage(input: {
+    planId: string;
+    organizationId: string;
+    limit: number;
+    cursor: { name: string; id: string } | null;
+    search?: string;
+    status?: 'ACTIVE' | 'INACTIVE';
+  }) {
+    return this.rls.run(async (tx) => {
+      const cursorFilter = input.cursor
+        ? {
+            OR: [
+              { asset: { name: { gt: input.cursor.name } } },
+              {
+                asset: { name: input.cursor.name },
+                id: { gt: input.cursor.id },
+              },
+            ],
+          }
+        : undefined;
+      return tx.pmocEquipmentCoverage.findMany({
+        where: {
+          planId: input.planId,
+          organizationId: input.organizationId,
+          deletedAt: null,
+          ...(input.status ? { asset: { status: input.status } } : {}),
+          ...(input.search
+            ? {
+                OR: [
+                  {
+                    asset: {
+                      name: { contains: input.search, mode: 'insensitive' },
+                    },
+                  },
+                  {
+                    asset: {
+                      identifier: {
+                        contains: input.search,
+                        mode: 'insensitive',
+                      },
+                    },
+                  },
+                  {
+                    asset: {
+                      serialNumber: {
+                        contains: input.search,
+                        mode: 'insensitive',
+                      },
+                    },
+                  },
+                ],
+              }
+            : {}),
+          ...(cursorFilter ? { AND: [cursorFilter] } : {}),
+        },
+        select: coverageView,
+        orderBy: [{ asset: { name: 'asc' } }, { id: 'asc' }],
+        take: input.limit + 1,
+      });
+    });
+  }
+
+  listTimelinePage(input: {
+    planId: string;
+    organizationId: string;
+    limit: number;
+    cursor: { occurredAt: Date; id: string } | null;
+  }) {
+    return this.rls.run(async (tx) => {
+      const rows = await tx.auditLog.findMany({
+        where: {
+          organizationId: input.organizationId,
+          entityType: 'PMOC_PLAN',
+          entityId: input.planId,
+          ...(input.cursor
+            ? {
+                OR: [
+                  { createdAt: { lt: input.cursor.occurredAt } },
+                  {
+                    createdAt: input.cursor.occurredAt,
+                    id: { lt: input.cursor.id },
+                  },
+                ],
+              }
+            : {}),
+        },
+        select: {
+          id: true,
+          action: true,
+          after: true,
+          createdAt: true,
+          user: { select: { id: true, displayName: true } },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: input.limit + 1,
+      });
+      const assetIds = rows.flatMap((row) => {
+        const after = row.after as Record<string, unknown> | null;
+        return typeof after?.assetId === 'string' ? [after.assetId] : [];
+      });
+      const assets = assetIds.length
+        ? await tx.asset.findMany({
+            where: {
+              organizationId: input.organizationId,
+              id: { in: assetIds },
+            },
+            select: { id: true, name: true },
+          })
+        : [];
+      return { rows, assets };
+    });
   }
 
   /** O equipamento coberto há mais tempo — vira o `assetId` da ordem gerada. */

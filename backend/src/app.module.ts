@@ -30,6 +30,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { ArtifactManifestModule } from './modules/artifact-manifests/artifact-manifest.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-execution.module';
+import { RvtModule } from './modules/rvt/rvt.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-
     ArtifactManifestModule,
     JobsModule,
     ArtifactRenderingModule,
+    RvtModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -15,6 +15,7 @@ import {
   isJwtValidationError,
 } from '../../../errors';
 import type { AuthenticatedIdentity } from '../domain/identity.types';
+import { redactSensitivePath } from '../../../common/redact-sensitive-path';
 import { IdentityRepository } from './identity.repository';
 import { IdentityTokenService } from '../application/token.service';
 
@@ -112,7 +113,7 @@ export class JwtAuthenticationGuard implements CanActivate {
         stage: 'guard-internal-error',
         guard: JwtAuthenticationGuard.name,
         method: request.method,
-        path: request.path,
+        path: redactSensitivePath(request.path),
         requestId: typeof requestId === 'string' ? requestId : null,
         actorId: request.identity?.id ?? null,
         organizationId: request.identity?.organizationId ?? null,

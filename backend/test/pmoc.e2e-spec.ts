@@ -31,6 +31,10 @@ import { configureApiVersioning } from './../src/configure-api';
 import type { PrismaClient } from '@prisma/client';
 import { adminPrisma, disconnectAdminPrisma } from './support/admin-prisma';
 import { BackgroundJobWorker } from './../src/modules/jobs/background-job.worker';
+import {
+  STORAGE_PROVIDER,
+  type StorageProvider,
+} from './../src/modules/storage/storage.types';
 
 const digits = (length: number): string =>
   Array.from({ length }, () => Math.floor(Math.random() * 10)).join('');
@@ -115,12 +119,15 @@ describe('PMOC (e2e)', () => {
   /** Administrativo: monta cenário. A aplicação sob teste roda restrita. */
   let prisma: PrismaClient;
   let worker: BackgroundJobWorker;
+  let storage: StorageProvider;
   let http: () => request.Agent;
 
   let token: string;
   let neighbourToken: string;
   let restrictedToken: string;
   let organizationId: string;
+  let ownerUserId: string;
+  let ownerRoleId: string;
   let unitA: string;
   let unitB: string;
   let customerId: string;
@@ -238,6 +245,7 @@ describe('PMOC (e2e)', () => {
     http = () => request(app.getHttpServer());
     prisma = adminPrisma();
     worker = app.get(BackgroundJobWorker);
+    storage = app.get<StorageProvider>(STORAGE_PROVIDER);
 
     const principal = await register('principal');
     token = principal.token;
@@ -259,10 +267,12 @@ describe('PMOC (e2e)', () => {
       where: { email: principal.email },
       select: { id: true },
     });
+    ownerUserId = me.id;
     const membership = await prisma.businessUnitMembership.findFirstOrThrow({
       where: { userId: me.id },
       select: { roleId: true },
     });
+    ownerRoleId = membership.roleId;
     const branch = await prisma.businessUnit.create({
       data: {
         organizationId,
@@ -1379,4 +1389,1119 @@ describe('PMOC (e2e)', () => {
       expect(operationId).toEqual(expect.any(String));
     }
   }, 600_000);
+
+  it('PR-29 · prova configuração pura, snapshots, concorrência, evidências e rollover por equipamento', async () => {
+    const professional = async (
+      label: string,
+      roles: { field: boolean; technical: boolean },
+    ) => {
+      const email = `pmoc.v2.${label}.${digits(6)}@orbit.local`;
+      const created = await prisma.user.create({
+        data: {
+          email,
+          normalizedEmail: email,
+          firstName: label,
+          lastName: 'PMOC V2',
+          displayName: `${label} PMOC V2`,
+          status: 'ACTIVE',
+          emailVerifiedAt: new Date(),
+          organizationMemberships: {
+            create: { organizationId, roleId: ownerRoleId, status: 'ACTIVE' },
+          },
+          businessUnitMemberships: {
+            create: {
+              organizationId,
+              businessUnitId: unitA,
+              roleId: ownerRoleId,
+              status: 'ACTIVE',
+            },
+          },
+          professionalProfiles: {
+            create: {
+              organizationId,
+              fieldTechnicianEnabled: roles.field,
+              technicalResponsibleEnabled: roles.technical,
+              active: true,
+            },
+          },
+        },
+        select: { id: true },
+      });
+      return created.id;
+    };
+
+    const carlos = await professional('Carlos', {
+      field: false,
+      technical: true,
+    });
+    const carlosProfile = await prisma.professionalProfile.findFirstOrThrow({
+      where: { organizationId, userId: carlos },
+      select: { id: true },
+    });
+    await prisma.professionalCredential.create({
+      data: {
+        organizationId,
+        professionalProfileId: carlosProfile.id,
+        userId: carlos,
+        type: 'CREA',
+        registrationNumber: `PE-${digits(6)}`,
+        region: 'PE',
+      },
+    });
+    const bruno = await professional('Bruno', {
+      field: true,
+      technical: false,
+    });
+    const ana = await professional('Ana', {
+      field: true,
+      technical: false,
+    });
+    const assetC = await createAsset(unitA, 'Evaporadora C');
+    const assetD = await createAsset(unitA, 'Evaporadora D');
+
+    const v2Template = await auth(http().post('/api/v1/artifact-templates'))
+      .send({
+        key: `PMOC_V2_${digits(6)}`,
+        name: 'PMOC por equipamento',
+        artifactType: 'PMOC',
+        sections: [
+          { id: 'base', title: 'Base', order: 1, type: 'FORM', fields: [] },
+        ],
+      })
+      .expect(201);
+    const v2TemplateId = (v2Template.body as Envelope<{ id: string }>).data.id;
+    await auth(
+      http().post(`/api/v1/artifact-templates/${v2TemplateId}/activate`),
+    )
+      .send({})
+      .expect(201);
+
+    const operationsBefore = await prisma.operation.count({
+      where: { organizationId },
+    });
+    const artifactsBefore = await prisma.artifactExecution.count({
+      where: { organizationId },
+    });
+    const plan = await createPlan({
+      technicalResponsibleUserId: carlos,
+      serviceLocation: { address: 'Sala técnica', sector: 'Administrativo' },
+      scope: { systems: ['HVAC'] },
+      serviceTypes: ['PREVENTIVE'],
+      procedure: {
+        units: [
+          { id: 'A', items: ['item 1', 'item 2'] },
+          { id: 'B', items: ['item 3'] },
+        ],
+      },
+    });
+    expect(
+      await prisma.pmocEquipmentExecution.count({
+        where: { organizationId, cycle: { planId: plan.id } },
+      }),
+    ).toBe(0);
+    expect(await prisma.operation.count({ where: { organizationId } })).toBe(
+      operationsBefore,
+    );
+    expect(
+      await prisma.artifactExecution.count({ where: { organizationId } }),
+    ).toBe(artifactsBefore);
+
+    for (const assetId of [assetA, assetC, assetD]) {
+      await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+        .send({ assetId })
+        .expect(201);
+    }
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
+      201,
+    );
+    const active = await detail(plan.id);
+    const cycleId = active.currentExecution!.id;
+    const preparationPath = (assetId: string) =>
+      `/api/v1/pmoc/plans/${plan.id}/cycles/${cycleId}/equipment/${assetId}/execution-preparation`;
+
+    const blocked = await auth(http().get(preparationPath(assetA))).expect(200);
+    const blockedEligibility = (
+      blocked.body as Envelope<{
+        eligibility: { ready: boolean; blockedReasons: string[] };
+      }>
+    ).data.eligibility;
+    expect(blockedEligibility.ready).toBe(false);
+    expect(blockedEligibility.blockedReasons).toContain('SIGNATURE_MISSING');
+
+    const signatureFile = await prisma.storageFile.create({
+      data: {
+        organizationId,
+        businessUnitId: unitA,
+        provider: 'LOCAL',
+        bucket: 'e2e',
+        objectKey: `signatures/${carlos}/${digits(8)}.png`,
+        fileName: 'carlos.png',
+        mimeType: 'image/png',
+        sizeBytes: 100,
+        sha256: 'a'.repeat(64),
+        status: 'AVAILABLE',
+        createdById: ownerUserId,
+      },
+    });
+    await storage.put({
+      bucket: signatureFile.bucket,
+      objectKey: signatureFile.objectKey,
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        'base64',
+      ),
+      mimeType: 'image/png',
+    });
+    await prisma.userSignature.create({
+      data: {
+        organizationId,
+        userId: carlos,
+        storageObjectId: signatureFile.id,
+        sha256: 'a'.repeat(64),
+      },
+    });
+    const ready = await auth(http().get(preparationPath(assetA))).expect(200);
+    const preparation = (
+      ready.body as Envelope<{
+        cycle: { sequenceNumber: number };
+        serviceLocation: unknown;
+        scope: unknown;
+        serviceTypes: string[];
+        procedure: unknown;
+        eligibility: { ready: boolean };
+        allowedActions: string[];
+      }>
+    ).data;
+    expect(preparation).toMatchObject({
+      cycle: { sequenceNumber: 1 },
+      serviceTypes: ['PREVENTIVE'],
+      eligibility: { ready: true },
+      allowedActions: ['START'],
+    });
+
+    const startPath = (assetId: string) =>
+      `/api/v1/pmoc/plans/${plan.id}/cycles/${cycleId}/equipment/${assetId}/executions`;
+    let firstExecutionId = '';
+    for (let round = 0; round < 5; round += 1) {
+      const starts = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          auth(http().post(startPath(assetA))).send({
+            responsibleFieldTechnicianId: bruno,
+            auxiliaryTechnicianIds: [ana],
+          }),
+        ),
+      );
+      expect(starts.every((response) => response.status === 201)).toBe(true);
+      const ids = starts.map(
+        (response) =>
+          (
+            response.body as Envelope<{
+              execution: { id: string };
+            }>
+          ).data.execution.id,
+      );
+      expect(new Set(ids).size).toBe(1);
+      firstExecutionId ||= ids[0]!;
+      expect(ids[0]).toBe(firstExecutionId);
+    }
+    const physicalA = await prisma.pmocEquipmentExecution.findUniqueOrThrow({
+      where: { id: firstExecutionId },
+      select: {
+        operationId: true,
+        responsibleFieldTechnicianId: true,
+        procedureSnapshot: true,
+        technicalResponsibleSnapshot: true,
+      },
+    });
+    expect(physicalA.operationId).not.toBeNull();
+    expect(physicalA.responsibleFieldTechnicianId).toBe(bruno);
+    expect(
+      await prisma.operation.count({ where: { id: physicalA.operationId! } }),
+    ).toBe(1);
+    expect(
+      await prisma.operationAuxiliaryTechnician.count({
+        where: { operationId: physicalA.operationId!, userId: ana },
+      }),
+    ).toBe(1);
+
+    await auth(http().patch(`/api/v1/pmoc/plans/${plan.id}`))
+      .send({ procedure: { units: [{ id: 'NEW', items: ['changed'] }] } })
+      .expect(200);
+    const immutable = await prisma.pmocEquipmentExecution.findUniqueOrThrow({
+      where: { id: firstExecutionId },
+      select: { procedureSnapshot: true, technicalResponsibleSnapshot: true },
+    });
+    expect(immutable.procedureSnapshot).toEqual(physicalA.procedureSnapshot);
+    expect(immutable.technicalResponsibleSnapshot).toEqual(
+      physicalA.technicalResponsibleSnapshot,
+    );
+
+    const evidenceFiles = await Promise.all(
+      Array.from({ length: 10 }, (_, index) =>
+        prisma.storageFile.create({
+          data: {
+            organizationId,
+            businessUnitId: unitA,
+            provider: 'LOCAL',
+            bucket: 'e2e',
+            objectKey: `pmoc/${firstExecutionId}/${index}-${digits(8)}.png`,
+            fileName: `${index}.png`,
+            mimeType: 'image/png',
+            sizeBytes: 200,
+            sha256: index.toString().padStart(64, '0'),
+            status: 'AVAILABLE',
+            createdById: ownerUserId,
+          },
+        }),
+      ),
+    );
+    await Promise.all(
+      evidenceFiles.map((file) =>
+        storage.put({
+          bucket: file.bucket,
+          objectKey: file.objectKey,
+          body: Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+            'base64',
+          ),
+          mimeType: file.mimeType,
+        }),
+      ),
+    );
+    const neighbourUnit = await prisma.businessUnit.findFirstOrThrow({
+      where: { organizationId: { not: organizationId } },
+      select: { id: true, organizationId: true },
+    });
+    const neighbourFile = await prisma.storageFile.create({
+      data: {
+        organizationId: neighbourUnit.organizationId,
+        businessUnitId: neighbourUnit.id,
+        provider: 'LOCAL',
+        bucket: 'e2e-neighbour',
+        objectKey: `pmoc/cross-tenant-${digits(8)}.png`,
+        fileName: 'cross-tenant.png',
+        mimeType: 'image/png',
+        sizeBytes: 68,
+        sha256: 'f'.repeat(64),
+        status: 'AVAILABLE',
+      },
+    });
+    await auth(
+      http().post(
+        `/api/v1/pmoc/equipment-executions/${firstExecutionId}/evidence`,
+      ),
+    )
+      .send({ storageFileId: neighbourFile.id, kind: 'PHOTO' })
+      .expect(404);
+    const evidenceResponses = await Promise.all(
+      evidenceFiles.map((file) =>
+        auth(
+          http().post(
+            `/api/v1/pmoc/equipment-executions/${firstExecutionId}/evidence`,
+          ),
+        ).send({ storageFileId: file.id, kind: 'PHOTO' }),
+      ),
+    );
+    expect(
+      evidenceResponses.filter((response) => response.status === 201),
+    ).toHaveLength(6);
+    expect(
+      await prisma.pmocEquipmentEvidence.count({
+        where: { equipmentExecutionId: firstExecutionId },
+      }),
+    ).toBe(6);
+    await prisma.pmocEquipmentEvidence.deleteMany({
+      where: { equipmentExecutionId: firstExecutionId },
+    });
+    await prisma.storageFile.deleteMany({
+      where: { id: { in: evidenceFiles.map((file) => file.id) } },
+    });
+    await Promise.all(
+      evidenceFiles.map((file) =>
+        storage.remove({ bucket: file.bucket, objectKey: file.objectKey }),
+      ),
+    );
+    for (let round = 1; round < 5; round += 1) {
+      const files = await Promise.all(
+        Array.from({ length: 10 }, (_, index) =>
+          prisma.storageFile.create({
+            data: {
+              organizationId,
+              businessUnitId: unitA,
+              provider: 'LOCAL',
+              bucket: 'e2e',
+              objectKey: `pmoc/${firstExecutionId}/round-${round}-${index}-${digits(8)}.png`,
+              fileName: `round-${round}-${index}.png`,
+              mimeType: 'image/png',
+              sizeBytes: 68,
+              sha256: `${round}${index}`.padStart(64, '0'),
+              status: 'AVAILABLE',
+              createdById: ownerUserId,
+            },
+          }),
+        ),
+      );
+      await Promise.all(
+        files.map((file) =>
+          storage.put({
+            bucket: file.bucket,
+            objectKey: file.objectKey,
+            body: Buffer.from(
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+              'base64',
+            ),
+            mimeType: file.mimeType,
+          }),
+        ),
+      );
+      const responses = await Promise.all(
+        files.map((file) =>
+          auth(
+            http().post(
+              `/api/v1/pmoc/equipment-executions/${firstExecutionId}/evidence`,
+            ),
+          ).send({ storageFileId: file.id, kind: 'PHOTO' }),
+        ),
+      );
+      expect(
+        responses.filter((response) => response.status === 201),
+      ).toHaveLength(6);
+      expect(
+        await prisma.pmocEquipmentEvidence.count({
+          where: { equipmentExecutionId: firstExecutionId },
+        }),
+      ).toBe(6);
+      if (round < 4) {
+        await prisma.pmocEquipmentEvidence.deleteMany({
+          where: { equipmentExecutionId: firstExecutionId },
+        });
+        await prisma.storageFile.deleteMany({
+          where: { id: { in: files.map((file) => file.id) } },
+        });
+        await Promise.all(
+          files.map((file) =>
+            storage.remove({ bucket: file.bucket, objectKey: file.objectKey }),
+          ),
+        );
+      }
+    }
+
+    const startOther = async (assetId: string) => {
+      const response = await auth(http().post(startPath(assetId)))
+        .send({ responsibleFieldTechnicianId: bruno })
+        .expect(201);
+      return (response.body as Envelope<{ execution: { id: string } }>).data
+        .execution.id;
+    };
+    const [executionC, executionD] = await Promise.all([
+      startOther(assetC),
+      startOther(assetD),
+    ]);
+    const completePath = (executionId: string) =>
+      `/api/v1/pmoc/plans/${plan.id}/cycles/${cycleId}/equipment-executions/${executionId}/complete`;
+    await auth(http().post(completePath(firstExecutionId)))
+      .send({ performedAt: new Date(Date.now() - 3600_000).toISOString() })
+      .expect(201);
+
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION pg_temp.pmoc_fail_equipment_completion()
+      RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        IF NEW.id = '${executionC}'::uuid AND NEW.status = 'COMPLETED' THEN
+          RAISE EXCEPTION 'PR29.1 injected equipment completion failure';
+        END IF;
+        RETURN NEW;
+      END $$;
+      CREATE TRIGGER pmoc_fail_equipment_completion
+      AFTER UPDATE ON pmoc_equipment_executions
+      FOR EACH ROW EXECUTE FUNCTION pg_temp.pmoc_fail_equipment_completion();
+    `);
+    await auth(http().post(completePath(executionC)))
+      .send({})
+      .expect(500);
+    expect(
+      await prisma.pmocEquipmentExecution.findUniqueOrThrow({
+        where: { id: executionC },
+        select: { status: true },
+      }),
+    ).toEqual({ status: 'IN_PROGRESS' });
+    await prisma.$executeRawUnsafe(
+      'DROP TRIGGER pmoc_fail_equipment_completion ON pmoc_equipment_executions',
+    );
+    await auth(http().post(completePath(executionC)))
+      .send({})
+      .expect(201);
+    expect(
+      await prisma.pmocExecution.findUniqueOrThrow({
+        where: { id: cycleId },
+        select: { status: true },
+      }),
+    ).toEqual({ status: 'PENDING' });
+
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION pg_temp.pmoc_fail_rollover()
+      RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        IF NEW.plan_id = '${plan.id}'::uuid AND NEW.sequence_number > 1 THEN
+          RAISE EXCEPTION 'PR29.1 injected rollover failure';
+        END IF;
+        RETURN NEW;
+      END $$;
+      CREATE TRIGGER pmoc_fail_rollover
+      BEFORE INSERT ON pmoc_executions
+      FOR EACH ROW EXECUTE FUNCTION pg_temp.pmoc_fail_rollover();
+    `);
+    await auth(http().post(completePath(executionD)))
+      .send({})
+      .expect(500);
+    expect(
+      await prisma.pmocEquipmentExecution.findUniqueOrThrow({
+        where: { id: executionD },
+        select: { status: true },
+      }),
+    ).toEqual({ status: 'IN_PROGRESS' });
+    expect(
+      await prisma.pmocExecution.findUniqueOrThrow({
+        where: { id: cycleId },
+        select: { status: true },
+      }),
+    ).toEqual({ status: 'PENDING' });
+    await prisma.$executeRawUnsafe(
+      'DROP TRIGGER pmoc_fail_rollover ON pmoc_executions',
+    );
+
+    const finalResponses = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        auth(http().post(completePath(executionD))).send({}),
+      ),
+    );
+    expect(
+      finalResponses.filter((response) => response.status === 201),
+    ).toHaveLength(1);
+    expect(
+      finalResponses.every((response) => [201, 409].includes(response.status)),
+    ).toBe(true);
+    expect(
+      await prisma.pmocExecution.count({ where: { planId: plan.id } }),
+    ).toBe(2);
+    expect(
+      await prisma.pmocExecution.count({
+        where: { planId: plan.id, status: 'COMPLETED' },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.schedulingEvent.count({
+        where: { sourceModule: 'pmoc', sourceEntityId: plan.id },
+      }),
+    ).toBe(2);
+    expect(
+      await prisma.pmocEquipmentExecution.groupBy({
+        by: ['cycleId', 'coverageId'],
+        where: { cycleId },
+        _count: true,
+        having: { id: { _count: { gt: 1 } } },
+      }),
+    ).toHaveLength(0);
+
+    let artifactId = '';
+    for (let round = 0; round < 5; round += 1) {
+      const generated = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          auth(
+            http().post(
+              `/api/v1/pmoc/equipment-executions/${firstExecutionId}/artifact/generate`,
+            ),
+          ).send({ renderer: 'html.default' }),
+        ),
+      );
+      expect(generated.every((response) => response.status === 201)).toBe(true);
+      const ids = generated.map(
+        (response) =>
+          (response.body as Envelope<{ artifactExecutionId: string }>).data
+            .artifactExecutionId,
+      );
+      expect(new Set(ids).size).toBe(1);
+      artifactId ||= ids[0]!;
+      expect(ids[0]).toBe(artifactId);
+    }
+    expect(
+      await prisma.artifactExecution.count({
+        where: { pmocEquipmentExecution: { id: firstExecutionId } },
+      }),
+    ).toBe(1);
+    await drain(20);
+    const rendered = await prisma.artifactExecution.findUniqueOrThrow({
+      where: { id: artifactId },
+      include: {
+        snapshot: true,
+        signatures: true,
+        manifests: { include: { file: true } },
+      },
+    });
+    expect(rendered.renderStatus).toBe('READY');
+    expect(rendered.context).toMatchObject({
+      sourceType: 'PMOC_EQUIPMENT_EXECUTION',
+      sourceEntityId: firstExecutionId,
+      equipment: { id: assetA },
+    });
+    expect(rendered.signatures).toHaveLength(1);
+    expect(rendered.signatures[0]).toMatchObject({
+      signedAs: 'TECHNICAL_RESPONSIBLE',
+      userId: carlos,
+      credentialType: 'CREA',
+      credentialRegion: 'PE',
+    });
+    const htmlManifest = rendered.manifests.find(
+      (manifest) => manifest.format === 'HTML',
+    );
+    expect(htmlManifest?.file).toBeTruthy();
+    const html = (
+      await storage.get({
+        bucket: htmlManifest!.file!.bucket,
+        objectKey: htmlManifest!.file!.objectKey,
+      })
+    ).toString('utf8');
+    expect(html).toContain('Split 12.000 BTU');
+    expect(html).toContain('Carlos PMOC V2');
+    expect(html).toContain('CREA-PE-');
+    expect(html).toContain('round-4-');
+    expect(html).toContain('data:image/png;base64,');
+
+    await auth(http().post(`/api/v1/artifact-executions/${artifactId}/render`))
+      .send({ renderer: 'pdf.default' })
+      .expect(202);
+    await drain(20);
+    const pdfManifest = await prisma.artifactManifest.findFirstOrThrow({
+      where: { executionId: artifactId, isActive: true, format: 'PDF' },
+      include: { file: true },
+    });
+    const pdf = await storage.get({
+      bucket: pdfManifest.file!.bucket,
+      objectKey: pdfManifest.file!.objectKey,
+    });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(pdfManifest.contentHash).toMatch(/^[a-f0-9]{64}$/);
+
+    const evidenceCFile = await prisma.storageFile.create({
+      data: {
+        organizationId,
+        businessUnitId: unitA,
+        provider: 'LOCAL',
+        bucket: 'e2e',
+        objectKey: `pmoc/${executionC}/c-only-${digits(8)}.png`,
+        fileName: 'c-only.png',
+        mimeType: 'image/png',
+        sizeBytes: 68,
+        sha256: 'c'.repeat(64),
+        status: 'AVAILABLE',
+        createdById: ownerUserId,
+      },
+    });
+    await storage.put({
+      bucket: evidenceCFile.bucket,
+      objectKey: evidenceCFile.objectKey,
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        'base64',
+      ),
+      mimeType: 'image/png',
+    });
+    await auth(
+      http().post(`/api/v1/pmoc/equipment-executions/${executionC}/evidence`),
+    )
+      .send({ storageFileId: evidenceCFile.id, kind: 'PHOTO' })
+      .expect(201);
+    const generatedC = await auth(
+      http().post(
+        `/api/v1/pmoc/equipment-executions/${executionC}/artifact/generate`,
+      ),
+    )
+      .send({ renderer: 'html.default' })
+      .expect(201);
+    const artifactCId = (
+      generatedC.body as Envelope<{ artifactExecutionId: string }>
+    ).data.artifactExecutionId;
+    await drain(20);
+    const manifestC = await prisma.artifactManifest.findFirstOrThrow({
+      where: { executionId: artifactCId, isActive: true, format: 'HTML' },
+      include: { file: true },
+    });
+    const htmlC = (
+      await storage.get({
+        bucket: manifestC.file!.bucket,
+        objectKey: manifestC.file!.objectKey,
+      })
+    ).toString('utf8');
+    expect(htmlC).toContain('Evaporadora C');
+    expect(htmlC).toContain('c-only.png');
+    expect(htmlC).not.toContain('round-4-');
+    expect(html).not.toContain('c-only.png');
+
+    await auth(
+      http().post(
+        `/api/v1/pmoc/equipment-executions/${executionD}/artifact/generate`,
+      ),
+    )
+      .send({ renderer: 'renderer.inexistente' })
+      .expect(400);
+    const failedRenderLink =
+      await prisma.pmocEquipmentExecution.findUniqueOrThrow({
+        where: { id: executionD },
+        select: {
+          status: true,
+          artifactExecution: { select: { id: true, renderStatus: true } },
+        },
+      });
+    expect(failedRenderLink).toMatchObject({
+      status: 'COMPLETED',
+      artifactExecution: { renderStatus: 'NOT_RENDERED' },
+    });
+    const retryRender = await auth(
+      http().post(
+        `/api/v1/pmoc/equipment-executions/${executionD}/artifact/generate`,
+      ),
+    )
+      .send({ renderer: 'html.default' })
+      .expect(201);
+    expect(
+      (retryRender.body as Envelope<{ artifactExecutionId: string }>).data
+        .artifactExecutionId,
+    ).toBe(failedRenderLink.artifactExecution!.id);
+    await drain(20);
+    expect(
+      await prisma.artifactExecution.findUniqueOrThrow({
+        where: { id: failedRenderLink.artifactExecution!.id },
+        select: { renderStatus: true },
+      }),
+    ).toEqual({ renderStatus: 'READY' });
+
+    const volumeAssets = Array.from({ length: 52 }, (_, index) => ({
+      id: randomUUID(),
+      organizationId,
+      businessUnitId: unitA,
+      customerId,
+      category: 'EQUIPMENT',
+      name: `Equipamento volume ${index.toString().padStart(3, '0')}`,
+      identifierType: 'INTERNAL_CODE',
+      identifier: `VOL-${digits(8)}-${index}`,
+    }));
+    await prisma.asset.createMany({ data: volumeAssets });
+    await prisma.pmocEquipmentCoverage.createMany({
+      data: volumeAssets.map((asset) => ({
+        id: randomUUID(),
+        organizationId,
+        planId: plan.id,
+        assetId: asset.id,
+        startsOn: new Date(`${inDays(0)}T00:00:00.000Z`),
+      })),
+    });
+    const pagedIds: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const response = await auth(
+        http().get(
+          `/api/v1/pmoc/plans/${plan.id}/equipment-page?limit=17${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+        ),
+      ).expect(200);
+      const page: {
+        data: { id: string }[];
+        nextCursor: string | null;
+        hasNextPage: boolean;
+      } = (
+        (response as unknown as { body: unknown }).body as Envelope<{
+          data: { id: string }[];
+          nextCursor: string | null;
+          hasNextPage: boolean;
+        }>
+      ).data;
+      pagedIds.push(...page.data.map((item) => item.id));
+      cursor = page.nextCursor;
+      if (!page.hasNextPage) expect(cursor).toBeNull();
+    } while (cursor);
+    const expectedCoverage = await prisma.pmocEquipmentCoverage.findMany({
+      where: { organizationId, planId: plan.id, deletedAt: null },
+      orderBy: [{ asset: { name: 'asc' } }, { id: 'asc' }],
+      select: { id: true },
+    });
+    expect(pagedIds).toEqual(expectedCoverage.map((item) => item.id));
+    expect(new Set(pagedIds).size).toBe(55);
+    await auth(
+      http().get(`/api/v1/pmoc/plans/${plan.id}/equipment-page?limit=101`),
+    ).expect(400);
+
+    const timelineResponse = await auth(
+      http().get(`/api/v1/pmoc/plans/${plan.id}/timeline?limit=10`),
+    ).expect(200);
+    const timeline = (
+      timelineResponse.body as Envelope<{
+        data: {
+          type: string;
+          message: string;
+          equipment: { id: string } | null;
+        }[];
+      }>
+    ).data.data;
+    expect(
+      timeline.some((item) => item.type === 'PMOC_EQUIPMENT_ARTIFACT_CREATED'),
+    ).toBe(true);
+    expect(
+      timeline.some(
+        (item) =>
+          item.type === 'PMOC_EQUIPMENT_EXECUTION_COMPLETED' &&
+          item.message.includes('concluída'),
+      ),
+    ).toBe(true);
+    await auth(
+      http().get(`/api/v1/pmoc/plans/${plan.id}/timeline?limit=10`),
+      neighbourToken,
+    ).expect(404);
+  }, 300_000);
+
+  it('PR-29.1 Final Closure Gate · fecha 5 ciclos independentes sob concorrência real', async () => {
+    const makeProfessional = async (
+      label: string,
+      roles: { field: boolean; technical: boolean },
+    ) => {
+      const email = `pmoc.closure.${label}.${digits(6)}@orbit.local`;
+      return prisma.user.create({
+        data: {
+          email,
+          normalizedEmail: email,
+          firstName: label,
+          lastName: 'Closure Gate',
+          displayName: `${label} Closure Gate`,
+          status: 'ACTIVE',
+          emailVerifiedAt: new Date(),
+          organizationMemberships: {
+            create: { organizationId, roleId: ownerRoleId, status: 'ACTIVE' },
+          },
+          businessUnitMemberships: {
+            create: {
+              organizationId,
+              businessUnitId: unitA,
+              roleId: ownerRoleId,
+              status: 'ACTIVE',
+            },
+          },
+          professionalProfiles: {
+            create: {
+              organizationId,
+              fieldTechnicianEnabled: roles.field,
+              technicalResponsibleEnabled: roles.technical,
+              active: true,
+            },
+          },
+        },
+        select: { id: true },
+      });
+    };
+
+    const technical = await makeProfessional('RT', {
+      field: false,
+      technical: true,
+    });
+    const field = await makeProfessional('Campo', {
+      field: true,
+      technical: false,
+    });
+    const signatureFile = await prisma.storageFile.create({
+      data: {
+        organizationId,
+        businessUnitId: unitA,
+        provider: 'LOCAL',
+        bucket: 'e2e',
+        objectKey: `signatures/closure-${digits(8)}.png`,
+        fileName: 'closure-signature.png',
+        mimeType: 'image/png',
+        sizeBytes: 68,
+        sha256: '9'.repeat(64),
+        status: 'AVAILABLE',
+        createdById: ownerUserId,
+      },
+    });
+    await prisma.userSignature.create({
+      data: {
+        organizationId,
+        userId: technical.id,
+        storageObjectId: signatureFile.id,
+        sha256: signatureFile.sha256!,
+      },
+    });
+    const gateAssets = await Promise.all([
+      createAsset(unitA, 'Gate Compressor A'),
+      createAsset(unitA, 'Gate Compressor B'),
+      createAsset(unitA, 'Gate Compressor C'),
+    ]);
+    const gateResults: {
+      round: number;
+      cycleId: string;
+      successful: number;
+      conflicts: number;
+      nextCycles: number;
+      scheduling: number;
+      dueSoon: number;
+      overdue: number;
+      completionEffects: number;
+    }[] = [];
+    const gatePlanIds: string[] = [];
+
+    for (let round = 1; round <= 5; round += 1) {
+      const plan = await createPlan({
+        code: `GATE29-${round}-${digits(5)}`,
+        name: `PR29.1 Gate Round ${round}`,
+        technicalResponsibleUserId: technical.id,
+        procedure: { gate: 'PR-29.1', round },
+      });
+      gatePlanIds.push(plan.id);
+      for (const assetId of gateAssets) {
+        await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+          .send({ assetId })
+          .expect(201);
+      }
+      await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
+        201,
+      );
+      const activated = await detail(plan.id);
+      const cycleId = activated.currentExecution!.id;
+      const physicalIds: string[] = [];
+      for (const assetId of gateAssets) {
+        const started = await auth(
+          http().post(
+            `/api/v1/pmoc/plans/${plan.id}/cycles/${cycleId}/equipment/${assetId}/executions`,
+          ),
+        )
+          .send({ responsibleFieldTechnicianId: field.id })
+          .expect(201);
+        physicalIds.push(
+          (started.body as Envelope<{ execution: { id: string } }>).data
+            .execution.id,
+        );
+      }
+      const completePath = (executionId: string) =>
+        `/api/v1/pmoc/plans/${plan.id}/cycles/${cycleId}/equipment-executions/${executionId}/complete`;
+      await auth(http().post(completePath(physicalIds[0]!)))
+        .set('x-request-id', `pr29.1-r${round}-equipment-a`)
+        .send({})
+        .expect(201);
+      await auth(http().post(completePath(physicalIds[1]!)))
+        .set('x-request-id', `pr29.1-r${round}-equipment-b`)
+        .send({})
+        .expect(201);
+
+      const concurrent = await Promise.all(
+        Array.from({ length: 4 }, (_, attempt) =>
+          auth(http().post(completePath(physicalIds[2]!)))
+            .set('x-request-id', `pr29.1-r${round}-final-${attempt + 1}`)
+            .send({}),
+        ),
+      );
+      expect(
+        concurrent.filter((response) => response.status === 201),
+      ).toHaveLength(1);
+      expect(
+        concurrent.filter((response) => response.status === 409),
+      ).toHaveLength(3);
+
+      const cycles = await prisma.pmocExecution.findMany({
+        where: { organizationId, planId: plan.id },
+        orderBy: { sequenceNumber: 'asc' },
+        select: {
+          id: true,
+          status: true,
+          sequenceNumber: true,
+          dueOn: true,
+          schedulingEventId: true,
+        },
+      });
+      expect(cycles).toHaveLength(2);
+      expect(cycles[0]).toMatchObject({
+        id: cycleId,
+        status: 'COMPLETED',
+        sequenceNumber: 1,
+      });
+      expect(cycles[1]).toMatchObject({
+        status: 'PENDING',
+        sequenceNumber: 2,
+      });
+      expect(cycles[1]!.schedulingEventId).not.toBeNull();
+      expect(
+        await prisma.pmocEquipmentExecution.count({
+          where: { cycleId, status: { not: 'COMPLETED' } },
+        }),
+      ).toBe(0);
+      const scheduling = await prisma.schedulingEvent.count({
+        where: {
+          id: cycles[1]!.schedulingEventId!,
+          organizationId,
+          sourceModule: 'pmoc',
+          sourceEntityId: plan.id,
+        },
+      });
+      expect(scheduling).toBe(1);
+
+      const dueOn = cycles[1]!.dueOn.toISOString().slice(0, 10);
+      const dueSoon = await prisma.backgroundJob.count({
+        where: {
+          organizationId,
+          queue: 'pmoc.due-check',
+          jobKey: `pmoc:${plan.id}:${dueOn}:DUE_SOON`,
+        },
+      });
+      expect(dueSoon).toBe(1);
+      const overdue = await prisma.backgroundJob.count({
+        where: {
+          organizationId,
+          queue: 'pmoc.due-check',
+          jobKey: `pmoc:${plan.id}:${dueOn}:OVERDUE`,
+        },
+      });
+      expect(overdue).toBe(1);
+      const completionEffects = await prisma.domainEvent.count({
+        where: {
+          organizationId,
+          type: 'pmoc.execution.completed',
+          entityId: plan.id,
+        },
+      });
+      expect(completionEffects).toBe(1);
+
+      const audits = await prisma.auditLog.findMany({
+        where: {
+          organizationId,
+          entityType: 'PMOC_PLAN',
+          entityId: plan.id,
+          action: 'PMOC_EQUIPMENT_EXECUTION_COMPLETED',
+        },
+        select: { after: true },
+      });
+      expect(
+        audits.filter((audit) => {
+          const after = audit.after as Record<string, unknown> | null;
+          return after?.allResolved === true;
+        }),
+      ).toHaveLength(1);
+
+      const timelineResponse = await auth(
+        http().get(`/api/v1/pmoc/plans/${plan.id}/timeline?limit=100`),
+      ).expect(200);
+      const timeline = (
+        timelineResponse.body as Envelope<{
+          data: { type: string; data: Record<string, unknown> }[];
+        }>
+      ).data.data;
+      expect(
+        timeline.filter(
+          (item) =>
+            item.type === 'PMOC_EQUIPMENT_EXECUTION_COMPLETED' &&
+            item.data.allResolved === true,
+        ),
+      ).toHaveLength(1);
+      gateResults.push({
+        round,
+        cycleId,
+        successful: concurrent.filter((response) => response.status === 201)
+          .length,
+        conflicts: concurrent.filter((response) => response.status === 409)
+          .length,
+        nextCycles: cycles.length - 1,
+        scheduling,
+        dueSoon,
+        overdue,
+        completionEffects,
+      });
+    }
+    const planIdsSql = gatePlanIds.map((id) => `'${id}'::uuid`).join(',');
+    const consolidated = await prisma.$queryRawUnsafe<
+      {
+        duplicateCycleCoverage: bigint;
+        multipleOperations: bigint;
+        evidenceOverflow: bigint;
+        crossTenantStorage: bigint;
+        duplicateArtifact: bigint;
+        completedWithPending: bigint;
+        duplicateNextCycle: bigint;
+        duplicateScheduling: bigint;
+        duplicateDueJob: bigint;
+        duplicateCompletionEvent: bigint;
+      }[]
+    >(`
+      SELECT
+        (SELECT count(*) FROM (
+          SELECT pe.cycle_id, pe.coverage_id
+          FROM pmoc_equipment_executions pe
+          JOIN pmoc_executions c ON c.id=pe.cycle_id
+          WHERE c.plan_id IN (${planIdsSql})
+          GROUP BY 1,2 HAVING count(*)>1
+        ) x) AS "duplicateCycleCoverage",
+        (SELECT count(*) FROM (
+          SELECT pe.operation_id
+          FROM pmoc_equipment_executions pe
+          JOIN pmoc_executions c ON c.id=pe.cycle_id
+          WHERE c.plan_id IN (${planIdsSql}) AND pe.operation_id IS NOT NULL
+          GROUP BY 1 HAVING count(*)>1
+        ) x) AS "multipleOperations",
+        (SELECT count(*) FROM (
+          SELECT ev.equipment_execution_id
+          FROM pmoc_equipment_evidence ev
+          JOIN pmoc_equipment_executions pe ON pe.id=ev.equipment_execution_id
+          JOIN pmoc_executions c ON c.id=pe.cycle_id
+          WHERE c.plan_id IN (${planIdsSql})
+          GROUP BY 1 HAVING count(*)>6
+        ) x) AS "evidenceOverflow",
+        (SELECT count(*)
+          FROM pmoc_equipment_evidence ev
+          JOIN storage_files sf ON sf.id=ev.storage_file_id
+          JOIN pmoc_equipment_executions pe ON pe.id=ev.equipment_execution_id
+          JOIN pmoc_executions c ON c.id=pe.cycle_id
+          WHERE c.plan_id IN (${planIdsSql})
+            AND ev.organization_id<>sf.organization_id
+        ) AS "crossTenantStorage",
+        (SELECT count(*) FROM (
+          SELECT pe.artifact_execution_id
+          FROM pmoc_equipment_executions pe
+          JOIN pmoc_executions c ON c.id=pe.cycle_id
+          WHERE c.plan_id IN (${planIdsSql}) AND pe.artifact_execution_id IS NOT NULL
+          GROUP BY 1 HAVING count(*)>1
+        ) x) AS "duplicateArtifact",
+        (SELECT count(*)
+          FROM pmoc_executions c
+          WHERE c.plan_id IN (${planIdsSql}) AND c.status='COMPLETED'
+            AND EXISTS (
+              SELECT 1 FROM pmoc_equipment_coverages cov
+              WHERE cov.plan_id=c.plan_id AND cov.deleted_at IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM pmoc_equipment_executions pe
+                  WHERE pe.cycle_id=c.id AND pe.coverage_id=cov.id AND pe.status='COMPLETED'
+                )
+            )
+        ) AS "completedWithPending",
+        (SELECT count(*) FROM (
+          SELECT plan_id,sequence_number FROM pmoc_executions
+          WHERE plan_id IN (${planIdsSql})
+          GROUP BY 1,2 HAVING count(*)>1
+        ) x) AS "duplicateNextCycle",
+        (SELECT count(*) FROM (
+          SELECT source_entity_id,metadata->>'executionId'
+          FROM scheduling_events
+          WHERE source_module='pmoc' AND source_entity_id IN (${planIdsSql})
+          GROUP BY 1,2 HAVING count(*)>1
+        ) x) AS "duplicateScheduling",
+        (SELECT count(*) FROM (
+          SELECT job_key FROM background_jobs
+          WHERE queue='pmoc.due-check'
+            AND (${gatePlanIds.map((id) => `job_key LIKE 'pmoc:${id}:%'`).join(' OR ')})
+          GROUP BY 1 HAVING count(*)>1
+        ) x) AS "duplicateDueJob",
+        (SELECT count(*) FROM (
+          SELECT entity_id FROM domain_events
+          WHERE type='pmoc.execution.completed' AND entity_id IN (${planIdsSql})
+          GROUP BY 1 HAVING count(*)>1
+        ) x) AS "duplicateCompletionEvent"
+    `);
+    expect(consolidated).toHaveLength(1);
+    expect(Object.values(consolidated[0]!).every((value) => value === 0n)).toBe(
+      true,
+    );
+    process.stdout.write(
+      `PR29_1_FINAL_CLOSURE=${JSON.stringify(gateResults)}\nPR29_1_SQL=${JSON.stringify(consolidated[0], (_key, value: unknown) => (typeof value === 'bigint' ? Number(value) : value))}\n`,
+    );
+  }, 300_000);
 });

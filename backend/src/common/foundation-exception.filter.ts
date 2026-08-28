@@ -6,6 +6,7 @@ import {
   Logger,
   type ExceptionFilter,
 } from '@nestjs/common';
+import { redactSensitivePath } from './redact-sensitive-path';
 import type { Request, Response } from 'express';
 import { BaseException } from '../exceptions';
 import { classifyInternalError, internalErrorStack } from '../errors';
@@ -71,7 +72,7 @@ export class FoundationExceptionFilter implements ExceptionFilter {
           stage: 'internal-error',
           status,
           method: request.method,
-          path: request.originalUrl ?? request.path,
+          path: redactSensitivePath(request.originalUrl ?? request.path),
           requestId: request.id ?? null,
           actorId: request.identity?.id ?? null,
           organizationId: request.identity?.organizationId ?? null,
@@ -95,7 +96,7 @@ export class FoundationExceptionFilter implements ExceptionFilter {
           stage: 'client-error',
           status,
           method: request.method,
-          path: request.path,
+          path: redactSensitivePath(request.path),
           code: 'code' in payload ? payload.code : null,
           message: 'message' in payload ? payload.message : null,
           requestId: request.id ?? null,

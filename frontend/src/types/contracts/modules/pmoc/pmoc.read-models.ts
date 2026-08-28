@@ -59,6 +59,22 @@ export interface PmocCoverageReadModel {
   };
 }
 
+export interface PmocCursorPageReadModel<T> {
+  data: readonly T[];
+  nextCursor: string | null;
+  hasNextPage: boolean;
+}
+
+export interface PmocTimelineItemReadModel {
+  id: string;
+  type: string;
+  message: string;
+  occurredAt: string;
+  actor: { id: string; displayName: string } | null;
+  equipment: { id: string; name: string } | null;
+  data: Record<string, unknown>;
+}
+
 export interface PmocExecutionReadModel {
   id: string;
   sequenceNumber: number;
@@ -83,12 +99,30 @@ export interface PmocEquipmentExecutionReadModel {
   startedAt: string;
   completedAt: string | null;
   notes: string | null;
-  asset: { id: string; name: string; category: string; identifier: string | null; serialNumber: string | null };
+  asset: {
+    id: string;
+    name: string;
+    category: string;
+    identifier: string | null;
+    serialNumber: string | null;
+  };
   responsibleFieldTechnician: { id: string; displayName: string };
   auxiliaryTechnicians: readonly { id: string; displayName: string }[];
   operation: { id: string; code: string; status: string } | null;
   artifactExecution: { id: string; code: string; status: string } | null;
-  evidence: readonly { id: string; kind: string; caption: string | null; file: { id: string; fileName: string; mimeType: string; sizeBytes: string; status: string }; createdAt: string }[];
+  evidence: readonly {
+    id: string;
+    kind: string;
+    caption: string | null;
+    file: {
+      id: string;
+      fileName: string;
+      mimeType: string;
+      sizeBytes: string;
+      status: string;
+    };
+    createdAt: string;
+  }[];
 }
 
 export interface PmocPlanSummaryReadModel {
