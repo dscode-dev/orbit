@@ -31,6 +31,7 @@ import { ArtifactManifestModule } from './modules/artifact-manifests/artifact-ma
 import { StorageModule } from './modules/storage/storage.module';
 import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-execution.module';
 import { RvtModule } from './modules/rvt/rvt.module';
+import { MobileFieldModule } from './modules/mobile-field/mobile-field.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { RvtModule } from './modules/rvt/rvt.module';
     JobsModule,
     ArtifactRenderingModule,
     RvtModule,
+    MobileFieldModule,
   ],
   controllers: [AppController],
   providers: [AppService],

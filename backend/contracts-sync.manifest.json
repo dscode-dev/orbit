@@ -20,6 +20,8 @@
     "modules/management-reports/report.read-models.ts",
     "modules/pmoc/pmoc.read-models.ts",
     "modules/rvt/rvt.read-models.ts",
-    "modules/organizations/business-units/equipaments/equipment-qr.read-models.ts"
+    "modules/organizations/business-units/equipaments/equipment-qr.read-models.ts",
+    "modules/mobile-field/mobile-field.read-models.ts",
+    "modules/mobile-field/mobile-field-operation.read-models.ts"
   ]
 }

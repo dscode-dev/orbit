@@ -63,4 +63,3 @@ export interface EquipmentServiceOrderPreparationReadModel {
   /** Preparation never creates an Operation. */
   operationCreated: false;
 }
-
