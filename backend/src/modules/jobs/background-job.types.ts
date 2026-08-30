@@ -79,6 +79,7 @@ export const JOB_QUEUES = {
    * paralelo. O ciclo seguinte agenda os próprios avisos quando nasce.
    */
   pmocDueCheck: 'pmoc.due-check',
+  mobileSyncCleanup: 'mobile.sync.cleanup',
 } as const;
 export type JobQueue = (typeof JOB_QUEUES)[keyof typeof JOB_QUEUES];
 

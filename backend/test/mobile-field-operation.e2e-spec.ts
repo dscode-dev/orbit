@@ -284,7 +284,7 @@ describe('Mobile Field Operation execution contract (e2e)', () => {
         unit: 'UN',
       },
     });
-    expect(Buffer.byteLength(JSON.stringify(prepared), 'utf8')).toBeLessThan(
+    expect(Buffer.byteLength(JSON.stringify(active), 'utf8')).toBeLessThan(
       128 * 1024,
     );
     await prisma.inventoryBalance.create({

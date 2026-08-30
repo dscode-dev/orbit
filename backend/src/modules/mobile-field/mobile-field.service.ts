@@ -119,6 +119,15 @@ export class MobileFieldService {
     };
   }
 
+  /** Authoritative bounded projection reused by offline packaging/sync. */
+  async offlineItems(
+    actor: MobileFieldActor,
+  ): Promise<MobileWorkItemReadModel[]> {
+    return (await this.items(actor)).filter((item) =>
+      this.matchesPermission(item),
+    );
+  }
+
   private async items(
     actor: MobileFieldActor,
   ): Promise<MobileWorkItemReadModel[]> {

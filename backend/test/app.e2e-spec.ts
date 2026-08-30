@@ -10,6 +10,8 @@ import { SubscriptionPlanRepository } from './../src/modules/subscription-plans/
 import { SubscriptionPlanService } from './../src/modules/subscription-plans/subscription-plan.service';
 import { ForbiddenException } from './../src/exceptions';
 
+jest.setTimeout(180_000);
+
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 

@@ -12,6 +12,7 @@ import type {
   MobileFieldAction,
   MobilePartySummaryReadModel,
 } from './mobile-field.read-models';
+import type { ProfessionalSignatureRequirementReadModel } from './mobile-signature.read-models';
 
 export type FieldOperationAllowedAction =
   MobileFieldAction | 'UPDATE_CHECKLIST' | 'ADD_NOTE' | 'REGISTER_MATERIAL';
@@ -73,6 +74,7 @@ export interface FieldOperationExecutionPreparationReadModel {
     synchronousGeneration: false;
     artifacts: readonly MobileArtifactSummaryReadModel[];
   };
+  professionalSignature: ProfessionalSignatureRequirementReadModel;
   allowedTransitions: readonly OperationStatus[];
   allowedActions: readonly FieldOperationAllowedAction[];
   primaryAction: FieldOperationAllowedAction | null;

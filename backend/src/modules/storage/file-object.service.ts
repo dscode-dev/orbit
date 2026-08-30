@@ -36,6 +36,7 @@ export const STORAGE_NAMESPACES = {
   attachment: 'attachments',
   /** Relatórios gerenciais: mesmo storage, ciclo de vida próprio. */
   report: 'reports',
+  signature: 'signatures',
 } as const;
 
 export type StorageNamespace =

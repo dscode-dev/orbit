@@ -27,6 +27,7 @@ import type {
   FieldOperationExecutionPreparationReadModel,
   FieldOperationTimelineReadModel,
 } from './mobile-field-operation.read-models';
+import { MobileSignatureRepository } from './mobile-signature.repository';
 
 @Injectable()
 export class MobileFieldOperationService {
@@ -34,6 +35,7 @@ export class MobileFieldOperationService {
   constructor(
     private readonly repository: MobileFieldOperationRepository,
     private readonly inventory: InventoryService,
+    private readonly signatures: MobileSignatureRepository,
   ) {}
 
   async preparation(
@@ -44,6 +46,22 @@ export class MobileFieldOperationService {
     const source = await this.requireVisible(actor, operationId);
     const allowedActions = this.actions(source, actor);
     const blockers = this.blockers(source, actor);
+    const signatureContext = await this.signatures.context(
+      actor.organizationId,
+      actor.id,
+    );
+    const professionalSignature = {
+      required: true,
+      available: Boolean(signatureContext.signature),
+      role: 'FIELD_TECHNICIAN' as const,
+      eligible: Boolean(signatureContext.signature),
+      blockedReason: signatureContext.signature
+        ? null
+        : ('FIELD_TECHNICIAN_SIGNATURE_MISSING' as const),
+      message: signatureContext.signature
+        ? null
+        : 'Cadastre sua assinatura para continuar.',
+    };
     const result: FieldOperationExecutionPreparationReadModel = {
       operation: {
         id: source.id,
@@ -106,6 +124,7 @@ export class MobileFieldOperationService {
           downloadAvailable: item.renderStatus === 'COMPLETED',
         })),
       },
+      professionalSignature,
       allowedTransitions: OperationStateMachine.allowedTransitions(
         source.status,
       ),

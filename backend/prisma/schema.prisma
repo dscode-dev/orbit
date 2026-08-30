@@ -2052,6 +2052,88 @@ model UserSignature {
   @@map("user_signatures")
 }
 
+/// Evidência de que uma pessoa reconheceu o resumo congelado de uma execução.
+/// É deliberadamente independente do Customer master e da assinatura gráfica
+/// profissional do usuário.
+model CustomerAcknowledgement {
+  id                     String    @id @default(uuid(7)) @db.Uuid
+  organizationId         String    @map("organization_id") @db.Uuid
+  businessUnitId         String    @map("business_unit_id") @db.Uuid
+  executionType          String    @map("execution_type") @db.VarChar(30)
+  executionId            String    @map("execution_id") @db.Uuid
+  customerId             String?   @map("customer_id") @db.Uuid
+  contactId              String?   @map("contact_id") @db.Uuid
+  signerName             String    @map("signer_name") @db.VarChar(180)
+  signatureStorageFileId String?   @map("signature_storage_file_id") @db.Uuid
+  signatureSha256        String?   @map("signature_sha256") @db.Char(64)
+  contentVersion         String    @map("content_version") @db.VarChar(80)
+  contentHash            String    @map("content_hash") @db.Char(64)
+  summarySnapshot        Json      @map("summary_snapshot") @db.JsonB
+  commandId              String    @map("command_id") @db.VarChar(120)
+  payloadHash            String    @map("payload_hash") @db.Char(64)
+  capturedByUserId       String    @map("captured_by_user_id") @db.Uuid
+  occurredAt             DateTime? @map("occurred_at") @db.Timestamptz(3)
+  acknowledgedAt         DateTime  @default(now()) @map("acknowledged_at") @db.Timestamptz(3)
+  invalidatedAt          DateTime? @map("invalidated_at") @db.Timestamptz(3)
+  invalidationReason     String?   @map("invalidation_reason") @db.VarChar(120)
+  metadata               Json      @default("{}") @db.JsonB
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, capturedByUserId, commandId])
+  @@index([organizationId, businessUnitId, executionType, executionId])
+  @@index([organizationId, customerId, acknowledgedAt])
+  @@index([signatureStorageFileId])
+  @@map("customer_acknowledgements")
+}
+
+/// Recibo durável do protocolo offline. O payload não é persistido: somente
+/// seu hash canônico e o resultado público necessário para retries seguros.
+model MobileOfflineCommandReceipt {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  businessUnitId   String   @map("business_unit_id") @db.Uuid
+  actorId          String   @map("actor_id") @db.Uuid
+  commandId        String   @map("command_id") @db.VarChar(120)
+  idempotencyKey   String   @map("idempotency_key") @db.VarChar(160)
+  commandType      String   @map("command_type") @db.VarChar(60)
+  aggregateType    String   @map("aggregate_type") @db.VarChar(40)
+  aggregateId      String   @map("aggregate_id") @db.Uuid
+  deviceInstanceId String?  @map("device_instance_id") @db.VarChar(120)
+  payloadHash      String   @map("payload_hash") @db.Char(64)
+  resultStatus     String   @map("result_status") @db.VarChar(30)
+  result           Json     @default("{}") @db.JsonB
+  serverVersion    String?  @map("server_version") @db.VarChar(80)
+  occurredAt       DateTime @map("occurred_at") @db.Timestamptz(3)
+  processedAt      DateTime @default(now()) @map("processed_at") @db.Timestamptz(3)
+  expiresAt        DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, commandId])
+  @@unique([organizationId, actorId, idempotencyKey])
+  @@index([organizationId, businessUnitId, processedAt])
+  @@index([expiresAt])
+  @@map("mobile_offline_command_receipts")
+}
+
+/// Journal de metadados para pull incremental. Snapshots públicos são
+/// reconstruídos no momento da leitura, evitando duplicação de PII.
+model MobileSyncChange {
+  sequence        BigInt   @id @default(autoincrement())
+  organizationId  String   @map("organization_id") @db.Uuid
+  businessUnitId  String   @map("business_unit_id") @db.Uuid
+  resourceType    String   @map("resource_type") @db.VarChar(40)
+  resourceId      String   @map("resource_id") @db.VarChar(180)
+  changeType      String   @map("change_type") @db.VarChar(30)
+  resourceVersion String?  @map("resource_version") @db.VarChar(80)
+  actorId         String?  @map("actor_id") @db.Uuid
+  occurredAt      DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  expiresAt       DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([organizationId, businessUnitId, sequence])
+  @@index([organizationId, resourceType, resourceId, sequence])
+  @@index([expiresAt])
+  @@map("mobile_sync_changes")
+}
+
 // -----------------------------------------------------------------------------
 // FINANCIAL CORE
 //
@@ -2804,7 +2886,7 @@ model RvtConfiguration {
   updatedAt                           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt                           DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  equipment  RvtConfigurationEquipment[]
+  equipment   RvtConfigurationEquipment[]
   occurrences RvtOccurrence[]
 
   @@unique([organizationId, code])
@@ -2829,17 +2911,17 @@ model RvtConfigurationEquipment {
 }
 
 model RvtOccurrence {
-  id                String    @id @default(uuid(7)) @db.Uuid
-  organizationId    String    @map("organization_id") @db.Uuid
-  businessUnitId    String    @map("business_unit_id") @db.Uuid
-  configurationId   String    @map("configuration_id") @db.Uuid
-  sequenceNumber    Int       @map("sequence_number")
-  scheduledFor      DateTime? @map("scheduled_for") @db.Timestamptz(3)
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  organizationId     String    @map("organization_id") @db.Uuid
+  businessUnitId     String    @map("business_unit_id") @db.Uuid
+  configurationId    String    @map("configuration_id") @db.Uuid
+  sequenceNumber     Int       @map("sequence_number")
+  scheduledFor       DateTime? @map("scheduled_for") @db.Timestamptz(3)
   localScheduledDate DateTime? @map("local_scheduled_date") @db.Date
-  status            String    @default("SCHEDULED") @db.VarChar(20)
-  schedulingEventId String?   @unique @map("scheduling_event_id") @db.Uuid
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  status             String    @default("SCHEDULED") @db.VarChar(20)
+  schedulingEventId  String?   @unique @map("scheduling_event_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   configuration RvtConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
   execution     RvtExecution?
@@ -2852,32 +2934,32 @@ model RvtOccurrence {
 }
 
 model RvtExecution {
-  id                           String    @id @default(uuid(7)) @db.Uuid
-  organizationId               String    @map("organization_id") @db.Uuid
-  businessUnitId               String    @map("business_unit_id") @db.Uuid
-  occurrenceId                 String    @unique @map("occurrence_id") @db.Uuid
-  operationId                  String?   @unique @map("operation_id") @db.Uuid
-  artifactExecutionId          String?   @unique @map("artifact_execution_id") @db.Uuid
-  responsibleFieldTechnicianId String    @map("responsible_field_technician_id") @db.Uuid
-  technicalResponsibleUserId   String?   @map("technical_responsible_user_id") @db.Uuid
-  status                       String    @default("IN_PROGRESS") @db.VarChar(20)
-  procedureSnapshot            Json      @map("procedure_snapshot") @db.JsonB
-  configurationSnapshot        Json      @map("configuration_snapshot") @db.JsonB
-  observations                 Json      @default("[]") @db.JsonB
-  recommendations              Json      @default("[]") @db.JsonB
-  freeTextRecommendation       String?   @map("free_text_recommendation") @db.Text
-  customerAcknowledgement      Json?     @map("customer_acknowledgement") @db.JsonB
-  fieldTechnicianSignature     Json?     @map("field_technician_signature") @db.JsonB
-  technicalResponsibleSignature Json?    @map("technical_responsible_signature") @db.JsonB
-  performedAt                  DateTime? @map("performed_at") @db.Timestamptz(3)
-  startedById                  String    @map("started_by_id") @db.Uuid
-  completedById                String?   @map("completed_by_id") @db.Uuid
-  startedAt                    DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
-  completedAt                  DateTime? @map("completed_at") @db.Timestamptz(3)
-  createdAt                    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                            String    @id @default(uuid(7)) @db.Uuid
+  organizationId                String    @map("organization_id") @db.Uuid
+  businessUnitId                String    @map("business_unit_id") @db.Uuid
+  occurrenceId                  String    @unique @map("occurrence_id") @db.Uuid
+  operationId                   String?   @unique @map("operation_id") @db.Uuid
+  artifactExecutionId           String?   @unique @map("artifact_execution_id") @db.Uuid
+  responsibleFieldTechnicianId  String    @map("responsible_field_technician_id") @db.Uuid
+  technicalResponsibleUserId    String?   @map("technical_responsible_user_id") @db.Uuid
+  status                        String    @default("IN_PROGRESS") @db.VarChar(20)
+  procedureSnapshot             Json      @map("procedure_snapshot") @db.JsonB
+  configurationSnapshot         Json      @map("configuration_snapshot") @db.JsonB
+  observations                  Json      @default("[]") @db.JsonB
+  recommendations               Json      @default("[]") @db.JsonB
+  freeTextRecommendation        String?   @map("free_text_recommendation") @db.Text
+  customerAcknowledgement       Json?     @map("customer_acknowledgement") @db.JsonB
+  fieldTechnicianSignature      Json?     @map("field_technician_signature") @db.JsonB
+  technicalResponsibleSignature Json?     @map("technical_responsible_signature") @db.JsonB
+  performedAt                   DateTime? @map("performed_at") @db.Timestamptz(3)
+  startedById                   String    @map("started_by_id") @db.Uuid
+  completedById                 String?   @map("completed_by_id") @db.Uuid
+  startedAt                     DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  completedAt                   DateTime? @map("completed_at") @db.Timestamptz(3)
+  createdAt                     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  occurrence RvtOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
+  occurrence RvtOccurrence           @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
   equipment  RvtExecutionEquipment[]
   evidence   RvtExecutionEvidence[]
 
@@ -2887,14 +2969,14 @@ model RvtExecution {
 }
 
 model RvtExecutionEquipment {
-  id             String   @id @default(uuid(7)) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  executionId    String   @map("execution_id") @db.Uuid
-  assetId        String   @map("asset_id") @db.Uuid
-  assetSnapshot  Json     @map("asset_snapshot") @db.JsonB
-  addedDuringExecution Boolean @default(false) @map("added_during_execution")
-  addedById      String   @map("added_by_id") @db.Uuid
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  id                   String   @id @default(uuid(7)) @db.Uuid
+  organizationId       String   @map("organization_id") @db.Uuid
+  executionId          String   @map("execution_id") @db.Uuid
+  assetId              String   @map("asset_id") @db.Uuid
+  assetSnapshot        Json     @map("asset_snapshot") @db.JsonB
+  addedDuringExecution Boolean  @default(false) @map("added_during_execution")
+  addedById            String   @map("added_by_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   execution RvtExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
 
@@ -2922,19 +3004,19 @@ model RvtExecutionEvidence {
 }
 
 model RvtAdHocCommand {
-  id             String   @id @default(uuid(7)) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  businessUnitId String   @map("business_unit_id") @db.Uuid
-  actorId        String   @map("actor_id") @db.Uuid
-  idempotencyKey String   @map("idempotency_key") @db.VarChar(160)
-  payloadHash    String   @map("payload_hash") @db.Char(64)
-  configurationId String  @map("configuration_id") @db.Uuid
-  occurrenceId   String   @map("occurrence_id") @db.Uuid
-  executionId    String   @map("execution_id") @db.Uuid
-  operationId    String   @map("operation_id") @db.Uuid
-  customerId     String   @map("customer_id") @db.Uuid
-  assetId        String?  @map("asset_id") @db.Uuid
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  id              String   @id @default(uuid(7)) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  businessUnitId  String   @map("business_unit_id") @db.Uuid
+  actorId         String   @map("actor_id") @db.Uuid
+  idempotencyKey  String   @map("idempotency_key") @db.VarChar(160)
+  payloadHash     String   @map("payload_hash") @db.Char(64)
+  configurationId String   @map("configuration_id") @db.Uuid
+  occurrenceId    String   @map("occurrence_id") @db.Uuid
+  executionId     String   @map("execution_id") @db.Uuid
+  operationId     String   @map("operation_id") @db.Uuid
+  customerId      String   @map("customer_id") @db.Uuid
+  assetId         String?  @map("asset_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@unique([organizationId, actorId, idempotencyKey])
   @@index([organizationId, businessUnitId, createdAt])

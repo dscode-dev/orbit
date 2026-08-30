@@ -289,6 +289,71 @@ describe('RVT PR-30.1 closure (e2e)', () => {
     ).toBe(true);
   });
 
+  it('MB-04 · publica FieldPackages RVT reais com RT condicional e aceite opcional', async () => {
+    for (const requiresTechnicalResponsible of [false, true]) {
+      const configuration = await createConfiguration({
+        code: `RVT-PACKAGE-${requiresTechnicalResponsible}-${digits(5)}`,
+        defaultResponsibleFieldTechnicianId: userId,
+        requiresTechnicalResponsible,
+        technicalResponsibleUserId: requiresTechnicalResponsible
+          ? userId
+          : null,
+        procedure: {
+          items: [{ id: 'temperature', label: 'Medir temperatura' }],
+        },
+      });
+      const occurrence = configuration.occurrences[0]!;
+      const workItemId = `RVT:${occurrence.id}`;
+      const response = await auth(
+        http().get(`/api/v1/mobile/field/offline/packages/${workItemId}`),
+      ).expect(200);
+      const value = (
+        response.body as Envelope<{
+          kind: string;
+          workItem: unknown;
+          pmoc: unknown;
+          rvt: unknown;
+          allowedActionsAtGeneration: string[];
+        }>
+      ).data;
+      expect(value).toMatchObject({
+        kind: 'RVT',
+        workItem: {
+          id: workItemId,
+          kind: 'RVT',
+          customer: { id: customerId },
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          equipmentSummary: expect.arrayContaining([
+            expect.objectContaining({ id: assets[0] }),
+          ]),
+        },
+        pmoc: null,
+        rvt: {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          occurrence: { id: occurrence.id, version: expect.any(String) },
+          procedure: {
+            items: [expect.objectContaining({ id: 'temperature' })],
+          },
+          technicalResponsible: {
+            required: requiresTechnicalResponsible,
+            userId: requiresTechnicalResponsible ? userId : null,
+          },
+          customerAcknowledgementPolicy: {
+            allowed: true,
+            signatureOptional: true,
+          },
+          evidencePolicy: { blobsIncluded: false },
+        },
+      });
+      expect(value.allowedActionsAtGeneration).toContain('EXECUTE_RVT');
+      expect(Buffer.byteLength(JSON.stringify(value))).toBeLessThan(128 * 1024);
+      await auth(
+        http().get(`/api/v1/mobile/field/offline/packages/${workItemId}`),
+        foreignToken,
+      ).expect(404);
+    }
+  });
+
   it('reconciles only future untouched occurrences and is idempotent', async () => {
     const config = await createConfiguration({
       coverageStart: '2027-09-01',

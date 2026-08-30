@@ -441,6 +441,78 @@ describe('PMOC (e2e)', () => {
     ).toBe(true);
   }, 90000);
 
+  it('MB-04 · publica FieldPackage PMOC real, bounded e tenant-scoped', async () => {
+    await auth(
+      http().patch(
+        `/api/v1/workforce/members/${ownerUserId}/professional-profile`,
+      ),
+    )
+      .send({
+        fieldTechnicianEnabled: true,
+        technicalResponsibleEnabled: true,
+        active: true,
+      })
+      .expect(200);
+    const plan = await createPlan({
+      startsOn: inDays(0),
+      technicianUserId: ownerUserId,
+      technicalResponsibleUserId: ownerUserId,
+      procedure: { items: [{ id: 'filter', label: 'Verificar filtro' }] },
+      serviceLocation: { city: 'Recife', sector: 'Recepção' },
+    });
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+      .send({ assetId: assetA })
+      .expect(201);
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
+      201,
+    );
+    const cycle = (await detail(plan.id)).currentExecution!;
+    const workItemId = `PMOC:${cycle.id}:${assetA}`;
+    const response = await auth(
+      http().get(`/api/v1/mobile/field/offline/packages/${workItemId}`),
+    ).expect(200);
+    const value = (
+      response.body as Envelope<{
+        kind: string;
+        workItem: { timezone: string };
+        pmoc: unknown;
+        rvt: unknown;
+        allowedActionsAtGeneration: string[];
+      }>
+    ).data;
+    expect(value).toMatchObject({
+      kind: 'PMOC',
+      workItem: {
+        id: workItemId,
+        kind: 'PMOC',
+        customer: { id: customerId },
+        equipmentSummary: [expect.objectContaining({ id: assetA })],
+      },
+      pmoc: {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        cycle: { id: cycle.id, version: expect.any(String) },
+        procedure: { items: [expect.objectContaining({ id: 'filter' })] },
+        technicalResponsible: { required: true, userId: ownerUserId },
+        evidencePolicy: { blobsIncluded: false },
+      },
+      rvt: null,
+    });
+    expect(value.allowedActionsAtGeneration).toContain('EXECUTE_PMOC');
+    expect(value.workItem.timezone).toBe('America/Recife');
+    expect(Buffer.byteLength(JSON.stringify(value))).toBeLessThan(128 * 1024);
+    expect(JSON.stringify(value)).not.toContain('billing');
+    await auth(
+      http().get(`/api/v1/mobile/field/offline/packages/${workItemId}`),
+      neighbourToken,
+    ).expect(404);
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/suspend`)).expect(
+      201,
+    );
+    await auth(
+      http().get(`/api/v1/mobile/field/offline/packages/${workItemId}`),
+    ).expect(404);
+  }, 120000);
+
   it('3 · suspender para a avaliação; cancelar é terminal', async () => {
     const plan = await createPlan();
     await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
