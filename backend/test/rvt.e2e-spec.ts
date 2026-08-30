@@ -14,6 +14,10 @@ import { adminPrisma, disconnectAdminPrisma } from './support/admin-prisma';
 
 jest.setTimeout(180_000);
 const PASSWORD = 'Orbit#RvtClosure@2026';
+const MB05_PNG = Buffer.concat([
+  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+  Buffer.from('rvt-evidence'),
+]);
 interface Envelope<T> {
   data: T;
 }
@@ -303,6 +307,9 @@ describe('RVT PR-30.1 closure (e2e)', () => {
         },
       });
       const occurrence = configuration.occurrences[0]!;
+      await auth(http().post(`/api/v1/rvt/occurrences/${occurrence.id}/start`))
+        .send({ responsibleFieldTechnicianId: userId })
+        .expect(201);
       const workItemId = `RVT:${occurrence.id}`;
       const response = await auth(
         http().get(`/api/v1/mobile/field/offline/packages/${workItemId}`),
@@ -312,7 +319,7 @@ describe('RVT PR-30.1 closure (e2e)', () => {
           kind: string;
           workItem: unknown;
           pmoc: unknown;
-          rvt: unknown;
+          rvt: { execution: { id: string } | null };
           allowedActionsAtGeneration: string[];
         }>
       ).data;
@@ -345,8 +352,48 @@ describe('RVT PR-30.1 closure (e2e)', () => {
           evidencePolicy: { blobsIncluded: false },
         },
       });
-      expect(value.allowedActionsAtGeneration).toContain('EXECUTE_RVT');
+      expect(value.allowedActionsAtGeneration).toContain('ADD_EVIDENCE');
       expect(Buffer.byteLength(JSON.stringify(value))).toBeLessThan(128 * 1024);
+      const executionId = value.rvt.execution!.id;
+      const reserved = await auth(
+        http().post('/api/v1/mobile/field/evidence/uploads'),
+      )
+        .send({
+          target: { type: 'RVT_EXECUTION', id: executionId },
+          filename: `rvt-${requiresTechnicalResponsible}.png`,
+          declaredMimeType: 'image/png',
+          declaredSize: MB05_PNG.length,
+          category: 'MEASUREMENT',
+          source: 'CAMERA',
+          idempotencyKey: `rvt-evidence-${randomUUID()}`,
+        })
+        .expect(201);
+      const intent = (
+        reserved.body as Envelope<{ uploadId: string; uploadUrl: string }>
+      ).data;
+      const uploadUrl = new URL(intent.uploadUrl);
+      await http()
+        .put(`${uploadUrl.pathname}${uploadUrl.search}`)
+        .set('Content-Type', 'image/png')
+        .send(MB05_PNG)
+        .expect(200);
+      const evidence = await auth(
+        http().post(
+          `/api/v1/mobile/field/evidence/uploads/${intent.uploadId}/finalize`,
+        ),
+      )
+        .send({})
+        .expect(201);
+      expect(
+        (
+          evidence.body as Envelope<{
+            target: { type: string; id: string };
+          }>
+        ).data.target,
+      ).toEqual({
+        type: 'RVT_EXECUTION',
+        id: executionId,
+      });
       await auth(
         http().get(`/api/v1/mobile/field/offline/packages/${workItemId}`),
         foreignToken,

@@ -14,6 +14,10 @@ import { MobileOfflineSyncController } from './mobile-offline-sync.controller';
 import { MobileOfflineSyncRepository } from './mobile-offline-sync.repository';
 import { MobileOfflineSyncService } from './mobile-offline-sync.service';
 import { MobileSyncCleanupProcessor } from './mobile-sync-cleanup.processor';
+import { MobileEvidenceController } from './mobile-evidence.controller';
+import { MobileEvidenceRepository } from './mobile-evidence.repository';
+import { MobileEvidenceService } from './mobile-evidence.service';
+import { MobileEvidenceCleanupProcessor } from './mobile-evidence-cleanup.processor';
 
 @Module({
   imports: [PrismaModule, InventoryModule],
@@ -22,6 +26,7 @@ import { MobileSyncCleanupProcessor } from './mobile-sync-cleanup.processor';
     MobileFieldOperationController,
     MobileSignatureController,
     MobileOfflineSyncController,
+    MobileEvidenceController,
   ],
   providers: [
     MobileFieldRepository,
@@ -33,6 +38,9 @@ import { MobileSyncCleanupProcessor } from './mobile-sync-cleanup.processor';
     MobileOfflineSyncRepository,
     MobileOfflineSyncService,
     MobileSyncCleanupProcessor,
+    MobileEvidenceRepository,
+    MobileEvidenceService,
+    MobileEvidenceCleanupProcessor,
   ],
   exports: [MobileFieldService, MobileFieldOperationService],
 })

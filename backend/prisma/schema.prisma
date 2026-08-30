@@ -97,6 +97,8 @@ model User {
   professionalProfiles               ProfessionalProfile[]
   professionalCredentials            ProfessionalCredential[]
   professionalSignatures             UserSignature[]                @relation("ProfessionalSignatureUser")
+  fieldEvidenceUploads               FieldEvidenceUpload[]          @relation("FieldEvidenceUploadActor")
+  fieldEvidenceCaptured              FieldEvidence[]                @relation("FieldEvidenceCapturedBy")
 
   @@index([status, deletedAt])
   @@map("users")
@@ -286,6 +288,8 @@ model Organization {
   professionalProfiles          ProfessionalProfile[]
   professionalCredentials       ProfessionalCredential[]
   professionalSignatures        UserSignature[]
+  fieldEvidenceUploads          FieldEvidenceUpload[]
+  fieldEvidence                 FieldEvidence[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -365,6 +369,8 @@ model BusinessUnit {
 
   managementReports ManagementReport[]
   pmocPlans         PmocPlan[]
+  fieldEvidenceUploads FieldEvidenceUpload[]
+  fieldEvidence        FieldEvidence[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -768,6 +774,8 @@ model Operation {
   checklistExecutions        ChecklistExecution[]
   aiExecutions               AiExecution[]
   artifactExecutions         ArtifactExecution[]
+  fieldEvidenceUploads       FieldEvidenceUpload[]
+  fieldEvidence              FieldEvidence[]
 
   financialEntries FinancialEntry[]
 
@@ -1199,10 +1207,96 @@ model StorageFile {
 
   memberCertifications   MemberCertification[]
   professionalSignatures UserSignature[]
+  fieldEvidenceUploads   FieldEvidenceUpload[]
+  fieldEvidence          FieldEvidence[]
 
   @@unique([provider, bucket, objectKey])
   @@index([organizationId, status, createdAt])
   @@map("storage_files")
+}
+
+/// Intenção autorizada e temporária de upload direto. Não é evidência até que
+/// o objeto real seja verificado e associado transacionalmente.
+model FieldEvidenceUpload {
+  id                       String    @id @default(uuid(7)) @db.Uuid
+  organizationId           String    @map("organization_id") @db.Uuid
+  businessUnitId           String    @map("business_unit_id") @db.Uuid
+  operationId              String?   @map("operation_id") @db.Uuid
+  pmocEquipmentExecutionId String?   @map("pmoc_equipment_execution_id") @db.Uuid
+  rvtExecutionId           String?   @map("rvt_execution_id") @db.Uuid
+  storageFileId            String    @unique @map("storage_file_id") @db.Uuid
+  capturedByUserId         String    @map("captured_by_user_id") @db.Uuid
+  idempotencyKey           String    @map("idempotency_key") @db.VarChar(160)
+  payloadHash              String    @map("payload_hash") @db.Char(64)
+  localMediaId             String?   @map("local_media_id") @db.VarChar(160)
+  category                 String    @default("GENERAL") @db.VarChar(30)
+  source                   String    @default("CAMERA") @db.VarChar(20)
+  capturedAt               DateTime? @map("captured_at") @db.Timestamptz(3)
+  expectedSha256           String?   @map("expected_sha256") @db.Char(64)
+  status                   String    @default("PENDING_UPLOAD") @db.VarChar(30)
+  expiresAt                DateTime  @map("expires_at") @db.Timestamptz(3)
+  uploadedAt               DateTime? @map("uploaded_at") @db.Timestamptz(3)
+  finalizedAt              DateTime? @map("finalized_at") @db.Timestamptz(3)
+  failureCode              String?   @map("failure_code") @db.VarChar(80)
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit           BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  operation              Operation?              @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  pmocEquipmentExecution PmocEquipmentExecution? @relation(fields: [pmocEquipmentExecutionId], references: [id], onDelete: Cascade)
+  rvtExecution           RvtExecution?           @relation(fields: [rvtExecutionId], references: [id], onDelete: Cascade)
+  storageFile            StorageFile             @relation(fields: [storageFileId], references: [id], onDelete: Restrict)
+  capturedBy             User                    @relation("FieldEvidenceUploadActor", fields: [capturedByUserId], references: [id], onDelete: Restrict)
+  evidence               FieldEvidence?
+
+  @@unique([organizationId, capturedByUserId, idempotencyKey], map: "field_evidence_upload_actor_idem_key")
+  @@unique([organizationId, capturedByUserId, localMediaId], map: "field_evidence_upload_local_media_key")
+  @@index([organizationId, businessUnitId, status, expiresAt])
+  @@index([operationId, status])
+  @@index([pmocEquipmentExecutionId, status])
+  @@index([rvtExecutionId, status])
+  @@map("field_evidence_uploads")
+}
+
+/// Evidência final e imutável. As três FKs opcionais são protegidas por CHECK
+/// no PostgreSQL: exatamente um target sempre existe.
+model FieldEvidence {
+  id                       String   @id @default(uuid(7)) @db.Uuid
+  organizationId           String   @map("organization_id") @db.Uuid
+  businessUnitId           String   @map("business_unit_id") @db.Uuid
+  uploadId                 String   @unique @map("upload_id") @db.Uuid
+  operationId              String?  @map("operation_id") @db.Uuid
+  pmocEquipmentExecutionId String?  @map("pmoc_equipment_execution_id") @db.Uuid
+  rvtExecutionId           String?  @map("rvt_execution_id") @db.Uuid
+  storageFileId            String   @unique @map("storage_file_id") @db.Uuid
+  category                 String   @db.VarChar(30)
+  source                   String   @db.VarChar(20)
+  fileName                 String   @map("file_name") @db.VarChar(255)
+  mimeType                 String   @map("mime_type") @db.VarChar(160)
+  sizeBytes                BigInt   @map("size_bytes")
+  sha256                   String   @db.Char(64)
+  capturedAt               DateTime? @map("captured_at") @db.Timestamptz(3)
+  uploadedAt               DateTime @map("uploaded_at") @db.Timestamptz(3)
+  capturedByUserId         String   @map("captured_by_user_id") @db.Uuid
+  localMediaId             String?  @map("local_media_id") @db.VarChar(160)
+  status                   String   @default("FINALIZED") @db.VarChar(20)
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit           BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  upload                 FieldEvidenceUpload     @relation(fields: [uploadId], references: [id], onDelete: Restrict)
+  operation              Operation?              @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  pmocEquipmentExecution PmocEquipmentExecution? @relation(fields: [pmocEquipmentExecutionId], references: [id], onDelete: Restrict)
+  rvtExecution           RvtExecution?           @relation(fields: [rvtExecutionId], references: [id], onDelete: Restrict)
+  storageFile            StorageFile             @relation(fields: [storageFileId], references: [id], onDelete: Restrict)
+  capturedBy             User                    @relation("FieldEvidenceCapturedBy", fields: [capturedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, businessUnitId, createdAt])
+  @@index([operationId, createdAt])
+  @@index([pmocEquipmentExecutionId, createdAt])
+  @@index([rvtExecutionId, createdAt])
+  @@map("field_evidence")
 }
 
 /// Documento oficialmente emitido pela plataforma.
@@ -2830,6 +2924,8 @@ model PmocEquipmentExecution {
   startedBy                  User                    @relation("PmocEquipmentExecutionStartedBy", fields: [startedById], references: [id], onDelete: Restrict)
   completedBy                User?                   @relation("PmocEquipmentExecutionCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
   evidence                   PmocEquipmentEvidence[]
+  fieldEvidenceUploads       FieldEvidenceUpload[]
+  fieldEvidence              FieldEvidence[]
 
   @@unique([cycleId, coverageId])
   @@index([organizationId, cycleId, status])
@@ -2962,6 +3058,8 @@ model RvtExecution {
   occurrence RvtOccurrence           @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
   equipment  RvtExecutionEquipment[]
   evidence   RvtExecutionEvidence[]
+  fieldEvidenceUploads FieldEvidenceUpload[]
+  fieldEvidence        FieldEvidence[]
 
   @@index([organizationId, businessUnitId, status])
   @@index([organizationId, responsibleFieldTechnicianId, status])

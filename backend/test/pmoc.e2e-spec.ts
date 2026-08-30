@@ -106,6 +106,10 @@ interface Plan {
 }
 
 const PASSWORD = 'Orbit#Pmoc@2026';
+const MB05_PNG = Buffer.concat([
+  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+  Buffer.from('pmoc-evidence'),
+]);
 
 /** `YYYY-MM-DD` de hoje mais N dias — o teste fala em dias, como o domínio. */
 function inDays(days: number): string {
@@ -453,6 +457,68 @@ describe('PMOC (e2e)', () => {
         active: true,
       })
       .expect(200);
+    const ownerProfile = await prisma.professionalProfile.findFirstOrThrow({
+      where: { organizationId, userId: ownerUserId },
+      select: { id: true },
+    });
+    await prisma.professionalCredential.upsert({
+      where: {
+        professionalProfileId_type_registrationNumber: {
+          professionalProfileId: ownerProfile.id,
+          type: 'CREA',
+          registrationNumber: 'PE-MB05',
+        },
+      },
+      create: {
+        organizationId,
+        professionalProfileId: ownerProfile.id,
+        userId: ownerUserId,
+        type: 'CREA',
+        registrationNumber: 'PE-MB05',
+        region: 'PE',
+      },
+      update: { active: true, revokedAt: null },
+    });
+    if (
+      !(await prisma.userSignature.findFirst({
+        where: {
+          organizationId,
+          userId: ownerUserId,
+          active: true,
+          revokedAt: null,
+        },
+      }))
+    ) {
+      const signature = await prisma.storageFile.create({
+        data: {
+          organizationId,
+          businessUnitId: unitA,
+          provider: 'LOCAL',
+          bucket: 'e2e',
+          objectKey: `signatures/${ownerUserId}/${digits(8)}.png`,
+          fileName: 'owner.png',
+          mimeType: 'image/png',
+          sizeBytes: MB05_PNG.length,
+          sha256: 'a'.repeat(64),
+          status: 'AVAILABLE',
+          createdById: ownerUserId,
+        },
+      });
+      await storage.put({
+        bucket: signature.bucket,
+        objectKey: signature.objectKey,
+        body: MB05_PNG,
+        mimeType: 'image/png',
+      });
+      await prisma.userSignature.create({
+        data: {
+          organizationId,
+          userId: ownerUserId,
+          storageObjectId: signature.id,
+          sha256: 'a'.repeat(64),
+        },
+      });
+    }
     const plan = await createPlan({
       startsOn: inDays(0),
       technicianUserId: ownerUserId,
@@ -467,6 +533,13 @@ describe('PMOC (e2e)', () => {
       201,
     );
     const cycle = (await detail(plan.id)).currentExecution!;
+    const startedEquipment = await auth(
+      http().post(
+        `/api/v1/pmoc/plans/${plan.id}/cycles/${cycle.id}/equipment/${assetA}/executions`,
+      ),
+    ).send({ responsibleFieldTechnicianId: ownerUserId });
+    if (startedEquipment.status !== 201)
+      throw new Error(JSON.stringify(startedEquipment.body));
     const workItemId = `PMOC:${cycle.id}:${assetA}`;
     const response = await auth(
       http().get(`/api/v1/mobile/field/offline/packages/${workItemId}`),
@@ -475,7 +548,7 @@ describe('PMOC (e2e)', () => {
       response.body as Envelope<{
         kind: string;
         workItem: { timezone: string };
-        pmoc: unknown;
+        pmoc: { equipmentExecution: { id: string } | null };
         rvt: unknown;
         allowedActionsAtGeneration: string[];
       }>
@@ -497,10 +570,68 @@ describe('PMOC (e2e)', () => {
       },
       rvt: null,
     });
-    expect(value.allowedActionsAtGeneration).toContain('EXECUTE_PMOC');
+    expect(value.allowedActionsAtGeneration).toContain('ADD_EVIDENCE');
     expect(value.workItem.timezone).toBe('America/Recife');
     expect(Buffer.byteLength(JSON.stringify(value))).toBeLessThan(128 * 1024);
     expect(JSON.stringify(value)).not.toContain('billing');
+    const equipmentExecutionId = value.pmoc.equipmentExecution!.id;
+    const reserveEvidence = async (index: number) => {
+      const response = await auth(
+        http().post('/api/v1/mobile/field/evidence/uploads'),
+      )
+        .send({
+          target: {
+            type: 'PMOC_EQUIPMENT_EXECUTION',
+            id: equipmentExecutionId,
+          },
+          filename: `pmoc-${index}.png`,
+          declaredMimeType: 'image/png',
+          declaredSize: MB05_PNG.length,
+          category: 'EQUIPMENT',
+          source: 'CAMERA',
+          idempotencyKey: `pmoc-evidence-${randomUUID()}`,
+        })
+        .expect(201);
+      const intent = (
+        response.body as Envelope<{ uploadId: string; uploadUrl: string }>
+      ).data;
+      const url = new URL(intent.uploadUrl);
+      await http()
+        .put(`${url.pathname}${url.search}`)
+        .set('Content-Type', 'image/png')
+        .send(MB05_PNG)
+        .expect(200);
+      return intent.uploadId;
+    };
+    for (let index = 0; index < 5; index += 1) {
+      const uploadId = await reserveEvidence(index);
+      await auth(
+        http().post(
+          `/api/v1/mobile/field/evidence/uploads/${uploadId}/finalize`,
+        ),
+      )
+        .send({})
+        .expect(201);
+    }
+    const contenders = await Promise.all(
+      Array.from({ length: 4 }, (_, index) => reserveEvidence(index + 5)),
+    );
+    const finalized = await Promise.all(
+      contenders.map((uploadId) =>
+        auth(
+          http().post(
+            `/api/v1/mobile/field/evidence/uploads/${uploadId}/finalize`,
+          ),
+        ).send({}),
+      ),
+    );
+    expect(finalized.filter((item) => item.status === 201)).toHaveLength(1);
+    expect(finalized.filter((item) => item.status === 409)).toHaveLength(3);
+    expect(
+      await prisma.fieldEvidence.count({
+        where: { pmocEquipmentExecutionId: equipmentExecutionId },
+      }),
+    ).toBe(6);
     await auth(
       http().get(`/api/v1/mobile/field/offline/packages/${workItemId}`),
       neighbourToken,
