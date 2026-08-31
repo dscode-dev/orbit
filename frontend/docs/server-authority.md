@@ -136,6 +136,71 @@ caminho — `pmoc.read-models.ts` já publica `allowedTransitions`.
 
 ---
 
+## Papéis profissionais (PR-FE-02)
+
+### Ofício não é acesso
+
+```text
+RBAC / capabilities   → o que a pessoa pode fazer no sistema
+papel profissional    → o que ela faz em campo
+```
+
+`FIELD_TECHNICIAN` e `TECHNICAL_RESPONSIBLE` não concedem nada. Um gestor com
+acesso total pode não ter papel profissional; um Responsável Técnico pode ter
+acesso mínimo. Os tipos ficam separados (`TeamRole` × `PublicProfessionalRole`)
+justamente para que a confusão não passe pelo compilador.
+
+E credencial não concede papel: ter CREA não faz de ninguém Responsável
+Técnico. O papel é o que `professionalRoles` publica.
+
+### Seletores: a elegibilidade já vem decidida
+
+| Papel | Endpoint |
+|---|---|
+| Técnico em Campo | `GET /workforce/field-technicians` |
+| Responsável Técnico | `GET /workforce/eligible-technical-responsibles` |
+
+Ambos já filtram perfil ativo, papel habilitado, usuário ativo na organização e
+escopo de unidade. **A tela não refiltra** — refazer a regra no navegador
+usaria metade da informação, e a metade que falta é a que muda.
+
+São dois endpoints porque são duas perguntas. Um seletor único com uma prop
+`role` convidaria a reaproveitar a resposta de um no outro.
+
+> Os seletores **não** publicam `eligible: false` com motivo — devolvem só quem
+> pode. `blockedReason` existe em outro contrato,
+> `GET /workforce/members/:id/document-eligibility`, sobre assinar documento.
+> `registry/professional.ts` traduz todos os motivos; um código novo cai no
+> texto genérico, e o teste acusa a falta de tradução.
+
+### Equipe do atendimento
+
+```text
+Responsável          ← um; PATCH :id/responsible-field-technician
+auxiliares técnico   ← zero ou muitos; POST/DELETE :id/auxiliary-technicians
+Execução             ← startedBy / completedBy, somente leitura
+```
+
+**Promover é trocar o responsável.** O mesmo `PATCH` retira a pessoa dos
+auxiliares e a promove na mesma transação. Duas chamadas do cliente abririam
+uma janela em que ela é as duas coisas — o estado que o domínio proíbe.
+
+**Histórico não se corrige.** Se João iniciou e Maria assumiu, a tela mostra
+"Responsável: Maria" e "Iniciado por: João". Reescrever o histórico para o
+responsável atual apagaria o que aconteceu.
+
+**Estar na equipe não dá permissão.** Os controles saem de `allowedActions`,
+nunca de `operation.responsibleFieldTechnician.id === session.user.id`.
+
+### Autoridade do vínculo
+
+`assignmentAuthority` diz quem manda: `OPERATION` significa que a Agenda
+reflete o atendimento e não se edita lá. O campo vive no Read Model da
+**ocorrência**, não no detalhe do evento — que é um espelho do registro Prisma.
+Deriva-lo de `sourceModule` seria reimplementar a decisão do servidor.
+
+---
+
 ## Verificado em navegador (gate de fechamento)
 
 19 verificações em Chromium contra a pilha real — Next em produção, NestJS sob
@@ -147,6 +212,7 @@ caminho — `pmoc.read-models.ts` já publica `allowedTransitions`.
 | `e2e/server-authority.spec.ts` | o seletor de status voltar a listar o enum completo |
 | `e2e/interaction.spec.ts` | controle sem foco visível, diálogo que não devolve o foco, botão de ícone sem nome, enum técnico na tela |
 | `e2e/resilience.spec.ts` | 404 com mensagem do backend, erro sem `requestId`, HTML de usuário executado |
+| `e2e/professional.spec.ts` | seletor oferecendo papel errado, código de contrato na tela, promoção fora do comando atômico |
 
 O navegador roda em `Europe/Lisbon` de propósito, com a unidade em
 `America/Recife`: se alguma data civil passar a depender do relógio do cliente,

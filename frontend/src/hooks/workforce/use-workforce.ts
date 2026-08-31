@@ -43,6 +43,7 @@ import type {
   CreateTeamInput,
   InvitationQuery,
   MemberQuery,
+  ProfessionalSelectorQuery,
   UpdateCertificationInput,
   UpdateMemberInput,
   UpdateRoleInput,
@@ -53,6 +54,8 @@ import type {
 export const WORKFORCE_REFRESH = {
   members: CACHE.stable,
   roles: CACHE.catalog,
+  /** Elenco profissional muda pouco, mas não é catálogo: perfil é desativado. */
+  professionals: CACHE.stable,
   specialties: CACHE.catalog,
   certifications: CACHE.stable,
   teams: CACHE.stable,
@@ -90,6 +93,50 @@ export function useTeamMembers(query?: MemberQuery) {
     workforceService.keys.members(query),
     ({ signal }) => workforceService.members(query, { signal }),
     { ...WORKFORCE_REFRESH.members, placeholderData: (previous) => previous },
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Domínio profissional (PR-27)                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Candidatos a Técnico em Campo desta unidade.
+ *
+ * O `signal` chega ao `fetch`: trocar de unidade ou fechar o seletor cancela
+ * a consulta anterior em vez de deixá-la responder no escopo novo.
+ *
+ * `enabled` desliga a consulta enquanto o seletor está fechado — um diálogo
+ * que ninguém abriu não precisa buscar o elenco da filial.
+ */
+export function useFieldTechnicians(
+  query?: ProfessionalSelectorQuery,
+  enabled = true,
+) {
+  return useApiQuery(
+    workforceService.keys.professionals("FIELD_TECHNICIAN", query),
+    ({ signal }) => workforceService.fieldTechnicians(query, { signal }),
+    { ...WORKFORCE_REFRESH.professionals, enabled },
+  );
+}
+
+/** Candidatos a Responsável Técnico. Seletor próprio — ver `registry/professional`. */
+export function useTechnicalResponsibles(
+  query?: ProfessionalSelectorQuery,
+  enabled = true,
+) {
+  return useApiQuery(
+    workforceService.keys.professionals("TECHNICAL_RESPONSIBLE", query),
+    ({ signal }) => workforceService.technicalResponsibles(query, { signal }),
+    { ...WORKFORCE_REFRESH.professionals, enabled },
+  );
+}
+
+export function useProfessionalProfile(userId: string | null) {
+  return useApiQuery(
+    workforceService.keys.professionalProfile(userId ?? ""),
+    ({ signal }) => workforceService.professionalProfile(userId!, { signal }),
+    { ...WORKFORCE_REFRESH.professionals, enabled: Boolean(userId) },
   );
 }
 
@@ -291,18 +338,16 @@ export function useInviteMember() {
 
 export function useResendInvitation() {
   const invalidate = useInvitationInvalidation();
-  return useApiMutation(
-    (id: string) => workforceService.resendInvitation(id),
-    { onSuccess: invalidate },
-  );
+  return useApiMutation((id: string) => workforceService.resendInvitation(id), {
+    onSuccess: invalidate,
+  });
 }
 
 export function useRevokeInvitation() {
   const invalidate = useInvitationInvalidation();
-  return useApiMutation(
-    (id: string) => workforceService.revokeInvitation(id),
-    { onSuccess: invalidate },
-  );
+  return useApiMutation((id: string) => workforceService.revokeInvitation(id), {
+    onSuccess: invalidate,
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -325,7 +370,9 @@ function useMemberInvalidation() {
       queryClient.invalidateQueries({
         queryKey: workforceService.keys.members(),
       }),
-      queryClient.invalidateQueries({ queryKey: workforceService.keys.roles() }),
+      queryClient.invalidateQueries({
+        queryKey: workforceService.keys.roles(),
+      }),
     ]);
   };
 }

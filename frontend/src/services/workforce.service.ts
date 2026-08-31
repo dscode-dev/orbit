@@ -17,6 +17,12 @@ import type { QueryParams, RequestOptions } from "@/types/api";
 import type { PaginatedResult } from "@/types/api";
 import type {
   AddTeamMemberInput,
+  EligibleProfessional,
+  ProfessionalEligibility,
+  ProfessionalEligibilityQuery,
+  ProfessionalProfile,
+  ProfessionalRole,
+  ProfessionalSelectorQuery,
   AssignSpecialtyInput,
   CertificationQuery,
   CreateCertificationInput,
@@ -111,9 +117,7 @@ export const workforceService = {
     apiClient.post<{ id: string; expiresAt: string }>(INVITATIONS_PATH, input),
 
   /** Reenvia: gera token novo, e o anterior deixa de valer. */
-  resendInvitation: (
-    id: string,
-  ): Promise<{ id: string; expiresAt: string }> =>
+  resendInvitation: (id: string): Promise<{ id: string; expiresAt: string }> =>
     apiClient.post<{ id: string; expiresAt: string }>(
       `${invitation(id)}/resend`,
       {},
@@ -246,6 +250,57 @@ export const workforceService = {
       query: { withinMinutes },
     }),
 
+  /* ---------------------------------------------------------------- */
+  /* Domínio profissional (PR-27)                                      */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Candidatos a Técnico em Campo, já filtrados pelo servidor.
+   *
+   * Perfil ativo, papel habilitado, usuário ativo na organização e — quando a
+   * unidade é informada — atuando nela. A tela mostra o que voltou; refiltrar
+   * aqui seria reimplementar a elegibilidade no navegador, com metade da
+   * informação.
+   */
+  fieldTechnicians: (
+    query?: ProfessionalSelectorQuery,
+    options?: RequestOptions,
+  ): Promise<EligibleProfessional[]> =>
+    apiClient.get<EligibleProfessional[]>("/workforce/field-technicians", {
+      ...options,
+      query: query as QueryParams | undefined,
+    }),
+
+  /** Candidatos a Responsável Técnico. Seletor próprio, não o mesmo do campo. */
+  technicalResponsibles: (
+    query?: ProfessionalSelectorQuery,
+    options?: RequestOptions,
+  ): Promise<EligibleProfessional[]> =>
+    apiClient.get<EligibleProfessional[]>(
+      "/workforce/eligible-technical-responsibles",
+      { ...options, query: query as QueryParams | undefined },
+    ),
+
+  professionalProfile: (
+    userId: string,
+    options?: RequestOptions,
+  ): Promise<ProfessionalProfile> =>
+    apiClient.get<ProfessionalProfile>(
+      `/workforce/members/${userId}/professional-profile`,
+      options,
+    ),
+
+  /** Elegibilidade para assinar um tipo de documento — com o motivo do bloqueio. */
+  documentEligibility: (
+    userId: string,
+    query: ProfessionalEligibilityQuery,
+    options?: RequestOptions,
+  ): Promise<ProfessionalEligibility> =>
+    apiClient.get<ProfessionalEligibility>(
+      `/workforce/members/${userId}/document-eligibility`,
+      { ...options, query: query as unknown as QueryParams },
+    ),
+
   keys: {
     /** Membros e papéis pertencem ao módulo `organizations`. */
     members: (query?: MemberQuery): QueryKey =>
@@ -271,5 +326,31 @@ export const workforceService = {
     teams: (): QueryKey => queryKeys.query(WORKFORCE, "teams"),
     locations: (withinMinutes: number): QueryKey =>
       queryKeys.query(WORKFORCE, "locations", { withinMinutes }),
+
+    /**
+     * Seletores por papel **e** por unidade.
+     *
+     * A unidade entra na key porque muda o resultado: o mesmo seletor devolve
+     * candidatos diferentes por filial. Compartilhar uma key entre unidades
+     * serviria o elenco da filial errada a partir do cache.
+     */
+    professionals: (
+      role: ProfessionalRole,
+      query?: ProfessionalSelectorQuery,
+    ): QueryKey =>
+      queryKeys.query(WORKFORCE, "professionals", {
+        role,
+        ...(query as QueryParams | undefined),
+      }),
+    professionalProfile: (userId: string): QueryKey =>
+      queryKeys.query(WORKFORCE, "professional-profile", { userId }),
+    documentEligibility: (
+      userId: string,
+      query: ProfessionalEligibilityQuery,
+    ): QueryKey =>
+      queryKeys.query(WORKFORCE, "document-eligibility", {
+        userId,
+        ...(query as unknown as QueryParams),
+      }),
   },
 } as const;

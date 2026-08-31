@@ -14,6 +14,7 @@ export const ROUTES = {
   invitation: "/convite",
   dashboard: "/dashboard",
   operations: "/operacoes",
+  pmoc: "/pmoc",
   /** Artifact Studio — configuração dos Artifact Templates. */
   artifacts: "/artefatos",
   /** Artifact Execution Workspace — execução e acompanhamento. */

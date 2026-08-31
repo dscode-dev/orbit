@@ -16,9 +16,15 @@ import type {
   OrganizationRoleReadModel,
 } from "./contracts/modules/organizations/organization.read-models";
 import type {
+  EligibleProfessionalReadModel,
   MemberCertificationReadModel,
   MemberLocationReadModel,
   MemberSpecialtyReadModel,
+  ProfessionalCredentialReadModel,
+  ProfessionalEligibilityBlockedReason,
+  ProfessionalEligibilityReadModel,
+  ProfessionalProfileReadModel,
+  PublicProfessionalRole,
   SpecialtyReadModel,
   TeamReadModel,
 } from "./contracts/modules/workforce/workforce.read-models";
@@ -222,3 +228,41 @@ export const WORKFORCE_CONTRACT_GAPS = [
   "realtimePresence",
   "intelligence",
 ] as const;
+
+/* ------------------------------------------------------------------ */
+/* Domínio profissional (PR-27)                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Papel profissional ≠ papel de acesso.
+ *
+ * `TeamRole` é RBAC — o que a pessoa pode fazer no sistema.
+ * `PublicProfessionalRole` é ofício — o que ela faz em campo. Os dois tipos
+ * ficam separados de propósito: um `string` compartilhado convidaria a
+ * confundi-los na primeira tela apressada.
+ */
+export type ProfessionalRole = PublicProfessionalRole;
+export type ProfessionalCredential = ProfessionalCredentialReadModel;
+export type ProfessionalProfile = ProfessionalProfileReadModel;
+export type ProfessionalEligibility = ProfessionalEligibilityReadModel;
+export type BlockedReason = ProfessionalEligibilityBlockedReason;
+
+/**
+ * Um candidato de seletor.
+ *
+ * Já vem filtrado pelo servidor — perfil ativo, papel habilitado, usuário
+ * ativo na organização e no escopo da unidade. A tela **não** refiltra.
+ */
+export type EligibleProfessional = EligibleProfessionalReadModel;
+
+/** `?businessUnitId=` — recorta os candidatos pela unidade do atendimento. */
+export interface ProfessionalSelectorQuery {
+  businessUnitId?: string;
+}
+
+/** `GET /workforce/members/:userId/document-eligibility`. */
+export interface ProfessionalEligibilityQuery {
+  documentType: string;
+  signedAs: ProfessionalRole;
+  businessUnitId?: string;
+}

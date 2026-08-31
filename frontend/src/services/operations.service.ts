@@ -91,6 +91,31 @@ export const operationsService = {
   assign: (id: string, input: AssignOperationUserInput): Promise<Operation> =>
     apiClient.post<Operation>(`${item(id)}/assignments`, input),
 
+  /* ---------------------------------------------------------------- */
+  /* Equipe do atendimento (PR-28)                                     */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Define — ou troca — o responsável pelo atendimento.
+   *
+   * É também o comando de **promoção**: quando o escolhido já é auxiliar, o
+   * servidor o retira da lista de auxiliares e o promove na mesma transação.
+   * Fazer isso no cliente com duas chamadas deixaria uma janela em que a
+   * pessoa é as duas coisas — o estado que o domínio proíbe.
+   */
+  replaceResponsible: (id: string, userId: string): Promise<Operation> =>
+    apiClient.patch<Operation>(`${item(id)}/responsible-field-technician`, {
+      userId,
+    }),
+
+  addAuxiliary: (id: string, userId: string): Promise<Operation> =>
+    apiClient.post<Operation>(`${item(id)}/auxiliary-technicians`, { userId }),
+
+  removeAuxiliary: (id: string, userId: string): Promise<void> =>
+    apiClient.delete<void>(
+      `${item(id)}/auxiliary-technicians/${encodeURIComponent(userId)}`,
+    ),
+
   unassign: (id: string, userId: string): Promise<void> =>
     apiClient.delete<void>(
       `${item(id)}/assignments/${encodeURIComponent(userId)}`,

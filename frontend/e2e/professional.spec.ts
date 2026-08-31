@@ -1,0 +1,202 @@
+/**
+ * Papéis profissionais e equipe do atendimento, em navegador real.
+ *
+ * O cenário no banco cobre os cinco casos que importam:
+ *
+ * ```
+ * Ana    → Técnico em Campo
+ * Bruno  → Responsável Técnico
+ * Carla  → os dois
+ * Diego  → nenhum papel profissional
+ * Elena  → perfil inativo
+ * ```
+ *
+ * O que se prova não é a regra — quem decide quem é elegível é o servidor —,
+ * mas que a tela **respeita** a decisão dele: cada seletor mostra o elenco do
+ * seu papel, quem não tem papel não aparece, e nenhum código de contrato
+ * chega ao usuário.
+ */
+import { expect, test } from "@playwright/test";
+import { assertClean, login, record, settled } from "./support";
+
+test("a aba Profissionais separa ofício de acesso", async ({ page }) => {
+  const recorder = record(page);
+  await login(page);
+  await page.goto("/equipe");
+  await settled(page);
+
+  await page.getByRole("tab", { name: "Profissionais" }).click();
+  /** A aba busca dois seletores; esperar a tabela evita ler o painel anterior. */
+  await expect(
+    page.getByRole("columnheader", { name: "Papéis" }),
+  ).toBeVisible({ timeout: 20_000 });
+  await settled(page);
+
+  const body = await page.evaluate(() => document.body.innerText);
+
+  /** Papéis com o nome do produto. */
+  expect(body).toContain("Técnico em Campo");
+  expect(body).toContain("Responsável Técnico");
+
+  /** Quem tem papel aparece; quem não tem, não. */
+  expect(body).toContain("Ana Campo");
+  expect(body).toContain("Bruno Responsavel");
+  expect(body).toContain("Carla Dupla");
+  expect(body).not.toContain("Diego Escritorio");
+  /** Perfil inativo não é oferecido como profissional ativo. */
+  expect(body).not.toContain("Elena Inativa");
+
+  assertClean(recorder, "aba Profissionais");
+});
+
+test("o seletor de Técnico em Campo não oferece quem só é Responsável Técnico", async ({
+  page,
+}) => {
+  const recorder = record(page);
+  await login(page);
+  await page.goto("/operacoes");
+  await settled(page);
+
+  await page.getByRole("link", { name: /OS-/ }).first().click();
+  await settled(page);
+
+  /** O painel de equipe vive no detalhe, não atrás de um modal. */
+  await expect(page.getByRole("heading", { name: "Equipe" })).toBeVisible();
+
+  const trigger = page
+    .getByRole("button", { name: /Definir responsável|Trocar/ })
+    .first();
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+
+  const options = page.getByRole("option");
+  await expect(options.first()).toBeVisible();
+  const names = (await options.allInnerTexts()).join("|");
+
+  /**
+   * O que importa é a separação de papéis, não quem sobrou.
+   *
+   * Ana e Carla têm o papel de campo, mas quem já está na equipe deste
+   * atendimento é omitido do seletor — então afirmar as duas dependeria da
+   * ordem dos testes. O invariante é o outro lado: quem **não** tem o papel
+   * nunca aparece, aconteça o que acontecer antes.
+   */
+  expect(names).toMatch(/Ana Campo|Carla Dupla/);
+  expect(names).not.toContain("Bruno Responsavel");
+  expect(names).not.toContain("Diego Escritorio");
+  expect(names).not.toContain("Elena Inativa");
+
+  await page.keyboard.press("Escape");
+  assertClean(recorder, "seletor de campo");
+});
+
+test("definir responsável e adicionar auxiliares usa os comandos reais", async ({
+  page,
+}) => {
+  const recorder = record(page);
+  await login(page);
+  await page.goto("/operacoes");
+  await settled(page);
+  await page.getByRole("link", { name: /OS-/ }).first().click();
+  await settled(page);
+
+  const team = page.getByRole("region", { name: "Equipe" });
+
+  /** 1 · define ou troca o responsável */
+  await page
+    .getByRole("button", { name: /Definir responsável|Trocar/ })
+    .first()
+    .click();
+  await page.getByRole("option", { name: /Ana Campo/ }).click();
+  await expect(team.getByText("Ana Campo")).toBeVisible({ timeout: 20_000 });
+
+  /** 2 · adiciona um auxiliar */
+  await team.getByRole("button", { name: /Adicionar/ }).click();
+  await page.getByRole("option", { name: /Carla Dupla/ }).click();
+  await expect(team.getByText("Carla Dupla")).toBeVisible({ timeout: 20_000 });
+
+  /**
+   * 3 · quem já está na equipe não é oferecido de novo.
+   *
+   * O servidor recusaria a duplicidade de qualquer forma; a tela evita
+   * oferecer o que ele recusaria.
+   */
+  await team.getByRole("button", { name: /Adicionar/ }).click();
+  const remaining = (await page.getByRole("option").allInnerTexts()).join("|");
+  expect(remaining).not.toContain("Ana Campo");
+  expect(remaining).not.toContain("Carla Dupla");
+  await page.keyboard.press("Escape");
+
+  assertClean(recorder, "gestão de equipe");
+});
+
+test("promover um auxiliar troca o responsável em um comando", async ({
+  page,
+}) => {
+  const recorder = record(page);
+  await login(page);
+  await page.goto("/operacoes");
+  await settled(page);
+  await page.getByRole("link", { name: /OS-/ }).first().click();
+  await settled(page);
+
+  const team = page.getByRole("region", { name: "Equipe" });
+  await expect(team.getByRole("button", { name: /Promover/ }).first()).toBeVisible();
+
+  await team.getByRole("button", { name: /Promover/ }).first().click();
+
+  const dialog = page.getByRole("alertdialog").or(page.getByRole("dialog"));
+  await expect(dialog).toBeVisible();
+  /** A confirmação diz o efeito, não o nome do comando. */
+  await expect(dialog).toContainText(/responsável pelo atendimento/i);
+  await dialog.getByRole("button", { name: /Promover/ }).click();
+
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+  await settled(page);
+
+  /**
+   * O invariante é do servidor: quem foi promovido deixa de ser auxiliar. A
+   * tela relê o estado autoritativo e mostra o resultado, sem corrigir nada.
+   */
+  const teamText = await team.innerText();
+  const [, auxiliaryBlock = ""] = teamText.split("auxiliares técnico");
+  expect(auxiliaryBlock).not.toContain("Carla Dupla");
+
+  assertClean(recorder, "promoção");
+});
+
+test("nenhum código de contrato aparece na tela", async ({ page }) => {
+  const recorder = record(page);
+  await login(page);
+
+  const forbidden = [
+    "FIELD_TECHNICIAN",
+    "TECHNICAL_RESPONSIBLE",
+    "RESPONSIBLE_FIELD_TECHNICIAN",
+    "AUXILIARY_TECHNICIAN",
+    "PROFESSIONAL_ROLE_MISSING",
+    "SIGNATURE_MISSING",
+    "BUSINESS_UNIT_SCOPE_MISSING",
+    "MANAGE_ASSIGNMENTS",
+  ];
+  const found: string[] = [];
+
+  for (const route of ["/equipe", "/operacoes", "/agenda"]) {
+    await page.goto(route);
+    await settled(page);
+    if (route === "/equipe") {
+      await page.getByRole("tab", { name: "Profissionais" }).click();
+      await expect(
+        page.getByRole("columnheader", { name: "Papéis" }),
+      ).toBeVisible({ timeout: 20_000 });
+      await settled(page);
+    }
+    const body = await page.evaluate(() => document.body.innerText);
+    for (const term of forbidden) {
+      if (body.includes(term)) found.push(`${route}: ${term}`);
+    }
+  }
+
+  expect(found, "códigos de contrato visíveis").toEqual([]);
+  assertClean(recorder, "linguagem do domínio profissional");
+});

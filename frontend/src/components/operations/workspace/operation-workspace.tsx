@@ -120,7 +120,7 @@ export function OperationWorkspace({ operationId }: { operationId: string }) {
 
         <div className="space-y-6 lg:col-span-4">
           <StatusSection operationId={operationId} query={operationQuery} />
-          <AssigneesSection operationId={operationId} query={operationQuery} />
+          <AssigneesSection query={operationQuery} />
           <RelationsSection query={operationQuery} />
           <ScheduleSection query={operationQuery} />
           <AttachmentsSection

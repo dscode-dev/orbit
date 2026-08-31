@@ -125,6 +125,17 @@ function affectedKeys(id: string) {
   ];
 }
 
+/**
+ * O que uma mudança de equipe afeta.
+ *
+ * O detalhe e a listagem, porque ambos mostram quem responde; e a Agenda,
+ * porque o backend espelha o responsável nas alocações do evento vinculado.
+ * Nada além disso — invalidar tudo derrubaria caches que a troca não tocou.
+ */
+function assignmentKeys(id: string) {
+  return [...affectedKeys(id), queryKeys.module("scheduling")];
+}
+
 export function useCreateOperation() {
   return useApiMutation(
     (input: CreateOperationInput) => operationsService.create(input),
@@ -168,6 +179,40 @@ export function useUnassignOperationUser(id: string) {
   return useApiMutation(
     (userId: string) => operationsService.unassign(id, userId),
     { invalidate: affectedKeys(id) },
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Equipe do atendimento (PR-28)                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Define ou troca o responsável — e promove um auxiliar, quando é o caso.
+ *
+ * Uma chamada só. O invariante "responsável não é auxiliar" é do servidor, e
+ * é lá que ele é mantido; a tela apenas relê o estado autoritativo depois.
+ *
+ * A Agenda entra na invalidação porque o vínculo do atendimento espelha nas
+ * alocações do evento: trocar o responsável muda quem aparece no calendário.
+ */
+export function useReplaceOperationResponsible(id: string) {
+  return useApiMutation(
+    (userId: string) => operationsService.replaceResponsible(id, userId),
+    { invalidate: assignmentKeys(id) },
+  );
+}
+
+export function useAddOperationAuxiliary(id: string) {
+  return useApiMutation(
+    (userId: string) => operationsService.addAuxiliary(id, userId),
+    { invalidate: assignmentKeys(id) },
+  );
+}
+
+export function useRemoveOperationAuxiliary(id: string) {
+  return useApiMutation(
+    (userId: string) => operationsService.removeAuxiliary(id, userId),
+    { invalidate: assignmentKeys(id) },
   );
 }
 

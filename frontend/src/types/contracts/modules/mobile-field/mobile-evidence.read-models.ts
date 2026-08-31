@@ -17,11 +17,7 @@ export const FIELD_EVIDENCE_CATEGORIES = [
   'DEFECT',
   'MEASUREMENT',
 ] as const;
-export const FIELD_EVIDENCE_SOURCES = [
-  'CAMERA',
-  'GALLERY',
-  'FILE',
-] as const;
+export const FIELD_EVIDENCE_SOURCES = ['CAMERA', 'GALLERY', 'FILE'] as const;
 
 export type FieldEvidenceTarget = (typeof FIELD_EVIDENCE_TARGETS)[number];
 export type EvidenceCategory = (typeof FIELD_EVIDENCE_CATEGORIES)[number];

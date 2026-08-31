@@ -46,6 +46,7 @@ import { CertificationsTab } from "./tabs/certifications.tab";
 import { InvitationsTab } from "./tabs/invitations.tab";
 import { LocationsTab } from "./tabs/locations.tab";
 import { MembersTab } from "./tabs/members.tab";
+import { ProfessionalsTab } from "./tabs/professionals.tab";
 import { RolesTab } from "./tabs/roles.tab";
 import { ShiftsTab } from "./tabs/shifts.tab";
 import { SpecialtiesTab } from "./tabs/specialties.tab";
@@ -62,6 +63,7 @@ export function WorkforceWorkspace() {
       <Tabs defaultValue="usuarios" className="space-y-5">
         <TabsList>
           <TabsTrigger value="usuarios">Usuários</TabsTrigger>
+          <TabsTrigger value="profissionais">Profissionais</TabsTrigger>
           <TabsTrigger value="tecnicos">Técnicos</TabsTrigger>
           <TabsTrigger value="equipes">Equipes</TabsTrigger>
           <TabsTrigger value="especialidades">Especialidades</TabsTrigger>
@@ -76,6 +78,12 @@ export function WorkforceWorkspace() {
         <TabsContent value="usuarios">
           <TabBoundary id="workforce-members" label="os usuários">
             <MembersTab />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="profissionais">
+          <TabBoundary id="workforce-professionals" label="os profissionais">
+            <ProfessionalsTab />
           </TabBoundary>
         </TabsContent>
 

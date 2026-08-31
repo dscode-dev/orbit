@@ -43,6 +43,7 @@ import {
 
 import { createRegistry } from "@/registry";
 import { ROUTES } from "@/lib/routes";
+import { PLAN_STATUS } from "@/registry/pmoc";
 import { OPERATION_STATUS_LABELS } from "@/types/operations";
 import { ARTIFACT_EXECUTION_STATUS_LABELS } from "@/components/artifact-executions/execution-badges";
 import { SCHEDULING_STATUS_LABELS } from "@/components/scheduling/event-badges";
@@ -60,10 +61,7 @@ import {
   FINANCIAL_TYPE_CLASSES,
   FINANCIAL_TYPE_LABELS,
 } from "./financial-labels";
-import {
-  QUOTE_STATUS_CLASSES,
-  QUOTE_STATUS_LABELS,
-} from "./quote-labels";
+import { QUOTE_STATUS_CLASSES, QUOTE_STATUS_LABELS } from "./quote-labels";
 import {
   REPORT_STATUS_CLASSES,
   REPORT_STATUS_LABELS,
@@ -90,6 +88,7 @@ export const ENTITY_IDS = [
   "scheduling-event",
   "financial-entry",
   "quote",
+  "pmoc-plan",
 ] as const;
 export type EntityId = (typeof ENTITY_IDS)[number];
 
@@ -133,6 +132,29 @@ const OPERATION_STATUS_CLASSES: Readonly<Record<string, string>> = {
   IN_PROGRESS: "bg-primary/15 text-primary",
   PAUSED: "bg-amber-500/15 text-amber-400",
   COMPLETED: "bg-emerald-500/15 text-emerald-400",
+  CANCELLED: "bg-surface-strong text-muted-foreground",
+};
+
+/**
+ * Situação do plano de PMOC.
+ *
+ * Os rótulos vêm de `registry/pmoc.ts` — um mapa só para a aplicação inteira.
+ * As classes ficam aqui, ao lado das dos outros badges do registry, pela mesma
+ * razão que as de Operação ficam: é este arquivo que desenha o `EntityBadge`.
+ */
+const PMOC_PLAN_STATUS_LABELS: Readonly<Record<string, string>> =
+  Object.fromEntries(
+    Object.entries(PLAN_STATUS).map(([status, presentation]) => [
+      status,
+      presentation.label,
+    ]),
+  );
+
+const PMOC_PLAN_STATUS_CLASSES: Readonly<Record<string, string>> = {
+  DRAFT: "bg-surface-strong text-muted-foreground",
+  ACTIVE: "bg-emerald-500/15 text-emerald-400",
+  SUSPENDED: "bg-amber-500/15 text-amber-400",
+  EXPIRED: "bg-surface-strong text-muted-foreground",
   CANCELLED: "bg-surface-strong text-muted-foreground",
 };
 
@@ -220,6 +242,38 @@ const DEFINITIONS: readonly EntityDefinition[] = [
       },
     },
     href: (id) => `${ROUTES.operations}/${id}`,
+  },
+  {
+    /**
+     * A **configuração** de manutenção preventiva, não o ciclo nem a execução.
+     *
+     * A entrada da navegação leva ao contrato de manutenção: cobertura,
+     * periodicidade e Responsável Técnico. Ciclos e execuções por equipamento
+     * vivem dentro dele — não como itens paralelos de menu, porque não é assim
+     * que a operação os procura.
+     */
+    id: "pmoc-plan",
+    label: "PMOC",
+    labelPlural: "PMOC",
+    description:
+      "Planos de manutenção preventiva: cobertura, periodicidade e responsável técnico.",
+    icon: ClipboardCheck,
+    color: "text-emerald-400",
+    basePath: ROUTES.pmoc,
+    capability: { read: "pmoc.read", manage: "pmoc.manage" },
+    permissions: {
+      read: "pmoc.read",
+      create: "pmoc.manage",
+      update: "pmoc.manage",
+    },
+    badges: {
+      status: {
+        label: "Situação",
+        labels: PMOC_PLAN_STATUS_LABELS,
+        classes: PMOC_PLAN_STATUS_CLASSES,
+      },
+    },
+    href: (id) => `${ROUTES.pmoc}/${id}`,
   },
   {
     id: "scheduling-event",

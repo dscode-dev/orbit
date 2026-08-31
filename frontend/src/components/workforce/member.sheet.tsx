@@ -16,7 +16,12 @@
  * inventado é pior que nenhum, porque alguém decide com ele.
  */
 import Link from "next/link";
-import { ArrowRight, CalendarClock, ClipboardCheck, Workflow } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarClock,
+  ClipboardCheck,
+  Workflow,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,6 +45,7 @@ import { ROUTES } from "@/lib/routes";
 import type { TeamMember } from "@/types/workforce";
 import { MemberActions } from "./member-actions";
 import { MemberCertificationsSection } from "./member-certifications.section";
+import { MemberProfessionalSection } from "./member-professional.section";
 import { MemberSpecialtiesSection } from "./member-specialties.section";
 import { WorkloadCards } from "./workload-cards";
 
@@ -73,13 +79,7 @@ export function MemberSheet({
   );
 }
 
-function Body({
-  member,
-  onEdit,
-}: {
-  member: TeamMember;
-  onEdit?: () => void;
-}) {
+function Body({ member, onEdit }: { member: TeamMember; onEdit?: () => void }) {
   const roles = useTeamRoles();
   const role = roles.data?.find((item) => item.id === member.role.id);
 
@@ -104,6 +104,8 @@ function Body({
         <MemberActions member={member} onEdit={onEdit} />
 
         <WorkloadCards userId={member.userId} />
+
+        <MemberProfessionalSection userId={member.userId} />
 
         <MemberSpecialtiesSection userId={member.userId} />
 

@@ -151,12 +151,24 @@ export class OperationService {
     permissions?: readonly string[],
   ) {
     const current = await this.get(id, organizationId);
-    if (
-      current.responsibleFieldTechnicianId &&
-      permissions &&
-      !permissions.includes('operations.assign') &&
-      !permissions.includes('operations.update')
-    ) {
+    /**
+     * `*` concede tudo — como no `PermissionsGuard` e no `OperationMapper`.
+     *
+     * Este guarda lia a lista de permissões por igualdade exata, enquanto o
+     * mapa de `allowedActions` (corrigido na PR-FE-01) e o próprio
+     * `PermissionsGuard` honram o curinga. A mesma lista, dois significados: o
+     * Read Model publicava `CHANGE_STATUS` para o dono da organização e este
+     * método respondia 403 — o menu enganoso seguido de recusa que a PR-FE-02
+     * existe para eliminar.
+     *
+     * A regra de negócio não muda: quem gerencia a carteira segue podendo, e
+     * quem não gerencia segue precisando estar escalado.
+     */
+    const manages =
+      permissions?.includes('*') ||
+      permissions?.includes('operations.assign') ||
+      permissions?.includes('operations.update');
+    if (current.responsibleFieldTechnicianId && permissions && !manages) {
       const assigned =
         current.responsibleFieldTechnicianId === actorId ||
         current.auxiliaryTechnicians.some(
