@@ -10,14 +10,18 @@ import { AppModule } from '../src/app.module';
 import { configureApiVersioning } from '../src/configure-api';
 import { generateUuidV7 } from '../src/utils';
 import { BackgroundJobWorker } from '../src/modules/jobs/background-job.worker';
+import {
+  STORAGE_PROVIDER,
+  type StorageProvider,
+} from '../src/modules/storage/storage.types';
 import { adminPrisma, disconnectAdminPrisma } from './support/admin-prisma';
 
 jest.setTimeout(180_000);
 const PASSWORD = 'Orbit#RvtClosure@2026';
-const MB05_PNG = Buffer.concat([
-  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-  Buffer.from('rvt-evidence'),
-]);
+const MB05_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
 interface Envelope<T> {
   data: T;
 }
@@ -62,6 +66,7 @@ const cnpj = () => {
 describe('RVT PR-30.1 closure (e2e)', () => {
   let app: INestApplication<App>;
   let worker: BackgroundJobWorker;
+  let storage: StorageProvider;
   const prisma = adminPrisma();
   let http: () => request.Agent;
   let token: string;
@@ -154,6 +159,7 @@ describe('RVT PR-30.1 closure (e2e)', () => {
     await app.listen(0, '127.0.0.1');
     http = () => request(app.getHttpServer());
     worker = app.get(BackgroundJobWorker);
+    storage = app.get<StorageProvider>(STORAGE_PROVIDER);
     const owner = await register('owner');
     const foreign = await register('foreign');
     token = owner.token;
@@ -189,6 +195,13 @@ describe('RVT PR-30.1 closure (e2e)', () => {
       ['Split A', 'Split B', 'Chiller C'].map(createAsset),
     );
     signatureFileId = generateUuidV7();
+    const signatureObjectKey = `${organizationId}/rvt/signature.png`;
+    await storage.put({
+      bucket: 'orbit',
+      objectKey: signatureObjectKey,
+      body: MB05_PNG,
+      mimeType: 'image/png',
+    });
     await prisma.storageFile.create({
       data: {
         id: signatureFileId,
@@ -196,11 +209,11 @@ describe('RVT PR-30.1 closure (e2e)', () => {
         businessUnitId: unitId,
         provider: 'LOCAL',
         bucket: 'orbit',
-        objectKey: `${organizationId}/rvt/signature.png`,
+        objectKey: signatureObjectKey,
         fileName: 'signature.png',
         mimeType: 'image/png',
-        sizeBytes: 128n,
-        sha256: 'b'.repeat(64),
+        sizeBytes: BigInt(MB05_PNG.length),
+        sha256: createHash('sha256').update(MB05_PNG).digest('hex'),
         status: 'AVAILABLE',
         createdById: userId,
       },
@@ -586,10 +599,46 @@ describe('RVT PR-30.1 closure (e2e)', () => {
         where: { id: result.artifactExecutionId },
       }),
     ).toBe(1);
+    const fieldPreparation = await auth(
+      http()
+        .get(
+          `/api/v1/mobile/field/artifacts/sources/${execution.id}/preparation`,
+        )
+        .query({ sourceType: 'RVT_EXECUTION' }),
+    ).expect(200);
+    expect(
+      (
+        fieldPreparation.body as Envelope<{
+          eligibility: { eligible: boolean };
+          documentType: string;
+        }>
+      ).data,
+    ).toMatchObject({
+      eligibility: { eligible: true },
+      documentType: 'RVT',
+    });
+    const fieldArtifact = await auth(
+      http().post(
+        `/api/v1/mobile/field/artifacts/sources/${execution.id}/prepare`,
+      ),
+    )
+      .send({ sourceType: 'RVT_EXECUTION' })
+      .expect(201);
+    const frozen = (
+      fieldArtifact.body as Envelope<{
+        id: string;
+        artifactExecutionId: string;
+        sourceType: string;
+      }>
+    ).data;
+    expect(frozen).toMatchObject({
+      artifactExecutionId: result.artifactExecutionId,
+      sourceType: 'RVT_EXECUTION',
+    });
     await auth(
-      http().post(`/api/v1/rvt/executions/${execution.id}/render`),
+      http().post(`/api/v1/mobile/field/artifacts/${frozen.id}/render`),
     ).expect(201);
-    expect(await worker.tick()).toBeGreaterThanOrEqual(1);
+    for (let tick = 0; tick < 8; tick += 1) await worker.tick();
     const renderState = await auth(
       http().get(
         `/api/v1/artifact-executions/${result.artifactExecutionId}/render`,
@@ -622,6 +671,11 @@ describe('RVT PR-30.1 closure (e2e)', () => {
     expect(createHash('sha256').update(bytes).digest('hex')).toBe(
       active?.contentHash,
     );
+    await auth(
+      http()
+        .get(`/api/v1/mobile/field/artifacts/${frozen.id}/access`)
+        .query({ operation: 'download' }),
+    ).expect(200);
     const command = await prisma.rvtAdHocCommand.findFirstOrThrow({
       where: { executionId: String(execution.id) },
     });

@@ -12,7 +12,13 @@
  * o 403 é apresentado como ausência de acesso.
  */
 import type { ReactNode } from "react";
-import { CircleOff, Lock, RefreshCw, TriangleAlert } from "lucide-react";
+import {
+  CircleOff,
+  FileQuestion,
+  Lock,
+  RefreshCw,
+  TriangleAlert,
+} from "lucide-react";
 
 import { ChartWrapper } from "@/components/charts/chart-wrapper";
 import { Button } from "@/components/ui/button";
@@ -186,6 +192,7 @@ export function PanelError({
   const apiError = error instanceof ApiError ? error : null;
 
   if (apiError?.isForbidden) return <PanelAccessDenied />;
+  if (apiError?.isNotFound) return <PanelMissing />;
 
   return (
     <div className="flex min-h-24 flex-col items-center justify-center gap-3 text-center">
@@ -195,6 +202,20 @@ export function PanelError({
         <p className="text-xs text-muted-foreground">
           {apiError?.message ?? "Tente novamente em instantes."}
         </p>
+        {/**
+         * A referência que o suporte pede.
+         *
+         * O backend devolve `requestId` em toda resposta de erro e ele
+         * atravessa log, auditoria e fila com o mesmo valor. Mostrá-lo aqui —
+         * discreto, selecionável — transforma "deu erro" em algo rastreável.
+         * Só aparece quando existe: inventar um código atrapalharia mais que
+         * a ausência.
+         */}
+        {apiError?.requestId ? (
+          <p className="pt-1 font-mono text-[11px] text-muted-foreground/70 select-all">
+            Código de referência: {apiError.requestId}
+          </p>
+        ) : null}
       </div>
       {onRetry ? (
         <Button variant="outline" size="sm" onClick={onRetry}>
@@ -202,6 +223,30 @@ export function PanelError({
           Tentar novamente
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Registro ausente — e ausência é só isso.
+ *
+ * O backend responde `Operation with identifier 01a0… was not found`: nome
+ * interno da entidade, em inglês, com o identificador de volta. Serve ao log,
+ * não à tela. E a interface não deve tentar distinguir os três casos que
+ * produzem 404 — não existe, é de outro inquilino, é de outra unidade —,
+ * porque a diferença entre eles é justamente o que o isolamento esconde.
+ *
+ * Uma frase só, em português, para os três.
+ */
+export function PanelMissing({
+  message = "Este registro não está disponível.",
+}: {
+  message?: string;
+}) {
+  return (
+    <div className="flex min-h-24 flex-col items-center justify-center gap-2 text-center">
+      <FileQuestion className="size-5 text-muted-foreground" aria-hidden />
+      <p className="text-sm text-muted-foreground">{message}</p>
     </div>
   );
 }

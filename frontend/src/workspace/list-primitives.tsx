@@ -216,19 +216,29 @@ export function FilterBar({
 export function ResultSummary({
   meta,
   noun,
+  gender = "m",
   note,
   className,
 }: {
   meta: ListMeta | undefined;
   /** Como chamar o que está sendo contado: "ativo", "operação"… */
   noun: string;
+  /**
+   * O gênero do substantivo, para a contagem concordar.
+   *
+   * "Nenhum operação" apareceu na validação em navegador — o texto era montado
+   * com um artigo fixo e metade dos dezoito substantivos usados no produto é
+   * feminina. Adivinhar pela terminação funcionaria para os que existem hoje e
+   * erraria no primeiro "dia" ou "problema"; declarar custa uma palavra.
+   */
+  gender?: "m" | "f";
   note?: ReactNode;
   className?: string;
 }) {
   const text = !meta
     ? "Carregando…"
     : meta.total === 0
-      ? `Nenhum ${noun}`
+      ? `${gender === "f" ? "Nenhuma" : "Nenhum"} ${noun}`
       : `${(meta.page - 1) * meta.limit + 1}–${Math.min(
           meta.page * meta.limit,
           meta.total,
@@ -332,7 +342,12 @@ export function ListState<TItem>({
   error: ApiError | null;
   onRetry?: () => void;
   items: readonly TItem[];
-  empty: { icon?: ReactNode; title: string; description?: string; action?: ReactNode };
+  empty: {
+    icon?: ReactNode;
+    title: string;
+    description?: string;
+    action?: ReactNode;
+  };
   rows?: number;
   children: (items: readonly TItem[]) => ReactNode;
 }) {

@@ -19,6 +19,7 @@ import type {
   CreateOperationInput,
   Operation,
   OperationAttachment,
+  OperationListItem,
   OperationHistoryEntry,
   OperationQuery,
   OperationTimeline,
@@ -37,11 +38,18 @@ const item = (id: string): string => `/operations/${encodeURIComponent(id)}`;
 export const operationsService = {
   basePath: "/operations",
 
+  /**
+   * A listagem devolve linhas, não detalhes.
+   *
+   * `OperationListItem` não tem `transitions` — o backend só publica a máquina
+   * de estados no detalhe. Tipar isto como `Operation` prometia um campo que
+   * nunca chega, e quem consumisse receberia `undefined` em silêncio.
+   */
   list: (
     query?: OperationQuery,
     options?: RequestOptions,
-  ): Promise<PaginatedResult<Operation>> =>
-    apiClient.get<PaginatedResult<Operation>>("/operations", {
+  ): Promise<PaginatedResult<OperationListItem>> =>
+    apiClient.get<PaginatedResult<OperationListItem>>("/operations", {
       ...options,
       query: asParams(query),
     }),

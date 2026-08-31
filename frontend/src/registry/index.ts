@@ -20,3 +20,8 @@ export {
   type AccessContext,
   type AccessRequirement,
 } from "./access";
+export {
+  actionAuthority,
+  availableTransitions,
+  type ActionAuthority,
+} from "./allowed-actions";

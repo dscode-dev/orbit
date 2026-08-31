@@ -84,6 +84,7 @@ export function CatalogWorkspace() {
             <CatalogItemsTab
               kind={ProductKind.PART}
               noun="peça"
+              gender="f"
               emptyTitle="Nenhuma peça cadastrada"
               emptyDescription="Peças de reposição usadas em manutenção. O contrato já as distingue de produtos (`kind: PART`)."
             />

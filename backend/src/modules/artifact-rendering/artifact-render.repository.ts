@@ -55,10 +55,25 @@ export class ArtifactRenderRepository {
           snapshot: true,
           responses: { orderBy: [{ sectionId: 'asc' }, { fieldId: 'asc' }] },
           signatures: { orderBy: { signedAt: 'asc' } },
+          fieldArtifact: true,
+          manifests: {
+            where: { isActive: true, status: 'ISSUED', deletedAt: null },
+            orderBy: { revision: 'desc' },
+            take: 1,
+          },
           pmocEquipmentExecution: {
             include: {
               evidence: {
                 orderBy: { createdAt: 'asc' },
+                include: { storageFile: true },
+              },
+              fieldEvidence: {
+                where: { status: 'FINALIZED' },
+                orderBy: [
+                  { category: 'asc' },
+                  { capturedAt: 'asc' },
+                  { id: 'asc' },
+                ],
                 include: { storageFile: true },
               },
             },
@@ -80,8 +95,45 @@ export class ArtifactRenderRepository {
             },
           })
         : [];
-      return { ...source, signatureAssets };
+      const frozen = this.record(source.fieldArtifact?.snapshot);
+      const frozenEvidence = Array.isArray(frozen.evidence)
+        ? frozen.evidence
+        : [];
+      const frozenSignatures = Array.isArray(frozen.signatures)
+        ? frozen.signatures
+        : [];
+      const frozenAcknowledgement = this.record(frozen.customerAcknowledgement);
+      const fieldAssetIds = [
+        ...frozenEvidence.flatMap((item) => {
+          const id = this.record(item).storageFileId;
+          return typeof id === 'string' ? [id] : [];
+        }),
+        ...frozenSignatures.flatMap((item) => {
+          const id = this.record(item).signatureAssetId;
+          return typeof id === 'string' ? [id] : [];
+        }),
+        ...(typeof frozenAcknowledgement.signatureStorageFileId === 'string'
+          ? [frozenAcknowledgement.signatureStorageFileId]
+          : []),
+      ];
+      const fieldAssets = fieldAssetIds.length
+        ? await tx.storageFile.findMany({
+            where: {
+              organizationId,
+              id: { in: [...new Set(fieldAssetIds)] },
+              status: 'AVAILABLE',
+              deletedAt: null,
+            },
+          })
+        : [];
+      return { ...source, signatureAssets, fieldAssets };
     });
+  }
+
+  private record(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
   }
 
   /**

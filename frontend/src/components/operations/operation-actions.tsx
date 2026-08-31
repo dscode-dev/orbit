@@ -17,17 +17,32 @@
  *
  * ## Transições
  *
- * O menu oferece **todos** os status do literal e deixa o backend recusar o
- * que não vale. Reproduzir aqui a máquina de estados criaria uma segunda
- * verdade que envelheceria na primeira mudança do servidor — a recusa vem com
- * mensagem e é exibida como está.
+ * O detalhe da operação publica `transitions` — a máquina de estados do
+ * servidor, já resolvida para o status atual. É ela que preenche o seletor.
  *
- * ## Permissões
+ * Até a PR-FE-01 o menu oferecia **todos** os status do literal e deixava o
+ * backend recusar. A intenção era não duplicar a máquina de estados, e estava
+ * certa; o que faltava era usar a que o servidor publica. Oferecer destinos
+ * inválidos não é neutralidade — é empurrar para o usuário a descoberta de uma
+ * regra que o contrato já entrega pronta.
  *
- * `operations.update`, `operations.assign`, `operations.status.update` e
- * `operations.delete` são exigidas pelo backend. As ações são escondidas de
- * quem não as tem — não para proteger (o servidor protege), mas para não
- * oferecer o que vai falhar.
+ * A partir da listagem não há `transitions`: o Read Model de lista é compacto
+ * de propósito. O seletor então **busca o detalhe** em vez de cair de volta no
+ * enum completo.
+ *
+ * ## Permissões e ações permitidas
+ *
+ * Duas camadas, e as duas vêm do servidor:
+ *
+ * - a **sessão** diz o que a conta poderia fazer (`operations.update`,
+ *   `operations.assign`, `operations.status.update`, `operations.delete`);
+ * - o **registro** diz o que vale para esta linha, em `allowedActions`.
+ *
+ * A segunda é a que o navegador não teria como calcular: mudar status exige
+ * participar da operação — ser o responsável ou um auxiliar — a menos que a
+ * pessoa gerencie a carteira. Antes desta PR o menu ignorava `allowedActions`,
+ * e um técnico não escalado via "Alterar status", clicava e recebia 403 sem
+ * explicação.
  */
 import { useState } from "react";
 import {
@@ -72,16 +87,19 @@ import {
   useChangeOperationStatus,
   useRemoveOperation,
   useUnassignOperationUser,
+  useOperation,
   useUpdateOperation,
 } from "@/hooks/operations/use-operations";
 import { useOrganizationMembers } from "@/hooks/organization/use-organization";
 import { instantFromZoned, zonedParts } from "@/lib/scheduling";
 import { useSession } from "@/providers/session-provider";
-import { OperationPriority, OperationStatus } from "@/types/contracts";
+import { actionAuthority, availableTransitions } from "@/registry";
+import { OperationPriority } from "@/types/contracts";
 import {
   OPERATION_LIMITS,
   OPERATION_STATUS_LABELS,
   type Operation,
+  type OperationListItem,
 } from "@/types/operations";
 import { operationPriorityLabel } from "./operation-badges";
 
@@ -92,16 +110,32 @@ export function OperationActions({
   timeZone,
   onEdit,
 }: {
-  operation: Operation;
+  /** Linha da listagem ou detalhe — ambos publicam `allowedActions`. */
+  operation: OperationListItem;
   timeZone: string;
   onEdit: () => void;
 }) {
   const session = useSession();
   const [action, setAction] = useState<ActionKind | null>(null);
 
-  const canUpdate = session.hasPermission("operations.update");
-  const canAssign = session.hasPermission("operations.assign");
-  const canChangeStatus = session.hasPermission("operations.status.update");
+  /** O que este registro permite, segundo o servidor. */
+  const authority = actionAuthority(operation.allowedActions);
+
+  /**
+   * Sessão **e** registro.
+   *
+   * A sessão esconde o que a conta nunca poderia fazer; `allowedActions`
+   * esconde o que não vale para esta linha. Excluir não está no contrato de
+   * ações — segue apenas pela permissão, como antes.
+   */
+  const canUpdate =
+    session.hasPermission("operations.update") && authority.permits("EDIT");
+  const canAssign =
+    session.hasPermission("operations.assign") &&
+    authority.permits("MANAGE_ASSIGNMENTS");
+  const canChangeStatus =
+    session.hasPermission("operations.status.update") &&
+    authority.permits("CHANGE_STATUS");
   const canDelete = session.hasPermission("operations.delete");
 
   if (!canUpdate && !canAssign && !canChangeStatus && !canDelete) return null;
@@ -214,7 +248,7 @@ function RescheduleForm({
   timeZone,
   onClose,
 }: {
-  operation: Operation;
+  operation: OperationListItem;
   timeZone: string;
   onClose: () => void;
 }) {
@@ -290,7 +324,7 @@ function PriorityForm({
   operation,
   onClose,
 }: {
-  operation: Operation;
+  operation: OperationListItem;
   onClose: () => void;
 }) {
   const update = useUpdateOperation(operation.id);
@@ -360,7 +394,7 @@ function AssignForm({
   operation,
   onClose,
 }: {
-  operation: Operation;
+  operation: OperationListItem;
   onClose: () => void;
 }) {
   const members = useOrganizationMembers();
@@ -452,38 +486,67 @@ function StatusForm({
   operation,
   onClose,
 }: {
-  operation: Operation;
+  operation: OperationListItem;
   onClose: () => void;
 }) {
   const change = useChangeOperationStatus(operation.id);
   const [status, setStatus] = useState<string>(operation.status);
   const [reason, setReason] = useState("");
 
+  /**
+   * A máquina de estados vem do detalhe.
+   *
+   * Aberto a partir da listagem, o registro em mãos não tem `transitions` — e
+   * a alternativa seria oferecer o enum inteiro, que é justamente o que esta
+   * PR remove. Uma consulta ao detalhe custa menos que um destino inválido
+   * oferecido ao usuário.
+   */
+  const detail = useOperation(operation.id);
+  const transitions = availableTransitions(
+    detail.data?.transitions,
+    operation.status,
+  );
+
   return (
     <>
       <DialogHeader>
         <DialogTitle>Status de {operation.code}</DialogTitle>
         <DialogDescription>
-          Quem valida a transição é o backend. Um destino inválido é recusado
-          com a mensagem do servidor.
+          Os destinos são os que o servidor aceita para o status atual.
         </DialogDescription>
       </DialogHeader>
 
       <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="operation-status">Novo status</Label>
-          <Select value={status} onValueChange={setStatus}>
+          <Select
+            value={status === operation.status ? "" : status}
+            onValueChange={setStatus}
+            disabled={detail.isPending || transitions?.length === 0}
+          >
             <SelectTrigger id="operation-status">
-              <SelectValue />
+              <SelectValue
+                placeholder={
+                  detail.isPending
+                    ? "Carregando destinos…"
+                    : "Selecione o novo status"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
-              {Object.values(OperationStatus).map((value) => (
+              {(transitions ?? []).map((value) => (
                 <SelectItem key={value} value={value}>
                   {OPERATION_STATUS_LABELS[value] ?? value}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {transitions?.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              {OPERATION_STATUS_LABELS[operation.status] ?? operation.status} é
+              um estado final — não há transição disponível.
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-2">
@@ -506,7 +569,12 @@ function StatusForm({
           Cancelar
         </Button>
         <Button
-          disabled={change.isPending || status === operation.status}
+          disabled={
+            change.isPending ||
+            detail.isPending ||
+            status === operation.status ||
+            !transitions?.includes(status as Operation["status"])
+          }
           onClick={() =>
             change.mutate(
               {
@@ -532,7 +600,7 @@ function DeleteForm({
   operation,
   onClose,
 }: {
-  operation: Operation;
+  operation: OperationListItem;
   onClose: () => void;
 }) {
   const remove = useRemoveOperation();

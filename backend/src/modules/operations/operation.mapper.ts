@@ -216,20 +216,32 @@ export class OperationReadModelMapper {
   ): readonly OperationAllowedAction[] {
     if (!actor) return [];
     const permissions = new Set(actor.permissions);
+    /**
+     * `*` concede tudo — como no `PermissionsGuard`.
+     *
+     * O guarda lê a lista de permissões com `granted.includes('*')`; este
+     * mapa lia com igualdade exata. A mesma lista, dois significados no mesmo
+     * código: o dono da organização, cujo papel é `['*']`, passava por toda
+     * rota e recebia `allowedActions: []` — nenhuma ação permitida em nada.
+     *
+     * Não fazia diferença enquanto a interface ignorava o campo. Passou a
+     * fazer na PR-FE-01, que é quem o consome: o usuário mais privilegiado
+     * ficaria sem menu nenhum.
+     */
+    const has = (permission: string): boolean =>
+      permissions.has('*') || permissions.has(permission);
     const participant =
       source.responsibleFieldTechnicianId === actor.id ||
       (source.auxiliaryTechnicians ?? []).some(
         (assignment) => assignment.userId === actor.id,
       );
-    const manager =
-      permissions.has('operations.assign') ||
-      permissions.has('operations.update');
+    const manager = has('operations.assign') || has('operations.update');
     const canExecute = participant || manager;
     const actions: OperationAllowedAction[] = [];
-    if (permissions.has('operations.read')) actions.push('VIEW');
-    if (permissions.has('operations.update')) actions.push('EDIT');
+    if (has('operations.read')) actions.push('VIEW');
+    if (has('operations.update')) actions.push('EDIT');
     if (manager) actions.push('MANAGE_ASSIGNMENTS');
-    if (permissions.has('operations.status.update') && canExecute) {
+    if (has('operations.status.update') && canExecute) {
       actions.push('CHANGE_STATUS');
       if (
         OperationStateMachine.allowedTransitions(source.status).includes(
@@ -238,10 +250,9 @@ export class OperationReadModelMapper {
       )
         actions.push('START');
     }
-    if (permissions.has('operations.attachments.create') && canExecute)
+    if (has('operations.attachments.create') && canExecute)
       actions.push('ADD_EVIDENCE');
-    if (permissions.has('reports.create') && canExecute)
-      actions.push('GENERATE_REPORT');
+    if (has('reports.create') && canExecute) actions.push('GENERATE_REPORT');
     return actions;
   }
 

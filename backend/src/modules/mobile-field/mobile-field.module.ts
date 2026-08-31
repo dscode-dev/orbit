@@ -18,15 +18,26 @@ import { MobileEvidenceController } from './mobile-evidence.controller';
 import { MobileEvidenceRepository } from './mobile-evidence.repository';
 import { MobileEvidenceService } from './mobile-evidence.service';
 import { MobileEvidenceCleanupProcessor } from './mobile-evidence-cleanup.processor';
+import { ArtifactRenderingModule } from '../artifact-rendering/artifact-rendering.module';
+import { ArtifactManifestModule } from '../artifact-manifests/artifact-manifest.module';
+import { MobileFieldArtifactController } from './mobile-field-artifact.controller';
+import { MobileFieldArtifactRepository } from './mobile-field-artifact.repository';
+import { MobileFieldArtifactService } from './mobile-field-artifact.service';
 
 @Module({
-  imports: [PrismaModule, InventoryModule],
+  imports: [
+    PrismaModule,
+    InventoryModule,
+    ArtifactRenderingModule,
+    ArtifactManifestModule,
+  ],
   controllers: [
     MobileFieldController,
     MobileFieldOperationController,
     MobileSignatureController,
     MobileOfflineSyncController,
     MobileEvidenceController,
+    MobileFieldArtifactController,
   ],
   providers: [
     MobileFieldRepository,
@@ -41,6 +52,8 @@ import { MobileEvidenceCleanupProcessor } from './mobile-evidence-cleanup.proces
     MobileEvidenceRepository,
     MobileEvidenceService,
     MobileEvidenceCleanupProcessor,
+    MobileFieldArtifactRepository,
+    MobileFieldArtifactService,
   ],
   exports: [MobileFieldService, MobileFieldOperationService],
 })

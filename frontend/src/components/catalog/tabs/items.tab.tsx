@@ -66,12 +66,15 @@ const STATUS_OPTIONS = optionsFrom(
 export function CatalogItemsTab({
   kind,
   noun,
+  gender,
   emptyTitle,
   emptyDescription,
 }: {
   kind: ProductKind;
   /** Como contar: "produto", "serviço", "peça". */
   noun: string;
+  /** Gênero do substantivo, repassado para a contagem concordar. */
+  gender?: "m" | "f";
   emptyTitle: string;
   emptyDescription: string;
 }) {
@@ -105,6 +108,7 @@ export function CatalogItemsTab({
         <ResultSummary
           meta={meta}
           noun={noun}
+          gender={gender}
           note="Ordenado por nome (ordem definida pelo backend)"
         />
         {create.allowed ? (

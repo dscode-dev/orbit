@@ -15,6 +15,17 @@ const TabsList = React.forwardRef<
     ref={ref}
     className={cn(
       "inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+      /**
+       * A lista rola dentro de si, em vez de empurrar a página.
+       *
+       * `inline-flex` sem limite adota a largura intrínseca das abas: em
+       * Equipe e Configurações isso dava ~920px e, a 768px, o documento
+       * inteiro passava a rolar na horizontal — o shell junto. Rolar aqui
+       * mantém o problema dentro do componente, que é onde ele cabe.
+       *
+       * No desktop nada muda: `max-w-full` só age quando falta espaço.
+       */
+      "max-w-full overflow-x-auto",
       className,
     )}
     {...props}

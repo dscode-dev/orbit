@@ -113,6 +113,7 @@ export function MembersTab() {
         <ResultSummary
           meta={meta}
           noun="pessoa"
+          gender="f"
           note={
             list.isFiltered
               ? "Busca e papel recortam esta página — o endpoint ainda não os aceita."

@@ -114,6 +114,19 @@ export function SessionProvider({
     const roles = authenticated?.roles ?? [];
     const capabilities = authenticated?.entitlements?.capabilities ?? [];
     const wildcard = permissions.includes(WILDCARD_PERMISSION);
+    /**
+     * `*` no plano concede todos os módulos — como no backend.
+     *
+     * `SubscriptionPlanService.assertCapabilitiesOn` libera com
+     * `granted.has('*')`, e `hasPermission` aqui já honrava o curinga. Só
+     * `hasCapability` comparava por igualdade exata: uma organização em plano
+     * `['*']` passava por toda rota do servidor e via **todo módulo** da
+     * interface como "indisponível no plano".
+     *
+     * Encontrado no gate de navegador: com o acesso de teste, `/operacoes` e
+     * as demais telas de módulo renderizavam a tela de plano insuficiente.
+     */
+    const capabilityWildcard = capabilities.includes(WILDCARD_PERMISSION);
     return {
       session,
       user: authenticated?.user ?? null,
@@ -133,7 +146,8 @@ export function SessionProvider({
       hasPermission: (permission: string) =>
         wildcard || permissions.includes(permission),
       hasRole: (role: string) => roles.includes(role),
-      hasCapability: (capability: string) => capabilities.includes(capability),
+      hasCapability: (capability: string) =>
+        capabilityWildcard || capabilities.includes(capability),
       refresh,
       clear,
     };

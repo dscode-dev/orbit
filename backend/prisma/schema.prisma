@@ -1041,6 +1041,7 @@ model ArtifactExecution {
   signatures             ArtifactExecutionSignature[]
   insights               ArtifactExecutionInsight[]
   manifests              ArtifactManifest[]
+  fieldArtifact          FieldArtifact?
   pmocExecution          PmocExecution?
   pmocEquipmentExecution PmocEquipmentExecution?
 
@@ -1051,6 +1052,31 @@ model ArtifactExecution {
   @@index([assetId])
   @@index([responsibleUserId, status])
   @@map("artifact_executions")
+}
+
+/// Projeção documental congelada de uma autoridade operacional de campo.
+/// O renderer consome exclusivamente `snapshot`; `sourceType/sourceId` servem
+/// para autorização e identidade idempotente, nunca para recompor conteúdo.
+model FieldArtifact {
+  id                  String   @id @default(uuid(7)) @db.Uuid
+  organizationId      String   @map("organization_id") @db.Uuid
+  businessUnitId      String   @map("business_unit_id") @db.Uuid
+  sourceType          String   @map("source_type") @db.VarChar(40)
+  sourceId            String   @map("source_id") @db.Uuid
+  documentType        String   @map("document_type") @db.VarChar(40)
+  snapshotVersion     Int      @default(1) @map("snapshot_version")
+  snapshot            Json     @db.JsonB
+  snapshotHash        String   @map("snapshot_hash") @db.Char(64)
+  artifactExecutionId String   @unique @map("artifact_execution_id") @db.Uuid
+  createdById         String   @map("created_by_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  artifactExecution ArtifactExecution @relation(fields: [artifactExecutionId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, sourceType, sourceId, documentType, snapshotVersion])
+  @@index([organizationId, businessUnitId, createdAt])
+  @@index([organizationId, sourceType, sourceId])
+  @@map("field_artifacts")
 }
 
 model ArtifactExecutionTeam {

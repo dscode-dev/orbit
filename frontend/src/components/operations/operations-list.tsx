@@ -47,7 +47,7 @@ import { useAction } from "@/actions";
 import { formatDateTime } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/routes";
-import type { Operation, OperationQuery } from "@/types/operations";
+import type { OperationListItem, OperationQuery } from "@/types/operations";
 import {
   operationKindLabel,
   operationPriorityLabel,
@@ -67,7 +67,7 @@ export function OperationsList() {
   const { timeZone } = useSchedulingTimeZone();
   const list = useListController<OperationQuery>({ limit: 20 });
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [editing, setEditing] = useState<Operation | null>(null);
+  const [editing, setEditing] = useState<OperationListItem | null>(null);
   const [formOpen, setFormOpen] = useState(false);
 
   /** Exigências declaradas no Action Registry, não repetidas aqui. */
@@ -124,7 +124,7 @@ export function OperationsList() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <ResultSummary meta={meta} noun="operação" />
+          <ResultSummary meta={meta} noun="operação" gender="f" />
           {selected.size > 0 ? (
             <Badge variant="secondary">{selected.size} selecionadas</Badge>
           ) : null}
@@ -228,7 +228,7 @@ function OperationRow({
   onToggle,
   onEdit,
 }: {
-  operation: Operation;
+  operation: OperationListItem;
   selected: boolean;
   timeZone: string;
   onToggle: () => void;

@@ -114,7 +114,7 @@ export function DocumentCenter() {
           className="min-w-64 flex-1"
         />
 
-        <ResultSummary meta={meta} noun="execução" />
+        <ResultSummary meta={meta} noun="execução" gender="f" />
       </div>
 
       <ListState

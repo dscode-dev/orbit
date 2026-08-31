@@ -97,6 +97,15 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
       throw new PermanentJobError('Artifact execution no longer exists');
     }
 
+    /**
+     * Crash/retry depois da emissão, mas antes de marcar READY: o manifest já
+     * é a autoridade. Reconciliar o estado evita uma segunda revisão/PDF.
+     */
+    if (source.fieldArtifact && source.manifests.length > 0) {
+      await this.repository.markReady(payload.executionId);
+      return;
+    }
+
     if (job.attempts > 1) {
       this.metrics.recordRetry(
         payload.renderer,
@@ -111,13 +120,34 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
       const renderer = this.renderers.get(payload.renderer);
 
       const evidence = await Promise.all(
-        (source.pmocEquipmentExecution?.evidence ?? []).map(async (item) => ({
+        [
+          ...(source.pmocEquipmentExecution?.evidence ?? []).map((item) => ({
+            id: item.id,
+            kind: item.kind,
+            caption: item.caption,
+            fileName: item.storageFile.fileName,
+            mimeType: item.storageFile.mimeType,
+            sha256: item.storageFile.sha256,
+            storageFile: item.storageFile,
+          })),
+          ...(source.pmocEquipmentExecution?.fieldEvidence ?? []).map(
+            (item) => ({
+              id: item.id,
+              kind: item.category,
+              caption: null,
+              fileName: item.fileName,
+              mimeType: item.mimeType,
+              sha256: item.sha256,
+              storageFile: item.storageFile,
+            }),
+          ),
+        ].map(async (item) => ({
           id: item.id,
           kind: item.kind,
           caption: item.caption,
-          fileName: item.storageFile.fileName,
-          mimeType: item.storageFile.mimeType,
-          sha256: item.storageFile.sha256,
+          fileName: item.fileName,
+          mimeType: item.mimeType,
+          sha256: item.sha256,
           bytes:
             item.storageFile.status === 'AVAILABLE'
               ? await this.storage.get({
@@ -155,15 +185,42 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
         };
       });
 
-      const input = this.assembler.assemble({
-        execution: source,
-        snapshot: source.snapshot,
-        responses: source.responses,
-        signatures,
-        evidence,
-        organizationName: source.organization.displayName,
-        correlationId: job.correlationId,
-      });
+      const fieldAssets = new Map(
+        await Promise.all(
+          source.fieldAssets.map(
+            async (asset) =>
+              [
+                asset.id,
+                {
+                  bytes: await this.storage.get({
+                    bucket: asset.bucket,
+                    objectKey: asset.objectKey,
+                  }),
+                  mimeType: asset.mimeType,
+                  fileName: asset.fileName,
+                },
+              ] as const,
+          ),
+        ),
+      );
+      const input = source.fieldArtifact
+        ? this.assembler.assembleFrozen({
+            execution: source,
+            snapshot: source.snapshot,
+            frozen: source.fieldArtifact.snapshot,
+            assets: fieldAssets,
+            organizationName: source.organization.displayName,
+            correlationId: job.correlationId,
+          })
+        : this.assembler.assemble({
+            execution: source,
+            snapshot: source.snapshot,
+            responses: source.responses,
+            signatures,
+            evidence,
+            organizationName: source.organization.displayName,
+            correlationId: job.correlationId,
+          });
 
       const output = await renderer.render(input);
 

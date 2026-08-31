@@ -141,7 +141,7 @@ export function AutomationRulesPanel({
           />
         </FilterBar>
 
-        <ResultSummary meta={rules.data?.meta} noun="automação" />
+        <ResultSummary meta={rules.data?.meta} noun="automação" gender="f" />
 
         <ListState
           isPending={rules.isPending}

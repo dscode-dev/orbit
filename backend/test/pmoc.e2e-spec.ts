@@ -106,10 +106,10 @@ interface Plan {
 }
 
 const PASSWORD = 'Orbit#Pmoc@2026';
-const MB05_PNG = Buffer.concat([
-  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-  Buffer.from('pmoc-evidence'),
-]);
+const MB05_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
 
 /** `YYYY-MM-DD` de hoje mais N dias — o teste fala em dias, como o domínio. */
 function inDays(days: number): string {

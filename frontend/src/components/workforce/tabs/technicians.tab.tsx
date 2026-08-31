@@ -107,7 +107,7 @@ export function TechniciansTab() {
         />
       </FilterBar>
 
-      <ResultSummary meta={meta} noun="pessoa" />
+      <ResultSummary meta={meta} noun="pessoa" gender="f" />
 
       <ListState
         isPending={members.isPending}

@@ -21,6 +21,7 @@ import type {
   OperationChecklistReadModel,
   OperationDetailsReadModel,
   OperationHistoryReadModel,
+  OperationListItemReadModel,
   OperationTimelineAttachmentReadModel,
   OperationTimelineReadModel,
   OperationUserReadModel,
@@ -36,7 +37,17 @@ export type OperationBusinessUnitRef = OperationBusinessUnitReadModel;
 export type OperationCustomerRef = OperationCustomerReadModel;
 export type OperationAssetRef = OperationAssetReadModel;
 export type OperationChecklistSummary = OperationChecklistReadModel;
+/**
+ * A ordem de serviço como o **detalhe** a publica.
+ *
+ * Só ela traz `transitions`: a listagem é compacta de propósito no backend.
+ * Tipar uma linha de lista como este tipo prometeria uma máquina de estados
+ * que não vem no payload — e foi o que aconteceu até a PR-FE-01.
+ */
 export type Operation = OperationDetailsReadModel;
+
+/** Uma linha da listagem. Traz `allowedActions`, não traz `transitions`. */
+export type OperationListItem = OperationListItemReadModel;
 
 /** Query de `GET /operations` (`OperationQueryDto`). */
 export interface OperationQuery {

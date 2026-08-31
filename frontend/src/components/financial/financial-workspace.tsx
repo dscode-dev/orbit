@@ -66,6 +66,7 @@ export function FinancialWorkspace() {
             <FinancialEntriesTab
               type="INCOME"
               noun="receita"
+              gender="f"
               emptyTitle="Nenhuma receita"
               emptyDescription="Recibos oficialmente emitidos entram aqui sozinhos, já confirmados."
             />
@@ -77,6 +78,7 @@ export function FinancialWorkspace() {
             <FinancialEntriesTab
               type="EXPENSE"
               noun="despesa"
+              gender="f"
               emptyTitle="Nenhuma despesa"
               emptyDescription="Peças, deslocamento, mão de obra — o que sai do caixa é registrado manualmente."
             />

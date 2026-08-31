@@ -153,6 +153,139 @@ export class ArtifactRenderAssembler {
     };
   }
 
+  /**
+   * Monta um documento de campo exclusivamente a partir do snapshot MB-06.
+   * Nenhuma resposta, assinatura ou evidência viva participa deste caminho.
+   */
+  assembleFrozen(source: {
+    execution: AssembleSource['execution'];
+    snapshot: AssembleSource['snapshot'];
+    frozen: unknown;
+    assets: ReadonlyMap<
+      string,
+      { bytes: Buffer; mimeType: string; fileName: string }
+    >;
+    organizationName: string;
+    correlationId: string;
+  }): RenderInput {
+    const frozen = record(source.frozen);
+    const rawSections = Array.isArray(frozen.sections) ? frozen.sections : [];
+    const rawSignatures = Array.isArray(frozen.signatures)
+      ? frozen.signatures
+      : [];
+    const rawEvidence = Array.isArray(frozen.evidence) ? frozen.evidence : [];
+    const sections: RenderSectionInput[] = rawSections.map((raw, index) => {
+      const section = record(raw);
+      const fields = Array.isArray(section.fields) ? section.fields : [];
+      return {
+        id: text(section.id, `secao_${index + 1}`),
+        title: text(section.title, `Seção ${index + 1}`),
+        order: numeric(section.order, index + 1),
+        type: 'FORM',
+        fields: fields.map((item, position) => {
+          const field = record(item);
+          return {
+            id: text(field.id, `campo_${position + 1}`),
+            label: text(field.label, `Campo ${position + 1}`),
+            type: 'TEXT',
+            order: numeric(field.order, position + 1),
+            required: false,
+            hidden: false,
+            value: field.value,
+          };
+        }),
+      };
+    });
+    const signatures: RenderSignatureInput[] = rawSignatures.map(
+      (raw, index) => {
+        const signature = record(raw);
+        const assetId = text(signature.signatureAssetId);
+        const asset = source.assets.get(assetId);
+        const credential = [
+          text(signature.credentialType),
+          text(signature.credentialRegion),
+          text(signature.credentialNumber),
+        ]
+          .filter(Boolean)
+          .join('-');
+        return {
+          slotId: text(signature.slotId, `assinatura_${index + 1}`),
+          label: text(signature.label, 'Assinatura'),
+          signerRole: text(signature.signerRole, 'Signatário'),
+          required: true,
+          order: index + 1,
+          signerName: text(signature.signerName),
+          signedAt: text(signature.signedAt),
+          signatureHash: text(signature.signatureHash),
+          signedAs: text(signature.signedAs),
+          professionalCredential: credential || undefined,
+          signatureImage: asset?.bytes,
+          signatureImageMimeType: asset?.mimeType,
+        };
+      },
+    );
+    const evidence = rawEvidence.map((raw, index) => {
+      const item = record(raw);
+      const asset = source.assets.get(text(item.storageFileId));
+      return {
+        id: text(item.id, `evidencia_${index + 1}`),
+        kind: this.evidenceLabel(text(item.category, 'GENERAL')),
+        caption: this.evidenceLabel(text(item.category, 'GENERAL')),
+        fileName: text(item.fileName, asset?.fileName ?? 'evidencia'),
+        mimeType: text(
+          item.mimeType,
+          asset?.mimeType ?? 'application/octet-stream',
+        ),
+        sha256: text(item.sha256) || null,
+        bytes: asset?.bytes,
+      };
+    });
+    return {
+      execution: {
+        id: source.execution.id,
+        code: source.execution.code,
+        title: source.execution.title,
+        status: source.execution.status,
+        startedAt: source.execution.startedAt?.toISOString() ?? null,
+        completedAt: source.execution.completedAt?.toISOString() ?? null,
+      },
+      snapshot: {
+        id: source.snapshot.id,
+        templateKey: source.snapshot.templateKey,
+        templateName: source.snapshot.templateName,
+        templateVersion: source.snapshot.templateVersion,
+        artifactType: source.snapshot.artifactType,
+        structureHash: source.snapshot.structureHash,
+      },
+      sections,
+      signatures,
+      evidence,
+      branding: this.branding(source.snapshot.layout, source.organizationName),
+      layout: record(source.snapshot.layout),
+      metadata: {
+        ...record(source.snapshot.metadata),
+        fieldSnapshotHash: text(frozen.snapshotHash),
+      },
+      correlationId: source.correlationId,
+      generatedAt: new Date(),
+    };
+  }
+
+  private evidenceLabel(category: string): string {
+    return (
+      (
+        {
+          BEFORE: 'Antes do atendimento',
+          AFTER: 'Depois do atendimento',
+          GENERAL: 'Evidência geral',
+          EQUIPMENT: 'Equipamento',
+          DEFECT: 'Defeito constatado',
+          MEASUREMENT: 'Medição',
+        } as Record<string, string>
+      )[category] ?? 'Evidência'
+    );
+  }
+
   private sections(
     raw: unknown,
     answers: ReadonlyMap<string, AssembleSource['responses'][number]>,

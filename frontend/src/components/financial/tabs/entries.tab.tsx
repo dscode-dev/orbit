@@ -80,10 +80,7 @@ const STATUS_OPTIONS = optionsFrom(
   FINANCIAL_STATUS_LABELS,
 );
 
-const TYPE_OPTIONS = optionsFrom(
-  ["INCOME", "EXPENSE"],
-  FINANCIAL_TYPE_LABELS,
-);
+const TYPE_OPTIONS = optionsFrom(["INCOME", "EXPENSE"], FINANCIAL_TYPE_LABELS);
 
 const SOURCE_OPTIONS = optionsFrom(
   ["MANUAL", "RECEIPT", "QUOTE", "SYSTEM"],
@@ -94,11 +91,14 @@ export function FinancialEntriesTab({
   /** Fixa o lado. `undefined` na aba geral, onde o usuário escolhe. */
   type,
   noun,
+  gender,
   emptyTitle,
   emptyDescription,
 }: {
   type?: FinancialEntryType;
   noun: string;
+  /** Gênero do substantivo, repassado para a contagem concordar. */
+  gender?: "m" | "f";
   emptyTitle: string;
   emptyDescription: string;
 }) {
@@ -136,6 +136,7 @@ export function FinancialEntriesTab({
         <ResultSummary
           meta={meta}
           noun={noun}
+          gender={gender}
           note="Ordenado por competência, do mais recente"
         />
         {create.allowed ? (
@@ -172,10 +173,7 @@ export function FinancialEntriesTab({
           label="Situação"
           value={list.query.status}
           onChange={(value) =>
-            list.setFilter(
-              "status",
-              value as FinancialEntryQuery["status"],
-            )
+            list.setFilter("status", value as FinancialEntryQuery["status"])
           }
           options={STATUS_OPTIONS}
           disabled={list.query.overdue === true}
@@ -281,8 +279,7 @@ export function FinancialEntriesTab({
                     }
                     onCancel={() => setCancelling(entry)}
                     isConfirming={
-                      confirm.isPending &&
-                      confirm.variables?.id === entry.id
+                      confirm.isPending && confirm.variables?.id === entry.id
                     }
                   />
                 ))}

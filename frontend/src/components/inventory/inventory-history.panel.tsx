@@ -100,6 +100,7 @@ export function InventoryHistoryPanel({
       <ResultSummary
         meta={meta}
         noun="movimentação"
+        gender="f"
         note="Do mais recente. O histórico não é editável."
       />
 

@@ -63,7 +63,7 @@ import { OperationKind, OperationPriority } from "@/types/contracts";
 import {
   OPERATION_LIMITS,
   type CreateOperationInput,
-  type Operation,
+  type OperationListItem,
 } from "@/types/operations";
 import { operationKindLabel, operationPriorityLabel } from "./operation-badges";
 
@@ -88,7 +88,7 @@ export function OperationFormDialog({
 }: {
   open: boolean;
   /** Operação em edição, ou `null` para criação. */
-  editing: Operation | null;
+  editing: OperationListItem | null;
   timeZone: string;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -112,7 +112,7 @@ function OperationForm({
   timeZone,
   onClose,
 }: {
-  editing: Operation | null;
+  editing: OperationListItem | null;
   timeZone: string;
   onClose: () => void;
 }) {
@@ -362,7 +362,7 @@ function toInstant(local: string, timeZone: string): string | undefined {
 }
 
 function initialState(
-  editing: Operation | null,
+  editing: OperationListItem | null,
   activeUnitId: string | null,
   units: readonly { id: string; isPrimary: boolean }[],
   timeZone: string,
