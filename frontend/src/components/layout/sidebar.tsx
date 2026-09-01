@@ -76,6 +76,7 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
       fromEntity("operation"),
       fromEntity("artifact-execution"),
       fromEntity("pmoc-plan"),
+      fromEntity("rvt-configuration"),
       { label: "Documentos", icon: FileStack, to: ROUTES.documents },
       /**
        * Relatórios gerenciais, e não os documentos de campo.

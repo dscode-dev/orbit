@@ -15,6 +15,8 @@ export const ROUTES = {
   dashboard: "/dashboard",
   operations: "/operacoes",
   pmoc: "/pmoc",
+  /** RVT — visitas técnicas: configuração, ocorrências e execução. */
+  rvt: "/rvt",
   /** Artifact Studio — configuração dos Artifact Templates. */
   artifacts: "/artefatos",
   /** Artifact Execution Workspace — execução e acompanhamento. */

@@ -33,6 +33,7 @@ import {
   LayoutTemplate,
   PackageSearch,
   ReceiptText,
+  Route,
   UsersRound,
   Wallet,
   Workflow,
@@ -44,6 +45,7 @@ import {
 import { createRegistry } from "@/registry";
 import { ROUTES } from "@/lib/routes";
 import { PLAN_STATUS } from "@/registry/pmoc";
+import { CONFIGURATION_STATUS } from "@/registry/rvt";
 import { OPERATION_STATUS_LABELS } from "@/types/operations";
 import { ARTIFACT_EXECUTION_STATUS_LABELS } from "@/components/artifact-executions/execution-badges";
 import { SCHEDULING_STATUS_LABELS } from "@/components/scheduling/event-badges";
@@ -89,6 +91,7 @@ export const ENTITY_IDS = [
   "financial-entry",
   "quote",
   "pmoc-plan",
+  "rvt-configuration",
 ] as const;
 export type EntityId = (typeof ENTITY_IDS)[number];
 
@@ -155,6 +158,26 @@ const PMOC_PLAN_STATUS_CLASSES: Readonly<Record<string, string>> = {
   ACTIVE: "bg-emerald-500/15 text-emerald-400",
   SUSPENDED: "bg-amber-500/15 text-amber-400",
   EXPIRED: "bg-surface-strong text-muted-foreground",
+  CANCELLED: "bg-surface-strong text-muted-foreground",
+};
+
+/**
+ * A situação da **configuração** de RVT — não a da visita.
+ *
+ * "Inativa" é ausência de novas visitas, não erro: o histórico continua lá.
+ * Por isso o cinza, e não o âmbar.
+ */
+const RVT_STATUS_LABELS: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(CONFIGURATION_STATUS).map(([status, presentation]) => [
+    status,
+    presentation.label,
+  ]),
+);
+
+const RVT_STATUS_CLASSES: Readonly<Record<string, string>> = {
+  ACTIVE: "bg-emerald-500/15 text-emerald-400",
+  INACTIVE: "bg-surface-strong text-muted-foreground",
+  COMPLETED: "bg-surface-strong text-muted-foreground",
   CANCELLED: "bg-surface-strong text-muted-foreground",
 };
 
@@ -274,6 +297,39 @@ const DEFINITIONS: readonly EntityDefinition[] = [
       },
     },
     href: (id) => `${ROUTES.pmoc}/${id}`,
+  },
+  {
+    /**
+     * A **configuração** da visita técnica, não a visita.
+     *
+     * A entrada leva à regra: cliente, local, periodicidade e procedimento.
+     * Ocorrências e execuções vivem dentro dela — não como itens paralelos de
+     * menu, porque não é assim que a operação as procura. E RVT não é uma
+     * Operation com outro tipo: a Operation que aparece durante a visita é
+     * projeção operacional, não a entidade principal.
+     */
+    id: "rvt-configuration",
+    label: "RVT",
+    labelPlural: "RVT",
+    description:
+      "Visitas técnicas: periodicidade, local, procedimento e responsável técnico.",
+    icon: Route,
+    color: "text-sky-400",
+    basePath: ROUTES.rvt,
+    capability: { read: "rvt.read", manage: "rvt.manage" },
+    permissions: {
+      read: "rvt.read",
+      create: "rvt.manage",
+      update: "rvt.manage",
+    },
+    badges: {
+      status: {
+        label: "Situação",
+        labels: RVT_STATUS_LABELS,
+        classes: RVT_STATUS_CLASSES,
+      },
+    },
+    href: (id) => `${ROUTES.rvt}/${id}`,
   },
   {
     id: "scheduling-event",
