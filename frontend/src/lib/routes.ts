@@ -17,6 +17,13 @@ export const ROUTES = {
   pmoc: "/pmoc",
   /** RVT — visitas técnicas: configuração, ocorrências e execução. */
   rvt: "/rvt",
+  /**
+   * Resolução de etiqueta QR.
+   *
+   * O caminho é ditado pelo backend: o payload gravado no código é
+   * `<origem>/q/<token>`. Mudá-lo aqui invalidaria toda etiqueta já impressa.
+   */
+  qr: "/q",
   /** Artifact Studio — configuração dos Artifact Templates. */
   artifacts: "/artefatos",
   /** Artifact Execution Workspace — execução e acompanhamento. */
@@ -80,6 +87,16 @@ export const PROTECTED_PREFIXES: readonly string[] = [
   ROUTES.organization,
   ROUTES.customers,
   ROUTES.notifications,
+  ROUTES.pmoc,
+  ROUTES.rvt,
+  /**
+   * Ler a etiqueta não dispensa a sessão.
+   *
+   * `GET /assets/qr/:token` exige `assets.read`, então a rota que a consome é
+   * protegida como qualquer outra — deixá-la aberta "para facilitar o scan"
+   * criaria uma porta pública para o contexto de um equipamento.
+   */
+  ROUTES.qr,
 ];
 
 /** Áreas exclusivas do Platform Administrator. */

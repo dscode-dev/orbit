@@ -80,16 +80,38 @@ interface FormState {
   assetId: string;
 }
 
+/**
+ * Contexto que já se conhece antes de abrir o formulário.
+ *
+ * Existe para a entrada por etiqueta QR: o servidor prepara o atendimento
+ * (`GET /assets/:id/service-order-preparation`) e devolve equipamento, cliente
+ * e unidade. Preencher **não** é criar — o formulário abre como qualquer
+ * outro, e a criação continua dependendo de alguém confirmar.
+ *
+ * Os rótulos acompanham os identificadores porque os seletores mostram nome, e
+ * sem eles o campo apareceria preenchido com um UUID.
+ */
+export interface OperationPrefill {
+  readonly businessUnitId?: string;
+  readonly customerId?: string;
+  readonly assetId?: string;
+  readonly title?: string;
+  readonly customerLabel?: string;
+  readonly assetLabel?: string;
+}
+
 export function OperationFormDialog({
   open,
   editing,
   timeZone,
+  prefill,
   onOpenChange,
 }: {
   open: boolean;
   /** Operação em edição, ou `null` para criação. */
   editing: OperationListItem | null;
   timeZone: string;
+  prefill?: OperationPrefill;
   onOpenChange: (open: boolean) => void;
 }) {
   return (
@@ -99,6 +121,7 @@ export function OperationFormDialog({
           <OperationForm
             editing={editing}
             timeZone={timeZone}
+            prefill={prefill}
             onClose={() => onOpenChange(false)}
           />
         ) : null}
@@ -110,10 +133,12 @@ export function OperationFormDialog({
 function OperationForm({
   editing,
   timeZone,
+  prefill,
   onClose,
 }: {
   editing: OperationListItem | null;
   timeZone: string;
+  prefill?: OperationPrefill;
   onClose: () => void;
 }) {
   const session = useSession();
@@ -123,15 +148,21 @@ function OperationForm({
   const mutation = editing ? update : create;
 
   const [form, setForm] = useState<FormState>(() =>
-    initialState(editing, businessUnitId, session.businessUnits, timeZone),
+    initialState(
+      editing,
+      businessUnitId,
+      session.businessUnits,
+      timeZone,
+      prefill,
+    ),
   );
   const [labels, setLabels] = useState<{ customer?: string; asset?: string }>(
     () => ({
       customer:
         editing?.customer?.tradeName ??
         editing?.customer?.legalName ??
-        undefined,
-      asset: editing?.asset?.name ?? undefined,
+        prefill?.customerLabel,
+      asset: editing?.asset?.name ?? prefill?.assetLabel,
     }),
   );
 
@@ -366,6 +397,7 @@ function initialState(
   activeUnitId: string | null,
   units: readonly { id: string; isPrimary: boolean }[],
   timeZone: string,
+  prefill?: OperationPrefill,
 ): FormState {
   if (editing) {
     return {
@@ -389,16 +421,23 @@ function initialState(
     "";
 
   return {
-    businessUnitId: fallbackUnit,
+    businessUnitId: prefill?.businessUnitId || fallbackUnit,
     code: suggestedCode(),
     kind: OperationKind.MAINTENANCE,
-    title: "",
+    title: prefill?.title ?? "",
     description: "",
     priority: OperationPriority.NORMAL,
+    /**
+     * Data em branco de propósito.
+     *
+     * A preparação sabe **o que** será atendido, não **quando**. Sugerir
+     * "agora" faria a etiqueta parecer um comando de início — exatamente o que
+     * o domínio recusa.
+     */
     startLocal: "",
     endLocal: "",
-    customerId: "",
-    assetId: "",
+    customerId: prefill?.customerId ?? "",
+    assetId: prefill?.assetId ?? "",
   };
 }
 
