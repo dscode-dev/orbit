@@ -134,6 +134,26 @@ const _mirrors = <_Mirror>[
         'src/modules/organizations/business-units/equipaments/equipment-qr.read-models.ts',
     dart: 'lib/core/contracts/equipment_qr_contracts.dart',
   ),
+  _Mirror(
+    readModel: 'OfflineCommandResultReadModel',
+    source: 'src/modules/mobile-field/mobile-offline-sync.read-models.ts',
+    dart: 'lib/core/contracts/mobile_offline_sync_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'MobileSyncPushResponseReadModel',
+    source: 'src/modules/mobile-field/mobile-offline-sync.read-models.ts',
+    dart: 'lib/core/contracts/mobile_offline_sync_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'MobileSyncPullResponseReadModel',
+    source: 'src/modules/mobile-field/mobile-offline-sync.read-models.ts',
+    dart: 'lib/core/contracts/mobile_offline_sync_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'FieldPackageReadModel',
+    source: 'src/modules/mobile-field/mobile-offline-sync.read-models.ts',
+    dart: 'lib/core/contracts/mobile_offline_sync_contracts.dart',
+  ),
 ];
 
 void main() {

@@ -300,3 +300,72 @@ const signatureBlockedReasonLabels = <String, String>{
 
 String? signatureBlockedReasonLabel(String? code) =>
     code == null ? null : signatureBlockedReasonLabels[code];
+
+/// O que cada intenção pendente é, em português.
+///
+/// A tela de sincronização é lida por quem fez o trabalho, não por quem
+/// escreveu o protocolo: `OPERATION_ADD_MATERIAL` não diz nada a essa pessoa.
+const pendingCommandLabels = <String, String>{
+  'OPERATION_START': 'Início do atendimento',
+  'OPERATION_CHECKLIST_UPDATE': 'Checklist atualizado',
+  'OPERATION_ADD_NOTE': 'Observação registrada',
+  'OPERATION_ADD_MATERIAL': 'Material registrado',
+  'OPERATION_COMPLETE': 'Conclusão do atendimento',
+  'CUSTOMER_ACKNOWLEDGEMENT': 'Ciência do cliente',
+};
+
+String pendingCommandLabel(String commandType) =>
+    pendingCommandLabels[commandType] ?? 'Ação registrada';
+
+/// Por que o servidor recusou reconciliar.
+///
+/// Cada frase diz o que aconteceu **e** o que fazer. "VERSION_CONFLICT" não é
+/// nenhuma das duas coisas.
+const syncConflictLabels = <String, String>{
+  'VERSION_CONFLICT':
+      'O atendimento mudou enquanto você estava sem conexão. Atualize e '
+      'registre de novo.',
+  'STATE_CONFLICT':
+      'O atendimento já não está na situação que esta ação exige.',
+  'AUTHORIZATION_CHANGED':
+      'Você não tem mais permissão para esta ação neste atendimento.',
+  'ASSIGNMENT_CHANGED': 'Este atendimento não está mais atribuído a você.',
+  'RESOURCE_REMOVED': 'Este atendimento não está mais disponível.',
+  'CHECKLIST_CHANGED':
+      'O checklist mudou depois que você respondeu. Confira antes de '
+      'registrar de novo.',
+  'MATERIAL_STOCK_CONFLICT': 'O estoque não comporta a quantidade registrada.',
+  'ACKNOWLEDGEMENT_STALE':
+      'O atendimento mudou depois do aceite. Colete a ciência novamente.',
+  'IDEMPOTENCY_MISMATCH':
+      'Não foi possível confirmar esta ação. Registre novamente.',
+};
+
+/// Recusas terminais que não são conflito.
+const syncRejectionLabels = <String, String>{
+  'OFFLINE_REPLAY_WINDOW_EXPIRED':
+      'Esta ação ficou tempo demais sem sincronizar e não pode mais ser '
+      'enviada.',
+  'AUTHORIZATION_CHANGED':
+      'Você não tem mais permissão para esta ação neste atendimento.',
+  'RESOURCE_REMOVED': 'Este atendimento não está mais disponível.',
+  'INVALID_COMMAND': 'O servidor não aceitou esta ação.',
+  'DEPENDENCY_BLOCKED': 'Uma ação anterior deste atendimento não foi aplicada.',
+};
+
+/// A frase de um comando parado — conflito ou recusa, com fallback neutro.
+///
+/// Um código novo no servidor não pode virar tela em branco nem código cru: a
+/// pessoa precisa saber que aquilo não foi, mesmo sem o motivo exato.
+String syncBlockedLabel({String? conflictCode, String? errorCode}) =>
+    syncConflictLabels[conflictCode] ??
+    syncRejectionLabels[errorCode] ??
+    'Não foi possível sincronizar esta ação.';
+
+/// Estados da sincronização, para o indicador do shell.
+const syncPhaseLabels = <String, String>{
+  'idle': 'Tudo sincronizado',
+  'syncing': 'Sincronizando…',
+  'offline': 'Sem conexão',
+  'error': 'Falha ao sincronizar',
+};

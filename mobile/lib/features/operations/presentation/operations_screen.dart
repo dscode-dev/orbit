@@ -131,7 +131,8 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
                       padding: const EdgeInsets.all(OrbitSpacing.md),
                       children: const [
                         SectionEmpty(
-                          message: 'Nenhuma operação encontrada com estes filtros.',
+                          message:
+                              'Nenhuma operação encontrada com estes filtros.',
                         ),
                       ],
                     );
@@ -153,7 +154,9 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
                       ),
                       for (final operation in page.data)
                         Card(
-                          margin: const EdgeInsets.only(bottom: OrbitSpacing.sm),
+                          margin: const EdgeInsets.only(
+                            bottom: OrbitSpacing.sm,
+                          ),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: OrbitSpacing.md,

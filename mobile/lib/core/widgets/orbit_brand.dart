@@ -31,7 +31,11 @@ class OrbitSymbol extends StatelessWidget {
 
 /// Símbolo + nome, usado na autenticação e no perfil.
 class OrbitWordmark extends StatelessWidget {
-  const OrbitWordmark({super.key, this.symbolSize = 64, this.showTagline = true});
+  const OrbitWordmark({
+    super.key,
+    this.symbolSize = 64,
+    this.showTagline = true,
+  });
 
   final double symbolSize;
   final bool showTagline;

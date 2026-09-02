@@ -14,6 +14,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/routing/orbit_router.dart';
 import '../../../core/theme/orbit_theme.dart';
+import '../../sync/application/sync_providers.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../authentication/domain/session.dart';
 
@@ -26,6 +27,7 @@ class ProfileScreen extends ConsumerWidget {
     if (session == null) return const SizedBox.shrink();
 
     final units = session.organization?.businessUnits ?? const [];
+    final sync = ref.watch(syncControllerProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Perfil')),
@@ -128,6 +130,42 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
 
+          /// A fila local tem endereço fixo, e não só a faixa que aparece
+          /// quando há pendência: quem quer conferir se o trabalho subiu
+          /// precisa de um lugar para olhar, mesmo quando está tudo em ordem.
+          SectionCard(
+            title: 'Sincronização',
+            subtitle: 'O que ainda não chegou ao servidor',
+            child: ListTile(
+              onTap: () => context.push(OrbitRoutes.syncCenter),
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                sync.needsAttention
+                    ? Icons.error_outline
+                    : sync.pending > 0
+                    ? Icons.cloud_queue
+                    : Icons.cloud_done_outlined,
+                color: sync.needsAttention
+                    ? OrbitColors.danger
+                    : sync.pending > 0
+                    ? OrbitColors.warning
+                    : OrbitColors.success,
+              ),
+              title: const Text(
+                'Ações pendentes',
+                style: TextStyle(fontSize: 14),
+              ),
+              subtitle: Text(
+                sync.hasWork
+                    ? '${sync.pending + sync.conflicts + sync.rejected + sync.expired} '
+                          'ação(ões) neste aparelho'
+                    : 'Nada pendente',
+                style: const TextStyle(fontSize: 12),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+            ),
+          ),
+
           if (units.length > 1)
             SectionCard(
               title: 'Unidade ativa',
@@ -196,7 +234,7 @@ class ProfileScreen extends ConsumerWidget {
 
           OutlinedButton.icon(
             key: const Key('profile.logout'),
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
+            onPressed: () => _logout(context, ref),
             icon: const Icon(Icons.logout),
             label: const Text('Sair da conta'),
             style: OutlinedButton.styleFrom(
@@ -238,4 +276,47 @@ class _Row extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Sair da conta, sem levar o trabalho de ninguém junto.
+///
+/// Duas decisões distintas:
+///
+/// - **A projeção do servidor é apagada.** O próprio pacote de campo vem
+///   marcado `purgeOnLogout: true`, e ele carrega nome de cliente, endereço e
+///   histórico. Isso não fica num aparelho depois que a pessoa sai dele.
+/// - **A fila de comandos permanece.** Apagá-la seria destruir o registro de um
+///   trabalho que aconteceu de verdade só porque alguém tocou "Sair" antes de
+///   pegar sinal. Ela fica presa ao escopo de quem a criou, então o próximo a
+///   entrar não a vê nem a envia.
+Future<void> _logout(BuildContext context, WidgetRef ref) async {
+  final sync = ref.read(syncControllerProvider);
+  if (sync.hasWork) {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sair com ações não sincronizadas?'),
+        content: Text(
+          '${sync.pending + sync.conflicts + sync.rejected + sync.expired} '
+          'ação(ões) ainda não chegaram ao servidor. Elas ficam guardadas '
+          'neste aparelho e serão enviadas quando você entrar de novo com '
+          'esta mesma conta.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Continuar conectado'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sair mesmo assim'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+  }
+
+  await ref.read(syncProjectionProvider).clear();
+  await ref.read(authControllerProvider.notifier).logout();
 }

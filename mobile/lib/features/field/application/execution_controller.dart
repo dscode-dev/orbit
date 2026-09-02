@@ -6,6 +6,15 @@
 /// completo o bastante. Nada disso é calculado aqui — `allowedActions` chega
 /// pronto e é a única fonte do que a tela oferece.
 ///
+/// ## Um caminho só, com ou sem rede
+///
+/// Toda ação vira uma **intenção persistida** antes de qualquer requisição, e
+/// só então se tenta sincronizar. Com rede, isso acontece no mesmo toque e o
+/// usuário vê o estado confirmado; sem rede, a intenção fica guardada e a tela
+/// diz que está aguardando. Não há um caminho online e outro offline — dois
+/// caminhos divergem com o tempo, e a divergência aparece justamente no caso
+/// raro, que é o caso em que alguém está sem conexão.
+///
 /// ## Concorrência e repetição
 ///
 /// Dois problemas diferentes, duas defesas diferentes:
@@ -25,6 +34,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/contracts/field_operation_contracts.dart';
 import '../../../core/errors/orbit_exception.dart';
+import '../../../core/contracts/mobile_offline_sync_contracts.dart';
+import '../../sync/application/sync_providers.dart';
+import '../../sync/application/sync_controller.dart';
+import '../../sync/data/command_journal.dart';
 import '../data/field_operation_repository.dart';
 
 final fieldOperationRepositoryProvider = Provider<FieldOperationRepository>(
@@ -45,6 +58,7 @@ class ExecutionState {
     this.error,
     this.pendingAction,
     this.lastReplay = false,
+    this.pendingCommands = const [],
   });
 
   final ExecutionPhase phase;
@@ -56,6 +70,23 @@ class ExecutionState {
 
   /// O último comando foi reexecução da mesma intenção, segundo o servidor.
   final bool lastReplay;
+
+  /// Intenções deste atendimento ainda não confirmadas pelo servidor.
+  ///
+  /// A tela as mostra **sobre** o estado confirmado, sempre distinguíveis: um
+  /// checklist marcado offline aparece como "aguardando sincronização", nunca
+  /// como confirmado. Fundir as duas coisas faria o app afirmar algo que só o
+  /// servidor pode afirmar.
+  final List<PendingCommand> pendingCommands;
+
+  /// Há intenção pendente deste tipo?
+  bool isAwaitingSync(OfflineCommandType type) => pendingCommands.any(
+    (value) => value.envelope.commandType == type && !value.isBlocking,
+  );
+
+  /// Intenções paradas esperando decisão da pessoa.
+  List<PendingCommand> get blockedCommands =>
+      pendingCommands.where((value) => value.isBlocking).toList();
 
   bool get isBusy => phase == ExecutionPhase.mutationPending;
 
@@ -72,6 +103,7 @@ class ExecutionState {
     Object? error,
     FieldOperationAllowedAction? pendingAction,
     bool? lastReplay,
+    List<PendingCommand>? pendingCommands,
     bool clearError = false,
     bool clearPending = false,
   }) => ExecutionState(
@@ -80,6 +112,7 @@ class ExecutionState {
     error: clearError ? null : (error ?? this.error),
     pendingAction: clearPending ? null : (pendingAction ?? this.pendingAction),
     lastReplay: lastReplay ?? this.lastReplay,
+    pendingCommands: pendingCommands ?? this.pendingCommands,
   );
 }
 
@@ -110,14 +143,24 @@ String newCommandId([Random? random]) {
 class ExecutionController extends StateNotifier<ExecutionState> {
   ExecutionController({
     required FieldOperationRepository repository,
+    required SyncController sync,
     required this.operationId,
+    this.deviceInstanceId,
   }) : _repository = repository,
+       _sync = sync,
        super(const ExecutionState(phase: ExecutionPhase.loading)) {
     load();
   }
 
   final FieldOperationRepository _repository;
+
+  /// Quem leva as intenções ao servidor. A execução não fala com a rede
+  /// diretamente: ela registra o que a pessoa quis e deixa o sincronismo com
+  /// o único componente que sabe fazer isso.
+  final SyncController _sync;
+
   final String operationId;
+  final String? deviceInstanceId;
 
   /// A intenção em curso, guardada **inteira**.
   ///
@@ -126,10 +169,7 @@ class ExecutionController extends StateNotifier<ExecutionState> {
   /// "Idempotency key reused with a different payload" se só a chave coincidir.
   /// Faz sentido: é a mesma intenção, tomada no mesmo momento, sobre o mesmo
   /// estado.
-  ({
-    FieldOperationAllowedAction action,
-    FieldOperationCommandContract envelope,
-  })?
+  ({FieldOperationAllowedAction action, OfflineCommandEnvelope envelope})?
   _intent;
 
   /// Relê o estado autoritativo. É o que fecha todo comando.
@@ -140,6 +180,7 @@ class ExecutionController extends StateNotifier<ExecutionState> {
         phase: ExecutionPhase.ready,
         preparation: preparation,
         lastReplay: state.lastReplay,
+        pendingCommands: await _sync.commandsFor(operationId),
       );
     } on Object catch (error) {
       state = state.copyWith(phase: ExecutionPhase.error, error: error);
@@ -149,32 +190,45 @@ class ExecutionController extends StateNotifier<ExecutionState> {
   /// O envelope de um comando, com a versão que o usuário viu.
   ///
   /// Mesma intenção repetida reaproveita o envelope **inteiro**; intenção nova
-  /// ganha outro.
-  FieldOperationCommandContract _envelope(FieldOperationAllowedAction action) {
+  /// ganha outro. O servidor calcula um hash sobre tipo, agregado, versão,
+  /// instante e payload, e o compara com o da chave de idempotência — regenerar
+  /// qualquer campo no replay vira `IDEMPOTENCY_MISMATCH`.
+  OfflineCommandEnvelope _envelope(
+    FieldOperationAllowedAction action,
+    OfflineCommandType type,
+    Map<String, Object?> payload,
+  ) {
     final current = _intent;
     if (current != null && current.action == action) return current.envelope;
 
     final commandId = newCommandId();
-    final envelope = FieldOperationCommandContract(
+    final envelope = OfflineCommandEnvelope(
       commandId: commandId,
       idempotencyKey: commandId,
+      commandType: type,
+      aggregateId: operationId,
       expectedVersion: state.preparation?.version ?? '',
       occurredAt: DateTime.now().toUtc(),
+      payload: payload,
+      deviceInstanceId: deviceInstanceId,
     );
     _intent = (action: action, envelope: envelope);
     return envelope;
   }
 
-  /// Executa um comando e relê o estado.
+  /// Registra uma intenção e tenta sincronizá-la.
   ///
-  /// Enquanto está em voo, `phase` é `mutationPending` e a tela desabilita a
-  /// ação — é o que impede o toque duplo de virar dois comandos.
-  Future<void> _run(
+  /// A intenção é persistida **antes** de qualquer requisição. O que vem
+  /// depois — aplicada, pendente ou parada — é lido do journal, não deduzido
+  /// da resposta HTTP: com rede ruim, "não sei se chegou" é um desfecho
+  /// legítimo, e a idempotência é quem o resolve no próximo envio.
+  Future<CommandOutcome?> _run(
     FieldOperationAllowedAction action,
-    Future<void> Function(FieldOperationCommandContract command) send,
+    OfflineCommandType type,
+    Map<String, Object?> payload,
   ) async {
-    if (state.isBusy) return;
-    if (!state.allows(action)) return;
+    if (state.isBusy) return null;
+    if (!state.allows(action)) return null;
 
     state = state.copyWith(
       phase: ExecutionPhase.mutationPending,
@@ -182,48 +236,90 @@ class ExecutionController extends StateNotifier<ExecutionState> {
       clearError: true,
     );
 
+    final envelope = _envelope(action, type, payload);
     try {
-      await send(_envelope(action));
+      await _sync.enqueue(envelope);
+      final outcome = await _sync.outcomeOf(envelope.commandId);
 
-      /// Intenção cumprida: a próxima ganha chave nova.
-      _intent = null;
-      await load();
-      state = state.copyWith(clearPending: true);
-    } on OrbitException catch (error) {
-      /// 409 é estado mudado por baixo — reler é a saída, nunca repetir o
-      /// comando sozinho.
-      state = state.copyWith(
-        phase: error.isConflict
-            ? ExecutionPhase.conflict
-            : ExecutionPhase.error,
-        error: error,
-        clearPending: true,
-      );
+      switch (outcome) {
+        case CommandConfirmed():
+
+          /// Intenção cumprida: a próxima ganha chave nova.
+          _intent = null;
+          await load();
+          state = state.copyWith(
+            clearPending: true,
+            lastReplay:
+                outcome.result.status == OfflineCommandStatus.alreadyApplied,
+          );
+
+        case CommandPendingOutcome():
+
+          /// Guardada, não confirmada. A tela mostra "aguardando
+          /// sincronização" — nunca "concluído".
+          _intent = null;
+          await _refreshPending();
+          state = state.copyWith(
+            phase: ExecutionPhase.ready,
+            clearPending: true,
+          );
+
+        case CommandBlocked():
+          _intent = null;
+          await _refreshPending();
+          state = state.copyWith(
+            phase: outcome.command.state == PendingCommandState.conflict
+                ? ExecutionPhase.conflict
+                : ExecutionPhase.error,
+
+            /// A recusa vem do servidor e é mostrada como veio — o app não
+            /// reescreve o motivo nem tenta de novo sozinho.
+            error: OrbitException(
+              kind: OrbitErrorKind.http,
+              status: outcome.command.state == PendingCommandState.conflict
+                  ? 409
+                  : 422,
+              message: outcome.message,
+              code: outcome.command.receipt?.error?.code ?? 'SYNC_BLOCKED',
+            ),
+            clearPending: true,
+          );
+      }
+      return outcome;
     } on Object catch (error) {
       state = state.copyWith(
         phase: ExecutionPhase.error,
         error: error,
         clearPending: true,
       );
+      return null;
     }
   }
 
-  Future<void> start() =>
-      _run(FieldOperationAllowedAction.start, (command) async {
-        final result = await _repository.start(operationId, command);
-        state = state.copyWith(lastReplay: result.idempotentReplay);
-      });
+  /// Relê as intenções pendentes deste atendimento.
+  Future<void> _refreshPending() async {
+    state = state.copyWith(
+      pendingCommands: await _sync.commandsFor(operationId),
+    );
+  }
 
-  Future<void> complete() =>
-      _run(FieldOperationAllowedAction.complete, (command) async {
-        final result = await _repository.complete(operationId, command);
-        state = state.copyWith(lastReplay: result.idempotentReplay);
-      });
+  Future<void> start() => _run(
+    FieldOperationAllowedAction.start,
+    OfflineCommandType.operationStart,
+    const {},
+  );
 
-  Future<void> addNote(String note) =>
-      _run(FieldOperationAllowedAction.addNote, (command) async {
-        await _repository.addNote(operationId, command, note: note);
-      });
+  Future<void> complete() => _run(
+    FieldOperationAllowedAction.complete,
+    OfflineCommandType.operationComplete,
+    const {},
+  );
+
+  Future<void> addNote(String note) => _run(
+    FieldOperationAllowedAction.addNote,
+    OfflineCommandType.operationAddNote,
+    {'note': note},
+  );
 
   /// Responde um item do checklist.
   ///
@@ -234,43 +330,40 @@ class ExecutionController extends StateNotifier<ExecutionState> {
     required String checklistId,
     required String itemId,
     required Object? answer,
-  }) => _run(FieldOperationAllowedAction.updateChecklist, (command) async {
-    final checklist = state.preparation?.checklist.firstWhere(
-      (entry) => entry.id == checklistId,
-    );
+  }) async {
+    final checklist = state.preparation?.checklist
+        .where((entry) => entry.id == checklistId)
+        .firstOrNull;
     if (checklist == null) return;
 
-    await _repository.updateChecklist(
-      operationId,
-      checklistId,
-      command,
-      answers: {...checklist.answers, itemId: answer},
+    await _run(
+      FieldOperationAllowedAction.updateChecklist,
+      OfflineCommandType.operationChecklistUpdate,
+      {
+        'checklistId': checklistId,
+        'answers': {...checklist.answers, itemId: answer},
+      },
     );
-  });
+  }
 
   /// Registra material e devolve o desfecho a quem chamou.
   ///
-  /// O resultado sai explícito — resultado **ou** erro — porque a folha de
-  /// material precisa mostrar a recusa do servidor no próprio formulário, sem
-  /// espiar o estado interno do controlador.
-  Future<({FieldOperationMaterialResultContract? result, Object? error})>
-  registerMaterial({
+  /// A folha de material precisa mostrar a recusa do servidor no próprio
+  /// formulário — saldo insuficiente volta como conflito, com a mensagem que o
+  /// Inventory produziu.
+  Future<CommandOutcome?> registerMaterial({
     required String catalogItemId,
     required num quantity,
     String? reason,
-  }) async {
-    FieldOperationMaterialResultContract? result;
-    await _run(FieldOperationAllowedAction.registerMaterial, (command) async {
-      result = await _repository.registerMaterial(
-        operationId,
-        command,
-        catalogItemId: catalogItemId,
-        quantity: quantity,
-        reason: reason,
-      );
-    });
-    return (result: result, error: result == null ? state.error : null);
-  }
+  }) => _run(
+    FieldOperationAllowedAction.registerMaterial,
+    OfflineCommandType.operationAddMaterial,
+    {
+      'catalogItemId': catalogItemId,
+      'quantity': quantity,
+      if (reason != null) 'reason': reason,
+    },
+  );
 
   /// Depois de um conflito, o usuário pede para atualizar.
   Future<void> refreshAfterConflict() async {
@@ -284,6 +377,8 @@ final executionControllerProvider = StateNotifierProvider.autoDispose
     .family<ExecutionController, ExecutionState, String>(
       (ref, operationId) => ExecutionController(
         repository: ref.watch(fieldOperationRepositoryProvider),
+        sync: ref.watch(syncControllerProvider.notifier),
+        deviceInstanceId: ref.watch(deviceInstanceIdProvider).valueOrNull,
         operationId: operationId,
       ),
     );

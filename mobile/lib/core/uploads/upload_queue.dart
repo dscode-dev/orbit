@@ -239,10 +239,16 @@ class UploadQueue {
             current.copyWith(status: UploadStatus.completed, progress: 1),
       );
       await _deleteFile(task);
-      _logger.info('evidência enviada', data: {'operationId': task.operationId});
+      _logger.info(
+        'evidência enviada',
+        data: {'operationId': task.operationId},
+      );
     } on Object catch (error) {
       if (signal.isCancelled) {
-        _update(task.id, (current) => current.copyWith(status: UploadStatus.cancelled));
+        _update(
+          task.id,
+          (current) => current.copyWith(status: UploadStatus.cancelled),
+        );
       } else {
         _handleFailure(task, error);
       }

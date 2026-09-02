@@ -169,8 +169,12 @@ class _Queue extends StatelessWidget {
     return ListView.builder(
       controller: scroll,
       padding: const EdgeInsets.all(OrbitSpacing.md),
-      itemCount: state.items.length + 1,
-      itemBuilder: (context, index) {
+
+      /// +1 pelo rodapé, +1 pelo aviso de lista local quando ele existe.
+      itemCount: state.items.length + (state.isOffline ? 2 : 1),
+      itemBuilder: (context, rawIndex) {
+        if (state.isOffline && rawIndex == 0) return const _OfflineNotice();
+        final index = state.isOffline ? rawIndex - 1 : rawIndex;
         if (index == state.items.length) return _Footer(state: state);
 
         final item = state.items[index];
@@ -253,4 +257,38 @@ class _Footer extends ConsumerWidget {
     }
     return const SizedBox(height: OrbitSpacing.lg);
   }
+}
+
+/// A fila veio do aparelho.
+///
+/// Dizer isso importa: uma lista sem aviso passa por atual, e um atendimento
+/// cancelado há uma hora continuaria parecendo trabalho a fazer.
+class _OfflineNotice extends StatelessWidget {
+  const _OfflineNotice();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: OrbitSpacing.sm),
+    padding: const EdgeInsets.all(OrbitSpacing.sm),
+    decoration: BoxDecoration(
+      color: OrbitColors.warning.withValues(alpha: 0.12),
+      borderRadius: OrbitRadius.card,
+    ),
+    child: Row(
+      children: [
+        const Icon(
+          Icons.cloud_off_outlined,
+          size: 16,
+          color: OrbitColors.warning,
+        ),
+        const SizedBox(width: OrbitSpacing.sm),
+        const Expanded(
+          child: Text(
+            'Sem conexão. Esta é a última lista recebida do servidor.',
+            style: TextStyle(fontSize: 12, color: OrbitColors.warning),
+          ),
+        ),
+      ],
+    ),
+  );
 }

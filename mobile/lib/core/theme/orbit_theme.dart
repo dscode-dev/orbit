@@ -116,7 +116,10 @@ abstract final class OrbitTheme {
           borderSide: BorderSide(color: OrbitColors.brand, width: 1.6),
         ),
         labelStyle: const TextStyle(color: OrbitColors.textSecondary),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 18,
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(

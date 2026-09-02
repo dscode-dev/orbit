@@ -13,8 +13,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/providers.dart';
 import '../../../../core/errors/orbit_exception.dart';
-import '../../../../core/presentation/field_registry.dart';
 import '../../../../core/theme/orbit_theme.dart';
+import '../../../sync/application/sync_controller.dart';
 import '../../application/execution_controller.dart';
 
 /// Um item do catálogo, no mínimo que a escolha exige.
@@ -110,12 +110,8 @@ class _MaterialSheetState extends ConsumerState<_MaterialSheet> {
 
       /// A recusa do servidor — saldo insuficiente, por exemplo — é mostrada
       /// como veio. O app não ajusta a quantidade sozinho.
-      if (outcome.error case final OrbitException error) {
-        if (mounted) {
-          setState(
-            () => _failure = errorCodeLabel(error.code) ?? error.message,
-          );
-        }
+      if (outcome is CommandBlocked) {
+        if (mounted) setState(() => _failure = outcome.message);
         return;
       }
       if (mounted) Navigator.of(context).pop();

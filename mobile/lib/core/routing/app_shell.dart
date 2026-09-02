@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../features/authentication/domain/session.dart';
+import '../../features/sync/presentation/widgets/sync_status_bar.dart';
 import '../widgets/sync_indicator.dart';
 import 'orbit_router.dart';
 
@@ -66,6 +67,7 @@ class AppShell extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Estado da fila de evidências, sempre visível durante o trabalho.
+          const SyncStatusBar(),
           const SyncIndicator(),
           NavigationBar(
             selectedIndex: index < 0 ? 0 : index,

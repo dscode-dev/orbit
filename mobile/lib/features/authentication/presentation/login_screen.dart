@@ -140,10 +140,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ? Icons.visibility_outlined
                                   : Icons.visibility_off_outlined,
                             ),
-                            tooltip: _obscure ? 'Mostrar senha' : 'Ocultar senha',
+                            tooltip: _obscure
+                                ? 'Mostrar senha'
+                                : 'Ocultar senha',
                           ),
                         ),
-                        validator: (value) => (value == null || value.length < 8)
+                        validator: (value) =>
+                            (value == null || value.length < 8)
                             ? 'A senha tem no mínimo 8 caracteres'
                             : null,
                       ),

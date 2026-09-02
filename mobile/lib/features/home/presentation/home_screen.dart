@@ -119,8 +119,8 @@ class _Greeting extends StatelessWidget {
     final greeting = hour < 12
         ? 'Bom dia'
         : hour < 18
-            ? 'Boa tarde'
-            : 'Boa noite';
+        ? 'Boa tarde'
+        : 'Boa noite';
     return Text(
       '$greeting, ${name.split(' ').first}',
       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
@@ -149,7 +149,8 @@ class _OwnerIndicators extends ConsumerWidget {
           if (data == null) {
             return const SectionEmpty(
               icon: Icons.insights_outlined,
-              message: 'O plano da organização não inclui o módulo de análises.',
+              message:
+                  'O plano da organização não inclui o módulo de análises.',
             );
           }
           final metrics = data.metrics.take(4).toList();
@@ -326,9 +327,8 @@ class _UpcomingOperations extends ConsumerWidget {
               for (final operation in operations)
                 OperationTile(
                   operation: operation,
-                  onTap: () => context.push(
-                    OrbitRoutes.operationDetail(operation.id),
-                  ),
+                  onTap: () =>
+                      context.push(OrbitRoutes.operationDetail(operation.id)),
                 ),
             ],
           );

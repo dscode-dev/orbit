@@ -317,7 +317,9 @@ class Operation {
       kind: json['kind'] as String? ?? '',
       priority: json['priority'] as String? ?? 'NORMAL',
       description: json['description'] as String?,
-      scheduledStart: DateTime.tryParse(json['scheduledStart'] as String? ?? ''),
+      scheduledStart: DateTime.tryParse(
+        json['scheduledStart'] as String? ?? '',
+      ),
       scheduledEnd: DateTime.tryParse(json['scheduledEnd'] as String? ?? ''),
       startedAt: DateTime.tryParse(json['startedAt'] as String? ?? ''),
       completedAt: DateTime.tryParse(json['completedAt'] as String? ?? ''),
@@ -364,7 +366,8 @@ class Operation {
   final DateTime? updatedAt;
 
   bool get isOpen =>
-      status != OperationStatus.completed && status != OperationStatus.cancelled;
+      status != OperationStatus.completed &&
+      status != OperationStatus.cancelled;
 }
 
 /// Execução de IA (`GET /ai-executions?operationId=`).
@@ -511,11 +514,12 @@ class OperationQuery {
 
   /// Chave estável para cache de leitura.
   String get cacheKey {
-    final entries = toQueryParameters().entries
-        .where((entry) => entry.value != null)
-        .map((entry) => '${entry.key}=${entry.value}')
-        .toList()
-      ..sort();
+    final entries =
+        toQueryParameters().entries
+            .where((entry) => entry.value != null)
+            .map((entry) => '${entry.key}=${entry.value}')
+            .toList()
+          ..sort();
     return 'operations?${entries.join('&')}';
   }
 

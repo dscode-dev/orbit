@@ -22,6 +22,8 @@ import '../../features/field/presentation/work_queue_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/signature/presentation/customer_acknowledgement_screen.dart';
 import '../../features/signature/presentation/my_signature_screen.dart';
+import '../../features/sync/presentation/sync_center_screen.dart';
+import '../../features/sync/presentation/sync_triggers.dart';
 import '../../features/operations/presentation/operation_detail_screen.dart';
 import '../../features/operations/presentation/operations_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
@@ -51,6 +53,9 @@ abstract final class OrbitRoutes {
   /// que os comandos do MB-02 endereçam — não o id composto do item.
   static String operationExecution(String operationId) =>
       '$workQueue/execucao/$operationId';
+
+  /// A fila local: o que ainda não chegou ao servidor.
+  static const syncCenter = '/perfil/sincronizacao';
 
   /// A assinatura profissional pertence ao usuário: mora sob o perfil.
   static const mySignature = '/perfil/assinatura';
@@ -93,8 +98,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const LoginScreen(),
       ),
       ShellRoute(
-        builder: (context, state, child) =>
-            AppShell(location: state.matchedLocation, child: child),
+        /// Os gatilhos vivem no shell: existem enquanto houver sessão, e não
+        /// por tela.
+        builder: (context, state, child) => SyncTriggers(
+          child: AppShell(location: state.matchedLocation, child: child),
+        ),
         routes: [
           GoRoute(
             path: OrbitRoutes.home,
@@ -174,6 +182,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: 'assinatura',
                 parentNavigatorKey: _rootNavigatorKey,
                 builder: (context, state) => const MySignatureScreen(),
+              ),
+              GoRoute(
+                path: 'sincronizacao',
+                parentNavigatorKey: _rootNavigatorKey,
+                builder: (context, state) => const SyncCenterScreen(),
               ),
             ],
           ),

@@ -4,14 +4,23 @@
 /// identities. Mobile clients must use `allowedActions` and
 /// `executionEligibility`; they never rebuild authorization locally.
 enum RvtVisitType { weekly, semiannual }
+
 enum RvtScheduleMode { recurring, oneTime }
+
 enum RvtDueState { upcoming, dueToday, overdue }
 
 class RvtOccurrenceContract {
-  const RvtOccurrenceContract({required this.id, required this.configurationId,
-    required this.sequenceNumber, required this.sequence, required this.status,
-    required this.dueState, required this.allowedActions, this.scheduledFor,
-    this.executionId});
+  const RvtOccurrenceContract({
+    required this.id,
+    required this.configurationId,
+    required this.sequenceNumber,
+    required this.sequence,
+    required this.status,
+    required this.dueState,
+    required this.allowedActions,
+    this.scheduledFor,
+    this.executionId,
+  });
   final String id;
   final String configurationId;
   final int sequenceNumber;
@@ -24,7 +33,10 @@ class RvtOccurrenceContract {
 }
 
 class RvtExecutionEligibilityContract {
-  const RvtExecutionEligibilityContract({required this.eligible, required this.blockers});
+  const RvtExecutionEligibilityContract({
+    required this.eligible,
+    required this.blockers,
+  });
   final bool eligible;
   final List<String> blockers;
 }

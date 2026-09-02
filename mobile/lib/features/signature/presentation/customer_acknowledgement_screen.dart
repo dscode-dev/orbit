@@ -30,6 +30,10 @@ import '../../../core/presentation/orbit_format.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../field/application/execution_controller.dart' show newCommandId;
+import '../../../core/contracts/mobile_offline_sync_contracts.dart';
+import '../../sync/application/sync_controller.dart';
+import '../../sync/application/sync_providers.dart';
+import '../../sync/presentation/widgets/pending_badge.dart';
 import '../application/signature_providers.dart';
 
 class CustomerAcknowledgementScreen extends ConsumerStatefulWidget {
@@ -47,7 +51,13 @@ class _CustomerAcknowledgementScreenState
   final _signerName = TextEditingController();
   bool _sending = false;
   String? _failure;
-  CustomerAcknowledgementResult? _result;
+
+  /// Confirmado pelo servidor, ou apenas guardado no aparelho.
+  ///
+  /// Os dois **não** podem virar a mesma tela: dizer "registrado" sobre algo
+  /// que ainda não saiu do aparelho é a promessa mais fácil de quebrar num
+  /// aplicativo de campo.
+  _AcceptedState? _accepted;
 
   @override
   void dispose() {
@@ -55,6 +65,16 @@ class _CustomerAcknowledgementScreenState
     super.dispose();
   }
 
+  /// Registra a ciência.
+  ///
+  /// Passa pelo mesmo journal das demais intenções: com rede, o servidor
+  /// responde no mesmo toque; sem rede, o aceite fica guardado e a tela diz
+  /// isso ao técnico — nunca ao cliente, que já foi embora.
+  ///
+  /// `contentVersion` e `contentHash` viajam **verbatim** dentro do envelope e
+  /// são congelados ali. Recalculá-los na hora do envio quebraria a
+  /// correspondência com o texto que o cliente leu, que é a única coisa que dá
+  /// sentido ao aceite.
   Future<void> _submit(CustomerAcknowledgementPreparation preparation) async {
     final name = _signerName.text.trim();
     if (name.length < 2 || _sending) return;
@@ -64,26 +84,49 @@ class _CustomerAcknowledgementScreenState
       _failure = null;
     });
     try {
-      final result = await ref
-          .read(signatureRepositoryProvider)
-          .acknowledge(
-            widget.operationId,
-            signerName: name,
+      final commandId = newCommandId();
+      final sync = ref.read(syncControllerProvider.notifier);
+      await sync.enqueue(
+        OfflineCommandEnvelope(
+          commandId: commandId,
+          idempotencyKey: commandId,
+          commandType: OfflineCommandType.customerAcknowledgement,
+          aggregateId: widget.operationId,
+          expectedVersion: preparation.contentVersion,
+          occurredAt: DateTime.now().toUtc(),
+          payload: {'signerName': name, 'contentHash': preparation.contentHash},
+          deviceInstanceId: ref.read(deviceInstanceIdProvider).valueOrNull,
+        ),
+      );
 
-            /// Devolvidos **verbatim**: é o que amarra o aceite ao texto lido.
-            contentVersion: preparation.contentVersion,
-            contentHash: preparation.contentHash,
-            commandId: newCommandId(),
+      final outcome = await sync.outcomeOf(commandId);
+      if (!mounted) return;
+
+      switch (outcome) {
+        case CommandConfirmed():
+          setState(() => _accepted = _AcceptedState.confirmed);
+
+        case CommandPendingOutcome():
+          setState(() => _accepted = _AcceptedState.pending);
+
+        case CommandBlocked():
+
+          /// O atendimento mudou desde que o resumo foi congelado. A saída é
+          /// recarregar e coletar de novo — nunca registrar concordância com
+          /// um texto que o cliente não leu.
+          ref.invalidate(
+            acknowledgementPreparationProvider(widget.operationId),
           );
-      if (mounted) setState(() => _result = result);
-    } on OrbitException catch (error) {
-      /// 409 significa que o atendimento mudou desde que o resumo foi
-      /// congelado. A saída é recarregar e coletar de novo — nunca registrar
-      /// concordância com um texto que o cliente não leu.
-      if (error.isConflict) {
-        ref.invalidate(acknowledgementPreparationProvider(widget.operationId));
+          setState(() => _failure = outcome.message);
       }
-      if (mounted) setState(() => _failure = error.message);
+    } on Object catch (error) {
+      if (mounted) {
+        setState(
+          () => _failure = error is OrbitException
+              ? error.message
+              : 'Não foi possível registrar a ciência.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -114,7 +157,7 @@ class _CustomerAcknowledgementScreenState
               ),
             ],
           ),
-          data: (value) => _result == null
+          data: (value) => _accepted == null
               ? _Form(
                   preparation: value,
                   signerName: _signerName,
@@ -122,7 +165,10 @@ class _CustomerAcknowledgementScreenState
                   failure: _failure,
                   onSubmit: () => _submit(value),
                 )
-              : _Accepted(result: _result!),
+              : _Accepted(
+                  state: _accepted!,
+                  signerName: _signerName.text.trim(),
+                ),
         ),
       ),
     );
@@ -279,52 +325,75 @@ class _PreviousAcknowledgement extends StatelessWidget {
   );
 }
 
-class _Accepted extends StatelessWidget {
-  const _Accepted({required this.result});
+/// Como o aceite terminou deste lado.
+enum _AcceptedState { confirmed, pending }
 
-  final CustomerAcknowledgementResult result;
+class _Accepted extends StatelessWidget {
+  const _Accepted({required this.state, required this.signerName});
+
+  final _AcceptedState state;
+  final String signerName;
 
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(OrbitSpacing.md),
-    children: [
-      SectionCard(
-        title: 'Ciência registrada',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              result.signerName,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: OrbitColors.textPrimary,
-              ),
-            ),
-            Text(
-              OrbitFormat.dateHourOf(result.acknowledgedAt),
-              style: const TextStyle(
-                fontSize: 13,
-                color: OrbitColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: OrbitSpacing.sm),
+  Widget build(BuildContext context) {
+    final confirmed = state == _AcceptedState.confirmed;
 
-            /// Ciência não é documento emitido — e não se promete que seja.
-            const Text(
-              'O documento do atendimento é emitido em separado.',
-              style: TextStyle(fontSize: 12, color: OrbitColors.textSecondary),
-            ),
-          ],
+    return ListView(
+      padding: const EdgeInsets.all(OrbitSpacing.md),
+      children: [
+        SectionCard(
+          title: confirmed
+              ? 'Ciência registrada'
+              : 'Ciência salva neste aparelho',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                signerName,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: OrbitColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: OrbitSpacing.sm),
+
+              /// Sem rede, o que existe é um registro local. Chamá-lo de
+              /// registrado seria afirmar em nome de um servidor que ainda não
+              /// respondeu.
+              if (!confirmed) ...[
+                const PendingBadge(),
+                const SizedBox(height: OrbitSpacing.sm),
+                const Text(
+                  'A ciência foi guardada e será enviada quando houver '
+                  'conexão.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: OrbitColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: OrbitSpacing.sm),
+              ],
+
+              /// Ciência não é documento emitido — e não se promete que seja.
+              const Text(
+                'O documento do atendimento é emitido em separado.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: OrbitColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      FilledButton(
-        onPressed: () => Navigator.of(context).pop(),
-        style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
-        child: const Text('Voltar ao atendimento'),
-      ),
-    ],
-  );
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+          child: const Text('Voltar ao atendimento'),
+        ),
+      ],
+    );
+  }
 }
 
 class _Line extends StatelessWidget {

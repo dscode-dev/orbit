@@ -1,7 +1,16 @@
 enum FieldEvidenceTarget { operation, pmocEquipmentExecution, rvtExecution }
+
 enum EvidenceCategory { before, after, general, equipment, defect, measurement }
+
 enum EvidenceSource { camera, gallery, file }
-enum EvidenceUploadStatus { pendingUpload, uploaded, finalized, failed, expired }
+
+enum EvidenceUploadStatus {
+  pendingUpload,
+  uploaded,
+  finalized,
+  failed,
+  expired,
+}
 
 String fieldEvidenceTargetToWire(FieldEvidenceTarget value) => switch (value) {
   FieldEvidenceTarget.operation => 'OPERATION',

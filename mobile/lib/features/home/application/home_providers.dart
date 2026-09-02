@@ -14,15 +14,16 @@ import '../../operations/data/operations_repository.dart';
 import '../data/home_repository.dart';
 
 /// Resumo do Analytics — só para quem tem `analytics.read` no plano.
-final operationalSummaryProvider = FutureProvider.autoDispose<OperationalSummary?>(
-  (ref) async {
-    final session = ref.watch(sessionProvider);
-    if (session == null || !session.hasCapability('analytics.read')) return null;
-    return ref
-        .watch(homeRepositoryProvider)
-        .operationalSummary(businessUnitId: session.businessUnitId);
-  },
-);
+final operationalSummaryProvider =
+    FutureProvider.autoDispose<OperationalSummary?>((ref) async {
+      final session = ref.watch(sessionProvider);
+      if (session == null || !session.hasCapability('analytics.read')) {
+        return null;
+      }
+      return ref
+          .watch(homeRepositoryProvider)
+          .operationalSummary(businessUnitId: session.businessUnitId);
+    });
 
 /// Contagens por status, pedidas ao backend.
 final statusCountsProvider = FutureProvider.autoDispose<List<StatusCount>>((
@@ -56,7 +57,9 @@ final statusCountsProvider = FutureProvider.autoDispose<List<StatusCount>>((
 });
 
 /// Agendadas cujo prazo previsto já passou — contagem feita pelo servidor.
-final overdueCountProvider = FutureProvider.autoDispose<StatusCount>((ref) async {
+final overdueCountProvider = FutureProvider.autoDispose<StatusCount>((
+  ref,
+) async {
   final session = ref.watch(sessionProvider);
   if (session == null) {
     return const StatusCount(status: OperationStatus.scheduled, total: 0);

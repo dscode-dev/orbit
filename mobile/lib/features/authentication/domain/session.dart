@@ -55,7 +55,9 @@ class OrbitSession {
   /// Módulos habilitados pelo plano — o mesmo conjunto que o backend valida
   /// em `@Capabilities(...)`.
   List<String> get capabilities =>
-      entitlements?.capabilities ?? organization?.plan?.capabilities ?? const [];
+      entitlements?.capabilities ??
+      organization?.plan?.capabilities ??
+      const [];
 
   bool get isPlatformAdmin => claims.isPlatformAdmin;
 
@@ -73,8 +75,9 @@ class OrbitSession {
 
   bool hasCapability(String capability) => capabilities.contains(capability);
 
-  OrbitProfile get profile =>
-      hasPermission(_managePermission) ? OrbitProfile.owner : OrbitProfile.operator;
+  OrbitProfile get profile => hasPermission(_managePermission)
+      ? OrbitProfile.owner
+      : OrbitProfile.operator;
 
   OrbitSession copyWith({
     OrbitUser? user,

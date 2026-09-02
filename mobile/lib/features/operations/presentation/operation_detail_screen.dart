@@ -287,8 +287,7 @@ class _AdditionalDataSection extends StatelessWidget {
               children: [
                 if (hasLocation)
                   _JsonBlock(label: 'Local', value: operation.location!),
-                if (hasData)
-                  _JsonBlock(label: 'Dados', value: operation.data!),
+                if (hasData) _JsonBlock(label: 'Dados', value: operation.data!),
               ],
             ),
     );

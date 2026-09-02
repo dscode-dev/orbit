@@ -136,7 +136,10 @@ class LoggingInterceptor extends Interceptor {
   }
 
   @override
-  void onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
+  void onResponse(
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
     _log(response.requestOptions, response.statusCode);
     handler.next(response);
   }
@@ -153,14 +156,17 @@ class LoggingInterceptor extends Interceptor {
         ? DateTime.now().difference(startedAt).inMilliseconds
         : null;
     // Sem corpo, sem query com identificadores, sem cabeçalhos.
-    _logger.info('http', data: {
-      'method': options.method,
-      'path': options.path,
-      'status': status,
-      'durationMs': duration,
-      'requestId': options.headers[ContextHeaders.requestId],
-      if (error != null) 'error': error,
-    });
+    _logger.info(
+      'http',
+      data: {
+        'method': options.method,
+        'path': options.path,
+        'status': status,
+        'durationMs': duration,
+        'requestId': options.headers[ContextHeaders.requestId],
+        if (error != null) 'error': error,
+      },
+    );
   }
 }
 
@@ -198,12 +204,13 @@ class ErrorMappingInterceptor extends Interceptor {
         code: 'CANCELLED',
         requestId: requestId,
       ),
-      DioExceptionType.connectionError ||
-      DioExceptionType.unknown when err.response == null => const OrbitException(
-        kind: OrbitErrorKind.network,
-        message: 'Sem conexão com o servidor.',
-        code: 'NETWORK',
-      ),
+      DioExceptionType.connectionError || DioExceptionType.unknown
+          when err.response == null =>
+        const OrbitException(
+          kind: OrbitErrorKind.network,
+          message: 'Sem conexão com o servidor.',
+          code: 'NETWORK',
+        ),
       _ => OrbitException.fromEnvelope(
         status: err.response?.statusCode ?? 0,
         body: err.response?.data,

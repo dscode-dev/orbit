@@ -119,7 +119,8 @@ class _CaptureMenuState extends ConsumerState<_CaptureMenu> {
       onSelected: (action) => action(),
       itemBuilder: (context) => [
         PopupMenuItem(
-          value: () => _capture(() => evidence.capturePhoto(widget.operationId)),
+          value: () =>
+              _capture(() => evidence.capturePhoto(widget.operationId)),
           child: const _MenuRow(icon: Icons.photo_camera, label: 'Tirar foto'),
         ),
         PopupMenuItem(
@@ -131,7 +132,8 @@ class _CaptureMenuState extends ConsumerState<_CaptureMenu> {
           child: const _MenuRow(icon: Icons.videocam, label: 'Gravar vídeo'),
         ),
         PopupMenuItem(
-          value: () => _capture(() => evidence.pickDocument(widget.operationId)),
+          value: () =>
+              _capture(() => evidence.pickDocument(widget.operationId)),
           child: const _MenuRow(
             icon: Icons.description_outlined,
             label: 'Documento',

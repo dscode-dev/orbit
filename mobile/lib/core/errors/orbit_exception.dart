@@ -27,7 +27,8 @@ class OrbitException implements Exception {
   final String? requestId;
   final Object? details;
 
-  bool get isUnauthorized => status == 401 || kind == OrbitErrorKind.unauthorized;
+  bool get isUnauthorized =>
+      status == 401 || kind == OrbitErrorKind.unauthorized;
   bool get isForbidden => status == 403;
   bool get isNotFound => status == 404;
   bool get isConflict => status == 409;
@@ -71,7 +72,9 @@ class OrbitException implements Exception {
       kind: OrbitErrorKind.http,
       status: status,
       message: message.isEmpty ? fallback : message,
-      code: (error is Map ? error['code'] as String? : null) ?? _defaultCode(status),
+      code:
+          (error is Map ? error['code'] as String? : null) ??
+          _defaultCode(status),
       requestId: (body['requestId'] as String?) ?? requestId,
       details: error is Map ? error['details'] ?? rawMessage : rawMessage,
     );

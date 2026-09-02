@@ -12,7 +12,6 @@ import '../errors/orbit_exception.dart';
 import '../network/orbit_api_client.dart';
 import 'upload_queue.dart';
 
-
 /// Limite do backend. Validado antes de enviar para não gastar rede até o 413.
 const int maxAttachmentBytes = 20 * 1024 * 1024;
 

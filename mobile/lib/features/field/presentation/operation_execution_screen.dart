@@ -9,12 +9,17 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/contracts/field_operation_contracts.dart';
 import '../../../core/presentation/field_registry.dart';
 import '../../../core/presentation/orbit_format.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
+import '../../../core/contracts/mobile_offline_sync_contracts.dart';
+import '../../../core/routing/orbit_router.dart';
+import '../../sync/data/command_journal.dart';
+import '../../sync/presentation/widgets/pending_badge.dart';
 import '../application/execution_controller.dart';
 import 'widgets/execution_actions.dart';
 import 'widgets/execution_checklist.dart';
@@ -103,6 +108,17 @@ class _Body extends StatelessWidget {
             ),
 
           _Summary(preparation: preparation),
+
+          /// O que foi registrado e ainda não chegou ao servidor.
+          ///
+          /// Fica **acima** das ações e separado do estado confirmado: um
+          /// atendimento com início pendente não é um atendimento em
+          /// andamento, e a tela não pode sugerir que é.
+          if (state.pendingCommands.isNotEmpty)
+            _PendingIntentions(
+              commands: state.pendingCommands,
+              onOpenSyncCenter: () => context.push(OrbitRoutes.syncCenter),
+            ),
 
           if (!preparation.eligible && preparation.blockers.isNotEmpty)
             _Blockers(blockers: preparation.blockers),
@@ -374,6 +390,102 @@ class _Timeline extends ConsumerWidget {
                     ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+/// As intenções deste atendimento que o servidor ainda não confirmou.
+///
+/// Cada uma aparece pelo que é, em português, e nunca como conclusão. O ponto
+/// da faixa é justamente impedir que "registrei" seja lido como "está feito".
+class _PendingIntentions extends StatelessWidget {
+  const _PendingIntentions({
+    required this.commands,
+    required this.onOpenSyncCenter,
+  });
+
+  final List<PendingCommand> commands;
+  final VoidCallback onOpenSyncCenter;
+
+  @override
+  Widget build(BuildContext context) {
+    final blocked = commands.where((value) => value.isBlocking).toList();
+    final waiting = commands.where((value) => !value.isBlocking).toList();
+
+    return SectionCard(
+      title: 'Registrado neste aparelho',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final command in waiting)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+
+              /// `Wrap` e não `Row`: com escala de texto grande, rótulo e selo
+              /// não cabem lado a lado e precisam quebrar em vez de estourar.
+              child: Wrap(
+                spacing: OrbitSpacing.sm,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    pendingCommandLabel(
+                      offlineCommandTypeWire(command.envelope.commandType),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const PendingBadge(),
+                ],
+              ),
+            ),
+
+          for (final command in blocked)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: OrbitSpacing.sm,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        pendingCommandLabel(
+                          offlineCommandTypeWire(command.envelope.commandType),
+                        ),
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      const BlockedBadge(label: 'Não sincronizou'),
+                    ],
+                  ),
+                  Text(
+                    syncBlockedLabel(
+                      conflictCode: switch (command.receipt?.conflict?.code) {
+                        final code? => offlineConflictCodeWire(code),
+                        null => null,
+                      },
+                      errorCode: command.receipt?.error?.code,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: OrbitColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          const SizedBox(height: OrbitSpacing.sm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: onOpenSyncCenter,
+              child: const Text('Ver sincronização'),
+            ),
+          ),
+        ],
       ),
     );
   }

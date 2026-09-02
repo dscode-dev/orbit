@@ -10,6 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/contracts/mobile_field_contracts.dart';
 import '../../operations/data/operations_repository.dart' show CachedResult;
+import '../../../core/errors/orbit_exception.dart';
+import '../../sync/application/sync_providers.dart';
 import '../data/field_repository.dart';
 
 /// Recorte de escopo do cache.
@@ -60,6 +62,7 @@ class WorkQueueState {
     this.hasNextPage = false,
     this.isLoadingMore = false,
     this.error,
+    this.isOffline = false,
   });
 
   /// **Na ordem do servidor**, acumulada página a página.
@@ -69,12 +72,16 @@ class WorkQueueState {
   final bool isLoadingMore;
   final Object? error;
 
+  /// A lista veio da projeção local, não do servidor. A tela avisa.
+  final bool isOffline;
+
   WorkQueueState copyWith({
     List<MobileWorkItemContract>? items,
     String? cursor,
     bool? hasNextPage,
     bool? isLoadingMore,
     Object? error,
+    bool? isOffline,
     bool clearError = false,
   }) => WorkQueueState(
     items: items ?? this.items,
@@ -82,6 +89,7 @@ class WorkQueueState {
     hasNextPage: hasNextPage ?? this.hasNextPage,
     isLoadingMore: isLoadingMore ?? this.isLoadingMore,
     error: clearError ? null : (error ?? this.error),
+    isOffline: isOffline ?? this.isOffline,
   );
 }
 
@@ -108,6 +116,7 @@ class WorkQueueController extends StateNotifier<AsyncValue<WorkQueueState>> {
   WorkQueueController({
     required FieldRepository repository,
     required WorkQueueFilter filter,
+    this.offlineItems,
   }) : _repository = repository,
        _filter = filter,
        super(const AsyncValue.loading()) {
@@ -116,6 +125,13 @@ class WorkQueueController extends StateNotifier<AsyncValue<WorkQueueState>> {
 
   final FieldRepository _repository;
   final WorkQueueFilter _filter;
+
+  /// A projeção mantida pelo pull, para quando não houver rede.
+  ///
+  /// É a **última coisa que o servidor disse**, não uma verdade paralela: com
+  /// rede, a resposta dele vence sempre. Serve para a fila não abrir vazia no
+  /// meio de um prédio sem sinal.
+  final Future<List<MobileWorkItemContract>> Function()? offlineItems;
 
   /// Guarda contra corrida de rolagem: enquanto uma página está no ar, outra
   /// não é pedida. Sem isso, um `scroll` rápido dispara a mesma página duas
@@ -139,10 +155,31 @@ class WorkQueueController extends StateNotifier<AsyncValue<WorkQueueState>> {
         ),
       );
     } on Object catch (error, stack) {
-      state = AsyncValue.error(error, stack);
+      final cached = await _fromProjection(error);
+      state = cached ?? AsyncValue.error(error, stack);
     } finally {
       _inFlight = false;
     }
+  }
+
+  /// A fila da projeção, quando a falha foi de rede.
+  ///
+  /// Só para falha de conexão: um 403 servido do cache esconderia justamente a
+  /// informação de que a pessoa perdeu acesso ao trabalho.
+  Future<AsyncValue<WorkQueueState>?> _fromProjection(Object error) async {
+    if (error is! OrbitException || !error.isOffline) return null;
+    final items = await offlineItems?.call() ?? const [];
+    if (items.isEmpty) return null;
+
+    /// Sem paginação: o que existe localmente é o que existe.
+    return AsyncValue.data(
+      WorkQueueState(
+        items: items,
+        cursor: null,
+        hasNextPage: false,
+        isOffline: true,
+      ),
+    );
   }
 
   /// Próxima página, uma de cada vez.
@@ -202,9 +239,12 @@ final workQueueControllerProvider =
       AsyncValue<WorkQueueState>
     >((ref) {
       final filter = ref.watch(workQueueFilterProvider);
+      final scopeKey = fieldScopeKey(ref);
       return WorkQueueController(
         repository: ref.watch(fieldRepositoryProvider),
         filter: filter,
+        offlineItems: () async =>
+            (await ref.read(syncProjectionProvider).read()).itemsFor(scopeKey),
       );
     });
 

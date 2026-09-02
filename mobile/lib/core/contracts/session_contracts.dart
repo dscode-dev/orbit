@@ -85,7 +85,8 @@ class OrbitUser {
   factory OrbitUser.fromJson(Map<String, dynamic> json) => OrbitUser(
     id: json['id'] as String? ?? '',
     email: json['email'] as String? ?? '',
-    displayName: json['displayName'] as String? ?? json['email'] as String? ?? '',
+    displayName:
+        json['displayName'] as String? ?? json['email'] as String? ?? '',
     firstName: json['firstName'] as String?,
     lastName: json['lastName'] as String?,
     phone: json['phone'] as String?,
