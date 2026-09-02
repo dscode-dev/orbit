@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/routing/orbit_router.dart';
 import '../../../../core/theme/orbit_theme.dart';
+import '../../../evidence/application/evidence_providers.dart';
 import '../../application/sync_controller.dart';
 import '../../application/sync_providers.dart';
 
@@ -22,14 +23,34 @@ class SyncStatusBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(syncControllerProvider);
-    if (!state.hasWork && !state.isSyncing) return const SizedBox.shrink();
+    final media = ref.watch(mediaUploadControllerProvider);
+    if (!state.hasWork &&
+        !state.isSyncing &&
+        !media.hasWork &&
+        !media.isUploading) {
+      return const SizedBox.shrink();
+    }
+
+    /// Contagens **separadas**: uma ação de checklist e uma foto não são a
+    /// mesma pendência, e somá-las faria enviar a foto parecer resolver o
+    /// checklist.
+    final mediaSuffix = media.hasWork
+        ? ' · ${media.pending + media.blocked} evidência(s)'
+        : '';
 
     final (icon, color, label) = switch (state) {
-      _ when state.needsAttention => (
+      _ when state.needsAttention || media.blocked > 0 => (
         Icons.error_outline,
         OrbitColors.danger,
         '${state.conflicts + state.rejected + state.expired} ação(ões) '
-            'precisam da sua atenção',
+            'precisam da sua atenção$mediaSuffix',
+      ),
+      _ when media.isUploading => (
+        Icons.cloud_upload_outlined,
+        OrbitColors.brandBright,
+        media.progress == null
+            ? 'Enviando evidências…'
+            : 'Enviando evidências… ${(media.progress! * 100).round()}%',
       ),
       _ when state.isSyncing => (
         Icons.sync,
@@ -39,12 +60,13 @@ class SyncStatusBar extends ConsumerWidget {
       _ when state.phase == SyncPhase.offline => (
         Icons.cloud_off_outlined,
         OrbitColors.warning,
-        '${state.pending} ação(ões) salvas no aparelho, aguardando conexão',
+        '${state.pending} ação(ões) salvas no aparelho, aguardando '
+            'conexão$mediaSuffix',
       ),
       _ => (
         Icons.cloud_queue,
         OrbitColors.warning,
-        '${state.pending} ação(ões) aguardando envio',
+        '${state.pending} ação(ões) aguardando envio$mediaSuffix',
       ),
     };
 

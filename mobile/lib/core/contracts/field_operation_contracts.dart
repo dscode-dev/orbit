@@ -20,6 +20,11 @@ enum FieldOperationAllowedAction {
   updateChecklist,
   addNote,
   registerMaterial,
+
+  /// Publicada pelo backend via `MobileFieldAction`. É ela — e só ela — que
+  /// autoriza a captura de evidência na tela de execução.
+  addEvidence,
+
   scanEquipment,
   viewDocument,
   downloadDocument,
@@ -39,6 +44,7 @@ FieldOperationAllowedAction? fieldOperationActionFrom(String? value) =>
       'UPDATE_CHECKLIST' => FieldOperationAllowedAction.updateChecklist,
       'ADD_NOTE' => FieldOperationAllowedAction.addNote,
       'REGISTER_MATERIAL' => FieldOperationAllowedAction.registerMaterial,
+      'ADD_EVIDENCE' => FieldOperationAllowedAction.addEvidence,
       'SCAN_EQUIPMENT' => FieldOperationAllowedAction.scanEquipment,
       'VIEW_DOCUMENT' => FieldOperationAllowedAction.viewDocument,
       'DOWNLOAD_DOCUMENT' => FieldOperationAllowedAction.downloadDocument,

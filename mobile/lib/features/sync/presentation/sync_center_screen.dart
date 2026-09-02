@@ -14,9 +14,11 @@ import '../../../core/presentation/field_registry.dart';
 import '../../../core/presentation/orbit_format.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
+import '../../evidence/application/evidence_providers.dart';
 import '../application/sync_controller.dart';
 import '../application/sync_providers.dart';
 import '../data/command_journal.dart';
+import 'widgets/pending_badge.dart';
 
 class SyncCenterScreen extends ConsumerWidget {
   const SyncCenterScreen({super.key});
@@ -29,8 +31,12 @@ class SyncCenterScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Sincronização')),
       body: RefreshIndicator(
-        onRefresh: () =>
-            ref.read(syncControllerProvider.notifier).sync(manual: true),
+        onRefresh: () async {
+          await ref.read(syncControllerProvider.notifier).sync(manual: true);
+          await ref
+              .read(mediaUploadControllerProvider.notifier)
+              .process(manual: true);
+        },
         child: ListView(
           padding: const EdgeInsets.all(OrbitSpacing.md),
           children: [
@@ -41,8 +47,69 @@ class SyncCenterScreen extends ConsumerWidget {
               error: (error, _) => SectionError(error: error),
               data: (value) => _Queue(commands: value),
             ),
+
+            const SizedBox(height: OrbitSpacing.md),
+
+            /// Evidências têm seção própria: são outra fila, com outra
+            /// política. Uma frase só ("3 itens pendentes") faria o técnico
+            /// achar que enviar a foto resolveu o checklist.
+            const _MediaQueueSection(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// As evidências que ainda não viraram Evidence canônica.
+class _MediaQueueSection extends ConsumerWidget {
+  const _MediaQueueSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final media = ref.watch(allPendingMediaProvider);
+
+    return SectionCard(
+      title: 'Evidências',
+      child: media.when(
+        loading: () => const SectionLoading(lines: 2),
+        error: (error, _) => SectionError(error: error),
+        data: (items) {
+          if (items.isEmpty) {
+            return const Text(
+              'Nenhuma evidência aguardando envio.',
+              style: TextStyle(fontSize: 13, color: OrbitColors.textSecondary),
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final value in items)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Wrap(
+                    spacing: OrbitSpacing.sm,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        value.filename,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      if (value.isBlocked)
+                        BlockedBadge(
+                          label: evidenceStateLabels[value.state.name]!.label,
+                        )
+                      else
+                        PendingBadge(
+                          label: evidenceStateLabels[value.state.name]!.label,
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

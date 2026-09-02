@@ -154,6 +154,41 @@ const _mirrors = <_Mirror>[
     source: 'src/modules/mobile-field/mobile-offline-sync.read-models.ts',
     dart: 'lib/core/contracts/mobile_offline_sync_contracts.dart',
   ),
+  _Mirror(
+    readModel: 'EvidenceUploadIntentReadModel',
+    source: 'src/modules/mobile-field/mobile-evidence.read-models.ts',
+    dart: 'lib/core/contracts/mobile_evidence_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'FieldEvidenceReadModel',
+    source: 'src/modules/mobile-field/mobile-evidence.read-models.ts',
+    dart: 'lib/core/contracts/mobile_evidence_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'EvidenceAccessReadModel',
+    source: 'src/modules/mobile-field/mobile-evidence.read-models.ts',
+    dart: 'lib/core/contracts/mobile_evidence_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'FieldArtifactReadModel',
+    source: 'src/modules/mobile-field/mobile-field-artifact.read-models.ts',
+    dart: 'lib/core/contracts/mobile_field_artifact_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'FieldArtifactPreparationReadModel',
+    source: 'src/modules/mobile-field/mobile-field-artifact.read-models.ts',
+    dart: 'lib/core/contracts/mobile_field_artifact_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'FieldArtifactEligibilityReadModel',
+    source: 'src/modules/mobile-field/mobile-field-artifact.read-models.ts',
+    dart: 'lib/core/contracts/mobile_field_artifact_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'FieldArtifactDownloadReadModel',
+    source: 'src/modules/mobile-field/mobile-field-artifact.read-models.ts',
+    dart: 'lib/core/contracts/mobile_field_artifact_contracts.dart',
+  ),
 ];
 
 void main() {

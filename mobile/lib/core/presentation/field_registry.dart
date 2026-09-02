@@ -213,6 +213,10 @@ const executionActionLabels = <String, FieldLabel>{
   'UPDATE_CHECKLIST': FieldLabel('Checklist'),
   'ADD_NOTE': FieldLabel('Registrar observação'),
   'REGISTER_MATERIAL': FieldLabel('Registrar material'),
+  'ADD_EVIDENCE': FieldLabel(
+    'Registrar evidência',
+    description: 'Foto ou documento do que foi encontrado e feito.',
+  ),
 };
 
 FieldLabel? executionActionLabel(String code) => executionActionLabels[code];
@@ -368,4 +372,165 @@ const syncPhaseLabels = <String, String>{
   'syncing': 'Sincronizando…',
   'offline': 'Sem conexão',
   'error': 'Falha ao sincronizar',
+};
+
+/// Em que ponto uma evidência está.
+///
+/// "Confirmada" é a única que fala pelo servidor. As outras descrevem o
+/// aparelho, e a distinção é o ponto: enquanto o `finalize` não aconteceu, o
+/// que existe são bytes num storage, não uma evidência.
+const evidenceStateLabels = <String, FieldLabel>{
+  'pending': FieldLabel(
+    'Aguardando envio',
+    description: 'Salva neste aparelho. Sobe quando houver conexão.',
+  ),
+  'uploading': FieldLabel('Enviando', description: 'Transferindo o arquivo.'),
+  'finalizing': FieldLabel(
+    'Finalizando',
+    description: 'O servidor está conferindo o arquivo.',
+  ),
+  'confirmed': FieldLabel(
+    'Confirmada',
+    description: 'Aceita e registrada no atendimento.',
+  ),
+  'rejected': FieldLabel(
+    'Não aceita',
+    description: 'O servidor recusou este arquivo.',
+  ),
+  'missing': FieldLabel(
+    'Arquivo perdido',
+    description: 'O arquivo não está mais neste aparelho.',
+  ),
+};
+
+/// Categorias de evidência, como o backend as nomeia.
+const evidenceCategoryLabels = <String, String>{
+  'BEFORE': 'Antes',
+  'AFTER': 'Depois',
+  'GENERAL': 'Geral',
+  'EQUIPMENT': 'Equipamento',
+  'DEFECT': 'Defeito',
+  'MEASUREMENT': 'Medição',
+};
+
+String evidenceCategoryLabel(String code) =>
+    evidenceCategoryLabels[code] ?? 'Geral';
+
+/// Por que o servidor recusou uma evidência.
+const evidenceRejectionLabels = <String, String>{
+  'INVALID_MIME': 'O arquivo não está num formato aceito.',
+  'MIME_MISMATCH': 'O conteúdo do arquivo não corresponde ao tipo declarado.',
+  'SIZE_MISMATCH': 'O tamanho do arquivo mudou desde o registro.',
+  'SHA256_MISMATCH': 'O arquivo foi alterado depois de registrado.',
+  'FILE_TOO_LARGE': 'O arquivo excede o tamanho aceito.',
+  'EVIDENCE_LIMIT_REACHED':
+      'Este atendimento já atingiu o limite de evidências.',
+  'UPLOAD_EXPIRED':
+      'A janela de envio desta evidência expirou. Registre novamente.',
+  'IDEMPOTENCY_MISMATCH':
+      'Já existe um envio registrado com dados diferentes para este arquivo.',
+  'LOCAL_FILE_MISSING': 'O arquivo não está mais neste aparelho.',
+};
+
+/// A frase de uma recusa, com fallback neutro para código desconhecido.
+String evidenceRejectionLabel({String? code, String? message}) =>
+    evidenceRejectionLabels[code] ??
+    message ??
+    'Não foi possível enviar esta evidência.';
+
+/// Problemas de permissão na captura.
+const captureProblemLabels = <String, String>{
+  'permissionDenied': 'É preciso permitir o acesso para registrar a evidência.',
+  'permissionPermanentlyDenied':
+      'O acesso está bloqueado. Libere nas Configurações do aparelho.',
+  'failed': 'Não foi possível abrir a câmera ou a galeria.',
+};
+
+/// O que impede usar este arquivo como evidência.
+const evidenceFileProblemLabels = <String, String>{
+  'empty': 'O arquivo está vazio.',
+  'tooLarge': 'O arquivo passa do tamanho aceito.',
+  'unsupportedType':
+      'Formato não aceito. Use JPEG, PNG, WEBP ou PDF — e confira se o '
+      'arquivo é mesmo do tipo que o nome indica.',
+};
+
+/// Em que ponto o documento está.
+///
+/// "Documento em processamento" é o que a pessoa entende; "RENDERING" é
+/// vocabulário do motor de renderização, e não aparece na tela.
+const documentStatusLabels = <String, FieldLabel>{
+  'notPrepared': FieldLabel(
+    'Documento ainda não emitido',
+    description:
+        'O atendimento está concluído; o documento é uma etapa à '
+        'parte.',
+  ),
+  'prepared': FieldLabel(
+    'Pronto para emitir',
+    description: 'Os dados do documento já estão congelados.',
+  ),
+  'pending': FieldLabel(
+    'Documento em processamento',
+    description: 'A emissão foi solicitada e acontece em segundo plano.',
+  ),
+  'rendering': FieldLabel(
+    'Documento em processamento',
+    description: 'O documento está sendo gerado.',
+  ),
+  'ready': FieldLabel(
+    'Documento disponível',
+    description: 'Pode ser visualizado e baixado.',
+  ),
+  'failed': FieldLabel(
+    'Não foi possível emitir o documento',
+    description: 'A emissão falhou. Você pode tentar novamente.',
+  ),
+  'unknown': FieldLabel(
+    'Situação do documento indisponível',
+    description: 'Não foi possível interpretar a resposta do servidor.',
+  ),
+};
+
+/// Por que o documento ainda não pode ser emitido.
+///
+/// Cada frase diz o que falta **e** de quem é a próxima ação.
+const documentBlockedLabels = <String, String>{
+  'sourceNotCompleted':
+      'O atendimento precisa estar concluído antes da emissão.',
+  'fieldTechnicianSignatureMissing':
+      'Falta a assinatura do técnico em campo. Cadastre a sua em Perfil › '
+      'Minha assinatura.',
+  'technicalResponsibleMissing':
+      'Este documento exige um responsável técnico, e nenhum está definido.',
+  'rtSignatureMissing': 'Falta a assinatura do responsável técnico.',
+  'acknowledgementRequired': 'Falta a ciência do cliente sobre o atendimento.',
+  'acknowledgementStale':
+      'O atendimento mudou depois da ciência do cliente. Colete novamente.',
+  'evidencePending':
+      'Há evidências ainda em processamento no servidor. Aguarde a conclusão.',
+  'templateNotAvailable':
+      'Não há modelo de documento disponível para este atendimento.',
+  'notAuthorized': 'Você não tem permissão para emitir este documento.',
+  'unknown': 'O documento ainda não pode ser emitido.',
+};
+
+String documentBlockedLabel(String code) =>
+    documentBlockedLabels[code] ?? documentBlockedLabels['unknown']!;
+
+/// Ações documentais publicadas pelo servidor.
+const documentActionLabels = <String, String>{
+  'prepareDocument': 'Preparar documento',
+  'generateDocument': 'Emitir documento',
+  'viewDocument': 'Visualizar',
+  'downloadDocument': 'Baixar',
+};
+
+/// O que acontece com o arquivo neste aparelho.
+const documentDownloadLabels = <String, String>{
+  'requestingUrl': 'Preparando o acesso…',
+  'downloading': 'Baixando o documento…',
+  'verifying': 'Conferindo o arquivo…',
+  'availableLocally': 'Documento salvo neste aparelho',
+  'error': 'Não foi possível baixar o documento',
 };

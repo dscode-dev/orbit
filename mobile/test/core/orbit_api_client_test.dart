@@ -153,7 +153,10 @@ void main() {
       body: const {'email': 'a@b.com'},
     );
 
-    expect(setup.adapter.requests.single.headers.containsKey('authorization'), isFalse);
+    expect(
+      setup.adapter.requests.single.headers.containsKey('authorization'),
+      isFalse,
+    );
   });
 
   test('401 dispara renovação e repete a requisição', () async {
@@ -234,4 +237,3 @@ void main() {
     expect(sent.queryParameters, {'status': 'OPEN'});
   });
 }
-

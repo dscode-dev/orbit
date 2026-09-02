@@ -186,12 +186,16 @@ class OrbitApiClient {
     required List<int> bytes,
     required Map<String, String> headers,
     CancelToken? cancelToken,
+    void Function(double progress)? onProgress,
   }) async {
     try {
       await _dio.putUri<dynamic>(
         url,
         data: Stream<List<int>>.value(bytes),
         cancelToken: cancelToken,
+        onSendProgress: (sent, total) {
+          if (total > 0) onProgress?.call(sent / total);
+        },
         options: Options(
           headers: {...headers, Headers.contentLengthHeader: bytes.length},
 
@@ -208,6 +212,80 @@ class OrbitApiClient {
         code: 'UPLOAD',
       );
     }
+  }
+
+  /// Busca bytes de uma **URL assinada** do storage.
+  ///
+  /// O par de `putBytes`: a URL é absoluta e de vida curta, e vai sem o token
+  /// da sessão porque a própria assinatura é a credencial. Continua passando
+  /// por este cliente para não existir um segundo caminho de rede com um
+  /// segundo tratamento de erro.
+  Future<({List<int> bytes, String? contentType, String? fileName})> getBytes({
+    required Uri url,
+    Map<String, String> headers = const {},
+    CancelToken? cancelToken,
+    void Function(double progress)? onProgress,
+  }) async {
+    try {
+      final response = await _dio.getUri<List<int>>(
+        url,
+        cancelToken: cancelToken,
+        onReceiveProgress: (received, total) {
+          if (total > 0) onProgress?.call(received / total);
+        },
+        options: Options(
+          headers: headers.isEmpty ? null : headers,
+          responseType: ResponseType.bytes,
+
+          /// Sem interceptor de sessão: a URL assinada é a credencial.
+          extra: {publicRequestKey: true},
+        ),
+      );
+      return (
+        bytes: response.data ?? const <int>[],
+        contentType: response.headers.value(Headers.contentTypeHeader),
+
+        /// O nome publicado pelo servidor, quando ele o envia. É o nome que a
+        /// pessoa vai ver ao abrir ou compartilhar — melhor do que qualquer
+        /// coisa que o app invente.
+        fileName: _dispositionFileName(
+          response.headers.value('content-disposition'),
+        ),
+      );
+    } on DioException catch (error) {
+      final mapped = error.error;
+      if (mapped is OrbitException) throw mapped;
+      throw OrbitException(
+        kind: OrbitErrorKind.network,
+        message: error.message ?? 'Falha ao baixar o arquivo.',
+        code: 'DOWNLOAD',
+      );
+    }
+  }
+
+  /// Extrai o nome de `Content-Disposition`.
+  ///
+  /// Prefere `filename*` (RFC 5987, com codificação declarada) e cai para
+  /// `filename`. Devolve só o nome, sem caminho: um cabeçalho é entrada
+  /// externa, e `../` vindo dele não pode virar caminho de gravação.
+  static String? _dispositionFileName(String? header) {
+    if (header == null) return null;
+
+    final extended = RegExp(
+      r"filename\*=(?:[^']*)'(?:[^']*)'([^;]+)",
+      caseSensitive: false,
+    ).firstMatch(header);
+    final plain = RegExp(
+      r'filename="?([^";]+)"?',
+      caseSensitive: false,
+    ).firstMatch(header);
+
+    final raw = extended?.group(1) ?? plain?.group(1);
+    if (raw == null) return null;
+
+    final decoded = Uri.decodeComponent(raw.trim());
+    final name = decoded.split(RegExp(r'[/\\]')).last.trim();
+    return name.isEmpty || name == '.' || name == '..' ? null : name;
   }
 
   Options _options(bool isPublic) =>

@@ -84,9 +84,9 @@ void main() {
   });
 
   test('restaura a sessão e compõe organização, plano e unidades', () async {
-    when(() => repository.readClaims()).thenAnswer(
-      (_) async => AuthRepository.decodeClaims(fakeAccessToken()),
-    );
+    when(
+      () => repository.readClaims(),
+    ).thenAnswer((_) async => AuthRepository.decodeClaims(fakeAccessToken()));
 
     final controller = buildController(repository);
     await controller.restore();
@@ -122,9 +122,9 @@ void main() {
   });
 
   test('logout limpa a sessão', () async {
-    when(() => repository.readClaims()).thenAnswer(
-      (_) async => AuthRepository.decodeClaims(fakeAccessToken()),
-    );
+    when(
+      () => repository.readClaims(),
+    ).thenAnswer((_) async => AuthRepository.decodeClaims(fakeAccessToken()));
     when(() => repository.logout()).thenAnswer((_) async {});
 
     final controller = buildController(repository);
@@ -157,9 +157,9 @@ void main() {
   });
 
   test('a sessão expirada pelo autenticador desautentica o app', () async {
-    when(() => repository.readClaims()).thenAnswer(
-      (_) async => AuthRepository.decodeClaims(fakeAccessToken()),
-    );
+    when(
+      () => repository.readClaims(),
+    ).thenAnswer((_) async => AuthRepository.decodeClaims(fakeAccessToken()));
 
     final storage = InMemoryTokenStorage(
       const TokenPair(
@@ -174,7 +174,10 @@ void main() {
       refreshCall: (_) async => throw Exception('refresh inválido'),
     );
 
-    final controller = buildController(repository, authenticator: authenticator);
+    final controller = buildController(
+      repository,
+      authenticator: authenticator,
+    );
     await controller.restore();
     expect(controller.state, isA<AuthAuthenticated>());
 
@@ -222,9 +225,9 @@ void main() {
   });
 
   test('troca de unidade ativa altera o escopo das consultas', () async {
-    when(() => repository.readClaims()).thenAnswer(
-      (_) async => AuthRepository.decodeClaims(fakeAccessToken()),
-    );
+    when(
+      () => repository.readClaims(),
+    ).thenAnswer((_) async => AuthRepository.decodeClaims(fakeAccessToken()));
 
     final controller = buildController(repository);
     await controller.restore();

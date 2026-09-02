@@ -16,8 +16,10 @@ import '../../../core/presentation/field_registry.dart';
 import '../../../core/presentation/orbit_format.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
+import '../../../core/contracts/mobile_evidence_contracts.dart';
 import '../../../core/contracts/mobile_offline_sync_contracts.dart';
 import '../../../core/routing/orbit_router.dart';
+import '../../evidence/presentation/widgets/evidence_section.dart';
 import '../../sync/data/command_journal.dart';
 import '../../sync/presentation/widgets/pending_badge.dart';
 import '../application/execution_controller.dart';
@@ -122,6 +124,17 @@ class _Body extends StatelessWidget {
 
           if (!preparation.eligible && preparation.blockers.isNotEmpty)
             _Blockers(blockers: preparation.blockers),
+
+          /// A seção só oferece captura quando o servidor publica
+          /// `ADD_EVIDENCE`. Quem pode anexar é decisão dele — o app mostra o
+          /// que foi autorizado.
+          EvidenceSection(
+            target: FieldEvidenceTargetRef(
+              type: FieldEvidenceTarget.operation,
+              id: operationId,
+            ),
+            canCapture: state.allows(FieldOperationAllowedAction.addEvidence),
+          ),
 
           if (preparation.checklist.isNotEmpty)
             ExecutionChecklist(

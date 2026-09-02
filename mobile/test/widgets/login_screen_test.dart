@@ -50,7 +50,9 @@ void main() {
     expect(find.byType(Image), findsOneWidget);
   });
 
-  testWidgets('valida e-mail e senha antes de chamar o backend', (tester) async {
+  testWidgets('valida e-mail e senha antes de chamar o backend', (
+    tester,
+  ) async {
     await tester.pumpWidget(wrap(const LoginScreen(), repository: repository));
 
     await tester.tap(find.byKey(const Key('login.submit')));

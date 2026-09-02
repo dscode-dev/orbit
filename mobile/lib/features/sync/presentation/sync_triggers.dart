@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
+import '../../evidence/application/evidence_providers.dart';
 import '../application/sync_providers.dart';
 
 class SyncTriggers extends ConsumerStatefulWidget {
@@ -61,9 +62,15 @@ class _SyncTriggersState extends ConsumerState<SyncTriggers>
     if (state == AppLifecycleState.resumed) unawaited(_sync());
   }
 
+  /// Os dois orquestradores, no mesmo gatilho.
+  ///
+  /// Uma segunda engine de conectividade duplicaria o problema sem resolver
+  /// nada: quem decide se dá para falar com o servidor é a resposta da API,
+  /// e cada orquestrador já tem mutex e backoff próprios.
   Future<void> _sync() async {
     if (ref.read(commandScopeProvider) == null) return;
     await ref.read(syncControllerProvider.notifier).sync();
+    await ref.read(mediaUploadControllerProvider.notifier).process();
   }
 
   @override

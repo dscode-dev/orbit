@@ -20,7 +20,10 @@ import '../../../../core/contracts/field_operation_contracts.dart';
 import '../../../../core/presentation/field_registry.dart';
 import '../../../../core/presentation/orbit_format.dart';
 import '../../../../core/routing/orbit_router.dart';
+import '../../../../core/contracts/mobile_field_artifact_contracts.dart';
 import '../../../../core/theme/orbit_theme.dart';
+import '../../../artifact/application/artifact_providers.dart';
+import '../../../artifact/presentation/widgets/document_section.dart';
 import '../../../../core/widgets/section_states.dart';
 import '../../../signature/application/signature_providers.dart';
 
@@ -42,7 +45,16 @@ class ExecutionSigningSections extends ConsumerWidget {
           available: preparation.professionalSignatureAvailable,
         ),
         _Acknowledgement(operationId: operationId),
-        _Document(preparation: preparation),
+
+        /// O documento é etapa à parte, com estado próprio vindo do servidor.
+        /// Ele deixou de ser uma frase informativa e passou a ser a seção que
+        /// mostra prontidão, bloqueios e as ações que o backend publicou.
+        DocumentSection(
+          source: ArtifactSourceRef(
+            type: FieldArtifactSourceType.operation,
+            id: operationId,
+          ),
+        ),
       ],
     );
   }
@@ -159,38 +171,3 @@ class _Acknowledgement extends ConsumerWidget {
 }
 
 /// O documento — que ainda não é gerado aqui.
-class _Document extends StatelessWidget {
-  const _Document({required this.preparation});
-
-  final FieldOperationExecutionPreparationContract preparation;
-
-  @override
-  Widget build(BuildContext context) => SectionCard(
-    title: 'Documento do atendimento',
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          preparation.artifacts.isEmpty
-              ? 'Nenhum documento emitido.'
-              : '${preparation.artifacts.length} documento(s) deste '
-                    'atendimento.',
-          style: const TextStyle(fontSize: 13, color: OrbitColors.textPrimary),
-        ),
-        const SizedBox(height: 4),
-
-        /// Conclusão e emissão são etapas distintas — dizer isso evita a
-        /// pergunta que sempre vem depois de concluir.
-        Text(
-          preparation.artifactEligibleAfterCompletion
-              ? 'A emissão acontece depois da conclusão, em separado.'
-              : 'A emissão segue a política do documento.',
-          style: const TextStyle(
-            fontSize: 12,
-            color: OrbitColors.textSecondary,
-          ),
-        ),
-      ],
-    ),
-  );
-}

@@ -201,9 +201,32 @@ void main() {
       return;
     }
 
+    /// Conta as observações da linha do tempo **inteira**.
+    ///
+    /// Duas armadilhas evitadas aqui:
+    ///
+    /// - contar numa página fixa só funciona enquanto a linha do tempo couber
+    ///   nela; passando disso, cada entrada nova empurra a mais antiga para
+    ///   fora e o total não se mexe;
+    /// - procurar pelo texto da nota não funciona: `message` é uma frase
+    ///   redigida pelo servidor ("Observação registrada"), não o conteúdo que
+    ///   o técnico escreveu.
     Future<int> noteCount() async {
-      final page = await repository.timeline(operationId, limit: 50);
-      return page.data.where((entry) => entry.type.contains('NOTE')).length;
+      var found = 0;
+      String? cursor;
+      for (var page = 0; page < 50; page += 1) {
+        final result = await repository.timeline(
+          operationId,
+          limit: 50,
+          cursor: cursor,
+        );
+        found += result.data
+            .where((entry) => entry.type.contains('NOTE'))
+            .length;
+        if (!result.hasNextPage || result.nextCursor == null) break;
+        cursor = result.nextCursor;
+      }
+      return found;
     }
 
     final before = await noteCount();
