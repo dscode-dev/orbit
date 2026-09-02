@@ -18,7 +18,7 @@ import { decodePayload, extractToken } from "./qr-payload";
 
 test.describe.configure({ mode: "serial" });
 
-const API = process.env.ORBIT_API_URL ?? "http://localhost:5001/api/v1";
+const API = process.env.ORBIT_API_URL ?? "http://localhost:6001/api/v1";
 
 /** Sessão de API para preparar e conferir o que a UI não deve fazer sozinha. */
 async function api(request: APIRequestContext) {

@@ -8,9 +8,10 @@ import { ChecklistRepository } from './checklist.repository';
 import { ChecklistService } from './checklist.service';
 import { OperationReadModelMapper } from './operation.mapper';
 import { WorkforceModule } from '../workforce/workforce.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [WorkforceModule],
+  imports: [WorkforceModule, NotificationsModule],
   controllers: [OperationController, ChecklistController],
   providers: [
     OperationRepository,

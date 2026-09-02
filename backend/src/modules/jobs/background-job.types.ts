@@ -81,6 +81,7 @@ export const JOB_QUEUES = {
   pmocDueCheck: 'pmoc.due-check',
   mobileSyncCleanup: 'mobile.sync.cleanup',
   mobileEvidenceCleanup: 'mobile.evidence.cleanup',
+  mobilePushDelivery: 'mobile.push.delivery',
 } as const;
 export type JobQueue = (typeof JOB_QUEUES)[keyof typeof JOB_QUEUES];
 

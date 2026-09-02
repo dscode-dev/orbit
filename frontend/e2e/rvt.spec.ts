@@ -135,7 +135,7 @@ const SEEDED = {
 };
 
 test.beforeAll(async ({ request }) => {
-  const api = process.env.ORBIT_API_URL ?? "http://localhost:5001/api/v1";
+  const api = process.env.ORBIT_API_URL ?? "http://localhost:6001/api/v1";
 
   const session = await request.post(`${api}/identity/login`, {
     data: { email: OWNER.email, password: OWNER.password },

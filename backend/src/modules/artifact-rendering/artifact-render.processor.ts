@@ -30,7 +30,13 @@
  * O efeito colateral honesto de uma reexecução é uma revisão a mais, com o
  * mesmo conteúdo — visível no histórico, que é onde deve estar.
  */
-import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+  type OnModuleInit,
+} from '@nestjs/common';
 import { ArtifactManifestService } from '../artifact-manifests/artifact-manifest.service';
 import { JobProcessorRegistry } from '../jobs/job-processor.registry';
 import {
@@ -45,6 +51,7 @@ import { ArtifactRenderMetrics } from './artifact-render.metrics';
 import { ArtifactRenderRepository } from './artifact-render.repository';
 import { ArtifactRendererRegistry } from './renderers/renderer.registry';
 import type { RenderJobPayload } from './artifact-render.service';
+import { MobileNotificationService } from '../notifications/mobile-notification.service';
 import {
   STORAGE_PROVIDER,
   type StorageProvider,
@@ -57,6 +64,7 @@ const fileNameFor = (code: string, format: string): string =>
 @Injectable()
 export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
   readonly queue: JobQueue = JOB_QUEUES.artifactRender;
+  private readonly logger = new Logger(ArtifactRenderProcessor.name);
 
   constructor(
     private readonly repository: ArtifactRenderRepository,
@@ -66,6 +74,8 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
     private readonly metrics: ArtifactRenderMetrics,
     private readonly registry: JobProcessorRegistry,
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
+    @Optional()
+    private readonly mobileNotifications?: MobileNotificationService,
   ) {}
 
   onModuleInit(): void {
@@ -103,6 +113,28 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
      */
     if (source.fieldArtifact && source.manifests.length > 0) {
       await this.repository.markReady(payload.executionId);
+      if (source.fieldArtifact && this.mobileNotifications) {
+        try {
+          await this.mobileNotifications.materialize({
+            organizationId: job.organizationId,
+            businessUnitId: source.businessUnitId,
+            recipientUserId: source.responsibleUserId ?? source.createdById,
+            type: 'ARTIFACT_AVAILABLE',
+            factId: source.manifests[0]!.id,
+            resourceId: source.fieldArtifact.id,
+            correlationId: job.correlationId,
+          });
+        } catch (error) {
+          this.logger.warn(
+            JSON.stringify({
+              event: 'mobile_notification_materialization_failed',
+              type: 'ARTIFACT_AVAILABLE',
+              errorClass:
+                error instanceof Error ? error.constructor.name : 'Unknown',
+            }),
+          );
+        }
+      }
       return;
     }
 
@@ -259,6 +291,28 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
       });
 
       await this.repository.markReady(payload.executionId);
+      if (source.fieldArtifact && this.mobileNotifications) {
+        try {
+          await this.mobileNotifications.materialize({
+            organizationId: job.organizationId,
+            businessUnitId: source.businessUnitId,
+            recipientUserId: source.responsibleUserId ?? source.createdById,
+            type: 'ARTIFACT_AVAILABLE',
+            factId: issued.id,
+            resourceId: source.fieldArtifact.id,
+            correlationId: job.correlationId,
+          });
+        } catch (error) {
+          this.logger.warn(
+            JSON.stringify({
+              event: 'mobile_notification_materialization_failed',
+              type: 'ARTIFACT_AVAILABLE',
+              errorClass:
+                error instanceof Error ? error.constructor.name : 'Unknown',
+            }),
+          );
+        }
+      }
       await this.repository.audit(
         job.organizationId,
         source.businessUnitId,

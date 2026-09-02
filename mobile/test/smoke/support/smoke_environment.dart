@@ -9,7 +9,7 @@ import 'dart:io';
 
 const smokeApiUrl = String.fromEnvironment(
   'ORBIT_API_URL',
-  defaultValue: 'http://localhost:5001/api/v1',
+  defaultValue: 'http://localhost:6001/api/v1',
 );
 const smokeEmail = String.fromEnvironment(
   'ORBIT_OWNER_EMAIL',

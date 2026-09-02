@@ -25,7 +25,7 @@ import 'package:orbit_operator/core/storage/token_storage.dart';
 
 const _baseUrl = String.fromEnvironment(
   'ORBIT_API_URL',
-  defaultValue: 'http://localhost:5001/api/v1',
+  defaultValue: 'http://localhost:6001/api/v1',
 );
 const _email = String.fromEnvironment(
   'ORBIT_OWNER_EMAIL',

@@ -27,6 +27,7 @@ import { ARTIFACT_RENDERER } from './renderers/artifact-renderer';
 import { ArtifactRendererRegistry } from './renderers/renderer.registry';
 import { ArtifactHtmlRenderer } from './renderers/html/artifact-html.renderer';
 import { ArtifactPdfRenderer } from './renderers/pdf/artifact-pdf.renderer';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { ArtifactPdfRenderer } from './renderers/pdf/artifact-pdf.renderer';
     RequestContextModule,
     SubscriptionPlansModule,
     ArtifactManifestModule,
+    NotificationsModule,
   ],
   controllers: [ArtifactRenderController],
   providers: [

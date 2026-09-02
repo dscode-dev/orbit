@@ -79,6 +79,7 @@ model User {
   notificationPreferences            NotificationPreference[]
   notificationDeliveries             NotificationDelivery[]
   pushSubscriptions                  PushSubscription[]
+  mobileDeviceInstallations          MobileDeviceInstallation[]
   auditLogs                          AuditLog[]
   invitationsSent                    IdentityInvitation[]           @relation("InvitationInviter")
   passwordResetTokens                PasswordResetToken[]
@@ -257,6 +258,8 @@ model Organization {
   notifications                 Notification[]
   notificationPreferences       NotificationPreference[]
   pushSubscriptions             PushSubscription[]
+  mobileDeviceInstallations     MobileDeviceInstallation[]
+  mobilePushDeliveries          MobilePushDelivery[]
   aiAgents                      AiAgent[]
   aiExecutions                  AiExecution[]
   auditLogs                     AuditLog[]
@@ -1537,6 +1540,7 @@ model Notification {
   businessUnitId  String?   @map("business_unit_id") @db.Uuid
   recipientUserId String    @map("recipient_user_id") @db.Uuid
   type            String    @db.VarChar(80)
+  dedupeKey       String?   @map("dedupe_key") @db.VarChar(180)
   channels        String[]  @default(["IN_APP", "REALTIME"]) @db.VarChar(30)
   title           String    @db.VarChar(180)
   body            String    @db.Text
@@ -1553,10 +1557,67 @@ model Notification {
   businessUnit BusinessUnit?          @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
   recipient    User                   @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
   deliveries   NotificationDelivery[]
+  mobilePushDeliveries MobilePushDelivery[]
 
   @@index([recipientUserId, readAt, createdAt])
   @@index([organizationId, status, scheduledAt])
+  @@unique([organizationId, dedupeKey], map: "notifications_org_dedupe_key")
   @@map("notifications")
+}
+
+model MobileDeviceInstallation {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  deviceInstanceId String    @map("device_instance_id") @db.VarChar(120)
+  platform         String    @db.VarChar(20)
+  pushProvider     String    @map("push_provider") @db.VarChar(30)
+  pushToken        String    @map("push_token") @db.Text
+  pushTokenHash    String    @map("push_token_hash") @db.Char(64)
+  appVersion       String    @map("app_version") @db.VarChar(40)
+  osVersion        String?   @map("os_version") @db.VarChar(60)
+  locale           String?   @db.VarChar(16)
+  timezone         String?   @db.VarChar(64)
+  enabled          Boolean   @default(true)
+  lastSeenAt       DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  tokenUpdatedAt   DateTime  @default(now()) @map("token_updated_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries   MobilePushDelivery[]
+
+  @@unique([deviceInstanceId])
+  @@index([organizationId, userId, enabled, revokedAt])
+  @@index([pushTokenHash, enabled, revokedAt])
+  @@map("mobile_device_installations")
+}
+
+model MobilePushDelivery {
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  notificationId    String    @map("notification_id") @db.Uuid
+  installationId    String    @map("installation_id") @db.Uuid
+  status            String    @default("PENDING") @db.VarChar(40)
+  provider          String?   @db.VarChar(40)
+  providerMessageId String?   @map("provider_message_id") @db.VarChar(255)
+  attempts          Int       @default(0)
+  lastErrorCode     String?   @map("last_error_code") @db.VarChar(80)
+  acceptedAt        DateTime? @map("accepted_at") @db.Timestamptz(3)
+  failedAt          DateTime? @map("failed_at") @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  notification Notification             @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  installation MobileDeviceInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, installationId])
+  @@index([organizationId, status, createdAt])
+  @@index([installationId, createdAt])
+  @@map("mobile_push_deliveries")
 }
 
 model NotificationPreference {

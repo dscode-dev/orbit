@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { OperationStatus } from '../../contracts';
 import {
@@ -18,13 +18,19 @@ import { OperationRepository } from './operation.repository';
 import { OperationStorageService } from './operation-storage.service';
 import { OperationStateMachine } from './operation-state-machine';
 import { WorkforceRepository } from '../workforce/workforce.repository';
+import { MobileNotificationService } from '../notifications/mobile-notification.service';
+import { generateUuidV7 } from '../../utils';
 
 @Injectable()
 export class OperationService {
+  private readonly logger = new Logger(OperationService.name);
+
   constructor(
     private readonly repository: OperationRepository,
     private readonly storage: OperationStorageService,
     private readonly workforce: WorkforceRepository,
+    @Optional()
+    private readonly mobileNotifications?: MobileNotificationService,
   ) {}
 
   list(organizationId: string, query: OperationQueryDto) {
@@ -57,7 +63,7 @@ export class OperationService {
       input.auxiliaryTechnicianIds ?? [],
     );
     try {
-      return await this.repository.create(
+      const operation = await this.repository.create(
         {
           organizationId,
           businessUnitId: input.businessUnitId,
@@ -82,6 +88,13 @@ export class OperationService {
         this.json({ code: input.code, title: input.title }),
         input.auxiliaryTechnicianIds ?? [],
       );
+      const recipients = [
+        input.responsibleFieldTechnicianId,
+        ...(input.auxiliaryTechnicianIds ?? []),
+      ].filter((value): value is string => Boolean(value));
+      for (const recipient of new Set(recipients))
+        await this.notifyAssignment(operation, recipient);
+      return operation;
     } catch (error) {
       this.mapConflict(error);
     }
@@ -276,13 +289,15 @@ export class OperationService {
       throw new ConflictException(
         'User is already the responsible field technician',
       );
-    return this.repository.replaceResponsibleFieldTechnician(
+    const result = await this.repository.replaceResponsibleFieldTechnician(
       id,
       organizationId,
       operation.responsibleFieldTechnicianId,
       userId,
       actorId,
     );
+    await this.notifyAssignment(result, userId);
+    return result;
   }
 
   async addAuxiliaryTechnician(
@@ -309,7 +324,40 @@ export class OperationService {
     );
     if (!result)
       throw new ConflictException('Auxiliary technician is already assigned');
+    await this.notifyAssignment(result, userId);
     return result;
+  }
+
+  private async notifyAssignment(
+    operation: {
+      id: string;
+      organizationId: string;
+      businessUnitId: string;
+      updatedAt: Date;
+    },
+    recipientUserId: string,
+  ): Promise<void> {
+    if (!this.mobileNotifications) return;
+    try {
+      await this.mobileNotifications.materialize({
+        organizationId: operation.organizationId,
+        businessUnitId: operation.businessUnitId,
+        recipientUserId,
+        type: 'WORK_ASSIGNED',
+        factId: `${operation.id}:${operation.updatedAt.toISOString()}`,
+        resourceId: operation.id,
+        correlationId: generateUuidV7(),
+      });
+    } catch (error) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'mobile_notification_materialization_failed',
+          type: 'WORK_ASSIGNED',
+          errorClass:
+            error instanceof Error ? error.constructor.name : 'Unknown',
+        }),
+      );
+    }
   }
 
   async removeAuxiliaryTechnician(
