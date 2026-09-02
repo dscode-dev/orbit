@@ -32,11 +32,15 @@ class AppShell extends ConsumerWidget {
         icon: isOwner ? Icons.insights_outlined : Icons.home_outlined,
         selectedIcon: isOwner ? Icons.insights : Icons.home,
       ),
+
+      /// A entrada operacional é a **fila de campo**, não a lista
+      /// administrativa de atendimentos: PMOC e visitas técnicas também são
+      /// trabalho, e apareciam fora dali.
       const _ShellDestination(
-        route: OrbitRoutes.operations,
-        label: 'Operações',
-        icon: Icons.assignment_outlined,
-        selectedIcon: Icons.assignment,
+        route: OrbitRoutes.workQueue,
+        label: 'Trabalho',
+        icon: Icons.checklist_rtl_outlined,
+        selectedIcon: Icons.checklist_rtl,
       ),
       const _ShellDestination(
         route: OrbitRoutes.agenda,

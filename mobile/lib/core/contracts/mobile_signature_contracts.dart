@@ -151,34 +151,126 @@ final class CustomerAcknowledgementInput {
   };
 }
 
+/// Um equipamento no resumo apresentado ao cliente.
+final class AcknowledgementEquipment {
+  const AcknowledgementEquipment({
+    required this.id,
+    required this.code,
+    required this.name,
+  });
+
+  factory AcknowledgementEquipment.fromJson(Map<String, Object?> json) =>
+      AcknowledgementEquipment(
+        id: json['id'] as String? ?? '',
+        code: json['code'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+      );
+
+  final String id;
+  final String code;
+  final String name;
+}
+
+/// Um aceite já registrado neste atendimento.
+///
+/// É **fato histórico**: quem assinou e quando. O contrato não publica se ele
+/// ainda corresponde ao estado atual do atendimento, e o app não deduz isso
+/// comparando hashes — ver o comentário em [CustomerAcknowledgementPreparation].
+final class ExistingAcknowledgement {
+  const ExistingAcknowledgement({
+    required this.signerName,
+    required this.acknowledgedAt,
+    required this.hasSignature,
+  });
+
+  factory ExistingAcknowledgement.fromJson(Map<String, Object?> json) =>
+      ExistingAcknowledgement(
+        signerName: json['signerName'] as String? ?? '',
+        acknowledgedAt:
+            DateTime.tryParse(json['acknowledgedAt'] as String? ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+        hasSignature: json['hasSignature'] as bool? ?? false,
+      );
+
+  final String signerName;
+  final DateTime acknowledgedAt;
+  final bool hasSignature;
+}
+
+/// O resumo **congelado** que o cliente revisa antes de dar ciência.
+///
+/// `serviceSummary` vem redigido do servidor e é o que o `contentHash` cobre.
+/// Montar um resumo alternativo no app quebraria a correspondência: o cliente
+/// concordaria com um texto e o backend registraria outro.
+///
+/// ## Sobre validade do aceite anterior
+///
+/// O desalinhamento é detectado **no momento de coletar**: se o atendimento
+/// mudou, `expectedVersion` ou `contentHash` não batem e o servidor recusa com
+/// 409. A preparação não publica se um aceite já registrado continua
+/// correspondendo ao estado atual — por isso o app o apresenta como fato
+/// ("fulano deu ciência em tal data") e não afirma que segue válido.
 final class CustomerAcknowledgementPreparation {
   const CustomerAcknowledgementPreparation({
+    required this.executionType,
     required this.executionId,
     required this.serviceSummary,
+    required this.equipment,
     required this.contentVersion,
     required this.contentHash,
     required this.signatureRequired,
     required this.signatureOptional,
+    this.customerName,
+    this.performedAt,
+    this.existingAcknowledgement,
   });
-  final String executionId;
-  final String serviceSummary;
-  final String contentVersion;
-  final String contentHash;
-  final bool signatureRequired;
-  final bool signatureOptional;
+
   factory CustomerAcknowledgementPreparation.fromJson(
     Map<String, Object?> json,
   ) {
-    final policy = json['signerPolicy']! as Map<String, Object?>;
+    final policy = json['signerPolicy'] as Map<String, Object?>? ?? const {};
+    final customer = json['customer'] as Map<String, Object?>?;
+    final existing = json['existingAcknowledgement'] as Map<String, Object?>?;
+
     return CustomerAcknowledgementPreparation(
-      executionId: json['executionId']! as String,
-      serviceSummary: json['serviceSummary']! as String,
-      contentVersion: json['contentVersion']! as String,
-      contentHash: json['contentHash']! as String,
-      signatureRequired: policy['signatureRequired']! as bool,
-      signatureOptional: policy['signatureOptional']! as bool,
+      executionType: json['executionType'] as String? ?? 'OPERATION',
+      executionId: json['executionId'] as String? ?? '',
+      serviceSummary: json['serviceSummary'] as String? ?? '',
+      customerName: customer?['name'] as String?,
+      equipment: (json['equipment'] as List<Object?>? ?? const [])
+          .whereType<Map<String, Object?>>()
+          .map(AcknowledgementEquipment.fromJson)
+          .toList(growable: false),
+      performedAt: DateTime.tryParse(json['performedAt'] as String? ?? ''),
+      existingAcknowledgement: existing == null
+          ? null
+          : ExistingAcknowledgement.fromJson(existing),
+      contentVersion: json['contentVersion'] as String? ?? '',
+      contentHash: json['contentHash'] as String? ?? '',
+      signatureRequired: policy['signatureRequired'] as bool? ?? false,
+      signatureOptional: policy['signatureOptional'] as bool? ?? true,
     );
   }
+
+  final String executionType;
+  final String executionId;
+
+  /// O texto que o cliente lê. Vem pronto do servidor.
+  final String serviceSummary;
+  final String? customerName;
+  final List<AcknowledgementEquipment> equipment;
+  final DateTime? performedAt;
+  final ExistingAcknowledgement? existingAcknowledgement;
+
+  /// Precondições que voltam no comando, verbatim.
+  final String contentVersion;
+  final String contentHash;
+
+  /// Assinatura gráfica é **opcional** por política do servidor. Sem ela, o
+  /// nome de quem deu ciência basta — e chamar isso de "assinatura do cliente"
+  /// prometeria algo que o contrato não faz.
+  final bool signatureRequired;
+  final bool signatureOptional;
 }
 
 final class CustomerAcknowledgementResult {

@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/providers.dart';
@@ -18,6 +19,10 @@ Future<void> main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // Sem isto, `DateFormat` em pt_BR lança ao formatar: os símbolos de idioma
+  // são carregados sob demanda. É barato e acontece uma vez.
+  await initializeDateFormatting('pt_BR');
 
   // A leitura das preferências é assíncrona; a árvore precisa dela pronta.
   final preferences = await SharedPreferences.getInstance();

@@ -8,6 +8,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../errors/orbit_exception.dart';
+import '../presentation/field_registry.dart';
 import '../theme/orbit_theme.dart';
 
 /// Cartão de seção com título e conteúdo.
@@ -146,8 +147,18 @@ class SectionEmpty extends StatelessWidget {
 
 /// Erro de leitura.
 ///
-/// 403 é apresentado como ausência de acesso, sem "tentar novamente": não é
-/// falha, é o backend recusando por permissão, plano ou capability.
+/// Cada recusa tem a sua forma:
+///
+/// - **403** é ausência de acesso, não falha. Sem "tentar novamente": repetir
+///   dá o mesmo resultado, e insistir sugere que o problema é passageiro.
+/// - **409** é dado que mudou por baixo. A saída é reler, e o botão diz isso.
+/// - **404** é ausência neutra: nada sobre outro tenant, outra unidade ou
+///   registro revogado — distinguir os casos vira um oráculo.
+/// - **rede** é o aparelho, não o servidor.
+///
+/// O `requestId` aparece discreto quando o erro é inesperado. Não é para o
+/// usuário entender: é para ele conseguir dizer ao suporte qual foi a
+/// requisição, e o suporte achá-la no log.
 class SectionError extends StatelessWidget {
   const SectionError({super.key, required this.error, this.onRetry});
 
@@ -159,25 +170,51 @@ class SectionError extends StatelessWidget {
     final orbitError = error is OrbitException ? error as OrbitException : null;
 
     if (orbitError?.isForbidden ?? false) {
-      return const SectionEmpty(
+      return SectionEmpty(
         icon: Icons.lock_outline,
-        message: 'Sua conta não tem acesso a esta informação.',
+        message: errorCodeLabels['FORBIDDEN']!,
+      );
+    }
+
+    if (orbitError?.isNotFound ?? false) {
+      return const SectionEmpty(
+        icon: Icons.search_off,
+        message: 'Este registro não está disponível.',
       );
     }
 
     final isOffline = orbitError?.isOffline ?? false;
+    final isConflict = orbitError?.isConflict ?? false;
+
+    /// Mensagem do servidor quando existe; o mapa é a rede de segurança.
+    final message = isConflict
+        ? errorCodeLabels['CONFLICT']!
+        : (orbitError?.message ??
+              errorCodeLabel(orbitError?.code) ??
+              'Não foi possível carregar.');
+
+    /// `requestId` só no que é inesperado — 409 e falta de rede o usuário
+    /// resolve sozinho, e a referência ali seria ruído.
+    final reference = (isOffline || isConflict) ? null : orbitError?.requestId;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: OrbitSpacing.md),
       child: Column(
         children: [
           Icon(
-            isOffline ? Icons.wifi_off_rounded : Icons.error_outline,
-            color: isOffline ? OrbitColors.warning : OrbitColors.danger,
+            isOffline
+                ? Icons.wifi_off_rounded
+                : isConflict
+                ? Icons.sync_problem
+                : Icons.error_outline,
+            color: isOffline || isConflict
+                ? OrbitColors.warning
+                : OrbitColors.danger,
             size: 28,
           ),
           const SizedBox(height: OrbitSpacing.sm),
           Text(
-            orbitError?.message ?? 'Não foi possível carregar.',
+            message,
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 13,
@@ -189,7 +226,18 @@ class SectionError extends StatelessWidget {
             TextButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Tentar novamente'),
+              label: Text(isConflict ? 'Atualizar' : 'Tentar novamente'),
+            ),
+          ],
+          if (reference != null) ...[
+            const SizedBox(height: OrbitSpacing.xs),
+            Text(
+              'Referência: $reference',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: OrbitColors.textSecondary.withValues(alpha: 0.7),
+              ),
             ),
           ],
         ],
@@ -213,8 +261,8 @@ class StaleDataBanner extends StatelessWidget {
     final label = minutes < 1
         ? 'agora há pouco'
         : minutes < 60
-            ? 'há $minutes min'
-            : 'há ${(minutes / 60).floor()} h';
+        ? 'há $minutes min'
+        : 'há ${(minutes / 60).floor()} h';
 
     return Container(
       margin: const EdgeInsets.only(bottom: OrbitSpacing.md),
@@ -229,7 +277,11 @@ class StaleDataBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.cloud_off_rounded, size: 18, color: OrbitColors.warning),
+          const Icon(
+            Icons.cloud_off_rounded,
+            size: 18,
+            color: OrbitColors.warning,
+          ),
           const SizedBox(width: OrbitSpacing.sm),
           Expanded(
             child: Text(

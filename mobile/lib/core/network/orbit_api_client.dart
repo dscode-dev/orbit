@@ -123,13 +123,17 @@ class OrbitApiClient {
     ),
   );
 
-  Future<T> patch<T>(
-    String path, {
-    Object? body,
-    CancelToken? cancelToken,
-  }) => _send<T>(
-    () => _dio.patch<dynamic>(path, data: body, cancelToken: cancelToken),
-  );
+  Future<T> patch<T>(String path, {Object? body, CancelToken? cancelToken}) =>
+      _send<T>(
+        () => _dio.patch<dynamic>(path, data: body, cancelToken: cancelToken),
+      );
+
+  /// `PUT` — usado onde o backend contratou substituição, como a atualização
+  /// de checklist do MB-02, que recebe o mapa de respostas inteiro.
+  Future<T> put<T>(String path, {Object? body, CancelToken? cancelToken}) =>
+      _send<T>(
+        () => _dio.put<dynamic>(path, data: body, cancelToken: cancelToken),
+      );
 
   Future<T> delete<T>(String path, {CancelToken? cancelToken}) =>
       _send<T>(() => _dio.delete<dynamic>(path, cancelToken: cancelToken));
@@ -165,6 +169,45 @@ class OrbitApiClient {
         },
       ),
     );
+  }
+
+  /// Envia bytes para uma **URL assinada** do storage.
+  ///
+  /// É a segunda metade do pipeline de upload: o backend reserva a URL, o app
+  /// põe os bytes lá, e depois confirma pela API. A URL é absoluta e de vida
+  /// curta — vai sem o token da sessão, porque a própria assinatura é a
+  /// credencial, e mandar o `Bearer` para fora da API seria vazá-lo.
+  ///
+  /// Continua passando por este cliente, e não por um `Dio` avulso: um segundo
+  /// caminho de rede é como nascem dois tratamentos de erro e um deles fica
+  /// para trás.
+  Future<void> putBytes({
+    required Uri url,
+    required List<int> bytes,
+    required Map<String, String> headers,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      await _dio.putUri<dynamic>(
+        url,
+        data: Stream<List<int>>.value(bytes),
+        cancelToken: cancelToken,
+        options: Options(
+          headers: {...headers, Headers.contentLengthHeader: bytes.length},
+
+          /// Sem interceptor de sessão: a URL assinada é a credencial.
+          extra: {publicRequestKey: true},
+        ),
+      );
+    } on DioException catch (error) {
+      final mapped = error.error;
+      if (mapped is OrbitException) throw mapped;
+      throw OrbitException(
+        kind: OrbitErrorKind.network,
+        message: error.message ?? 'Falha ao enviar o arquivo.',
+        code: 'UPLOAD',
+      );
+    }
   }
 
   Options _options(bool isPublic) =>

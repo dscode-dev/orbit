@@ -9,8 +9,10 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../app/providers.dart';
+import '../../../core/routing/orbit_router.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../authentication/domain/session.dart';
@@ -90,7 +92,8 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 _Row(
                   label: 'Plano',
-                  value: session.entitlements?.planKey ??
+                  value:
+                      session.entitlements?.planKey ??
                       session.organization?.plan?.key ??
                       '—',
                 ),
@@ -106,6 +109,24 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: OrbitSpacing.md),
+
+          /// A assinatura profissional pertence ao usuário — por isso mora
+          /// aqui, e não escondida dentro de um atendimento: quem precisa
+          /// cadastrá-la costuma descobrir isso longe do campo.
+          SectionCard(
+            title: 'Assinatura profissional',
+            subtitle: 'Usada nos documentos que você assina',
+            child: ListTile(
+              onTap: () => context.push(OrbitRoutes.mySignature),
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.draw_outlined),
+              title: const Text(
+                'Minha assinatura',
+                style: TextStyle(fontSize: 14),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+            ),
+          ),
 
           if (units.length > 1)
             SectionCard(

@@ -97,11 +97,8 @@ final todayAgendaProvider = FutureProvider.autoDispose<CachedResult<Agenda>>((
   if (session == null) throw StateError('Sessão ausente');
   return ref
       .watch(agendaRepositoryProvider)
-      .load(
-        view: 'DAY',
-        date: DateTime.now(),
-        businessUnitId: session.businessUnitId,
-      );
+      /// Sem data: "hoje" é o dia da **unidade**, resolvido pelo servidor.
+      .load(view: 'DAY', businessUnitId: session.businessUnitId);
 });
 
 /// Alertas não lidos do usuário.

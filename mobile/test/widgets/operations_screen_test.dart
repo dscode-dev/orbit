@@ -62,7 +62,10 @@ Widget wrap(Future<ResponseBody> Function(RequestOptions) handler) {
         OperationsRepository(client: client, cache: InMemoryReadCache()),
       ),
     ],
-    child: MaterialApp(theme: OrbitTheme.dark(), home: const OperationsScreen()),
+    child: MaterialApp(
+      theme: OrbitTheme.dark(),
+      home: const OperationsScreen(),
+    ),
   );
 }
 
@@ -131,7 +134,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Sua conta não tem acesso a esta informação.'),
+      find.text('Você não possui permissão para realizar esta ação.'),
       findsOneWidget,
     );
     expect(find.text('Tentar novamente'), findsNothing);
