@@ -8,57 +8,16 @@
 /// banco. Sem API no ar, cada teste é pulado com motivo.
 library;
 
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
-import 'package:orbit_operator/core/config/environment.dart';
 import 'package:orbit_operator/core/contracts/field_operation_contracts.dart';
-import 'package:orbit_operator/core/contracts/mobile_field_contracts.dart';
 import 'package:orbit_operator/core/errors/orbit_exception.dart';
-import 'package:orbit_operator/core/network/orbit_api_client.dart';
-import 'package:orbit_operator/core/observability/orbit_logger.dart';
-import 'package:orbit_operator/core/storage/token_storage.dart';
 import 'package:orbit_operator/features/field/application/execution_controller.dart';
 import 'package:orbit_operator/features/field/data/field_operation_repository.dart';
 
-const _baseUrl = String.fromEnvironment(
-  'ORBIT_API_URL',
-  defaultValue: 'http://localhost:5001/api/v1',
-);
-const _email = String.fromEnvironment(
-  'ORBIT_OWNER_EMAIL',
-  defaultValue: 'owner@orbit.local',
-);
-const _password = String.fromEnvironment(
-  'ORBIT_OWNER_PASSWORD',
-  defaultValue: 'OrbitOwner@2026',
-);
+import 'support/scenario_provisioner.dart';
+import 'support/smoke_environment.dart';
 
-class _MemoryTokenStorage implements TokenStorage {
-  TokenPair? _pair;
-  @override
-  Future<void> clear() async => _pair = null;
-  @override
-  Future<TokenPair?> read() async => _pair;
-  @override
-  Future<void> write(TokenPair pair) async => _pair = pair;
-}
-
-Future<bool> _apiIsUp() async {
-  try {
-    final uri = Uri.parse(_baseUrl);
-    final socket = await Socket.connect(
-      uri.host,
-      uri.port,
-      timeout: const Duration(seconds: 2),
-    );
-    socket.destroy();
-    return true;
-  } on Object {
-    return false;
-  }
-}
-
+/// O envelope de um comando, com a versão que o servidor publicou.
 FieldOperationCommandContract _command(String version, {String? commandId}) {
   final id = commandId ?? newCommandId();
   return FieldOperationCommandContract(
@@ -71,59 +30,40 @@ FieldOperationCommandContract _command(String version, {String? commandId}) {
 
 void main() {
   late bool available;
-  late OrbitApiClient client;
-  late _MemoryTokenStorage storage;
+  late ScenarioProvisioner provisioner;
   late FieldOperationRepository repository;
 
   setUpAll(() async {
-    available = await _apiIsUp();
+    available = await smokeApiIsUp();
     if (!available) return;
-    storage = _MemoryTokenStorage();
-    client = OrbitApiClient.create(
-      environment: OrbitEnvironment(
-        apiBaseUrl: _baseUrl,
-        flavor: OrbitFlavor.development,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 20),
-      ),
-      storage: storage,
-      logger: const OrbitLogger(isProduction: false),
-    );
-    repository = FieldOperationRepository(client: client);
-
-    final data = await client.post<Map<String, dynamic>>(
-      '/identity/login',
-      body: {'email': _email, 'password': _password},
-      isPublic: true,
-    );
-    await storage.write(TokenPair.fromJson(data));
+    provisioner = await ScenarioProvisioner.connect();
+    repository = FieldOperationRepository(client: provisioner.client);
   });
 
-  bool skip() {
+  tearDownAll(() {
+    if (!available) return;
+    // ignore: avoid_print
+    print(
+      'FL-03 · atendimentos criados nesta execução: '
+      '${provisioner.createdOperations}',
+    );
+  });
+
+  bool offline() {
     if (available) return false;
-    markTestSkipped('API indisponível em $_baseUrl');
+    markTestSkipped('API indisponível em $smokeApiUrl');
     return true;
   }
 
-  /// Um atendimento da fila que aceite execução.
-  Future<String?> anOperation() async {
-    final page = MobileWorkQueuePageContract.fromJson(
-      await client.get<Map<String, dynamic>>(
-        '/mobile/field/work-queue',
-        query: {'view': 'ALL', 'kind': 'SERVICE_OPERATION', 'limit': 50},
-      ),
-    );
-    final item = page.data.firstOrNull;
-    return item?.navigationContext.sourceId;
-  }
+  /// Um atendimento em andamento, novo, só desta suíte.
+  ///
+  /// Antes, esta linha procurava "algum atendimento na fila" — e por isso a
+  /// suíte parava de rodar quando outra concluía o que ela usava.
+  Future<OperationScenario> scenario() => provisioner.operation(suite: 'FL03');
 
   test('abrir a preparação não altera o atendimento', () async {
-    if (skip()) return;
-    final operationId = await anOperation();
-    if (operationId == null) {
-      markTestSkipped('sem atendimento de campo neste tenant');
-      return;
-    }
+    if (offline()) return;
+    final operationId = (await scenario()).operationId;
 
     final before = await repository.preparation(operationId);
 
@@ -136,12 +76,8 @@ void main() {
   });
 
   test('a preparação publica versão, ações e elegibilidade', () async {
-    if (skip()) return;
-    final operationId = await anOperation();
-    if (operationId == null) {
-      markTestSkipped('sem atendimento de campo neste tenant');
-      return;
-    }
+    if (offline()) return;
+    final operationId = (await scenario()).operationId;
 
     final preparation = await repository.preparation(operationId);
 
@@ -154,12 +90,8 @@ void main() {
   });
 
   test('versão desatualizada é recusada com conflito', () async {
-    if (skip()) return;
-    final operationId = await anOperation();
-    if (operationId == null) {
-      markTestSkipped('sem atendimento de campo neste tenant');
-      return;
-    }
+    if (offline()) return;
+    final operationId = (await scenario()).operationId;
 
     final preparation = await repository.preparation(operationId);
     final action = preparation.primaryAction;
@@ -186,12 +118,8 @@ void main() {
   });
 
   test('repetir a mesma intenção não produz um segundo efeito', () async {
-    if (skip()) return;
-    final operationId = await anOperation();
-    if (operationId == null) {
-      markTestSkipped('sem atendimento de campo neste tenant');
-      return;
-    }
+    if (offline()) return;
+    final operationId = (await scenario()).operationId;
 
     var preparation = await repository.preparation(operationId);
     if (!preparation.allowedActions.contains(

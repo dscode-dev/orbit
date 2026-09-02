@@ -7,58 +7,18 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:orbit_operator/core/config/environment.dart';
 import 'package:orbit_operator/core/contracts/mobile_evidence_contracts.dart';
 import 'package:orbit_operator/core/contracts/mobile_field_contracts.dart';
 import 'package:orbit_operator/core/errors/orbit_exception.dart';
-import 'package:orbit_operator/core/network/orbit_api_client.dart';
-import 'package:orbit_operator/core/observability/orbit_logger.dart';
-import 'package:orbit_operator/core/storage/token_storage.dart';
 import 'package:orbit_operator/features/evidence/data/evidence_intake.dart';
 import 'package:orbit_operator/features/evidence/data/evidence_repository.dart';
 import 'package:orbit_operator/features/evidence/data/media_store.dart';
 
-const _baseUrl = String.fromEnvironment(
-  'ORBIT_API_URL',
-  defaultValue: 'http://localhost:5001/api/v1',
-);
-const _email = String.fromEnvironment(
-  'ORBIT_OWNER_EMAIL',
-  defaultValue: 'owner@orbit.local',
-);
-const _password = String.fromEnvironment(
-  'ORBIT_OWNER_PASSWORD',
-  defaultValue: 'OrbitOwner@2026',
-);
-
-class _MemoryTokenStorage implements TokenStorage {
-  TokenPair? _pair;
-  @override
-  Future<void> clear() async => _pair = null;
-  @override
-  Future<TokenPair?> read() async => _pair;
-  @override
-  Future<void> write(TokenPair pair) async => _pair = pair;
-}
-
-Future<bool> _apiIsUp() async {
-  try {
-    final uri = Uri.parse(_baseUrl);
-    final socket = await Socket.connect(
-      uri.host,
-      uri.port,
-      timeout: const Duration(seconds: 2),
-    );
-    socket.destroy();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import 'support/scenario_provisioner.dart';
+import 'support/smoke_environment.dart';
 
 /// PNG 1×1 real, com um sufixo que o torna único por execução.
 ///
@@ -80,153 +40,86 @@ Uint8List uniquePng() {
 
 void main() {
   late bool available;
-  late OrbitApiClient client;
+  late ScenarioProvisioner provisioner;
   late EvidenceRepository evidence;
+  late OperationScenario scenario;
 
-  FieldEvidenceTargetRef? target;
+  late FieldEvidenceTargetRef target;
 
   /// Uma execução de RVT, quando o tenant tiver uma. Prova que o pipeline
-  /// atende mais de um tipo de alvo — o backend aceita três, e não é o app
-  /// que decide quais.
+  /// atende mais de um tipo de alvo.
   FieldEvidenceTargetRef? rvtTarget;
 
-  /// Um alvo que já atingiu o limite, quando houver. O limite é aplicado no
-  /// `finalize`, sob lock do alvo — é o servidor que decide, e este campo
-  /// existe para prová-lo contra a API real.
-  FieldEvidenceTargetRef? saturatedTarget;
-  int? saturatedLimit;
-
   setUpAll(() async {
-    available = await _apiIsUp();
+    available = await smokeApiIsUp();
     if (!available) return;
+    provisioner = await ScenarioProvisioner.connect();
+    evidence = EvidenceRepository(client: provisioner.client);
 
-    final storage = _MemoryTokenStorage();
-    client = OrbitApiClient.create(
-      environment: OrbitEnvironment(
-        apiBaseUrl: _baseUrl,
-        flavor: OrbitFlavor.development,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 30),
-      ),
-      storage: storage,
-      logger: const OrbitLogger(isProduction: false),
-    );
-    evidence = EvidenceRepository(client: client);
-
-    final login = await client.post<Map<String, dynamic>>(
-      '/identity/login',
-      body: {'email': _email, 'password': _password},
-      isPublic: true,
-    );
-    await storage.write(TokenPair.fromJson(login));
-
-    /// O alvo sai da própria fila de campo — nada de id inventado.
+    /// Um atendimento em andamento, novo, só desta suíte.
     ///
-    /// A escolha é feita **perguntando ao servidor**: uma reserva de teste em
-    /// cada candidato, do fim da fila para o começo. Publicar `ADD_EVIDENCE`
-    /// na fila não é o mesmo que estar autorizado a anexar naquele alvo — a
-    /// autorização é revalidada na reserva, e é ela que decide.
-    ///
-    /// Do fim para o começo porque anexar evidência avança o atendimento, e os
-    /// smokes da execução e do offline usam os primeiros para afirmar que ler
-    /// não muta. Os três rodam em paralelo.
-    final queue = await client.get<Map<String, dynamic>>(
+    /// Antes, a busca varria a fila atrás de "algum atendimento que aceite
+    /// evidência e tenha folga no limite" — e dependia do que outras suítes
+    /// tinham deixado. Agora o alvo é dela, e começa com zero evidências.
+    scenario = await provisioner.operation(suite: 'FL06');
+    target = FieldEvidenceTargetRef(
+      type: FieldEvidenceTarget.operation,
+      id: scenario.operationId,
+    );
+
+    /// A execução de RVT continua vindo da fila: o harness não provisiona
+    /// RVT, e criar uma execução só para preencher cobertura ultrapassaria o
+    /// escopo. Sem uma, o teste de outro alvo se declara ausente.
+    final queue = await provisioner.client.get<Map<String, dynamic>>(
       '/mobile/field/work-queue',
       query: {'limit': 50},
     );
-    final items = (queue['data'] as List<dynamic>? ?? const [])
-        .map(
-          (raw) => MobileWorkItemContract.fromJson(
-            Map<String, dynamic>.from(raw as Map),
-          ),
-        )
-        .whereType<MobileWorkItemContract>()
-        .where(
-          (item) => item.allowedActions.contains(MobileFieldAction.addEvidence),
-        )
-        .toList()
-        .reversed;
-
-    Future<bool> accepts(FieldEvidenceTargetRef candidate) async {
-      try {
-        await evidence.reserve(
-          EvidenceUploadIntentRequest(
-            target: candidate,
-            filename: 'sonda.png',
-            declaredMimeType: 'image/png',
-            declaredSize: 100,
-            idempotencyKey: 'evidence:${newLocalMediaId()}',
-          ),
-        );
-        return true;
-      } on OrbitException {
-        return false;
+    for (final raw in (queue['data'] as List<dynamic>? ?? const [])) {
+      final item = MobileWorkItemContract.fromJson(
+        Map<String, dynamic>.from(raw as Map),
+      );
+      final executionId = item?.navigationContext.executionId;
+      if (item == null ||
+          item.kind != MobileWorkItemKind.rvt ||
+          executionId == null ||
+          !item.allowedActions.contains(MobileFieldAction.addEvidence)) {
+        continue;
       }
-    }
-
-    for (final item in items) {
-      if ((target == null || saturatedTarget == null) &&
-          item.kind == MobileWorkItemKind.serviceOperation) {
-        final candidate = FieldEvidenceTargetRef(
-          type: FieldEvidenceTarget.operation,
-          id: item.sourceId,
-        );
-        if (await accepts(candidate)) {
-          final existing = await evidence.list(target: candidate);
-
-          /// 20 por atendimento (`operationMaximumFiles`).
-          ///
-          /// O alvo do pipeline precisa de folga para a rodada inteira: esta
-          /// suíte cria meia dúzia de evidências, e um alvo quase cheio faria
-          /// o teste medir a própria escolha em vez do protocolo. Um alvo
-          /// cheio não serve para o pipeline — mas serve, e muito, para provar
-          /// que o limite é do servidor.
-          if (existing.length >= 20) {
-            saturatedTarget ??= candidate;
-            saturatedLimit ??= existing.length;
-          } else if (existing.length + 8 <= 20) {
-            target ??= candidate;
-          }
-        }
-      }
-
-      final executionId = item.navigationContext.executionId;
-      if (rvtTarget == null &&
-          item.kind == MobileWorkItemKind.rvt &&
-          executionId != null) {
-        final candidate = FieldEvidenceTargetRef(
-          type: FieldEvidenceTarget.rvtExecution,
-          id: executionId,
-        );
-        if (await accepts(candidate)) rvtTarget = candidate;
-      }
-
-      if (target != null && rvtTarget != null && saturatedTarget != null) {
-        break;
-      }
+      rvtTarget = FieldEvidenceTargetRef(
+        type: FieldEvidenceTarget.rvtExecution,
+        id: executionId,
+      );
+      break;
     }
   });
 
+  tearDownAll(() {
+    if (!available) return;
+    // ignore: avoid_print
+    print(
+      'FL-06 · atendimentos criados nesta execução: '
+      '${provisioner.createdOperations}',
+    );
+  });
+
+  /// Sem cenário depois do harness é defeito de provisionamento: falha alto.
   bool skip() {
-    if (!available) {
-      markTestSkipped('API indisponível em $_baseUrl');
-      return true;
-    }
-    if (target == null) {
-      markTestSkipped(
-        'nenhum atendimento com folga de evidências neste tenant',
-      );
-      return true;
-    }
-    return false;
+    if (available) return false;
+    markTestSkipped('API indisponível em $smokeApiUrl');
+    return true;
   }
 
   /// Reserva, envia e finaliza — o caminho completo.
-  Future<FieldEvidence> upload(Uint8List bytes, {String? localMediaId}) async {
+  Future<FieldEvidence> upload(
+    Uint8List bytes, {
+    String? localMediaId,
+    FieldEvidenceTargetRef? into,
+  }) async {
     final id = localMediaId ?? newLocalMediaId();
+    final destination = into ?? target;
     final intent = await evidence.reserve(
       EvidenceUploadIntentRequest(
-        target: target!,
+        target: destination,
         filename: 'smoke-$id.png',
         declaredMimeType: 'image/png',
         declaredSize: bytes.length,
@@ -264,7 +157,7 @@ void main() {
       expect(created.sizeBytes, bytes.length);
 
       /// A lista autoritativa passa a incluí-la.
-      final list = await evidence.list(target: target!);
+      final list = await evidence.list(target: target);
       expect(list.map((value) => value.id), contains(created.id));
     });
 
@@ -291,7 +184,7 @@ void main() {
       /// Repetir a intenção devolve a mesma, já finalizada — sem nova URL.
       final again = await evidence.reserve(
         EvidenceUploadIntentRequest(
-          target: target!,
+          target: target,
           filename: 'smoke-$id.png',
           declaredMimeType: 'image/png',
           declaredSize: bytes.length,
@@ -305,7 +198,7 @@ void main() {
       expect(again.isFinalized, isTrue);
       expect(again.uploadUrl, isNull);
 
-      final list = await evidence.list(target: target!);
+      final list = await evidence.list(target: target);
       expect(
         list.where((value) => value.localMediaId == id),
         hasLength(1),
@@ -323,7 +216,7 @@ void main() {
       final bytes = uniquePng();
       await evidence.reserve(
         EvidenceUploadIntentRequest(
-          target: target!,
+          target: target,
           filename: 'smoke-$id.png',
           declaredMimeType: 'image/png',
           declaredSize: bytes.length,
@@ -338,7 +231,7 @@ void main() {
       await expectLater(
         evidence.reserve(
           EvidenceUploadIntentRequest(
-            target: target!,
+            target: target,
             filename: 'smoke-$id.png',
             declaredMimeType: 'image/png',
             declaredSize: bytes.length + 100,
@@ -364,7 +257,7 @@ void main() {
       final id = newLocalMediaId();
       final intent = await evidence.reserve(
         EvidenceUploadIntentRequest(
-          target: target!,
+          target: target,
           filename: 'mentira-$id.png',
           declaredMimeType: 'image/png',
           declaredSize: fake.length,
@@ -394,7 +287,7 @@ void main() {
       /// aconteceria se o app comprimisse depois de calcular.
       final intent = await evidence.reserve(
         EvidenceUploadIntentRequest(
-          target: target!,
+          target: target,
           filename: 'hash-$id.png',
           declaredMimeType: 'image/png',
           declaredSize: bytes.length,
@@ -421,7 +314,7 @@ void main() {
       await expectLater(
         evidence.reserve(
           EvidenceUploadIntentRequest(
-            target: target!,
+            target: target,
             filename: 'grande.png',
             declaredMimeType: 'image/png',
             declaredSize: 99000000,
@@ -438,7 +331,7 @@ void main() {
 
       final intent = await evidence.reserve(
         EvidenceUploadIntentRequest(
-          target: target!,
+          target: target,
           filename: 'limite.png',
           declaredMimeType: 'image/png',
           declaredSize: 1000,
@@ -460,7 +353,7 @@ void main() {
       final id = newLocalMediaId();
       final intent = await evidence.reserve(
         EvidenceUploadIntentRequest(
-          target: target!,
+          target: target,
           filename: 'sem-finalize-$id.png',
           declaredMimeType: 'image/png',
           declaredSize: bytes.length,
@@ -476,7 +369,7 @@ void main() {
       );
 
       /// Os bytes estão no storage. A lista autoritativa não os conhece.
-      final list = await evidence.list(target: target!);
+      final list = await evidence.list(target: target);
       expect(list.where((value) => value.localMediaId == id), isEmpty);
 
       /// E o `finalize` posterior é o que a materializa — é assim que um app
@@ -542,7 +435,7 @@ void main() {
   group('outros alvos', () {
     test('a execução de RVT também aceita evidência', () async {
       if (!available) {
-        markTestSkipped('API indisponível em $_baseUrl');
+        markTestSkipped('API indisponível em $smokeApiUrl');
         return;
       }
       if (rvtTarget == null) {
@@ -587,54 +480,65 @@ void main() {
   });
 
   group('limite do alvo', () {
-    test('atingido o limite, o servidor recusa a próxima', () async {
-      if (!available) {
-        markTestSkipped('API indisponível em $_baseUrl');
-        return;
-      }
-      if (saturatedTarget == null) {
-        markTestSkipped('nenhum alvo deste tenant atingiu o limite');
-        return;
-      }
+    test(
+      'atingido o limite, o servidor recusa a próxima',
+      () async {
+        if (skip()) return;
 
-      final bytes = uniquePng();
-      final id = newLocalMediaId();
+        /// Um alvo só para este teste, saturado aqui mesmo. Depender de um
+        /// atendimento que ficou cheio por acaso tornaria o gate refém do que
+        /// outra execução deixou para trás.
+        final own = await provisioner.operation(suite: 'FL06LIM');
+        final limitTarget = FieldEvidenceTargetRef(
+          type: FieldEvidenceTarget.operation,
+          id: own.operationId,
+        );
 
-      /// A reserva passa: o limite não é contado ali. É no `finalize`, sob
-      /// `pg_advisory_xact_lock` do alvo, que a contagem acontece — e é o que
-      /// torna a disputa de dois aparelhos pela última vaga segura.
-      final intent = await evidence.reserve(
-        EvidenceUploadIntentRequest(
-          target: saturatedTarget!,
-          filename: 'limite-$id.png',
-          declaredMimeType: 'image/png',
-          declaredSize: bytes.length,
-          idempotencyKey: 'evidence:$id',
-          localMediaId: id,
-          expectedSha256: sha256OfBytes(bytes),
-        ),
-      );
-      await evidence.putBytes(
-        url: intent.uploadUrl!,
-        headers: intent.requiredHeaders,
-        bytes: bytes,
-      );
+        /// 20 por atendimento (`operationMaximumFiles`).
+        const maximum = 20;
+        for (var index = 0; index < maximum; index += 1) {
+          await upload(uniquePng(), into: limitTarget);
+        }
+        expect(await evidence.list(target: limitTarget), hasLength(maximum));
 
-      await expectLater(
-        evidence.finalize(
-          intent.uploadId,
-          expectedSha256: sha256OfBytes(bytes),
-        ),
-        throwsA(
-          isA<OrbitException>()
-              .having((e) => e.status, 'status', 409)
-              .having((e) => e.code, 'code', 'EVIDENCE_LIMIT_REACHED'),
-        ),
-      );
+        /// A reserva passa: o limite não é contado ali. É no `finalize`, sob
+        /// `pg_advisory_xact_lock` do alvo, que a contagem acontece — e é isso
+        /// que torna segura a disputa de dois aparelhos pela última vaga.
+        final bytes = uniquePng();
+        final id = newLocalMediaId();
+        final intent = await evidence.reserve(
+          EvidenceUploadIntentRequest(
+            target: limitTarget,
+            filename: 'limite-$id.png',
+            declaredMimeType: 'image/png',
+            declaredSize: bytes.length,
+            idempotencyKey: 'evidence:$id',
+            localMediaId: id,
+            expectedSha256: sha256OfBytes(bytes),
+          ),
+        );
+        await evidence.putBytes(
+          url: intent.uploadUrl!,
+          headers: intent.requiredHeaders,
+          bytes: bytes,
+        );
 
-      /// E a contagem confirmada não passa do teto.
-      final list = await evidence.list(target: saturatedTarget!);
-      expect(list.length, saturatedLimit);
-    });
+        await expectLater(
+          evidence.finalize(
+            intent.uploadId,
+            expectedSha256: sha256OfBytes(bytes),
+          ),
+          throwsA(
+            isA<OrbitException>()
+                .having((e) => e.status, 'status', 409)
+                .having((e) => e.code, 'code', 'EVIDENCE_LIMIT_REACHED'),
+          ),
+        );
+
+        /// E a contagem confirmada não passa do teto.
+        expect(await evidence.list(target: limitTarget), hasLength(maximum));
+      },
+      timeout: const Timeout(Duration(minutes: 3)),
+    );
   });
 }

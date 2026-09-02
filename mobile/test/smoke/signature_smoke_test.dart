@@ -7,33 +7,18 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:orbit_operator/core/config/environment.dart';
-import 'package:orbit_operator/core/contracts/mobile_field_contracts.dart';
 import 'package:orbit_operator/core/errors/orbit_exception.dart';
 import 'package:orbit_operator/core/network/orbit_api_client.dart';
-import 'package:orbit_operator/core/observability/orbit_logger.dart';
-import 'package:orbit_operator/core/storage/token_storage.dart';
 import 'package:orbit_operator/features/field/application/execution_controller.dart'
     show newCommandId;
 import 'package:orbit_operator/features/signature/data/signature_file.dart';
 import 'package:orbit_operator/features/signature/data/signature_repository.dart';
 
-const _baseUrl = String.fromEnvironment(
-  'ORBIT_API_URL',
-  defaultValue: 'http://localhost:5001/api/v1',
-);
-const _email = String.fromEnvironment(
-  'ORBIT_OWNER_EMAIL',
-  defaultValue: 'owner@orbit.local',
-);
-const _password = String.fromEnvironment(
-  'ORBIT_OWNER_PASSWORD',
-  defaultValue: 'OrbitOwner@2026',
-);
+import 'support/scenario_provisioner.dart';
+import 'support/smoke_environment.dart';
 
 /// PNG 1x1 real — conteúdo de verdade, para o hash e o tamanho não serem
 /// inventados.
@@ -41,63 +26,32 @@ final _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
 );
 
-class _MemoryTokenStorage implements TokenStorage {
-  TokenPair? _pair;
-  @override
-  Future<void> clear() async => _pair = null;
-  @override
-  Future<TokenPair?> read() async => _pair;
-  @override
-  Future<void> write(TokenPair pair) async => _pair = pair;
-}
-
-Future<bool> _apiIsUp() async {
-  try {
-    final uri = Uri.parse(_baseUrl);
-    final socket = await Socket.connect(
-      uri.host,
-      uri.port,
-      timeout: const Duration(seconds: 2),
-    );
-    socket.destroy();
-    return true;
-  } on Object {
-    return false;
-  }
-}
-
 void main() {
   late bool available;
+  late ScenarioProvisioner provisioner;
   late OrbitApiClient client;
   late SignatureRepository repository;
 
   setUpAll(() async {
-    available = await _apiIsUp();
+    available = await smokeApiIsUp();
     if (!available) return;
-    final storage = _MemoryTokenStorage();
-    client = OrbitApiClient.create(
-      environment: OrbitEnvironment(
-        apiBaseUrl: _baseUrl,
-        flavor: OrbitFlavor.development,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 30),
-      ),
-      storage: storage,
-      logger: const OrbitLogger(isProduction: false),
-    );
+    provisioner = await ScenarioProvisioner.connect();
+    client = provisioner.client;
     repository = SignatureRepository(client: client);
+  });
 
-    final data = await client.post<Map<String, dynamic>>(
-      '/identity/login',
-      body: {'email': _email, 'password': _password},
-      isPublic: true,
+  tearDownAll(() {
+    if (!available) return;
+    // ignore: avoid_print
+    print(
+      'FL-04 · atendimentos criados nesta execução: '
+      '${provisioner.createdOperations}',
     );
-    await storage.write(TokenPair.fromJson(data));
   });
 
   bool skip() {
     if (available) return false;
-    markTestSkipped('API indisponível em $_baseUrl');
+    markTestSkipped('API indisponível em $smokeApiUrl');
     return true;
   }
 
@@ -170,24 +124,16 @@ void main() {
   });
 
   group('aceite do cliente', () {
-    /// Um atendimento visível para o profissional.
-    Future<String?> anOperation() async {
-      final page = MobileWorkQueuePageContract.fromJson(
-        await client.get<Map<String, dynamic>>(
-          '/mobile/field/work-queue',
-          query: {'view': 'ALL', 'kind': 'SERVICE_OPERATION', 'limit': 50},
-        ),
-      );
-      return page.data.firstOrNull?.navigationContext.sourceId;
-    }
+    /// Um atendimento em andamento, novo, só desta suíte.
+    ///
+    /// Pegar o primeiro da fila dependia do que outras suítes tinham deixado
+    /// para trás — e é assim que uma suíte passa a medir o estado de outra.
+    Future<String?> anOperation() async =>
+        (await provisioner.operation(suite: 'FL04')).operationId;
 
     test('a preparação congela um resumo com hash e versão', () async {
       if (skip()) return;
-      final operationId = await anOperation();
-      if (operationId == null) {
-        markTestSkipped('sem atendimento de campo neste tenant');
-        return;
-      }
+      final operationId = (await anOperation())!;
 
       final preparation = await repository.acknowledgementPreparation(
         operationId,
@@ -203,11 +149,7 @@ void main() {
 
     test('registrar ciência não altera o cadastro do cliente', () async {
       if (skip()) return;
-      final operationId = await anOperation();
-      if (operationId == null) {
-        markTestSkipped('sem atendimento de campo neste tenant');
-        return;
-      }
+      final operationId = (await anOperation())!;
 
       final preparation = await repository.acknowledgementPreparation(
         operationId,
@@ -261,11 +203,7 @@ void main() {
 
     test('resumo desatualizado é recusado com conflito', () async {
       if (skip()) return;
-      final operationId = await anOperation();
-      if (operationId == null) {
-        markTestSkipped('sem atendimento de campo neste tenant');
-        return;
-      }
+      final operationId = (await anOperation())!;
 
       final preparation = await repository.acknowledgementPreparation(
         operationId,
