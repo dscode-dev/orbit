@@ -234,7 +234,7 @@ function HeaderPanel({ quote }: { quote: Quote }) {
                   onChange={(event) => touch(setDiscount)(event.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  O servidor recusa desconto maior que o subtotal.
+                  O desconto não pode ser maior que o subtotal.
                 </p>
               </div>
             </div>

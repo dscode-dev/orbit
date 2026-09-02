@@ -52,7 +52,7 @@ export function ExecutionCenter() {
     <ContentContainer size="wide" className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Contagens e filas vêm do backend, uma consulta por status.
+          Contagens e filas por situação.
         </p>
         <Button
           variant="outline"

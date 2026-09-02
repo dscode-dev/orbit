@@ -79,7 +79,7 @@ export function PmocCoveragePanel({
           onChange={restart}
           label="Buscar"
           placeholder="Nome, identificação ou número de série"
-          hint="A busca é aplicada pelo backend, sobre toda a cobertura."
+          hint="A busca considera toda a cobertura, não apenas esta página."
         />
         {canManage ? (
           <Button size="sm" onClick={() => setAdding(true)}>

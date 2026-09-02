@@ -13,7 +13,7 @@ export default function DocumentsPage() {
   return (
     <WorkspacePage
       title="Documentos"
-      description="Documentos emitidos pela plataforma: revisões, conteúdo, histórico e estado da renderização."
+      description="Documentos emitidos pela plataforma: revisões, conteúdo, histórico e situação da emissão."
       capability="artifact_manifests.read"
       contained={false}
     >

@@ -153,7 +153,7 @@ export function FinancialEntriesTab({
           value={list.searchTerm}
           onChange={list.setSearchTerm}
           placeholder="Descrição ou observações"
-          hint="A busca do servidor cobre descrição e observações."
+          hint="A busca cobre descrição e observações."
         />
 
         {type ? null : (

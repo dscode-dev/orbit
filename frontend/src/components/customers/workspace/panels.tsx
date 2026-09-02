@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RelatedRecordsPanel } from "@/entities";
+import { lifecycleLabel } from "@/registry";
 import {
   useCreateContact,
   useCustomerIntelligence,
@@ -101,8 +102,7 @@ export function OverviewSection({ customer }: { customer: Customer }) {
             </dl>
           ) : null}
           <p className="text-[10px] text-muted-foreground">
-            `address` é JSON livre — o backend não define esquema, e não há
-            coordenadas nem mapa.
+            O endereço é texto livre, sem coordenadas nem mapa.
           </p>
         </section>
 
@@ -342,7 +342,7 @@ export function CustomerScheduleSection({
       entity="scheduling-event"
       panelId="customer-schedule"
       title="Agenda futura"
-      description="Próximos 90 dias, com recorrências expandidas pelo backend"
+      description="Próximos 90 dias, incluindo compromissos recorrentes"
       query={query}
       emptyMessage="Nada agendado para este cliente nos próximos 90 dias."
       seeAllHref={ROUTES.scheduling}
@@ -382,7 +382,7 @@ export function IndicatorsSection({ customer }: { customer: Customer }) {
     <PanelFrame
       panelId="customer-indicators"
       title="Indicadores"
-      description="Contagens publicadas pelo backend"
+      description="Contagens deste cliente"
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <MetricCard
@@ -400,9 +400,8 @@ export function IndicatorsSection({ customer }: { customer: Customer }) {
       </div>
 
       <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
-        Receita, ticket médio e tempo de resposta dependem de Read Models por
-        cliente que o Analytics não publica — ele é escopado por unidade e
-        período.
+        Receita, ticket médio e tempo de resposta ainda não estão disponíveis
+        por cliente. Os indicadores existentes são por unidade e período.
       </p>
     </PanelFrame>
   );
@@ -477,7 +476,7 @@ export function IntelligenceSection({
                     {execution.purpose}
                   </span>
                   <Badge variant="outline" className="text-[10px]">
-                    {execution.status}
+                    {lifecycleLabel(execution.status)}
                   </Badge>
                 </div>
                 <IntelligenceOutput output={execution.output} />
@@ -491,8 +490,8 @@ export function IntelligenceSection({
       </PanelState>
 
       <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
-        O conteúdo de <code>output</code> é definido pelo agente que executou; o
-        backend não publica esquema. Nada é gerado no navegador.
+        O conteúdo é definido pela análise que foi executada. Nada é gerado
+        neste navegador.
       </p>
     </PanelFrame>
   );

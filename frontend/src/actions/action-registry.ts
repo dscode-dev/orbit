@@ -166,7 +166,7 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     id: "management-report.download",
     entity: "management-report",
     label: "Baixar",
-    description: "URL assinada e temporária, emitida pelo backend.",
+    description: "O link de acesso é temporário e pessoal.",
     icon: Download,
     category: "document",
     permission: "reports.management.read",
@@ -268,7 +268,7 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     capability: "automations.manage",
     confirm: {
       title: "Excluir esta automação?",
-      body: "A regra some das Configurações e para de valer. Se ainda houver ação agendada e não executada — um lembrete futuro, por exemplo —, o servidor recusa a exclusão: desative a regra e espere, ou deixe-a desativada.",
+      body: "A regra some das Configurações e para de valer. Se ainda houver ação agendada e não executada — um lembrete futuro, por exemplo —, a exclusão não é permitida: desative a regra e espere, ou deixe-a desativada.",
       confirmLabel: "Excluir",
     },
   }),
@@ -450,7 +450,7 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     capability: "catalog.manage",
     confirm: {
       title: "Excluir esta categoria?",
-      body: "O servidor recusa se houver subcategorias ou itens vinculados. Nesse caso, mova-os antes.",
+      body: "Não é possível excluir enquanto houver subcategorias ou itens vinculados. Mova-os antes.",
       confirmLabel: "Excluir",
     },
   }),
@@ -505,7 +505,7 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     category: "edit",
     available: false,
     unavailableReason:
-      "O backend não publica edição de membro: nome, e-mail e avatar são do perfil, que cada pessoa administra em identity/me.",
+      "Nome, e-mail e foto pertencem ao perfil de cada pessoa, e só ela pode alterá-los.",
   }),
   define({
     id: "team-member.change-role",
@@ -650,7 +650,7 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     id: "artifact-execution.submit",
     entity: "artifact-execution",
     label: "Submeter",
-    description: "Envia a execução para revisão. O backend valida o preenchimento.",
+    description: "Envia para revisão. O preenchimento é conferido antes de seguir.",
     icon: CheckCheck,
     category: "workflow",
     permission: "artifact_executions.update",
@@ -817,7 +817,7 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     category: "workflow",
     available: false,
     unavailableReason:
-      "O saldo já publica `reserved` e `available`, mas não existe endpoint de reserva: falta no backend algo que reserve, libere e converta em consumo.",
+      "Reservar material para um atendimento ainda não está disponível. O saldo mostra o que está reservado e o que está livre, mas a reserva em si ainda não pode ser feita aqui.",
   }),
 
   /* ---------------------------------------------------------------- */
@@ -942,7 +942,7 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     category: "document",
     available: false,
     unavailableReason:
-      "O template `ORBIT_ORCAMENTO` existe, mas o backend ainda não mapeia um orçamento para uma execução de artefato. Nenhum PDF é gerado fora do Rendering Engine.",
+      "A emissão do orçamento em PDF ainda não está disponível.",
   }),
 
   /* ---------------------------------------------------------------- */
@@ -1035,7 +1035,7 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     capability: "financial.manage",
     confirm: {
       title: "Excluir esta categoria?",
-      body: "O servidor recusa se houver lançamentos usando-a, e categorias semeadas pelo Orbit não podem ser removidas.",
+      body: "Não é possível excluir uma categoria em uso por lançamentos. As categorias padrão do Orbit também não podem ser removidas.",
       confirmLabel: "Excluir",
     },
   }),
@@ -1055,7 +1055,7 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     category: "document",
     available: false,
     unavailableReason:
-      "Não há endpoint de exportação financeira: `/financial` publica JSON paginado, e o Document Center emite documentos de execução, não relatórios.",
+      "A exportação do financeiro ainda não está disponível. Os documentos emitidos hoje são os de atendimento.",
   }),
   define({
     id: "artifact-execution.share-document",
@@ -1065,7 +1065,7 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     category: "document",
     available: false,
     unavailableReason:
-      "Não há contrato de compartilhamento: a URL assinada é curta e pessoal, e não existe endpoint que crie link público ou envie por e-mail.",
+      "Compartilhar por link público ou e-mail ainda não está disponível. O acesso ao documento é pessoal e temporário.",
   }),
 ];
 

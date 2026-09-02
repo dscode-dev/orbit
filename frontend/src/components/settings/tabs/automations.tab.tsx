@@ -79,7 +79,7 @@ export function AutomationsSettingsTab() {
         <PanelFrame
           panelId="settings-automations-loading"
           title="Automações"
-          description="Carregando o catálogo publicado pelo servidor"
+          description="Carregando o catálogo de relatórios"
         >
           <PanelLoading rows={4} />
         </PanelFrame>
@@ -87,7 +87,7 @@ export function AutomationsSettingsTab() {
         <PanelFrame
           panelId="settings-automations-error"
           title="Automações"
-          description="O catálogo de acontecimentos e ações vem do servidor"
+          description="Acontecimentos e ações disponíveis"
         >
           <PanelError
             error={catalog.error}

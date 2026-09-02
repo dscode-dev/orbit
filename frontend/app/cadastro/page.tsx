@@ -289,7 +289,7 @@ export default function CadastroPage() {
         </div>
         <div className="relative flex items-center gap-2 text-xs text-primary-foreground/70">
           <ShieldCheck className="size-4" />
-          Sessão segura e isolamento multi-tenant
+          Sessão segura e dados isolados por organização
         </div>
       </aside>
 

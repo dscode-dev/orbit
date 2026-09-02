@@ -38,6 +38,7 @@ import {
   useRemoveBusinessUnit,
 } from "@/hooks/organization/use-organization";
 import { useActiveScope } from "@/providers/use-active-scope";
+import { lifecycleLabel } from "@/registry";
 import { cn } from "@/lib/utils";
 import type { BusinessUnit } from "@/types/organization";
 
@@ -82,13 +83,10 @@ export function BusinessUnitsSection({ canManage }: { canManage: boolean }) {
           <p>
             <strong>Ativar e desativar não existem no contrato.</strong> O campo{" "}
             <code>status</code> é publicado na leitura, mas
-            <code> UpdateBusinessUnitDto</code> não o aceita — enviá-lo devolve
-            400.
+            <code> UpdateBusinessUnitDto</code> não o aceita.
           </p>
           <p>
-            <strong>Trocar a unidade ativa é local.</strong> O backend deriva o
-            escopo das claims do token e não expõe rota de troca; a seleção
-            acima muda o filtro <code>businessUnitId</code> das consultas que o
+            <strong>Trocar a unidade ativa é local.</strong> O escopo vem da sua sessão e não pode ser trocado por aqui; a seleção acima muda o filtro <code>businessUnitId</code> das consultas que o
             aceitam, não a sessão.
           </p>
         </div>
@@ -136,7 +134,7 @@ function UnitRow({
             {unit.type}
           </Badge>
           <Badge variant="outline" className="text-[10px]">
-            {unit.status}
+            {lifecycleLabel(unit.status)}
           </Badge>
         </p>
         <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">

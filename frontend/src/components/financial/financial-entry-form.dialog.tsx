@@ -306,7 +306,7 @@ function Body({
         <Field
           label="Vencimento"
           htmlFor="financial-due"
-          hint="Opcional. O servidor marca como vencido o que passar da data."
+          hint="Opcional. O lançamento é marcado como vencido depois desta data."
         >
           <Input
             id="financial-due"

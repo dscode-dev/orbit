@@ -131,8 +131,7 @@ export function OperationsList() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-xs text-muted-foreground">
-            Ordenado por agendamento e data de criação (ordem definida pelo
-            backend)
+            Ordenado por agendamento e data de criação
           </p>
           {canCreate ? (
             <Button

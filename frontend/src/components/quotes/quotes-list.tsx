@@ -118,7 +118,7 @@ export function QuotesList({
           value={list.searchTerm}
           onChange={list.setSearchTerm}
           placeholder="Título, código ou observações"
-          hint="A busca do servidor cobre título, código e observações."
+          hint="A busca cobre título, código e observações."
         />
 
         {closed ? (

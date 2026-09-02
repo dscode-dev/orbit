@@ -64,7 +64,7 @@ export function PmocList({ onCreate }: { onCreate: () => void }) {
           onChange={controller.setSearchTerm}
           label="Buscar"
           placeholder="Código, nome ou cliente"
-          hint="A busca é aplicada pelo backend."
+          hint="A busca considera todos os planos, não apenas esta página."
         />
         <FilterSelect
           id="pmoc-status"
@@ -83,7 +83,7 @@ export function PmocList({ onCreate }: { onCreate: () => void }) {
           meta={plans.data?.meta}
           noun="configuração de PMOC"
           gender="f"
-          note="Ordenado pelo próximo vencimento (ordem definida pelo backend)."
+          note="Ordenado pelo próximo vencimento."
         />
         {canManage ? (
           <Button size="sm" onClick={onCreate}>

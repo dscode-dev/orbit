@@ -126,8 +126,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
       <DialogHeader>
         <DialogTitle>Nova visita técnica</DialogTitle>
         <DialogDescription>
-          A configuração define a regra. O servidor gera as visitas previstas a
-          partir dela e as projeta na Agenda.
+          A configuração define a regra. As visitas previstas são geradas a partir dela e projetadas na Agenda.
         </DialogDescription>
       </DialogHeader>
 

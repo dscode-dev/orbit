@@ -110,7 +110,7 @@ export function DocumentCenter() {
           value={list.searchTerm}
           onChange={list.setSearchTerm}
           placeholder="Código ou título da execução"
-          hint="O backend busca por código e título da execução. Não há busca pelo conteúdo do documento."
+          hint="A busca considera o código e o título do atendimento, não o conteúdo do documento."
           className="min-w-64 flex-1"
         />
 
@@ -147,8 +147,8 @@ export function DocumentCenter() {
             </TabsList>
 
             <p className="text-xs text-muted-foreground">
-              As contagens são desta página. O backend não filtra execuções por
-              estado de renderização — a limitação está documentada.
+              As contagens são desta página. Ainda não é possível filtrar por
+              situação de emissão.
             </p>
 
             {QUEUES.map((status) => (

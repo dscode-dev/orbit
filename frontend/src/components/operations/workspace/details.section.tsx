@@ -163,7 +163,7 @@ export function AdditionalDataSection({
     <PanelFrame
       panelId="operation-additional"
       title="Informações adicionais"
-      description="Campos livres gravados pelo backend"
+      description="Campos livres da organização"
     >
       <PanelState
         query={query}

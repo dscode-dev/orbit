@@ -317,8 +317,7 @@ function PriorityForm({
       <DialogHeader>
         <DialogTitle>Prioridade de {operation.code}</DialogTitle>
         <DialogDescription>
-          A prioridade não altera a ordem da listagem — o backend ordena por
-          agendamento e criação.
+          A prioridade não altera a ordem da listagem, que segue o agendamento e a data de criação.
         </DialogDescription>
       </DialogHeader>
 
@@ -394,7 +393,7 @@ function StatusForm({
       <DialogHeader>
         <DialogTitle>Status de {operation.code}</DialogTitle>
         <DialogDescription>
-          Os destinos são os que o servidor aceita para o status atual.
+          Apenas as mudanças possíveis a partir da situação atual são oferecidas.
         </DialogDescription>
       </DialogHeader>
 
@@ -425,8 +424,9 @@ function StatusForm({
           </Select>
           {transitions?.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              {OPERATION_STATUS_LABELS[operation.status] ?? operation.status} é
-              um estado final — não há transição disponível.
+              Este atendimento está em{" "}
+              {OPERATION_STATUS_LABELS[operation.status] ?? operation.status} e
+              não pode mais mudar de situação.
             </p>
           ) : null}
         </div>
@@ -492,8 +492,7 @@ function DeleteForm({
       <DialogHeader>
         <DialogTitle>Excluir {operation.code}?</DialogTitle>
         <DialogDescription>
-          A exclusão é lógica no backend: o registro sai das listagens e o
-          histórico permanece no banco. Cancelar a operação, mudando o status,
+          A exclusão remove o registro das listagens e preserva o histórico. Cancelar a operação, mudando o status,
           preserva o rastro na interface.
         </DialogDescription>
       </DialogHeader>

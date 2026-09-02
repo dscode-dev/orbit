@@ -255,7 +255,7 @@ function ReminderForm({
               ))}
             </datalist>
             <p className="text-xs text-muted-foreground">
-              Texto livre — o backend não mantém catálogo de tipos.
+              Texto livre: não há catálogo de tipos.
             </p>
           </div>
 

@@ -36,8 +36,7 @@ export function OperationsSettingsTab() {
       >
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            O backend guarda as configurações da organização num JSON livre
-            (<span className="font-mono">Organization.settings</span>), sem
+            As configurações da organização ficam num conjunto de campos livres (<span className="font-mono">Organization.settings</span>), sem
             esquema nem catálogo de parâmetros. A autorização acima é a única
             chave que a plataforma de fato lê.
           </p>
@@ -47,8 +46,7 @@ export function OperationsSettingsTab() {
             parâmetro novo entra quando o módulo que o obedece existir.
           </p>
           <p className="text-xs text-muted-foreground">
-            Regras que já são do servidor e não se configuram: transições de
-            status de operação, validação de preenchimento de execução e
+            Regras fixas da plataforma, que não se configuram: mudanças de situação da operação, validação de preenchimento de execução e
             disponibilidade de item do catálogo.
           </p>
         </div>

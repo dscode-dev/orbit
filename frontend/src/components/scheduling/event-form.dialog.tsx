@@ -302,7 +302,7 @@ function EventForm({
             ))}
           </datalist>
           <p className="text-xs text-muted-foreground">
-            Texto livre — o backend valida o formato, não uma lista.
+            Texto livre: apenas o formato é conferido.
           </p>
         </div>
 
@@ -551,7 +551,7 @@ function RecurrenceFields({
           ) : null}
 
           <p className="text-xs text-muted-foreground sm:col-span-3">
-            As ocorrências são geradas pelo backend a partir desta regra.
+            As ocorrências são geradas a partir desta regra.
           </p>
         </div>
       ) : null}

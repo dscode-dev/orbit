@@ -77,9 +77,8 @@ export function CalendarSetup({
   if (!canCreate) {
     return (
       <p className="text-sm text-muted-foreground">
-        Não há calendário nesta organização e o seu perfil não pode criar um.
-        Peça a quem administra a conta para criar o primeiro calendário — sem
-        ele o backend recusa qualquer agendamento.
+        Não há calendário nesta organização e o seu acesso não permite criar um.
+        Peça a quem administra a conta para criar o primeiro calendário — sem ele não é possível agendar.
       </p>
     );
   }
@@ -92,8 +91,7 @@ export function CalendarSetup({
           {isFirst ? "Nenhum calendário nesta organização" : "Novo calendário"}
         </p>
         <p className="text-xs text-muted-foreground">
-          Todo agendamento pertence a um calendário — é assim que o backend
-          organiza a agenda. Crie o primeiro para começar.
+          Todo agendamento pertence a um calendário. Crie o primeiro para começar.
         </p>
       </div>
 

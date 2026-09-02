@@ -14,7 +14,7 @@
  * - **cidade** — mora em `address`, que é `Json?` sem esquema e sem índice;
  * - **responsável** — não existe campo de gestor de conta.
  *
- * A busca do servidor cobre nome, nome fantasia, documento e e-mail, então
+ * A busca cobre nome, nome fantasia, documento e e-mail, então
  * localizar por cidade só funciona se ela estiver no texto buscado — e a tela
  * não promete o contrário.
  *
@@ -108,7 +108,7 @@ export function CustomersList() {
       <ResultSummary
         meta={meta}
         noun="cliente"
-        note="Ordenado por razão social (ordem definida pelo backend)"
+        note="Ordenado por razão social"
       />
 
       <ListState

@@ -81,11 +81,10 @@ export function TechniciansTab() {
     <div className="space-y-5">
       <div className="space-y-1">
         <p className="text-sm text-muted-foreground">
-          Carga de trabalho de cada pessoa, contada pelo servidor.
+          Carga de trabalho de cada pessoa.
         </p>
         <p className="text-xs text-muted-foreground">
-          O backend não classifica ninguém como &ldquo;técnico&rdquo; — não há
-          flag nem especialidade em contrato. Use o filtro de papel para
+          O Orbit não classifica ninguém como &ldquo;técnico&rdquo;: não existe essa marcação. Use o filtro de papel para
           recortar a equipe de campo.
         </p>
       </div>

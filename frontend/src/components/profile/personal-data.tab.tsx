@@ -155,8 +155,7 @@ function Form({ profile }: { profile: UserProfile }) {
           trocá-lo é mudar a identidade da conta, e o contrato não o aceita.
         </p>
         <p className="text-xs text-muted-foreground">
-          Foto de perfil ainda não é editável: o campo é publicado na leitura,
-          mas o backend não aceita escrevê-lo e não há upload de imagem.
+          A foto de perfil ainda não pode ser alterada aqui.
         </p>
       </section>
     </form>

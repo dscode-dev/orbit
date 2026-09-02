@@ -119,8 +119,7 @@ function Body({
       <DialogHeader>
         <DialogTitle>Novo orçamento</DialogTitle>
         <DialogDescription>
-          A proposta nasce em rascunho e vazia. Os itens entram em seguida, e
-          os valores são calculados pelo servidor.
+          A proposta nasce em rascunho e vazia. Os itens entram em seguida, e os valores são calculados automaticamente.
         </DialogDescription>
       </DialogHeader>
 

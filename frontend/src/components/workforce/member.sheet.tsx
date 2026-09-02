@@ -140,8 +140,7 @@ function Body({ member, onEdit }: { member: TeamMember; onEdit?: () => void }) {
                   ))}
                 </ul>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Estas são as permissões que o backend concede a este papel.
-                  Quem autoriza cada requisição continua sendo o servidor.
+                  Estas são as permissões concedidas a este papel.
                 </p>
               </>
             ) : (

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api-error";
+import { errorCopy } from "@/lib/error-copy";
 import { cn } from "@/lib/utils";
 import { PanelErrorBoundary } from "./panel-error-boundary";
 
@@ -200,7 +201,7 @@ export function PanelError({
       <div className="space-y-1">
         <p className="text-sm font-medium">Não foi possível carregar</p>
         <p className="text-xs text-muted-foreground">
-          {apiError?.message ?? "Tente novamente em instantes."}
+          {errorCopy(error)}
         </p>
         {/**
          * A referência que o suporte pede.

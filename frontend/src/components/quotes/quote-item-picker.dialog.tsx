@@ -238,7 +238,7 @@ function Body({
             exibir uma conta que não é a que vale.
           */}
           <p className="text-xs text-muted-foreground">
-            O total do item é calculado pelo servidor quando você adicionar.
+            O total do item é calculado quando você adicionar.
           </p>
         </div>
       ) : null}

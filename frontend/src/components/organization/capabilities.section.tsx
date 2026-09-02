@@ -50,7 +50,7 @@ const MODULE_LABELS: Readonly<Record<string, string>> = {
   reports: "Relatórios",
   document_engine: "Documentos",
   signatures: "Assinaturas",
-  artifact_templates: "Artifact Studio",
+  artifact_templates: "Modelos de documento",
   artifact_executions: "Execuções de artefato",
   business_units: "Unidades de negócio",
   ai: "Inteligência",

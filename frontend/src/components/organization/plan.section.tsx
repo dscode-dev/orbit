@@ -50,7 +50,7 @@ export function PlanSection({ organization }: { organization: Organization }) {
     <PanelFrame
       panelId="organization-plan"
       title="Plano"
-      description="Direitos publicados pelo backend para esta organização"
+      description="O que o plano desta organização inclui"
       actions={
         entitlements.data ? (
           <Badge variant="secondary">

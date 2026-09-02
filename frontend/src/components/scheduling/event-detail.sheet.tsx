@@ -279,7 +279,7 @@ function RecurrenceSummary({
           : null}
       </p>
       <p className="text-[10px] text-muted-foreground">
-        As ocorrências são expandidas pelo backend.
+        As ocorrências são geradas a partir da regra de recorrência.
       </p>
     </section>
   );

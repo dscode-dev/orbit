@@ -164,13 +164,10 @@ function AuthorizationForm({ organization }: { organization: Organization }) {
 
         <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
           <p className="flex items-center gap-2 text-sm font-medium">
-            <TriangleAlert className="size-4 text-amber-400" aria-hidden />O
-            backend ainda não aplica esta regra
+            <TriangleAlert className="size-4 text-amber-400" aria-hidden />Esta regra ainda não é aplicada
           </p>
           <p className="text-xs text-muted-foreground">
-            A preferência é gravada em <code>settings</code> e sobrevive ao
-            navegador, mas nenhum endpoint a consulta: a operação não tem campo
-            de autorização, e <code>GET /operations</code> não filtra por ela.
+            A preferência é gravada em <code>settings</code> e sobrevive ao navegador, mas ainda não é considerada em nenhuma decisão: a operação não tem campo de autorização, e <code>GET /operations</code> não filtra por ela.
             Enquanto isso não existir, ligar a chave <strong>não muda</strong> o
             que o técnico enxerga — nem aqui, nem no aplicativo, nem na API.
           </p>

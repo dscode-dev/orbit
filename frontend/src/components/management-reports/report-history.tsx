@@ -118,7 +118,7 @@ export function ReportHistory({
         <ResultSummary
           meta={reports.data?.meta}
           noun="relatório"
-          note="A contagem é do servidor."
+          note="Contagem total de relatórios."
         />
 
         <ListState

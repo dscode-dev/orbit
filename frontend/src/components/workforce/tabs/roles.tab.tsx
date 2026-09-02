@@ -228,7 +228,7 @@ function RoleCard({
           Capabilities do plano
         </h4>
         <p className="text-xs text-muted-foreground">
-          O backend exige permissão <em>e</em> capability. Estas vêm do plano
+          É necessária a permissão <em>e</em> capability. Estas vêm do plano
           contratado e valem para toda a organização, independentemente do
           papel.
         </p>

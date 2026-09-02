@@ -37,6 +37,7 @@ import { PanelFrame } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { lifecycleLabel } from "@/registry";
 import { Label } from "@/components/ui/label";
 import { useUpdateOrganization } from "@/hooks/organization/use-organization";
 import { formatDate } from "@/lib/formatters";
@@ -75,7 +76,11 @@ export function GeneralSection({
       panelId="organization-general"
       title="Organização"
       description="Identidade, segmento e configurações"
-      actions={<Badge variant="secondary">{organization.status}</Badge>}
+      actions={
+        <Badge variant="secondary">
+          {lifecycleLabel(organization.status)}
+        </Badge>
+      }
     >
       <div className="space-y-5">
         <dl className="grid gap-4 sm:grid-cols-2">
@@ -114,8 +119,7 @@ export function GeneralSection({
               onChange={(event) => setSegment(event.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Usado pelo backend para derivar o segmento de eventos e de
-              inteligência.
+              Define o segmento usado nos eventos e nas análises.
             </p>
           </div>
         </div>
@@ -128,7 +132,7 @@ export function GeneralSection({
           <JsonField
             id="organization-settings"
             label="settings"
-            description="JSON livre. Não há contrato de branding — logotipo, cores e identidade visual vivem aqui por convenção da organização, e o backend não os interpreta."
+            description="Campos livres. Não há um formato definido: logotipo, cores e identidade visual ficam aqui por convenção da organização, e o backend não os interpreta."
             value={settings}
             disabled={!canManage}
             rows={6}

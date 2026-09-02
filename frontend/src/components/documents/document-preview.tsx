@@ -243,10 +243,10 @@ function Metadata({ summary }: { summary: ArtifactManifestSummary }) {
       <Field label="Emitido por">
         <span className="text-sm">{summary.issuedBy?.displayName ?? "—"}</span>
       </Field>
-      <Field label="Hash do conteúdo">
+      <Field label="Código de verificação do arquivo">
         <ContentHash hash={summary.contentHash} />
       </Field>
-      <Field label="Hash da fonte">
+      <Field label="Código de verificação da origem">
         <ContentHash hash={summary.sourceHash} />
       </Field>
       <Field label="Versão do template">

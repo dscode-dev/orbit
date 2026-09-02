@@ -275,8 +275,7 @@ function Overview({
               Relatório gerencial
             </p>
             <p className="text-xs text-muted-foreground">
-              Fotografia de um período, com hash da fonte e procedência de cada
-              número. Não muda depois — é isso que permite levá-lo a uma reunião
+              Fotografia de um período, com código de verificação e procedência de cada número. Não muda depois — é isso que permite levá-lo a uma reunião
               e voltar a ele meses depois.
             </p>
           </div>
@@ -332,7 +331,7 @@ function Overview({
         <PanelFrame
           panelId="reports-available-types"
           title="Tipos disponíveis"
-          description="Publicados pelo servidor, com o que cada um exige"
+          description="Cada tipo, com o que exige"
         >
           {catalog.isPending ? (
             <PanelLoading rows={4} />

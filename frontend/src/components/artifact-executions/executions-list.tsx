@@ -117,7 +117,7 @@ export function ExecutionsList({
         meta={meta}
         noun="execução"
         gender="f"
-        note="Ordenado por criação, da mais recente (ordem definida pelo backend)"
+        note="Ordenado por criação, da mais recente"
       />
 
       <ListState

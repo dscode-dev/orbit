@@ -44,7 +44,7 @@ export function UsageSection() {
         <div className="flex min-h-24 flex-col items-center justify-center gap-2 text-center">
           <Gauge className="size-5 text-muted-foreground" aria-hidden />
           <p className="max-w-sm text-sm text-muted-foreground">
-            O backend ainda não publica métricas de consumo para este plano.
+            As métricas de consumo deste plano ainda não estão disponíveis.
           </p>
         </div>
       ) : (

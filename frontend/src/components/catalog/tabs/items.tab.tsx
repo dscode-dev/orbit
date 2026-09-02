@@ -109,7 +109,7 @@ export function CatalogItemsTab({
           meta={meta}
           noun={noun}
           gender={gender}
-          note="Ordenado por nome (ordem definida pelo backend)"
+          note="Ordenado por nome"
         />
         {create.allowed ? (
           <Button size="sm" onClick={openNew}>
@@ -125,7 +125,7 @@ export function CatalogItemsTab({
           value={list.searchTerm}
           onChange={list.setSearchTerm}
           placeholder="Nome, SKU ou descrição"
-          hint="A busca do servidor cobre nome, SKU e descrição."
+          hint="A busca cobre nome, SKU e descrição."
         />
         <FilterSelect
           id={`catalog-${kind}-category`}

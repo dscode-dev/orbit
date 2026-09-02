@@ -71,8 +71,7 @@ export function ContextTab() {
 
         {!scope.canSwitchOrganization ? (
           <p className="text-xs text-muted-foreground">
-            O backend deriva uma organização das claims do token e não aceita
-            outra por requisição — por isso a troca não é oferecida.
+            A organização vem da sua sessão e não pode ser trocada sem entrar de novo — por isso a troca não é oferecida.
           </p>
         ) : null}
       </section>
@@ -179,7 +178,7 @@ export function ContextTab() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          O backend exige permissão <em>e</em> capability: a primeira vem do
+          É necessária a permissão <em>e</em> capability: a primeira vem do
           papel, a segunda do plano. É por isso que um recurso pode faltar mesmo
           para quem tem todas as permissões.
         </p>

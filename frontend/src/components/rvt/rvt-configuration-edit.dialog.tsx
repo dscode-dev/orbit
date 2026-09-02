@@ -114,8 +114,7 @@ function EditForm({
       <DialogHeader>
         <DialogTitle>Editar visita técnica</DialogTitle>
         <DialogDescription>
-          As visitas futuras ainda não realizadas são reajustadas pelo servidor.
-          As já realizadas permanecem como estão.
+          As visitas futuras ainda não realizadas são reajustadas. As já realizadas permanecem como estão.
         </DialogDescription>
       </DialogHeader>
 
@@ -238,7 +237,7 @@ function Reconciled({
         <DialogDescription>
           {nothing
             ? "A agenda de visitas futuras não precisou de ajuste."
-            : "O servidor reajustou as visitas futuras ainda não realizadas."}
+            : "As visitas futuras ainda não realizadas foram reajustadas."}
         </DialogDescription>
       </DialogHeader>
 

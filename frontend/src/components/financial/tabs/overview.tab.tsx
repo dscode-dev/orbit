@@ -127,7 +127,7 @@ export function FinancialOverviewTab() {
               : " · todas as unidades acessíveis"}
           </p>
           <p className="text-xs text-muted-foreground">
-            Os totais são do servidor. Nada nesta aba é somado no navegador.
+            Os totais vêm calculados. Nada nesta aba é somado no navegador.
           </p>
         </div>
 

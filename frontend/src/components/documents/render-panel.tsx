@@ -99,8 +99,7 @@ export function RenderPanel({
 
       {definition.inFlight ? (
         <p className="text-xs text-muted-foreground">
-          Acompanhando o servidor — a tela se atualiza sozinha e para quando o
-          documento ficar pronto.
+          A tela se atualiza sozinha e para quando o documento ficar pronto.
         </p>
       ) : null}
 
@@ -138,7 +137,7 @@ export function RenderPanel({
             {request.isPending
               ? "Solicitando…"
               : state.renderStatus === "READY"
-                ? "Renderizar de novo"
+                ? "Emitir de novo"
                 : "Renderizar"}
           </Button>
         </div>
@@ -148,7 +147,7 @@ export function RenderPanel({
 
       {state.renderStatus === "READY" ? (
         <p className="text-xs text-muted-foreground">
-          Renderizar de novo cria a revisão seguinte; a anterior permanece no
+          Emitir de novo cria a revisão seguinte; a anterior permanece no
           histórico.
         </p>
       ) : null}

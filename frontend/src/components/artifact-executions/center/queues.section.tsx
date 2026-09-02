@@ -49,7 +49,7 @@ export function ExecutionQueues({
         <div className="space-y-1">
           <h2 className="text-sm font-medium">Filas por situação</h2>
           <p className="text-xs text-muted-foreground">
-            Cada fila é uma consulta filtrada no servidor.
+            Cada fila é um recorte da lista de execuções.
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={onOpenQueues}>

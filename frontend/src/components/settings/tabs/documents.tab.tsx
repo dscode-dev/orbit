@@ -32,7 +32,7 @@ export function DocumentsSettingsTab() {
     <div className="max-w-3xl space-y-6">
       <PanelFrame
         panelId="settings-documents-renderers"
-        title="Renderizadores"
+        title="Formatos de documento"
         description="O que a plataforma sabe produzir"
       >
         {metrics.isPending ? (
@@ -68,9 +68,8 @@ export function DocumentsSettingsTab() {
             </ul>
 
             <p className="text-xs text-muted-foreground">
-              A lista vem publicada pelo backend. Escolher o renderizador é do
-              momento da emissão, não uma política global — e o servidor recusa
-              um identificador que não conhece.
+              O formato é escolhido no momento de emitir cada documento, não
+              como política geral da organização.
             </p>
           </div>
         )}
@@ -79,37 +78,36 @@ export function DocumentsSettingsTab() {
       <PanelFrame
         panelId="settings-documents-policies"
         title="Políticas de emissão e retenção"
-        description="O que é decidido pelo servidor"
+        description="Regras aplicadas a todos os documentos"
       >
         <div className="space-y-3">
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li>
               <strong className="text-foreground">Quando se emite.</strong>{" "}
-              Execução em rascunho não emite documento — o servidor responde
-              409 e pede a submissão. Não é configurável.
+              Uma execução em rascunho não emite documento: é preciso enviá-la
+              para revisão antes. Não é configurável.
             </li>
             <li>
               <strong className="text-foreground">Versionamento.</strong> Cada
-              emissão cria uma revisão nova; a anterior permanece. Só uma fica
-              ativa, e quem decide é o manifest.
+              emissão cria uma revisão nova; a anterior permanece. Apenas uma
+              fica ativa por vez.
             </li>
             <li>
               <strong className="text-foreground">Distribuição.</strong> Sempre
-              por URL assinada, com prazo curto. O armazenamento nunca é
-              endereçado pelo cliente.
+              por link temporário e pessoal. O arquivo nunca é acessado
+              diretamente.
             </li>
           </ul>
 
           <p className="text-xs text-muted-foreground">
-            <strong>Retenção não existe em contrato:</strong> nenhum endpoint
-            publica ou aceita política de expurgo. Documento revogado continua
-            registrado para auditoria, e nada é apagado automaticamente.
+            <strong>Não há política de expurgo:</strong> um documento revogado
+            continua registrado para auditoria, e nada é apagado
+            automaticamente.
           </p>
           <p className="text-xs text-muted-foreground">
-            <strong>Assinaturas</strong> são capturadas na execução em campo
-            (<span className="font-mono">ArtifactExecutionSignature</span>), com
-            a geolocalização de quem assinou. Não há política de assinatura a
-            configurar — cada template declara se pede assinatura.
+            <strong>Assinaturas</strong> são coletadas durante a execução em
+            campo, com a localização de quem assinou. Não há política de
+            assinatura a configurar: cada modelo declara se pede assinatura.
           </p>
         </div>
       </PanelFrame>
@@ -122,14 +120,13 @@ export function DocumentsSettingsTab() {
         <div className="space-y-2">
           <p className="flex items-center gap-2 text-sm">
             <HardDrive className="size-4 text-muted-foreground" aria-hidden />
-            O provedor é decidido por ambiente
-            (<span className="font-mono">STORAGE_PROVIDER</span>), não pela
-            organização.
+            O local de armazenamento é definido na instalação do Orbit, não
+            pela organização.
           </p>
           <p className="text-xs text-muted-foreground">
-            É configuração de infraestrutura: trocar o provedor no meio da
-            operação deixaria os objetos já gravados inalcançáveis. O contrato
-            não expõe nem aceita essa escolha por tenant — e é o certo.
+            Trocar o local de armazenamento no meio da operação tornaria
+            inalcançáveis os arquivos já gravados. Por isso a escolha não é
+            feita por organização.
           </p>
         </div>
       </PanelFrame>
@@ -149,7 +146,7 @@ export function DocumentsSettingsTab() {
             },
             {
               label: "Documentos emitidos",
-              hint: "Revisões, conteúdo e estado da renderização",
+              hint: "Revisões, conteúdo e situação da emissão",
               href: ROUTES.documents,
               icon: FileStack,
             },

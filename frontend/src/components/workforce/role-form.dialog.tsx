@@ -144,8 +144,7 @@ function Body({
           />
           {role ? (
             <p className="text-xs text-muted-foreground">
-              O identificador (<span className="font-mono">{role.key}</span>) é
-              gerado pelo servidor a partir do nome.
+              O identificador (<span className="font-mono">{role.key}</span>) é gerado a partir do nome.
             </p>
           ) : null}
         </div>
@@ -238,8 +237,7 @@ function Body({
           ) : null}
 
           <p className="text-xs text-muted-foreground">
-            Não há catálogo de permissões no backend: qualquer texto é aceito, e
-            o que o servidor não reconhece simplesmente não concede nada.
+            Não há catálogo fechado de permissões: qualquer texto é aceito, e o que não for reconhecido simplesmente não concede nada.
           </p>
         </div>
       </div>

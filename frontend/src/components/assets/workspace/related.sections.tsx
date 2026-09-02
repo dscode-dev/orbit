@@ -58,7 +58,7 @@ export function AssetScheduleSection({ assetId }: { assetId: string }) {
       entity="scheduling-event"
       panelId="asset-schedule"
       title="Agenda futura"
-      description="Próximos 90 dias, com recorrências expandidas pelo backend"
+      description="Próximos 90 dias, incluindo compromissos recorrentes"
       query={query}
       emptyMessage="Nada agendado para este ativo nos próximos 90 dias."
       seeAllHref={ROUTES.scheduling}

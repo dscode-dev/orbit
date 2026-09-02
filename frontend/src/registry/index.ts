@@ -94,3 +94,5 @@ export {
   type QrPresentation,
   type QrTone,
 } from "./equipment-qr";
+
+export { lifecycleLabel } from "./lifecycle";

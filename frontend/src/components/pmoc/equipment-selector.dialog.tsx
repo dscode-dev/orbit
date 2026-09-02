@@ -86,8 +86,7 @@ export function EquipmentSelectorDialog({
         <DialogHeader>
           <DialogTitle>Adicionar equipamento à cobertura</DialogTitle>
           <DialogDescription>
-            Equipamentos do cliente nesta unidade. A busca é aplicada pelo
-            servidor.
+            Equipamentos do cliente nesta unidade.
           </DialogDescription>
         </DialogHeader>
 

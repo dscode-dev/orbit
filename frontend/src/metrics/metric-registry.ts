@@ -477,7 +477,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
   define({
     id: "management_reports.in_flight",
     label: "Em composição",
-    description: "Na fila ou sendo compostos agora pelo servidor.",
+    description: "Na fila ou sendo gerados agora.",
     category: "OPERATIONS",
     unit: "count",
     icon: Timer,
@@ -488,7 +488,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
   define({
     id: "management_reports.ready",
     label: "Prontos",
-    description: "Relatórios com snapshot gravado e arquivo disponível.",
+    description: "Relatórios com conteúdo gravado e arquivo disponível.",
     category: "OPERATIONS",
     unit: "count",
     icon: FileCheck2,
@@ -680,7 +680,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     id: "contracts.active_proxy",
     label: "Contratos ativos",
     description:
-      "Aproximação por clientes ativos: o backend ainda não modela contratos.",
+      "Aproximação por clientes ativos: contratos ainda não são acompanhados no Orbit.",
     category: "CONTRACTS",
     unit: "count",
     icon: Handshake,
@@ -831,7 +831,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     id: "financial.overdue.pending",
     label: "Vencido",
     description:
-      "Lançamentos previstos cujo vencimento já passou, segundo o relógio do servidor.",
+      "Lançamentos previstos cujo vencimento já passou.",
     category: "FINANCIAL",
     unit: "currency",
     icon: Timer,
@@ -933,7 +933,7 @@ const DEFINITIONS: readonly MetricDefinition[] = [
   define({
     id: "inventory.low.total",
     label: "Estoque baixo",
-    description: "Itens no mínimo ou abaixo dele, segundo o servidor.",
+    description: "Itens no estoque mínimo ou abaixo dele.",
     category: "INVENTORY",
     unit: "count",
     icon: PackageX,
@@ -995,7 +995,7 @@ const registry = createRegistry<MetricDefinition>({
     define({
       id,
       label: humanizeMetricId(id),
-      description: "Métrica publicada pelo backend e ainda não registrada.",
+      description: "Indicador ainda sem descrição no Orbit.",
       category: "OPERATIONS",
       unit: "count",
       icon: Activity,
@@ -1086,7 +1086,7 @@ export function resolveMetric(contract: MetricContract): MetricDefinition {
   const derived = define({
     id: contract.id,
     label: contract.label ?? contract.id,
-    description: "Métrica publicada pelo backend e ainda não registrada.",
+    description: "Indicador ainda sem descrição no Orbit.",
     category,
     unit: contract.unit === "%" ? "percent" : "count",
     icon: CATEGORY_ICONS[category],

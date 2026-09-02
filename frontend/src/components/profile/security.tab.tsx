@@ -116,8 +116,7 @@ export function SecurityTab() {
         </ListState>
 
         <p className="text-xs text-muted-foreground">
-          Não há histórico de acessos: o backend não publica auditoria por
-          usuário. O que existe de datado é quando cada dispositivo entrou.
+          O histórico de acessos ainda não está disponível. O que existe de datado é quando cada dispositivo entrou.
         </p>
       </section>
 

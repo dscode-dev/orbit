@@ -70,9 +70,7 @@ export function ExecutionKpis({ counts }: { counts: ExecutionCounts }) {
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        Contagens do backend, uma consulta por fila. O Analytics não publica
-        indicadores de execução de artefato, e não há progresso agregado — o
-        progresso é publicado por execução.
+        Contagens por fila. Não há progresso consolidado: ele é acompanhado em cada execução.
       </p>
     </div>
   );

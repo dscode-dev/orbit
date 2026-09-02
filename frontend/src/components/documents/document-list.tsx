@@ -43,7 +43,7 @@ export function DocumentList({
       <EmptyState
         icon={<FileStack className="size-5" />}
         title="Nada nesta fila"
-        description="As execuções desta página não estão neste estado de renderização."
+        description="Nenhum documento desta página está nesta situação."
       />
     );
   }

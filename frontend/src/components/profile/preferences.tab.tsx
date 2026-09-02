@@ -140,8 +140,7 @@ function Form({ profile }: { profile: UserProfile }) {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              O fuso não é só apresentação: o servidor o usa para interpretar
-              janelas de agenda e escalas.
+              O fuso não é só apresentação: ele define como janelas de agenda e escalas são interpretadas.
             </p>
           </div>
         </div>
@@ -169,7 +168,7 @@ function Form({ profile }: { profile: UserProfile }) {
         </p>
         <p className="text-xs text-muted-foreground">
           Guardar a escolha só neste navegador seria uma configuração paralela:
-          um valor que o backend não conhece, que não acompanha você em outro
+          um valor que fica só neste navegador, que não acompanha você em outro
           dispositivo e que teria de ser migrado quando o contrato existir.
         </p>
       </section>

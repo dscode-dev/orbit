@@ -48,9 +48,8 @@ export function SecuritySettingsTab() {
           </p>
           <p className="text-xs text-muted-foreground">
             Não é descuido: expor os dispositivos de todo mundo a quem
-            administra a conta é decisão de privacidade que o backend não tomou.
-            Quem precisa tirar alguém de circulação o faz pela situação do
-            membro, na Equipe.
+            administra a conta seria uma quebra de privacidade. Para tirar
+            alguém de circulação, altere a situação do membro em Equipe.
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -75,7 +74,7 @@ export function SecuritySettingsTab() {
       <PanelFrame
         panelId="settings-security-policies"
         title="Políticas de autenticação"
-        description="O que o servidor decide"
+        description="Regras aplicadas ao acesso"
       >
         <div className="space-y-3">
           <ul className="space-y-2 text-sm text-muted-foreground">
@@ -99,8 +98,8 @@ export function SecuritySettingsTab() {
                 <strong className="text-foreground">
                   Bloqueio por tentativas
                 </strong>{" "}
-                — o servidor conta as falhas e bloqueia a credencial. O limite e
-                a duração não são publicados.
+                — tentativas seguidas de senha errada bloqueiam o acesso
+                temporariamente.
               </span>
             </li>
             <li className="flex items-start gap-2">
@@ -117,9 +116,8 @@ export function SecuritySettingsTab() {
           </ul>
 
           <p className="text-xs text-muted-foreground">
-            Nenhum destes parâmetros é configurável: o backend não publica nem
-            aceita política de segurança por organização. Esta lista descreve o
-            comportamento, não o configura.
+            Nenhum destes parâmetros é configurável por organização. Esta
+            lista descreve o comportamento, não o configura.
           </p>
         </div>
       </PanelFrame>
@@ -127,14 +125,13 @@ export function SecuritySettingsTab() {
       <PanelFrame
         panelId="settings-security-audit"
         title="Auditoria e histórico de acesso"
-        description="O que existe e o que não é publicado"
+        description="O que fica registrado"
       >
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            O servidor grava auditoria (<span className="font-mono">audit_logs</span>,
-            com tipo de entidade, ação, antes e depois), mas{" "}
-            <strong>nenhuma rota a expõe para a organização</strong> —
-            verificado.
+            As alterações ficam registradas — o que mudou, quem mudou e
+            quando —, mas{" "}
+            <strong>essa auditoria ainda não pode ser consultada aqui</strong>.
           </p>
           <p className="text-xs text-muted-foreground">
             De histórico de acesso, o que existe é quando cada sessão começou.
@@ -147,7 +144,7 @@ export function SecuritySettingsTab() {
       <PanelFrame
         panelId="settings-security-context"
         title="Autorização em vigor"
-        description="Como o backend decide cada requisição"
+        description="O que o seu acesso permite hoje"
       >
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2 text-sm">

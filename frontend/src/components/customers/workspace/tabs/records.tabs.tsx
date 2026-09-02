@@ -314,7 +314,7 @@ export function DocumentsTab({ customerId }: { customerId: string }) {
           value={list.searchTerm}
           onChange={list.setSearchTerm}
           placeholder="Código ou título da execução"
-          hint="O backend não publica listagem de documentos por cliente — a busca é pela execução que os emitiu."
+          hint="A lista de documentos por cliente ainda não está disponível: a busca é pelo atendimento que os emitiu."
           className="min-w-64 flex-1"
         />
         <ResultSummary meta={meta} noun="execução" gender="f" />

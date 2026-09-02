@@ -145,7 +145,7 @@ export const REPORT_PROVENANCE_DESCRIPTIONS: Readonly<
   Record<string, string>
 > = {
   OBSERVED: "Contado direto do registro que o originou.",
-  DERIVED: "Calculado pelo servidor a partir de números observados.",
+  DERIVED: "Calculado a partir de números observados.",
   PROXY: "Aproximação declarada — não é medição direta.",
   MOCK: "Fonte simulada. Não use para decidir.",
 };

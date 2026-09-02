@@ -104,7 +104,7 @@ export function AutomationRulesPanel({
             value={list.searchTerm}
             onChange={list.setSearchTerm}
             placeholder="Nome da automação"
-            hint="O servidor procura no nome e na descrição."
+            hint="A busca considera o nome e a descrição."
           />
           <FilterSelect
             id="automation-trigger-filter"

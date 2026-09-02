@@ -84,7 +84,7 @@ export function ReportGenerator({
       <PanelFrame
         panelId="reports-generator-loading"
         title="Gerar relatório"
-        description="Carregando o catálogo publicado pelo servidor"
+        description="Carregando o catálogo de relatórios"
       >
         <PanelLoading rows={4} />
       </PanelFrame>
@@ -96,7 +96,7 @@ export function ReportGenerator({
       <PanelFrame
         panelId="reports-generator-error"
         title="Gerar relatório"
-        description="O catálogo de tipos vem do servidor"
+        description="Tipos de relatório disponíveis"
       >
         <PanelError
           error={catalog.error}

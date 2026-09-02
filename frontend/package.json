@@ -6,14 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "eslint . && node scripts/check-product-language.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "playwright test",
-    "contracts:sync": "node scripts/sync-contracts.mjs"
+    "contracts:sync": "node scripts/sync-contracts.mjs",
+    "lint:language": "node scripts/check-product-language.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

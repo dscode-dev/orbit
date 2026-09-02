@@ -35,7 +35,7 @@ const QUEUE_HINTS: Readonly<Record<string, string>> = {
   UNDER_REVIEW:
     "Submetidas por quem executou e ainda não aprovadas. A aprovação acontece no Workspace da execução.",
   PAUSED:
-    "Interrompidas antes da conclusão. Retomar é uma mudança de status, validada pelo backend.",
+    "Interrompidas antes da conclusão. Retomar depende da situação atual de cada uma.",
 };
 
 export function ExecutionRevisions({ counts }: { counts: ExecutionCounts }) {
@@ -43,7 +43,7 @@ export function ExecutionRevisions({ counts }: { counts: ExecutionCounts }) {
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
         Execuções que dependem de uma decisão. Nenhuma alteração acontece nesta
-        tela — cada uma abre no Workspace, onde o backend valida a transição.
+        tela — cada uma abre no Workspace, onde a mudança é registrada.
       </p>
 
       {REVIEW_QUEUES.map((queue) => {

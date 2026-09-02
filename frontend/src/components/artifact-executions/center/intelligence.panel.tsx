@@ -111,8 +111,7 @@ export function ExecutionIntelligencePanel() {
             ) : null}
 
             <p className="border-t border-border pt-3 text-xs text-muted-foreground">
-              As inconsistências apontadas em cada execução aparecem dentro
-              dela: o backend não publica rota que as liste em conjunto.
+              As inconsistências apontadas em cada execução aparecem dentro dela. Uma lista consolidada ainda não está disponível.
             </p>
           </div>
         )}

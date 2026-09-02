@@ -77,7 +77,7 @@ export function TemplatesList() {
       <ResultSummary
         meta={meta}
         noun="template"
-        note="Ordenado por prioridade e nome (ordem definida pelo backend)"
+        note="Ordenado por prioridade e nome"
       />
 
       <ListState

@@ -268,7 +268,7 @@ function Body({
         <Field
           label="SKU"
           htmlFor="catalog-sku"
-          hint="Código interno. Único na organização — o servidor recusa duplicados."
+          hint="Código interno. Único na organização: não é possível repetir um código já usado."
         >
           <Input
             id="catalog-sku"

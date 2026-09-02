@@ -95,7 +95,7 @@ export function RvtList({ onCreate }: { onCreate: () => void }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          Ordenado pelas mais recentes — a ordem é definida pelo backend.
+          Ordenado pelas mais recentes.
         </p>
         {canManage ? (
           <Button size="sm" onClick={onCreate}>

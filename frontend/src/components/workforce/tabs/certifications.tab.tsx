@@ -59,8 +59,7 @@ export function CertificationsTab() {
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
-        Habilitações da equipe, ordenadas por vencimento. O prazo é comparado
-        pelo servidor — não pelo relógio deste navegador.
+        Habilitações da equipe, ordenadas por vencimento. O prazo não depende do relógio deste navegador.
       </p>
 
       <FilterBar onClear={list.reset} canClear={list.isFiltered}>

@@ -183,8 +183,7 @@ export function SpecialtiesTab() {
       </ListState>
 
       <p className="text-xs text-muted-foreground">
-        O servidor recusa remover uma especialidade que ainda esteja vinculada a
-        alguém — apagá-la apagaria a informação de que aquelas pessoas a
+        Não é possível remover uma especialidade que ainda esteja vinculada a alguém — apagá-la apagaria a informação de que aquelas pessoas a
         possuem.
       </p>
     </div>

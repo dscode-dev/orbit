@@ -54,7 +54,7 @@ export function RvtOccurrencesPanel({
         icon: <CalendarClock className="size-5" />,
         title: "Nenhuma visita prevista",
         description:
-          "As visitas são geradas pelo servidor a partir da periodicidade e da vigência configuradas.",
+          "As visitas são geradas a partir da periodicidade e da vigência configuradas.",
       }}
     >
       {(rows) => (

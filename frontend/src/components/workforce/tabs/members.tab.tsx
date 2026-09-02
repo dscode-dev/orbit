@@ -116,8 +116,8 @@ export function MembersTab() {
           gender="f"
           note={
             list.isFiltered
-              ? "Busca e papel recortam esta página — o endpoint ainda não os aceita."
-              : "Ordenado por nome (ordem definida pelo backend)"
+              ? "Busca e papel filtram apenas esta página."
+              : "Ordenado por nome"
           }
         />
         {invite.allowed ? (
@@ -134,7 +134,7 @@ export function MembersTab() {
           value={list.searchTerm}
           onChange={list.setSearchTerm}
           placeholder="Nome ou e-mail"
-          hint="Busca sobre a página carregada — o endpoint de membros não aceita texto."
+          hint="Busca sobre a página carregada."
         />
         <FilterSelect
           id="team-members-role"
