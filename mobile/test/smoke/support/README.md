@@ -82,6 +82,35 @@ hostname sozinho seria frágil — um túnel para produção também atende em
 flutter test --dart-define=ORBIT_SMOKE_ENV=development
 ```
 
+## Contrato do ambiente externo
+
+Antes da suíte, a stack oficial precisa comprovar:
+
+- PostgreSQL saudável, acessível pela API e sem migrations pendentes;
+- API saudável em loopback;
+- Storage configurado e persistente;
+- worker da API ativo para renderização e tarefas assíncronas.
+
+Com o provider `LOCAL`, `ORBIT_API_URL` e `STORAGE_LOCAL_PUBLIC_URL` precisam
+publicar a **mesma porta do host**. A URL assinada é consumida pelo processo
+Flutter no host, não de dentro do container. Por exemplo, quando o Compose
+publica a API em `6001`:
+
+```bash
+STORAGE_LOCAL_PUBLIC_URL=http://127.0.0.1:6001/api/v1 \
+  docker compose up -d --build postgres migrate api
+
+flutter test \
+  --dart-define=ORBIT_SMOKE_ENV=development \
+  --dart-define=ORBIT_API_URL=http://127.0.0.1:6001/api/v1
+```
+
+O health da API deve responder antes do segundo comando. Ter container ou porta
+aberta, isoladamente, não prova readiness. Nenhuma credencial deve ser passada
+na linha de comando; o Compose continua consumindo o `.env` local. A divergência
+histórica entre as portas `5432` e `5434` do PostgreSQL deve ser resolvida por
+override efêmero quando aplicável, sem alterar o `.env` durante um closure gate.
+
 ## Isolamento e estados terminais
 
 | suíte | cenário |
