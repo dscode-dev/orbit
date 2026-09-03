@@ -31,6 +31,7 @@ import { formatDateTime } from "@/lib/formatters";
 import { ROUTES } from "@/lib/routes";
 import { OperationStatusBadge } from "../operation-badges";
 import { AssigneesSection } from "./assignees.section";
+import { OperationArtifactExecutionsSection } from "./artifact-executions.section";
 import { AttachmentsSection } from "./attachments.section";
 import { ChecklistsSection } from "./checklists.section";
 import {
@@ -108,6 +109,7 @@ export function OperationWorkspace({ operationId }: { operationId: string }) {
           <DetailsSection query={operationQuery} />
           <TimelineSection query={toPanelQuery(timeline)} />
           <ChecklistsSection query={toPanelQuery(checklists)} />
+          <OperationArtifactExecutionsSection operationId={operationId} />
           {/*
             Materiais utilizados: baixa de estoque vinculada a esta operação.
             Fica na coluna principal, ao lado de checklists — as duas respondem

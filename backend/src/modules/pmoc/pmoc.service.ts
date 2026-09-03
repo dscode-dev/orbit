@@ -35,6 +35,7 @@ import {
   canTransition,
   EDITABLE_STATUSES,
   evaluateCompliance,
+  executionEligibility,
   toDateOnly,
   type FrequencyUnit,
   type PlanStatus,
@@ -757,19 +758,14 @@ export class PmocService {
         data.plan.businessUnitId,
       ),
     ]);
-    const blockedReasons: string[] = [];
-    if (data.plan.status !== 'ACTIVE') blockedReasons.push('PLAN_NOT_ACTIVE');
-    if (data.cycle.status !== 'PENDING')
-      blockedReasons.push('CYCLE_NOT_PENDING');
-    if (data.coverage.asset.status !== 'ACTIVE')
-      blockedReasons.push('EQUIPMENT_INACTIVE');
-    if (!data.plan.technicalResponsibleUserId)
-      blockedReasons.push('TECHNICAL_RESPONSIBLE_MISSING');
-    else if (!technicalResponsibleEligibility?.eligible)
-      blockedReasons.push(
-        technicalResponsibleEligibility?.blockedReason ??
-          'TECHNICAL_RESPONSIBLE_INELIGIBLE',
-      );
+    const eligibility = executionEligibility({
+      planStatus: data.plan.status,
+      cycleStatus: data.cycle.status,
+      equipmentStatus: data.coverage.asset.status,
+      technicalResponsibleUserId: data.plan.technicalResponsibleUserId,
+      technicalResponsible: technicalResponsibleEligibility,
+    });
+    const blockedReasons = eligibility.blockedReasons;
     return {
       plan: {
         id: data.plan.id,
@@ -805,7 +801,7 @@ export class PmocService {
         dueOn: toDateOnly(data.cycle.dueOn),
         timezone: 'America/Recife',
       },
-      eligibility: { ready: blockedReasons.length === 0, blockedReasons },
+      eligibility,
       existingExecution: data.existing
         ? this.mapper.equipmentExecution(data.existing)
         : null,
@@ -819,13 +815,43 @@ export class PmocService {
     };
   }
 
+  /**
+   * Os equipamentos cobertos por um ciclo, com o que cada um pode fazer agora.
+   *
+   * `eligibility` é a **mesma** função que a preparação usa. Publicá-la aqui
+   * existe por um motivo medido: sem ela, a tela pedia a preparação inteira
+   * para cada equipamento sem execução — vinte requisições para desenhar vinte
+   * linhas. Quatro dos cinco motivos são do plano e do ciclo e se calculam uma
+   * vez; o quinto é o estado do próprio equipamento, que já vem na consulta.
+   *
+   * É uma leitura, e leitura envelhece: entre ver "pronto" e clicar em iniciar,
+   * o plano pode ter sido suspenso. Quem decide continua sendo
+   * `startEquipmentExecution`, que revalida contra o estado do momento e
+   * recusa. O que está aqui informa a tela; não autoriza nada.
+   */
   async equipmentExecutions(planId: string, cycleId: string, actor: PmocActor) {
-    await this.plan(planId, actor);
-    const rows = await this.repository.listEquipmentExecutions(
-      actor.organizationId,
-      planId,
-      cycleId,
-    );
+    const plan = await this.plan(planId, actor);
+    const [rows, cycle, technicalResponsible] = await Promise.all([
+      this.repository.listEquipmentExecutions(
+        actor.organizationId,
+        planId,
+        cycleId,
+      ),
+      this.repository.findCycle(actor.organizationId, planId, cycleId),
+      plan.technicalResponsibleUserId
+        ? this.workforce.professionalEligibility(
+            actor.organizationId,
+            plan.technicalResponsibleUserId,
+            {
+              signedAs: 'TECHNICAL_RESPONSIBLE',
+              documentType: 'PMOC',
+              businessUnitId: plan.businessUnit.id,
+            },
+          )
+        : Promise.resolve(null),
+    ]);
+    if (!cycle) throw new EntityNotFoundException('PmocExecution', cycleId);
+
     return rows.map((row) => ({
       coverageId: row.id,
       equipment: row.asset,
@@ -833,6 +859,13 @@ export class PmocService {
         ? this.mapper.equipmentExecution(row.equipmentExecutions[0])
         : null,
       status: row.equipmentExecutions[0]?.status ?? 'NOT_STARTED',
+      eligibility: executionEligibility({
+        planStatus: plan.status,
+        cycleStatus: cycle.status,
+        equipmentStatus: row.asset.status,
+        technicalResponsibleUserId: plan.technicalResponsibleUserId,
+        technicalResponsible,
+      }),
     }));
   }
 

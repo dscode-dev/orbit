@@ -30,7 +30,6 @@ import { Separator } from "@/components/ui/separator";
 import {
   usePmocCycles,
   usePmocEquipmentExecutions,
-  usePmocExecutionPreparation,
 } from "@/hooks/pmoc/use-pmoc";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -158,12 +157,7 @@ function EquipmentExecutions({
         {(equipment) => (
           <ul className="space-y-3">
             {equipment.map((row) => (
-              <EquipmentRow
-                key={row.coverageId}
-                planId={planId}
-                cycleId={cycleId}
-                row={row}
-              />
+              <EquipmentRow key={row.coverageId} row={row} />
             ))}
           </ul>
         )}
@@ -176,25 +170,17 @@ function EquipmentExecutions({
  * Um equipamento do ciclo — executado ou não.
  *
  * Quando há execução, mostra quem fez, quando, com quantas evidências e qual
- * documento. Quando não há, consulta a **preparação** e mostra o que o
- * servidor respondeu: pronto para execução, ou o motivo do bloqueio.
+ * documento. Quando não há, mostra o que o servidor respondeu na própria
+ * linha: pronto para execução, ou o motivo do bloqueio.
+ *
+ * A disponibilidade vinha de uma consulta de preparação **por linha** — vinte
+ * equipamentos, vinte requisições, só para escrever uma frase em cada. Agora
+ * ela chega na mesma resposta que traz a lista, calculada pela mesma regra do
+ * domínio. A preparação continua existindo onde decide algo: no momento de
+ * iniciar a execução.
  */
-function EquipmentRow({
-  planId,
-  cycleId,
-  row,
-}: {
-  planId: string;
-  cycleId: string;
-  row: PmocCycleEquipmentRow;
-}) {
-  const pending = row.execution === null;
-  const preparation = usePmocExecutionPreparation(
-    planId,
-    pending ? cycleId : null,
-    pending ? row.equipment.id : null,
-  );
-  const eligibility = preparation.data?.eligibility;
+function EquipmentRow({ row }: { row: PmocCycleEquipmentRow }) {
+  const eligibility = row.eligibility;
 
   return (
     <li className="space-y-3 rounded-xl border border-border p-4">
@@ -278,17 +264,13 @@ function EquipmentRow({
         </>
       ) : (
         <div className="text-xs">
-          {preparation.isPending ? (
-            <span className="text-muted-foreground">
-              Verificando disponibilidade…
-            </span>
-          ) : eligibility?.ready ? (
+          {eligibility.ready ? (
             <span className="text-muted-foreground">
               Pronto para execução em campo.
             </span>
           ) : (
             <ul className="space-y-0.5">
-              {(eligibility?.blockedReasons ?? []).map((reason) => (
+              {eligibility.blockedReasons.map((reason) => (
                 <li key={reason} className="text-amber-400">
                   {executionBlockedLabel(reason, knownBlockedReason)}
                 </li>

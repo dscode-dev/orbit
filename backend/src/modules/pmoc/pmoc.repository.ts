@@ -898,6 +898,16 @@ export class PmocRepository {
     });
   }
 
+  /** O ciclo, para a lista saber em que estado ele está. */
+  findCycle(organizationId: string, planId: string, cycleId: string) {
+    return this.rls.run((tx) =>
+      tx.pmocExecution.findFirst({
+        where: { id: cycleId, planId, organizationId },
+        select: { id: true, status: true },
+      }),
+    );
+  }
+
   listEquipmentExecutions(
     organizationId: string,
     planId: string,

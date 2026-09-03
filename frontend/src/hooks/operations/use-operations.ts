@@ -18,6 +18,7 @@ import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery } from "@/hooks/api/use-api-query";
 import { CACHE } from "@/hooks/api/cache-policy";
 import { useActiveScope } from "@/providers/use-active-scope";
+import { artifactExecutionsService } from "@/services/artifact-executions.service";
 import {
   operationChecklistsService,
   operationIntelligenceService,
@@ -37,12 +38,16 @@ import type {
  * Timeline e status mudam durante a execução; detalhes e checklists mudam por
  * ação do usuário; anexos só mudam quando alguém envia algo.
  */
+/** Quantas linhas o painel de vínculo mostra antes do "Ver tudo". */
+const OPERATION_RELATED_PAGE_SIZE = 5;
+
 export const OPERATIONS_REFRESH = {
   list: CACHE.live,
   detail: CACHE.fresh,
   timeline: CACHE.live,
   history: CACHE.stable,
   checklists: CACHE.fresh,
+  artifactExecutions: CACHE.fresh,
   intelligence: CACHE.catalog,
 } as const;
 
@@ -98,6 +103,30 @@ export function useOperationChecklists(operationId: string) {
     ({ signal }) =>
       operationChecklistsService.list({ operationId }, { signal }),
     OPERATIONS_REFRESH.checklists,
+  );
+}
+
+/**
+ * As execuções de artefato desta operação.
+ *
+ * `ArtifactExecutionQueryDto` publica `operationId`, então o recorte é do
+ * servidor — nada de trazer a organização inteira e filtrar aqui. A chave da
+ * consulta é a mesma que a listagem geral produziria com este filtro, e o
+ * `operationId` está dentro dela: duas operações nunca compartilham cache.
+ *
+ * Não confundir com `useOperationChecklists`: `ChecklistExecution` é outro
+ * conceito, com contrato próprio, e continua na sua seção.
+ */
+export function useOperationArtifactExecutions(operationId: string) {
+  const query = {
+    operationId,
+    limit: OPERATION_RELATED_PAGE_SIZE,
+    page: 1,
+  } as const;
+  return useApiQuery(
+    artifactExecutionsService.keys.list(query),
+    ({ signal }) => artifactExecutionsService.list(query, { signal }),
+    OPERATIONS_REFRESH.artifactExecutions,
   );
 }
 

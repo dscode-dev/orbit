@@ -200,3 +200,59 @@ function startOfDay(value: Date): Date {
 export function toDateOnly(value: Date): string {
   return startOfDay(value).toISOString().slice(0, 10);
 }
+
+/* ------------------------------------------------------------------ */
+/* Elegibilidade de execução por equipamento                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O que impede este equipamento de iniciar a execução do ciclo.
+ *
+ * A regra vivia escrita duas vezes: uma na preparação, que devolve os motivos
+ * para a tela, e outra no comando de início, que os transforma em recusa. A
+ * lista do ciclo precisava dos mesmos motivos e não os tinha — cada linha
+ * pedia a preparação inteira só para saber se podia começar, o que dava uma
+ * requisição por equipamento. Agora a regra é uma função só, e quem lê e quem
+ * escreve consultam a mesma.
+ *
+ * Quatro dos cinco motivos são do plano e do ciclo, não do equipamento: uma
+ * lista inteira os calcula uma vez. Só `EQUIPMENT_INACTIVE` varia por linha.
+ */
+export interface ExecutionEligibilityInput {
+  readonly planStatus: string;
+  readonly cycleStatus: string;
+  readonly equipmentStatus: string;
+  readonly technicalResponsibleUserId: string | null;
+  /** O que a workforce respondeu sobre o responsável técnico do plano. */
+  readonly technicalResponsible: {
+    readonly eligible: boolean;
+    readonly blockedReason: string | null;
+  } | null;
+}
+
+export interface ExecutionEligibility {
+  readonly ready: boolean;
+  readonly blockedReasons: readonly string[];
+}
+
+export function executionEligibility(
+  input: ExecutionEligibilityInput,
+): ExecutionEligibility {
+  const blockedReasons: string[] = [];
+
+  if (input.planStatus !== 'ACTIVE') blockedReasons.push('PLAN_NOT_ACTIVE');
+  if (input.cycleStatus !== 'PENDING') blockedReasons.push('CYCLE_NOT_PENDING');
+  if (input.equipmentStatus !== 'ACTIVE')
+    blockedReasons.push('EQUIPMENT_INACTIVE');
+
+  if (!input.technicalResponsibleUserId) {
+    blockedReasons.push('TECHNICAL_RESPONSIBLE_MISSING');
+  } else if (!input.technicalResponsible?.eligible) {
+    blockedReasons.push(
+      input.technicalResponsible?.blockedReason ??
+        'TECHNICAL_RESPONSIBLE_INELIGIBLE',
+    );
+  }
+
+  return { ready: blockedReasons.length === 0, blockedReasons };
+}

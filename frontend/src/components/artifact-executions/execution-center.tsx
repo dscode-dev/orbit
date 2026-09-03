@@ -24,12 +24,14 @@
  * acompanha, encontra e navega.
  */
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 
 import { ContentContainer } from "@/components/layout/page-primitives";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useExecutionCounts } from "@/hooks/artifact-executions/use-execution-center";
+import type { ArtifactExecutionQuery } from "@/types/artifact-executions";
 import { ExecutionsList } from "./executions-list";
 import { ExecutionIntelligencePanel } from "./center/intelligence.panel";
 import { ExecutionKpis } from "./center/kpis.section";
@@ -44,8 +46,44 @@ const TABS = {
 
 type CenterTab = (typeof TABS)[keyof typeof TABS];
 
+/**
+ * Os recortes que o centro aceita pela URL.
+ *
+ * São exatamente os filtros que `ArtifactExecutionQueryDto` publica. Quem vem
+ * de um ativo ou da ficha de um técnico chega com o vínculo na URL, e a fila
+ * abre já recortada — antes o parâmetro era ignorado e a pessoa recebia a
+ * organização inteira, sem sinal de que o contexto tinha se perdido.
+ */
+const URL_FILTERS = [
+  "assetId",
+  "operationId",
+  "customerId",
+  "responsibleUserId",
+  "businessUnitId",
+] as const;
+
 export function ExecutionCenter() {
-  const [tab, setTab] = useState<CenterTab>(TABS.overview);
+  const params = useSearchParams();
+
+  /**
+   * Congelado na montagem, como o `initial` do controlador de lista: o recorte
+   * é de partida, e mexer nos filtros na tela não reescreve a URL.
+   */
+  const [scope] = useState<ArtifactExecutionQuery | undefined>(() => {
+    const entries = URL_FILTERS.map(
+      (key) => [key, params.get(key) ?? undefined] as const,
+    ).filter((entry): entry is readonly [(typeof URL_FILTERS)[number], string] =>
+      Boolean(entry[1]),
+    );
+    return entries.length
+      ? (Object.fromEntries(entries) as ArtifactExecutionQuery)
+      : undefined;
+  });
+
+  /** Com recorte, a fila é o que a pessoa veio ver — não a visão geral. */
+  const [tab, setTab] = useState<CenterTab>(
+    scope ? TABS.queues : TABS.overview,
+  );
   const counts = useExecutionCounts();
 
   return (
@@ -92,7 +130,7 @@ export function ExecutionCenter() {
         </TabsContent>
 
         <TabsContent value={TABS.queues}>
-          {tab === TABS.queues ? <ExecutionsList /> : null}
+          {tab === TABS.queues ? <ExecutionsList initialQuery={scope} /> : null}
         </TabsContent>
 
         <TabsContent value={TABS.revisions}>

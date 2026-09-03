@@ -13,9 +13,8 @@ export default function ArtifactExecutionsPage() {
   return (
     <WorkspacePage
       entity="artifact-execution"
-      title="Execuções"
+      title="Execuções de artefato"
       description="Acompanhamento das execuções da unidade ativa: filas, contagens e revisões."
-      breadcrumb={<span>Execuções de artefato</span>}
       contained={false}
     >
       <ExecutionCenter />

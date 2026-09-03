@@ -62,7 +62,13 @@ export function PanelFrame({
   children,
 }: PanelFrameProps) {
   return (
-    <Card className={cn("glass-panel h-full", className)}>
+    /**
+     * `panelId` já identificava o painel para os estados de carga e de erro;
+     * agora também no DOM. É um marcador, não semântica: não vira landmark
+     * (dezenas de `region` numa página são ruído para quem navega por eles) e
+     * não muda nada do que se vê.
+     */
+    <Card data-panel={panelId} className={cn("glass-panel h-full", className)}>
       <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
         <div className="min-w-0 space-y-1">
           <CardTitle className="text-base">{title}</CardTitle>

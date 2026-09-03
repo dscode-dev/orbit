@@ -7,6 +7,7 @@
 import {
   canTransition,
   evaluateCompliance,
+  executionEligibility,
   frequencyLabel,
   toDateOnly,
 } from './pmoc.domain';
@@ -173,5 +174,90 @@ describe('apresentação da periodicidade', () => {
 describe('datas', () => {
   it('viajam como dia, sem hora', () => {
     expect(toDateOnly(new Date('2026-06-01T23:45:00.000Z'))).toBe('2026-06-01');
+  });
+});
+
+describe('elegibilidade de execução por equipamento', () => {
+  const pronto = {
+    planStatus: 'ACTIVE',
+    cycleStatus: 'PENDING',
+    equipmentStatus: 'ACTIVE',
+    technicalResponsibleUserId: 'user-1',
+    technicalResponsible: { eligible: true, blockedReason: null },
+  };
+
+  it('libera quando plano, ciclo, equipamento e responsável estão em ordem', () => {
+    expect(executionEligibility(pronto)).toEqual({
+      ready: true,
+      blockedReasons: [],
+    });
+  });
+
+  it('bloqueia plano fora de ativo', () => {
+    const result = executionEligibility({ ...pronto, planStatus: 'SUSPENDED' });
+    expect(result.ready).toBe(false);
+    expect(result.blockedReasons).toContain('PLAN_NOT_ACTIVE');
+  });
+
+  it('bloqueia ciclo que não está pendente', () => {
+    expect(
+      executionEligibility({ ...pronto, cycleStatus: 'COMPLETED' })
+        .blockedReasons,
+    ).toContain('CYCLE_NOT_PENDING');
+  });
+
+  it('bloqueia equipamento inativo', () => {
+    expect(
+      executionEligibility({ ...pronto, equipmentStatus: 'INACTIVE' })
+        .blockedReasons,
+    ).toContain('EQUIPMENT_INACTIVE');
+  });
+
+  it('cobra responsável técnico quando o plano não tem um', () => {
+    expect(
+      executionEligibility({
+        ...pronto,
+        technicalResponsibleUserId: null,
+        technicalResponsible: null,
+      }).blockedReasons,
+    ).toEqual(['TECHNICAL_RESPONSIBLE_MISSING']);
+  });
+
+  it('repassa o motivo que a workforce deu para o responsável', () => {
+    expect(
+      executionEligibility({
+        ...pronto,
+        technicalResponsible: {
+          eligible: false,
+          blockedReason: 'PROFESSIONAL_PROFILE_INACTIVE',
+        },
+      }).blockedReasons,
+    ).toEqual(['PROFESSIONAL_PROFILE_INACTIVE']);
+  });
+
+  it('tem um motivo genérico quando a workforce recusa sem dizer por quê', () => {
+    expect(
+      executionEligibility({
+        ...pronto,
+        technicalResponsible: { eligible: false, blockedReason: null },
+      }).blockedReasons,
+    ).toEqual(['TECHNICAL_RESPONSIBLE_INELIGIBLE']);
+  });
+
+  it('acumula os motivos, na ordem em que a preparação sempre os listou', () => {
+    expect(
+      executionEligibility({
+        planStatus: 'CANCELLED',
+        cycleStatus: 'COMPLETED',
+        equipmentStatus: 'INACTIVE',
+        technicalResponsibleUserId: null,
+        technicalResponsible: null,
+      }).blockedReasons,
+    ).toEqual([
+      'PLAN_NOT_ACTIVE',
+      'CYCLE_NOT_PENDING',
+      'EQUIPMENT_INACTIVE',
+      'TECHNICAL_RESPONSIBLE_MISSING',
+    ]);
   });
 });

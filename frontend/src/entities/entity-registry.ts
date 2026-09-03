@@ -358,7 +358,17 @@ const DEFINITIONS: readonly EntityDefinition[] = [
   {
     id: "artifact-execution",
     label: "Execução de artefato",
-    labelPlural: "Execuções",
+    /**
+     * O plural diz de que execução se trata.
+     *
+     * "Execuções", sozinho, ocupava o menu ao lado de PMOC e RVT e sugeria uma
+     * área genérica que reuniria as execuções dos dois — e não reúne: PMOC
+     * (`PmocEquipmentExecution`) e RVT (`RvtExecution`) são modelos próprios,
+     * vistos dentro do plano e da configuração. O que vive aqui é o
+     * preenchimento de artefatos, que a própria tela já nomeava assim na
+     * trilha de navegação.
+     */
+    labelPlural: "Execuções de artefato",
     description: "Preenchimento e acompanhamento de um artefato em campo.",
     icon: ClipboardCheck,
     color: "text-emerald-400",

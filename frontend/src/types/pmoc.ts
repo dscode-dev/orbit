@@ -61,6 +61,20 @@ export interface PmocCycleEquipmentRow {
   execution: PmocEquipmentExecution | null;
   /** `NOT_STARTED` ou o status da execução aberta. */
   status: string;
+  /**
+   * O que impede este equipamento de começar agora.
+   *
+   * Mesma função do domínio que alimenta a preparação — a lista deixou de
+   * pedir a preparação inteira por linha só para saber disso. É leitura, e
+   * leitura envelhece: quem autoriza continua sendo o comando de início, que
+   * revalida contra o estado do momento.
+   */
+  eligibility: PmocExecutionEligibility;
+}
+
+export interface PmocExecutionEligibility {
+  ready: boolean;
+  blockedReasons: readonly string[];
 }
 export type PmocTimelineItem = PmocTimelineItemReadModel;
 export type PmocComplianceSummary = PmocComplianceSummaryReadModel;
@@ -168,7 +182,7 @@ export interface PmocExecutionPreparation {
    * `ready` é a resposta; `blockedReasons` explica. Vazio significa liberado.
    * Cada código é traduzido em `registry/pmoc.ts` — nenhum chega à tela cru.
    */
-  eligibility: { ready: boolean; blockedReasons: readonly string[] };
+  eligibility: PmocExecutionEligibility;
   evidencePolicy: {
     minimumPhotos: number;
     maximumPhotos: number;
