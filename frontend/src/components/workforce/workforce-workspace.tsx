@@ -60,7 +60,7 @@ export function WorkforceWorkspace() {
         <WorkforceKpis />
       </TabBoundary>
 
-      <Tabs defaultValue="usuarios" className="space-y-5">
+      <Tabs defaultValue="usuarios">
         <TabsList>
           <TabsTrigger value="usuarios">Usuários</TabsTrigger>
           <TabsTrigger value="profissionais">Profissionais</TabsTrigger>

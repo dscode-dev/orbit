@@ -302,7 +302,7 @@ function StudioWorkspace({
         </div>
       ) : null}
 
-      <Tabs defaultValue="estrutura" className="space-y-4">
+      <Tabs defaultValue="estrutura">
         <TabsList>
           <TabsTrigger value="estrutura">
             <LayoutTemplate className="size-4" />

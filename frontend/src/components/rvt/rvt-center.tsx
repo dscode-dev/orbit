@@ -21,7 +21,7 @@ export function RvtCenter() {
 
   return (
     <div className="space-y-5">
-      <Tabs defaultValue="configuracoes" className="space-y-5">
+      <Tabs defaultValue="configuracoes">
         <TabsList>
           <TabsTrigger value="configuracoes">Configurações</TabsTrigger>
           <TabsTrigger value="visitas">Visitas</TabsTrigger>

@@ -122,7 +122,7 @@ function Workspace() {
 
   return (
     <ContentContainer size="wide" className="space-y-6">
-      <Tabs value={tab} onValueChange={setTab} className="space-y-5">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
           <TabsTrigger value="gerar">Gerar relatório</TabsTrigger>

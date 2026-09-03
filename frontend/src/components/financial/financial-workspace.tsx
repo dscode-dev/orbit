@@ -36,7 +36,7 @@ import { FinancialOverviewTab } from "./tabs/overview.tab";
 export function FinancialWorkspace() {
   return (
     <ContentContainer size="wide" className="space-y-6">
-      <Tabs defaultValue="visao-geral" className="space-y-5">
+      <Tabs defaultValue="visao-geral">
         <TabsList>
           <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
           <TabsTrigger value="lancamentos">Lançamentos</TabsTrigger>

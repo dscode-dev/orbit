@@ -5,7 +5,26 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { cn } from "@/lib/utils";
 
-const Tabs = TabsPrimitive.Root;
+/**
+ * A raiz é dona do ritmo entre a lista de abas e o painel.
+ *
+ * Antes ninguém era: o primitivo dava `mt-2` ao painel, cada workspace dava
+ * `space-y-4|5|6` à raiz, e páginas como a Agenda ainda embrulhavam a lista
+ * num contêiner com `py-6`. As três fontes somavam-se, e o mesmo componente
+ * abria com 28px numa página e 73px noutra. Uma `gap` única aqui é a regra —
+ * quem usa não passa mais espaçamento vertical próprio.
+ */
+const Tabs = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.Root
+    ref={ref}
+    className={cn("flex flex-col gap-4", className)}
+    {...props}
+  />
+));
+Tabs.displayName = TabsPrimitive.Root.displayName;
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
@@ -15,6 +34,12 @@ const TabsList = React.forwardRef<
     ref={ref}
     className={cn(
       "inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+      /**
+       * A raiz é uma coluna flex, e um item de coluna estica por padrão. Sem
+       * isto a faixa cinzenta das abas atravessaria a página inteira, em vez
+       * de acompanhar a largura das próprias abas.
+       */
+      "self-start",
       /**
        * A lista rola dentro de si, em vez de empurrar a página.
        *
@@ -55,7 +80,12 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      /**
+       * `min-w-0` porque um item de flex não encolhe abaixo do conteúdo por
+       * omissão: uma tabela larga dentro do painel empurraria a página para a
+       * rolagem horizontal em vez de rolar dentro de si.
+       */
+      "min-w-0 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
       className,
     )}
     {...props}

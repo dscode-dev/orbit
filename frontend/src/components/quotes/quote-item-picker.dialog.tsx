@@ -137,7 +137,7 @@ function Body({
         </DialogDescription>
       </DialogHeader>
 
-      <Tabs defaultValue={ProductKind.SERVICE} className="space-y-4">
+      <Tabs defaultValue={ProductKind.SERVICE}>
         <TabsList>
           <TabsTrigger value={ProductKind.SERVICE}>Serviços</TabsTrigger>
           <TabsTrigger value={ProductKind.PRODUCT}>Produtos</TabsTrigger>

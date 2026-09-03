@@ -161,7 +161,7 @@ function WorkspaceBody({
         </Button>
       </header>
 
-      <Tabs defaultValue="geral" className="space-y-5">
+      <Tabs defaultValue="geral">
         <TabsList>
           <TabsTrigger value="geral">Visão geral</TabsTrigger>
           <TabsTrigger value="equipamentos">

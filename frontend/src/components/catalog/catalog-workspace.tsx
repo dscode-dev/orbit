@@ -47,7 +47,7 @@ export function CatalogWorkspace() {
         <CatalogKpis />
       </TabBoundary>
 
-      <Tabs defaultValue="produtos" className="space-y-5">
+      <Tabs defaultValue="produtos">
         <TabsList>
           <TabsTrigger value="produtos">Produtos</TabsTrigger>
           <TabsTrigger value="servicos">Serviços</TabsTrigger>

@@ -137,7 +137,7 @@ function StockContent() {
         <InventoryKpis query={analytics} />
       </TabBoundary>
 
-      <Tabs defaultValue="saldos" className="space-y-5">
+      <Tabs defaultValue="saldos">
         <TabsList>
           <TabsTrigger value="saldos">Saldos</TabsTrigger>
           <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>

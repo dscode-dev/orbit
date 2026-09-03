@@ -31,7 +31,7 @@ import { SecurityTab } from "./security.tab";
 export function ProfileWorkspace() {
   return (
     <ContentContainer size="wide" className="space-y-6">
-      <Tabs defaultValue="dados" className="space-y-5">
+      <Tabs defaultValue="dados">
         <TabsList>
           <TabsTrigger value="dados">Dados pessoais</TabsTrigger>
           <TabsTrigger value="seguranca">Segurança</TabsTrigger>

@@ -133,7 +133,6 @@ export function DocumentCenter() {
           <Tabs
             value={queue}
             onValueChange={(value) => setQueue(value as RenderStatus)}
-            className="space-y-4"
           >
             <TabsList>
               {QUEUE_TABS.map((status) => (

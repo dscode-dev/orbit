@@ -104,7 +104,7 @@ function ViewerBody({ executionId }: { executionId: string }) {
             Nenhum documento emitido para esta execução. Solicite a emissão acima.
           </p>
         ) : (
-          <Tabs defaultValue="conteudo" className="space-y-4">
+          <Tabs defaultValue="conteudo">
             <TabsList>
               <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>
               <TabsTrigger value="revisoes">

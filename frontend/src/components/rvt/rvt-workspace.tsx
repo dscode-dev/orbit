@@ -64,7 +64,7 @@ export function RvtWorkspace({ configurationId }: { configurationId: string }) {
     <div className="space-y-5">
       <ConfigurationHeader configuration={configuration.data} />
 
-      <Tabs defaultValue="visao-geral" className="space-y-5">
+      <Tabs defaultValue="visao-geral">
         <TabsList>
           <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
           <TabsTrigger value="visitas">Visitas</TabsTrigger>

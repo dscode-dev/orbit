@@ -171,7 +171,20 @@ export function FilterSelect({
   );
 }
 
-/** Barra de filtros: busca à esquerda, seletores, e o botão de limpar. */
+/**
+ * Barra de filtros: busca à esquerda, seletores, e o botão de limpar.
+ *
+ * A faixa é horizontal por padrão e só empilha quando a largura não dá para
+ * mais nada. `auto-fill` mantém as trilhas vazias, então um controle tem a
+ * mesma largura em todas as telas do produto — o filtro de Clientes não fica
+ * três vezes maior que o de Orçamentos só porque a página tem menos filtros.
+ *
+ * A versão anterior era `minmax(0,2fr) repeat(auto-fit,minmax(9rem,1fr)) auto`.
+ * `auto-fill`/`auto-fit` não podem dividir a lista com trilhas flexíveis ou
+ * intrínsecas: a declaração inteira era inválida e o browser a descartava,
+ * deixando `grid-template-columns: <largura da página>` — uma coluna só. Era
+ * por isso que sete listagens empilhavam um filtro por linha até em 1440px.
+ */
 export function FilterBar({
   children,
   onClear,
@@ -186,12 +199,19 @@ export function FilterBar({
   return (
     <div
       className={cn(
-        "grid gap-4 lg:grid-cols-[minmax(0,2fr)_repeat(auto-fit,minmax(9rem,1fr))_auto]",
+        "grid gap-4",
+        "grid-cols-[repeat(auto-fill,minmax(12rem,1fr))]",
         className,
       )}
     >
       {children}
       {onClear ? (
+        /**
+         * O botão é mais uma célula da faixa, encostado ao último filtro: é a
+         * ação daqueles campos e some do olhar quando se separa deles. Em
+         * telas estreitas, onde nem os filtros cabem numa linha, ele desce com
+         * eles — continua adjacente, nunca numa faixa própria.
+         */
         <div className="flex items-end">
           <Button variant="ghost" onClick={onClear} disabled={!canClear}>
             Limpar

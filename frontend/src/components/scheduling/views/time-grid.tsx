@@ -19,6 +19,7 @@
  */
 import type { DayBucket, DaySegment } from "@/lib/scheduling";
 import { cn } from "@/lib/utils";
+import { laneGeometry } from "@/lib/scheduling-lane-geometry";
 import { EventBlock } from "./event-block";
 
 const HOUR_HEIGHT = 48;
@@ -178,16 +179,20 @@ function DayColumn({
           24 *
           HOUR_HEIGHT;
 
+        const { left, width } = laneGeometry(lane, total);
+
         return (
           <div
             key={`${segment.occurrence.occurrenceId}-${segment.startMinute}`}
-            className="absolute px-0.5"
+            className="absolute px-0.5 focus-within:z-20 hover:z-20"
             style={{
               top,
               /** Altura mínima para o bloco continuar legível. */
               height: Math.max(rawHeight, 22),
-              left: `${(lane / total) * 100}%`,
-              width: `${100 / total}%`,
+              left,
+              width,
+              /** Quem começa mais tarde fica por cima, como na leitura. */
+              zIndex: lane + 1,
             }}
           >
             <EventBlock

@@ -26,7 +26,6 @@ export function OperationsTabs() {
     <Tabs
       value={tab}
       onValueChange={(value) => setTab(value as OperationsTab)}
-      className="space-y-6"
     >
       <TabsList>
         <TabsTrigger value={TABS.overview}>Visão geral</TabsTrigger>

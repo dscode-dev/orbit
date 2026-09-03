@@ -43,7 +43,6 @@ import { useMemo, useState } from "react";
 import { CalendarClock } from "lucide-react";
 
 import { EmptyState } from "@/components/feedback/states";
-import { ContentContainer } from "@/components/layout/page-primitives";
 import { PanelError, PanelLoading } from "@/components/panels";
 import {
   useSchedulingCalendars,
@@ -198,7 +197,8 @@ export function SchedulingWorkspace({
   };
 
   return (
-    <ContentContainer size="wide" className="space-y-6">
+    /** A gutter da página é do `SchedulingTabs`; aqui, só o ritmo interno. */
+    <div className="space-y-6">
       <SchedulingToolbar
         view={view}
         periodLabel={describeWindow(view, window)}
@@ -351,7 +351,7 @@ export function SchedulingWorkspace({
           if (!open) setEditing(null);
         }}
       />
-    </ContentContainer>
+    </div>
   );
 }
 

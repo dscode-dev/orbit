@@ -70,7 +70,6 @@ export function ExecutionCenter() {
       <Tabs
         value={tab}
         onValueChange={(value) => setTab(value as CenterTab)}
-        className="space-y-6"
       >
         <TabsList>
           <TabsTrigger value={TABS.overview}>Visão geral</TabsTrigger>

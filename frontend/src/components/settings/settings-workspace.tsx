@@ -38,7 +38,7 @@ import { SecuritySettingsTab } from "./tabs/security.tab";
 export function SettingsWorkspace() {
   return (
     <ContentContainer size="wide" className="space-y-6">
-      <Tabs defaultValue="organizacao" className="space-y-5">
+      <Tabs defaultValue="organizacao">
         <TabsList>
           <TabsTrigger value="organizacao">Organização</TabsTrigger>
           <TabsTrigger value="operacao">Operação</TabsTrigger>

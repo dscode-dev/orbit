@@ -56,7 +56,7 @@ export function PmocWorkspace({ planId }: { planId: string }) {
     <div className="space-y-5">
       <PlanHeader plan={plan.data} />
 
-      <Tabs defaultValue="visao-geral" className="space-y-5">
+      <Tabs defaultValue="visao-geral">
         <TabsList>
           <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
           <TabsTrigger value="cobertura">Cobertura</TabsTrigger>

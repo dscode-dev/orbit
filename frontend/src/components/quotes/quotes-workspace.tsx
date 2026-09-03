@@ -35,7 +35,7 @@ export function QuotesWorkspace() {
         <QuoteKpis />
       </TabBoundary>
 
-      <Tabs defaultValue="visao-geral" className="space-y-5">
+      <Tabs defaultValue="visao-geral">
         <TabsList>
           <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
           <TabsTrigger value="elaboracao">Em elaboração</TabsTrigger>
