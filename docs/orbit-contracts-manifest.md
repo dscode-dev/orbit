@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR-26 (PMOC Domain & Compliance Engine).
+Última revisão: PR-32 (Customer Portal Identity & Security Boundary).
 
 ---
 
@@ -91,6 +91,7 @@ clientes.
 | Artifact Manifest & Storage                      | Read Models públicos + mappers explícitos       | **sincronizado** por `contracts:sync`                                           | espelhado em `artifact_manifest_contracts.dart`         |
 | Artifact Rendering                               | Read Models públicos                            | **sincronizado** por `contracts:sync`                                           | espelhado em `artifact_render_contracts.dart`           |
 | Notifications                                    | registro do Prisma, sem Read Model              | **espelhado à mão** em `src/types/notifications.ts`                             | não consumido                                           |
+| Customer Portal Identity                         | Read Models públicos + mapper explícito          | contrato disponível; BFF ainda fora de escopo                                  | não consumido                                           |
 
 ### Consequência prática
 

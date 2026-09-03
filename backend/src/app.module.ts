@@ -32,6 +32,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-execution.module';
 import { RvtModule } from './modules/rvt/rvt.module';
 import { MobileFieldModule } from './modules/mobile-field/mobile-field.module';
+import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { MobileFieldModule } from './modules/mobile-field/mobile-field.module';
     ArtifactRenderingModule,
     RvtModule,
     MobileFieldModule,
+    CustomerPortalModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -23,6 +23,9 @@ interface FoundationRequest extends Request {
   id?: string;
   user?: IAuthenticatedUser;
   requestContext?: IRequestContext;
+  actorType?: IRequestContext['actorType'];
+  portalIdentityId?: UUID;
+  customerId?: UUID;
   organizationId?: UUID;
   businessUnitId?: UUID;
   businessUnitIds?: readonly UUID[];
@@ -56,8 +59,11 @@ export class RequestContextInterceptor implements NestInterceptor {
     const request = execution.switchToHttp().getRequest<FoundationRequest>();
     const context = new RequestContext({
       requestId: request.id ?? generateUuidV7(),
+      actorType: request.actorType,
       userId: request.user?.id ?? null,
+      portalIdentityId: request.portalIdentityId ?? null,
       organizationId: request.organizationId ?? null,
+      customerId: request.customerId ?? null,
       businessUnitId: request.businessUnitId ?? null,
       businessUnitIds:
         request.businessUnitIds ??

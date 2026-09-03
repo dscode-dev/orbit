@@ -20,6 +20,7 @@ import { IdentityRepository } from './identity.repository';
 import { IdentityTokenService } from '../application/token.service';
 
 export interface IdentityRequest extends Request {
+  actorType?: 'INTERNAL_USER';
   identity?: AuthenticatedIdentity;
   user?: {
     id: UUID;
@@ -89,6 +90,7 @@ export class JwtAuthenticationGuard implements CanActivate {
         permissions: claims.permissions,
       };
       request.identity = identity;
+      request.actorType = 'INTERNAL_USER';
       request.user = {
         id: identity.id,
         roles: identity.roles,

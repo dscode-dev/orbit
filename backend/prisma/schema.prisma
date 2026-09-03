@@ -100,6 +100,7 @@ model User {
   professionalSignatures             UserSignature[]                @relation("ProfessionalSignatureUser")
   fieldEvidenceUploads               FieldEvidenceUpload[]          @relation("FieldEvidenceUploadActor")
   fieldEvidenceCaptured              FieldEvidence[]                @relation("FieldEvidenceCapturedBy")
+  customerPortalInvitationsSent      CustomerPortalInvitation[]     @relation("CustomerPortalInvitationInviter")
 
   @@index([status, deletedAt])
   @@map("users")
@@ -293,6 +294,10 @@ model Organization {
   professionalSignatures        UserSignature[]
   fieldEvidenceUploads          FieldEvidenceUpload[]
   fieldEvidence                 FieldEvidence[]
+  customerPortalIdentities      CustomerPortalIdentity[]
+  customerPortalSessions        CustomerPortalSession[]
+  customerPortalInvitations     CustomerPortalInvitation[]
+  customerPortalPasswordResets  CustomerPortalPasswordReset[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -573,6 +578,10 @@ model Customer {
   aiExecutions       AiExecution[]
   schedulingEvents   SchedulingEvent[]
   artifactExecutions ArtifactExecution[]
+  portalIdentities   CustomerPortalIdentity[]
+  portalSessions     CustomerPortalSession[]
+  portalInvitations  CustomerPortalInvitation[]
+  portalPasswordResets CustomerPortalPasswordReset[]
 
   financialEntries FinancialEntry[]
 
@@ -600,10 +609,124 @@ model Contact {
 
   businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
   customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  portalIdentities CustomerPortalIdentity[]
 
   @@index([organizationId, customerId, deletedAt])
   @@index([organizationId, businessUnitId])
   @@map("contacts")
+}
+
+// -----------------------------------------------------------------------------
+// CUSTOMER PORTAL IDENTITY — external actors, never internal RBAC users
+// -----------------------------------------------------------------------------
+
+model CustomerPortalIdentity {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  customerId          String    @map("customer_id") @db.Uuid
+  contactId           String?   @map("contact_id") @db.Uuid
+  email               String    @db.VarChar(320)
+  normalizedEmail     String    @map("normalized_email") @db.VarChar(320)
+  displayName         String    @map("display_name") @db.VarChar(180)
+  passwordHash        String?   @map("password_hash") @db.VarChar(255)
+  status              String    @default("INVITED") @db.VarChar(30)
+  failedAttempts      Int       @default(0) @map("failed_attempts")
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz(3)
+  emailVerifiedAt     DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  passwordUpdatedAt   DateTime? @map("password_updated_at") @db.Timestamptz(3)
+  lastLoginAt         DateTime? @map("last_login_at") @db.Timestamptz(3)
+  disabledAt          DateTime? @map("disabled_at") @db.Timestamptz(3)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  contact      Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  sessions     CustomerPortalSession[]
+  invitations  CustomerPortalInvitation[]
+  passwordResets CustomerPortalPasswordReset[]
+
+  @@unique([organizationId, normalizedEmail])
+  @@index([organizationId, customerId, status])
+  @@index([contactId])
+  @@map("customer_portal_identities")
+}
+
+model CustomerPortalSession {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  customerId       String    @map("customer_id") @db.Uuid
+  portalIdentityId String    @map("portal_identity_id") @db.Uuid
+  refreshTokenHash String    @unique @map("refresh_token_hash") @db.Char(64)
+  userAgent        String?   @map("user_agent") @db.Text
+  ipAddress        String?   @map("ip_address") @db.Inet
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  lastSeenAt       DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer     Customer               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  identity     CustomerPortalIdentity @relation(fields: [portalIdentityId], references: [id], onDelete: Cascade)
+
+  @@index([portalIdentityId, expiresAt, revokedAt])
+  @@index([organizationId, customerId])
+  @@map("customer_portal_sessions")
+}
+
+model CustomerPortalInvitation {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  customerId       String    @map("customer_id") @db.Uuid
+  portalIdentityId String    @map("portal_identity_id") @db.Uuid
+  invitedById      String    @map("invited_by_id") @db.Uuid
+  tokenHash        String    @unique @map("token_hash") @db.Char(64)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  acceptedAt       DateTime? @map("accepted_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer     Customer               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  identity     CustomerPortalIdentity @relation(fields: [portalIdentityId], references: [id], onDelete: Cascade)
+  invitedBy    User                   @relation("CustomerPortalInvitationInviter", fields: [invitedById], references: [id], onDelete: Restrict)
+
+  @@index([portalIdentityId, expiresAt])
+  @@index([organizationId, customerId, createdAt])
+  @@map("customer_portal_invitations")
+}
+
+model CustomerPortalPasswordReset {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  customerId       String    @map("customer_id") @db.Uuid
+  portalIdentityId String    @map("portal_identity_id") @db.Uuid
+  tokenHash        String    @unique @map("token_hash") @db.Char(64)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt           DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer     Customer               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  identity     CustomerPortalIdentity @relation(fields: [portalIdentityId], references: [id], onDelete: Cascade)
+
+  @@index([portalIdentityId, expiresAt])
+  @@index([organizationId, customerId])
+  @@map("customer_portal_password_resets")
+}
+
+model CustomerPortalRateLimit {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  action       String    @db.VarChar(40)
+  scopeHash    String    @map("scope_hash") @db.Char(64)
+  windowStart  DateTime  @map("window_start") @db.Timestamptz(3)
+  attempts     Int       @default(0)
+  blockedUntil DateTime? @map("blocked_until") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([action, scopeHash])
+  @@index([blockedUntil])
+  @@map("customer_portal_rate_limits")
 }
 
 // -----------------------------------------------------------------------------

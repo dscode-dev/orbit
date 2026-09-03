@@ -29,8 +29,11 @@ import { RlsContextProvider } from './rls-context.provider';
 
 /** A ordem importa: casa com os parâmetros posicionais de `APPLY_CONTEXT`. */
 const CONTEXT_KEYS = [
+  'app.actor_type',
   'app.user_id',
+  'app.portal_identity_id',
   'app.organization_id',
+  'app.customer_id',
   'app.business_unit_id',
   'app.business_unit_ids',
   'app.roles',
@@ -64,8 +67,11 @@ export class RlsTransaction implements ITransactionManager<PrismaTransactionClie
     const context = this.contextProvider.get();
     await transaction.$queryRawUnsafe(
       APPLY_CONTEXT,
+      context.actorType,
       context.userId,
+      context.portalIdentityId,
       context.organizationId,
+      context.customerId,
       context.businessUnitId,
       context.businessUnitIds,
       context.roles,
