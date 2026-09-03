@@ -100,3 +100,36 @@ describe("mensagem de erro", () => {
     expect(todas).not.toMatch(/backend|servidor|endpoint|API|HTTP/i);
   });
 });
+
+describe("respostas do servidor reescritas em linguagem de produto", () => {
+  it("diz que o documento já está cadastrado, sem falar de banco", () => {
+    const copy = errorCopy(
+      http(409, "Customer document is already registered"),
+    );
+    expect(copy).toBe("Já existe um cliente cadastrado com este CPF ou CNPJ.");
+    expect(copy).not.toMatch(/customer|document|registered/i);
+  });
+
+  it("traduz a recusa de e-mail sem citar a propriedade do contrato", () => {
+    expect(errorCopy(http(400, "email must be an email"))).toBe(
+      "Informe um e-mail válido.",
+    );
+  });
+
+  it("traduz a exigência de tipo e número juntos", () => {
+    expect(
+      errorCopy(http(400, "Document type and number must be provided together")),
+    ).toBe("Informe o tipo e o número do documento juntos.");
+  });
+
+  it("traduz o documento que não fecha", () => {
+    expect(errorCopy(http(400, "must be a valid CPF or CNPJ"))).toBe(
+      "Este CPF ou CNPJ não confere.",
+    );
+  });
+
+  it("regra de negócio que a tabela não conhece continua passando como veio", () => {
+    const message = "This equipment is already covered by the plan";
+    expect(errorCopy(http(409, message))).toBe(message);
+  });
+});

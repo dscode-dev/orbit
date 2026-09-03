@@ -37,8 +37,11 @@
  * O cabeçalho e a navegação resolvem tudo pelo **Entity Registry** — não há
  * `switch` de entidade nesta árvore.
  */
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, Pencil, RefreshCw } from "lucide-react";
+
+import { useAction } from "@/actions";
 
 import { ContentContainer } from "@/components/layout/page-primitives";
 import { PanelError, PanelLoading } from "@/components/panels";
@@ -53,6 +56,7 @@ import { ROUTES } from "@/lib/routes";
 import { useSession } from "@/providers/session-provider";
 import type { Customer } from "@/types/customers";
 import { TabBoundary } from "@/workspace";
+import { CustomerFormDialog } from "../customer-form.dialog";
 import {
   CustomerStatusBadge,
   customerTypeLabel,
@@ -118,9 +122,19 @@ function WorkspaceBody({
   onRefresh: () => void;
 }) {
   const session = useSession();
-  const { definition, can } = useEntityAccess("customer");
-  const canManage = can("update");
+  const { definition } = useEntityAccess("customer");
   const canReadIntelligence = session.hasCapability("ai.executions.read");
+
+  /**
+   * Uma autoridade só para editar.
+   *
+   * `can("update")` e `useAction("customer.update")` resolvem a mesma entrada
+   * do registry pela mesma função — ter as duas na tela seria manter dois
+   * caminhos que só por acidente concordam. Fica a que também traz o rótulo.
+   */
+  const edit = useAction("customer.update");
+  const canManage = edit.allowed;
+  const [editOpen, setEditOpen] = useState(false);
 
   return (
     <ContentContainer size="wide" className="space-y-6">
@@ -155,11 +169,26 @@ function WorkspaceBody({
           </p>
         </div>
 
-        <Button variant="ghost" size="sm" onClick={onRefresh}>
-          <RefreshCw className="size-4" />
-          Atualizar
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {edit.allowed ? (
+            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+              <Pencil className="size-4" />
+              {edit.label}
+            </Button>
+          ) : null}
+          <Button variant="ghost" size="sm" onClick={onRefresh}>
+            <RefreshCw className="size-4" />
+            Atualizar
+          </Button>
+        </div>
       </header>
+
+      {/* A escrita semeia o cache com a resposta do servidor; a ficha se redesenha sozinha. */}
+      <CustomerFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        editing={customer}
+      />
 
       <Tabs defaultValue="geral">
         <TabsList>

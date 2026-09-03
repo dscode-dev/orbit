@@ -50,6 +50,44 @@ function looksInternal(message: string): boolean {
 }
 
 /**
+ * As respostas do servidor que a interface reescreve.
+ *
+ * O backend responde em inglês, e às vezes pelo nome da propriedade do DTO —
+ * "email must be an email". A frase explica a regra certa, mas não é a língua
+ * do produto nem o vocabulário de quem a lê. Traduzir aqui mantém a decisão
+ * onde ela sempre esteve (é o servidor que recusa) e a redação onde ela deve
+ * estar (é a interface que fala).
+ *
+ * A tabela só tem o que foi lido no contrato e observado em resposta real.
+ * O que não está aqui continua passando como veio: uma regra de negócio que a
+ * interface não conhece é informação, e apagá-la seria pior que traduzi-la.
+ *
+ * **Dívida declarada:** o produto é pt-BR e o backend não é. Enquanto ele não
+ * publicar código de erro ou mensagem localizada, esta tabela cresce a cada
+ * fluxo coberto — e cada linha custa uma verificação contra a resposta real.
+ */
+const TRANSLATED: readonly (readonly [RegExp, string])[] = [
+  [
+    /^customer document is already registered$/i,
+    "Já existe um cliente cadastrado com este CPF ou CNPJ.",
+  ],
+  [
+    /^document type and number must be provided together$/i,
+    "Informe o tipo e o número do documento juntos.",
+  ],
+  [/^email must be an email$/i, "Informe um e-mail válido."],
+  [/^must be a valid cpf or cnpj$/i, "Este CPF ou CNPJ não confere."],
+];
+
+function translate(message: string): string | null {
+  const text = message.trim();
+  for (const [pattern, copy] of TRANSLATED) {
+    if (pattern.test(text)) return copy;
+  }
+  return null;
+}
+
+/**
  * A frase que a pessoa lê.
  *
  * Diz o que aconteceu e o que fazer a seguir — nunca o status HTTP, o nome da
@@ -59,6 +97,10 @@ export function errorCopy(error: unknown): string {
   if (!(error instanceof ApiError)) {
     return "Não foi possível concluir a operação.";
   }
+
+  /** Recusa conhecida: a redação é do produto, a decisão continua do servidor. */
+  const translated = translate(error.message ?? "");
+  if (translated) return translated;
 
   if (error.kind === "timeout") {
     return "A operação demorou mais que o esperado. Tente novamente.";

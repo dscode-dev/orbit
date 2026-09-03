@@ -464,7 +464,13 @@ test("editar a configuração deixa o servidor reconciliar a agenda futura", asy
     dialog.getByText("As visitas já realizadas não foram alteradas."),
   ).toBeVisible();
 
-  await dialog.getByRole("button", { name: "Fechar" }).click();
+  /**
+   * O diálogo tem dois controles que fecham: este, no rodapé, e o "×" que o
+   * primitivo desenha no canto — ambos chamados "Fechar" desde que o rótulo
+   * do leitor de tela passou a ser em português. O do rodapé vem antes na
+   * árvore; o "×" é renderizado depois do conteúdo.
+   */
+  await dialog.getByRole("button", { name: "Fechar" }).first().click();
   await settled(page);
 
   await page.reload();
