@@ -12,6 +12,7 @@
  */
 import { PanelError, PanelLoading } from "@/components/panels";
 import { BusinessUnitsSection } from "@/components/organization/business-units.section";
+import { UsersSection } from "@/components/organization/integrations.section";
 import { CapabilitiesSection } from "@/components/organization/capabilities.section";
 import { GeneralSection } from "@/components/organization/general.section";
 import { PlanSection } from "@/components/organization/plan.section";
@@ -43,6 +44,12 @@ export function OrganizationTab() {
           canManage={canManageOrganization}
         />
         <BusinessUnitsSection canManage={canManageUnits} />
+        {/*
+          * Veio da página `/organizacao`, que deixou de existir como porta
+          * separada. É um encaminhamento para o Workspace da Equipe, não uma
+          * segunda administração de membros.
+          */}
+        <UsersSection />
       </div>
 
       <div className="min-w-0 space-y-6">

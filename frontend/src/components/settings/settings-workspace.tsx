@@ -25,6 +25,7 @@
 import { ContentContainer } from "@/components/layout/page-primitives";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabBoundary } from "@/workspace";
+import { useSectionFromUrl } from "@/hooks/use-section-from-url";
 import { AutomationsSettingsTab } from "./tabs/automations.tab";
 import { DocumentsSettingsTab } from "./tabs/documents.tab";
 import { FinancialSettingsTab } from "./tabs/financial.tab";
@@ -35,10 +36,25 @@ import { OrganizationTab } from "./tabs/organization.tab";
 import { SchedulingSettingsTab } from "./tabs/scheduling.tab";
 import { SecuritySettingsTab } from "./tabs/security.tab";
 
+/** Os apelidos das seções, na ordem em que aparecem. */
+const SECOES = [
+  "organizacao",
+  "operacao",
+  "agenda",
+  "documentos",
+  "financeiro",
+  "notificacoes",
+  "automacoes",
+  "seguranca",
+  "integracoes",
+] as const;
+
 export function SettingsWorkspace() {
+  const section = useSectionFromUrl(SECOES);
+
   return (
     <ContentContainer size="wide" className="space-y-6">
-      <Tabs defaultValue="organizacao">
+      <Tabs value={section.current} onValueChange={section.go}>
         <TabsList>
           <TabsTrigger value="organizacao">Organização</TabsTrigger>
           <TabsTrigger value="operacao">Operação</TabsTrigger>

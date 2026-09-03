@@ -63,12 +63,21 @@ export function PanelFrame({
 }: PanelFrameProps) {
   return (
     /**
+     * A altura é a do conteúdo.
+     *
+     * O painel trazia `h-full`, que só faz sentido para emparelhar cartões
+     * lado a lado. Numa coluna empilhada dentro de uma grade, a coluna estica
+     * até a altura da linha e cada `h-full` vira 100% *disso*: em Organização,
+     * sete painéis de 200 a 700px de conteúdo passaram a medir 4611px cada, e
+     * a página inteira, 18.773px — quase tudo vazio. Quem precisa emparelhar
+     * pede `className="h-full"`, que é a exceção e não a regra.
+     *
      * `panelId` já identificava o painel para os estados de carga e de erro;
      * agora também no DOM. É um marcador, não semântica: não vira landmark
      * (dezenas de `region` numa página são ruído para quem navega por eles) e
      * não muda nada do que se vê.
      */
-    <Card data-panel={panelId} className={cn("glass-panel h-full", className)}>
+    <Card data-panel={panelId} className={cn("glass-panel", className)}>
       <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
         <div className="min-w-0 space-y-1">
           <CardTitle className="text-base">{title}</CardTitle>

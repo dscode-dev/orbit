@@ -7,7 +7,6 @@ import {
   LayoutGrid,
   Bell,
   FileStack,
-  Settings,
   SlidersHorizontal,
   UserCircle,
   PanelLeftClose,
@@ -125,11 +124,20 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
   {
     group: "Administração",
     items: [
-      { label: "Organização", icon: Settings, to: ROUTES.organization },
       fromEntity("team-member"),
       { label: "Notificações", icon: Bell, to: ROUTES.notifications },
+      /**
+       * Duas entradas, não três.
+       *
+       * "Organização" abria uma página que mostrava o mesmo que a seção
+       * Organização das Configurações — plano, unidades, capabilities e dados
+       * da empresa nas duas rotas. Ficou a seção; a rota antiga leva a ela.
+       *
+       * O que sobra são dois donos distintos, e o rótulo diz de quem é cada
+       * um: o que a organização configura, e o que é da própria pessoa.
+       */
       { label: "Configurações", icon: SlidersHorizontal, to: ROUTES.settings },
-      { label: "Perfil", icon: UserCircle, to: ROUTES.profile },
+      { label: "Minha conta", icon: UserCircle, to: ROUTES.profile },
     ],
   },
 ];
