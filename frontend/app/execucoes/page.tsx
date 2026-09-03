@@ -14,7 +14,7 @@ export default function ArtifactExecutionsPage() {
     <WorkspacePage
       entity="artifact-execution"
       title="Execuções"
-      description="Acompanhamento das execuções da unidade ativa: filas, contagens e revisões, tudo calculado pelo backend."
+      description="Acompanhamento das execuções da unidade ativa: filas, contagens e revisões."
       breadcrumb={<span>Execuções de artefato</span>}
       contained={false}
     >

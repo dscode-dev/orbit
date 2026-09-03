@@ -270,8 +270,7 @@ function ParametersForm({
 
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           <CalendarRange className="size-4" aria-hidden />
-          Até {type.maxRangeDays} dias por relatório. O fuso é o da unidade,
-          resolvido pelo servidor — as datas são dias, não horários.
+          Até {type.maxRangeDays} dias por relatório. O fuso é o da unidade — as datas são dias, não horários.
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2">

@@ -292,8 +292,7 @@ function ConvertDialog({
             <DialogTitle>Converter em operação</DialogTitle>
             <DialogDescription>
               Abre a ordem de serviço de {quote.code} para{" "}
-              {quote.customer.displayName}. Repetir não cria uma segunda: o
-              servidor devolve a mesma.
+              {quote.customer.displayName}. Repetir não cria uma segunda: a mesma proposta é devolvida.
             </DialogDescription>
           </DialogHeader>
 

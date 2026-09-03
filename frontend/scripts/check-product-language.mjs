@@ -98,6 +98,13 @@ function stripComments(src) {
 
 const STRING = /"([^"\\\n]{2,400})"|'([^'\\\n]{2,400})'|`([^`\\]{2,400})`/gs;
 const JSX_TEXT = />\s*([^<>{}\n][^<>{}]{1,300}?)\s*</gs;
+/**
+ * Texto que começa depois de uma interpolação real.
+ *
+ * `{data.currency}. Totais calculados pelo servidor.` é frase visível, e o
+ * padrão acima não a alcança porque ela não começa em `>`.
+ */
+const JSX_AFTER_EXPR = /\}\s*([^<>{}\n][^<>{}]{1,300}?)\s*</gs;
 
 /** Fragmentos que são código, não frase. */
 function looksLikeCode(text) {
@@ -111,7 +118,16 @@ function looksLikeCode(text) {
   // Fragmentos de ternário JSX: `) : algo.error ? (`.
   if (/^\)\s*:|\?\s*\($|^\(\s*$/.test(text.trim())) return true;
   if (/\breadonly\b|\bnull \| undefined\b|\[\]\s*\|/.test(text)) return true;
-  if (/\w+\s*:\s*[A-Za-z<]\w*\s*[,)]/.test(text)) return true;
+  /**
+   * `(id: string, input: Update…)` é assinatura; "definido: logotipo, cores"
+   * é prosa. A diferença confiável é o acento: assinatura TypeScript não tem
+   * nenhum, e frase em português quase sempre tem. Sem esta condição o gate
+   * ficava cego para qualquer frase com dois-pontos seguidos de lista — foi
+   * assim que três vazamentos passaram.
+   */
+  if (!/[À-úçÇ]/.test(text) && /\w+\s*:\s*[A-Za-z<]\w*\s*[,)]/.test(text)) {
+    return true;
+  }
   const utility =
     /(^|\s)(flex|grid|px-|py-|pt-|pb-|pl-|pr-|mt-|mb-|ml-|mr-|text-|bg-|border|rounded|gap-|w-|h-|min-|max-|space-|items-|justify-|hover:|focus:|sm:|md:|lg:|xl:)/;
   if (utility.test(text) && !/[À-úçÇ]/.test(text)) return true;
@@ -173,7 +189,18 @@ const ALLOWED = [
 const findings = [];
 for (const root of ROOTS) {
   for (const file of walk(root)) {
-    const source = stripComments(readFileSync(file, "utf8"));
+    /**
+     * Interpolações de espaçamento somem antes da extração.
+     *
+     * O JSX quebra uma frase em pedaços com `{" "}` para caber na linha. Sem
+     * juntá-los, o guard lê "conta é do servidor, não do navegador —, o" como
+     * três fragmentos e nenhum deles é frase — foi assim que seis vazamentos
+     * atravessaram o gate.
+     */
+    const source = stripComments(readFileSync(file, "utf8")).replace(
+      /\{\s*["'`]\s*["'`]\s*\}/g,
+      " ",
+    );
     const lineOf = (index) => source.slice(0, index).split("\n").length;
 
     const texts = [];
@@ -182,6 +209,10 @@ for (const root of ROOTS) {
       if (value) texts.push([value, match.index]);
     }
     for (const match of source.matchAll(JSX_TEXT)) {
+      const value = match[1].trim();
+      if (value) texts.push([value, match.index]);
+    }
+    for (const match of source.matchAll(JSX_AFTER_EXPR)) {
       const value = match[1].trim();
       if (value) texts.push([value, match.index]);
     }

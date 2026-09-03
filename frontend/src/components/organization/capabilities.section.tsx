@@ -27,6 +27,7 @@ import { useMemo } from "react";
 import { Check, Lock } from "lucide-react";
 
 import { PanelFrame, PanelState, toPanelQuery } from "@/components/panels";
+import { humanizeId } from "@/registry";
 import { Badge } from "@/components/ui/badge";
 import {
   useOrganizationEntitlements,
@@ -51,6 +52,8 @@ const MODULE_LABELS: Readonly<Record<string, string>> = {
   document_engine: "Documentos",
   signatures: "Assinaturas",
   artifact_templates: "Modelos de documento",
+  artifact_manifests: "Documentos emitidos",
+  artifact_rendering: "Emissão de documentos",
   artifact_executions: "Execuções de artefato",
   business_units: "Unidades de negócio",
   ai: "Inteligência",
@@ -97,7 +100,12 @@ export function CapabilitiesSection() {
             {groups.map((group) => (
               <section key={group.module} className="space-y-2">
                 <h3 className="text-xs font-medium text-muted-foreground uppercase">
-                  {MODULE_LABELS[group.module] ?? group.module}
+                  {/**
+                   * O título é `uppercase` por CSS: uma chave sem rótulo
+                   * apareceria como `ARTIFACT_MANIFESTS` na tela, e nenhum
+                   * guard estático veria isso — a transformação é do estilo.
+                   */}
+                  {MODULE_LABELS[group.module] ?? humanizeId(group.module)}
                 </h3>
                 <ul className="space-y-1">
                   {group.rows.map((row) => (

@@ -17,16 +17,36 @@
  */
 import { ApiError } from "@/lib/api-error";
 
-/** Texto interno: em inglês, ou com identificador cru no meio. */
+/**
+ * Texto que existe para quem mantém o sistema, não para quem o usa.
+ *
+ * O critério é o **assunto**, não o idioma. "This equipment is already covered
+ * by the plan" está em inglês, mas explica uma regra de negócio que a pessoa
+ * precisa conhecer para agir; trocá-la por uma frase genérica esconderia o
+ * motivo — que é justamente o que a interface deve dizer.
+ *
+ * O que se descarta é outra coisa: identificador cru, vocabulário de
+ * implementação e as frases que só descrevem o transporte.
+ */
 function looksInternal(message: string): boolean {
   if (!message.trim()) return true;
+
+  /** Identificador no meio da frase: serve ao log, não à tela. */
   if (/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i.test(message)) return true;
-  if (/\b(not found|forbidden|unauthorized|internal server error|bad request|failed|invalid|cannot|unable to)\b/i.test(message)) {
+
+  /** Vocabulário de implementação. */
+  if (
+    /\b(version conflict|optimistic|idempot\w*|constraint|unique violation|foreign key|null|undefined|exception|stack|prisma|typeorm|ECONN\w*|timeout of \d+)\b/i.test(
+      message,
+    )
+  ) {
     return true;
   }
-  // Sem acento e sem palavra comum do português: provavelmente não é PT-BR.
-  const portuguese = /\b(não|para|com|este|esta|já|ainda|use|the?m)\b/i;
-  return !/[À-úçÇ]/.test(message) && !portuguese.test(message);
+
+  /** Frases que só repetem o status HTTP. */
+  return /^(not found|forbidden|unauthorized|internal server error|bad request|conflict)\.?$/i.test(
+    message.trim(),
+  );
 }
 
 /**

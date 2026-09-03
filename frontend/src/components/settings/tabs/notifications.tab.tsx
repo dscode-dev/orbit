@@ -126,8 +126,7 @@ export function NotificationsSettingsTab() {
         </p>
         <p className="text-xs text-muted-foreground">
           A central de notificações atualiza a cada{" "}
-          {Math.round(NOTIFICATIONS_POLL_MS / 1000)}s: o gateway de tempo real
-          do backend não é exposto a este cliente.
+          {Math.round(NOTIFICATIONS_POLL_MS / 1000)}s: a atualização em tempo real ainda não está disponível nesta tela.
         </p>
       </div>
     </div>

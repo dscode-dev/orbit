@@ -147,7 +147,7 @@ export function FinancialHealthWidget({ widget, analytics }: WidgetProps) {
 
             <p className="text-xs text-muted-foreground">
               {data.period.from} a {data.period.to} · valores em{" "}
-              {data.currency}. Totais calculados pelo servidor.
+              {data.currency}. Totais consolidados do período.
             </p>
           </div>
         )}

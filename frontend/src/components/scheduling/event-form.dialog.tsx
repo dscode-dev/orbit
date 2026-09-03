@@ -233,8 +233,7 @@ function EventForm({
           {editing ? "Editar evento" : "Novo evento na agenda"}
         </DialogTitle>
         <DialogDescription>
-          Horários no fuso {timeZone}. O backend valida janela, conflitos e
-          disponibilidade.
+          Horários no fuso {timeZone}. Janela, conflitos e disponibilidade são conferidos ao salvar.
         </DialogDescription>
       </DialogHeader>
 

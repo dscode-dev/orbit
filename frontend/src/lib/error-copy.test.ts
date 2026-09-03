@@ -44,6 +44,15 @@ describe("mensagem de erro", () => {
     ).toBe("O limite de 6 evidências foi atingido");
   });
 
+  it("preserva explicação de negócio mesmo em inglês", () => {
+    /// O idioma é um problema separado, e do backend. Esconder "o equipamento
+    /// já está coberto" tiraria da pessoa a única informação que a faz agir —
+    /// uma perda maior do que a frase estar em inglês.
+    expect(
+      errorCopy(http(409, "This equipment is already covered by the plan")),
+    ).toBe("This equipment is already covered by the plan");
+  });
+
   it("usa texto genérico quando o conflito vem em linguagem interna", () => {
     expect(errorCopy(http(409, "Version conflict detected"))).toBe(
       "Os dados foram alterados. Atualize para continuar.",

@@ -415,8 +415,7 @@ function FilePanel({ report }: { report: ManagementReport }) {
             <p className="text-xs text-muted-foreground">
               Acesso temporário, renovado automaticamente enquanto esta tela
               estiver aberta — o atual vale até{" "}
-              {formatDateTime(signed.data.expiresAt)}. A URL é assinada pelo
-              backend; o armazenamento nunca é acessado diretamente.
+              {formatDateTime(signed.data.expiresAt)}. O link é temporário e pessoal; o arquivo nunca é acessado diretamente.
             </p>
           </div>
         ) : null}

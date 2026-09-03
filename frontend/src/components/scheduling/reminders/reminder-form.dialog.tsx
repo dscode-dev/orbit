@@ -219,8 +219,7 @@ function ReminderForm({
           {editing ? "Editar lembrete" : "Novo lembrete"}
         </DialogTitle>
         <DialogDescription>
-          Cai no calendário {calendar.name}, no fuso {timeZone}. A repetição é
-          expandida pelo backend.
+          Cai no calendário {calendar.name}, no fuso {timeZone}. As ocorrências são geradas a partir da repetição.
         </DialogDescription>
       </DialogHeader>
 

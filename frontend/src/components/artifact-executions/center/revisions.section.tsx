@@ -66,8 +66,7 @@ export function ExecutionRevisions({ counts }: { counts: ExecutionCounts }) {
       })}
 
       <p className="rounded-lg border border-border bg-surface-strong/40 px-3 py-2 text-xs text-muted-foreground">
-        Não há Workflow Engine no backend: etapas, aprovadores, prazos e
-        transições configuráveis não existem no contrato. Esta área acompanha o
+        Não há um fluxo de aprovação configurável: etapas, aprovadores e prazos ainda não existem. Esta área acompanha o
         que o status já publica — quando o motor existir, as filas passam a vir
         dele.
       </p>

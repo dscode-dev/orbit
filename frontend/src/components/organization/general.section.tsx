@@ -132,7 +132,7 @@ export function GeneralSection({
           <JsonField
             id="organization-settings"
             label="settings"
-            description="Campos livres. Não há um formato definido: logotipo, cores e identidade visual ficam aqui por convenção da organização, e o backend não os interpreta."
+            description="Campos livres. Não há um formato definido: logotipo, cores e identidade visual ficam aqui por convenção da organização."
             value={settings}
             disabled={!canManage}
             rows={6}

@@ -192,8 +192,7 @@ function OperationForm({
           {editing ? `Editar ${editing.code}` : "Nova operação"}
         </DialogTitle>
         <DialogDescription>
-          Horários no fuso {timeZone}. O status inicial e as transições são
-          decididos pelo backend.
+          Horários no fuso {timeZone}. A situação inicial e as mudanças possíveis seguem as regras do atendimento.
         </DialogDescription>
       </DialogHeader>
 
