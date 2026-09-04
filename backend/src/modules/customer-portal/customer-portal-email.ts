@@ -3,4 +3,3 @@ export class CustomerPortalEmail {
     return value.normalize('NFKC').trim().toLocaleLowerCase('en-US');
   }
 }
-

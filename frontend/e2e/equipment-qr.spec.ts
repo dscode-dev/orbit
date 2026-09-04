@@ -95,10 +95,20 @@ test("equipamento recém-criado recebe QR automaticamente", async ({
 
   const units = await request.get(`${API}/organizations/current`, { headers });
   const businessUnitId = (await units.json()).data.businessUnits[0].id;
-  const customers = await request.get(`${API}/customers?limit=1`, { headers });
-  const customerId = (await customers.json()).data.data[0].id;
-
-  const suffix = Date.now().toString().slice(-6);
+  /**
+   * Cliente próprio, e sufixo aleatório.
+   *
+   * `customers?limit=1` trazia o primeiro do tenant — que passou a ser de
+   * outro cenário quando os testes começaram a criar clientes, às vezes numa
+   * unidade diferente. E o sufixo por relógio repetia entre execuções.
+   */
+  const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
+  const customer = await request.post(`${API}/customers`, {
+    headers,
+    data: { type: "COMPANY", legalName: `Cenário QR ${suffix}` },
+  });
+  expect(customer.ok(), await customer.text()).toBe(true);
+  const customerId = (await customer.json()).data.id;
   const created = await request.post(`${API}/assets`, {
     headers,
     data: {
@@ -408,13 +418,29 @@ test("confirmado, o atendimento nasce — e nasce parado", async ({
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 20_000 });
 
-  const code = `QR-${Date.now().toString().slice(-6)}`;
+  /**
+   * Identificador aleatório, não recorte de relógio.
+   *
+   * `Date.now().slice(-6)` repete a cada mil segundos: duas execuções da suíte
+   * com dezesseis minutos de diferença geravam o mesmo código e a segunda
+   * criação era recusada. É a colisão que a FL-07 já tinha encontrado.
+   */
+  const code = `QR-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
   await dialog.getByLabel("Código").fill(code);
   await dialog.getByRole("button", { name: /criar|salvar/i }).click();
   await expect(dialog).toBeHidden({ timeout: 30_000 });
 
-  /** Agora sim existe — porque alguém confirmou. */
-  const created = await request.get(`${API}/operations?limit=50`, { headers });
+  /**
+   * Agora sim existe — porque alguém confirmou.
+   *
+   * Buscado pelo código no servidor, e não varrendo as cinquenta operações
+   * mais recentes: a lista cresce, e o que este teste criou pode não estar
+   * entre elas.
+   */
+  const created = await request.get(
+    `${API}/operations?search=${encodeURIComponent(code)}&limit=5`,
+    { headers },
+  );
   const operation = (
     (await created.json()).data.data as { code: string; status: string }[]
   ).find((item) => item.code === code);

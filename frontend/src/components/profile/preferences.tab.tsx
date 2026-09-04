@@ -103,10 +103,10 @@ function Form({ profile }: { profile: UserProfile }) {
       className="max-w-2xl space-y-6"
     >
       <section className="glass-panel space-y-4 rounded-xl p-5">
-        <h3 className="flex items-center gap-2 text-sm font-medium">
+        <h2 className="flex items-center gap-2 text-sm font-medium">
           <Globe className="size-4 text-muted-foreground" aria-hidden />
           Idioma e fuso horário
-        </h3>
+        </h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -158,10 +158,10 @@ function Form({ profile }: { profile: UserProfile }) {
       </section>
 
       <section className="space-y-2 rounded-xl border border-dashed border-border p-5">
-        <h3 className="flex items-center gap-2 text-sm font-medium">
+        <h2 className="flex items-center gap-2 text-sm font-medium">
           <Palette className="size-4 text-muted-foreground" aria-hidden />
           Tema
-        </h3>
+        </h2>
         <p className="text-sm text-muted-foreground">
           O contrato de perfil não tem preferência de tema, e a aplicação ainda
           não oferece alternância — a interface é escura.

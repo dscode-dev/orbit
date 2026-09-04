@@ -123,7 +123,12 @@ function Form({ profile }: { profile: UserProfile }) {
       </section>
 
       <section className="space-y-3 rounded-xl border border-border p-5">
-        <h3 className="text-sm font-medium">Identidade da conta</h3>
+        {/*
+          * Cada bloco de "Minha conta" é uma seção logo abaixo do título da
+          * página, então o nível é `h2`. Eram `h3`, e quem navega por
+          * cabeçalhos pulava um degrau que não existia.
+          */}
+        <h2 className="text-sm font-medium">Identidade da conta</h2>
 
         <dl className="grid gap-4 sm:grid-cols-2">
           <div>

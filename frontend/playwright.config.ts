@@ -25,6 +25,8 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   reporter: [["list"]],
+  globalSetup: "./e2e/global-setup.ts",
+
   use: {
     baseURL: process.env.ORBIT_WEB_URL ?? "http://127.0.0.1:3000",
     locale: "pt-BR",

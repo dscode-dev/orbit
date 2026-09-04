@@ -8,6 +8,10 @@
  */
 import { expect, test } from "@playwright/test";
 import { assertClean, login, record, settled } from "./support";
+import { seededPmocPlanId } from "./provision";
+
+/** O plano do seed, identificado pelo código — o nome é editável. */
+const PLANO_SEMEADO = "PMOC-2026-001";
 
 test("a lista mostra configurações, não ciclos nem execuções", async ({
   page,
@@ -31,10 +35,7 @@ test("a lista mostra configurações, não ciclos nem execuções", async ({
 test("a configuração não oferece geração de documento", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await page.goto("/pmoc");
-  await settled(page);
-
-  await page.getByRole("link", { name: /Manutenção preventiva/ }).click();
+  await page.goto(`/pmoc/${await seededPmocPlanId(page, PLANO_SEMEADO)}`);
   await settled(page);
 
   await expect(page.getByRole("tab", { name: "Visão geral" })).toBeVisible();
@@ -58,9 +59,7 @@ test("o ciclo mostra progresso e o bloqueio real de cada equipamento", async ({
 }) => {
   const recorder = record(page);
   await login(page);
-  await page.goto("/pmoc");
-  await settled(page);
-  await page.getByRole("link", { name: /Manutenção preventiva/ }).click();
+  await page.goto(`/pmoc/${await seededPmocPlanId(page, PLANO_SEMEADO)}`);
   await page.getByRole("tab", { name: "Ciclos" }).click();
   await settled(page);
 
@@ -86,9 +85,7 @@ test("o ciclo mostra progresso e o bloqueio real de cada equipamento", async ({
 test("a cobertura pagina pelo cursor do servidor", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await page.goto("/pmoc");
-  await settled(page);
-  await page.getByRole("link", { name: /Manutenção preventiva/ }).click();
+  await page.goto(`/pmoc/${await seededPmocPlanId(page, PLANO_SEMEADO)}`);
   await page.getByRole("tab", { name: "Cobertura" }).click();
   await settled(page);
 
@@ -122,9 +119,7 @@ test("nenhum código de contrato aparece nas telas de PMOC", async ({ page }) =>
   ];
   const found: string[] = [];
 
-  await page.goto("/pmoc");
-  await settled(page);
-  await page.getByRole("link", { name: /Manutenção preventiva/ }).click();
+  await page.goto(`/pmoc/${await seededPmocPlanId(page, PLANO_SEMEADO)}`);
   await settled(page);
 
   for (const tab of ["Visão geral", "Cobertura", "Ciclos", "Histórico"]) {
@@ -143,9 +138,7 @@ test("nenhum código de contrato aparece nas telas de PMOC", async ({ page }) =>
 test("o deep link do plano abre e recarrega", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await page.goto("/pmoc");
-  await settled(page);
-  await page.getByRole("link", { name: /Manutenção preventiva/ }).click();
+  await page.goto(`/pmoc/${await seededPmocPlanId(page, PLANO_SEMEADO)}`);
   /** Navegação de cliente: esperar a URL, não o silêncio da rede. */
   await page.waitForURL(/\/pmoc\/[0-9a-f-]+$/, { timeout: 20_000 });
   await settled(page);

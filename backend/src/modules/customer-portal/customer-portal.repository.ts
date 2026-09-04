@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService, RlsTransaction } from '../../database';
-import {
-  ConflictException,
-  EntityNotFoundException,
-} from '../../exceptions';
+import { ConflictException, EntityNotFoundException } from '../../exceptions';
 import type {
   PortalIdentityRecord,
   PortalSessionRecord,

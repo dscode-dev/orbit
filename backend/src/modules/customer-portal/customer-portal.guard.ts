@@ -27,9 +27,7 @@ export class CustomerPortalGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context
-      .switchToHttp()
-      .getRequest<CustomerPortalRequest>();
+    const request = context.switchToHttp().getRequest<CustomerPortalRequest>();
     const header = request.header('authorization');
     if (!header?.startsWith('Bearer ')) throw new UnauthorizedException();
 

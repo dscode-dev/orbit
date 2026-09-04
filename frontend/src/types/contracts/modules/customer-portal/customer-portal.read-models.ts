@@ -1,3 +1,9 @@
+/**
+ * ARQUIVO GERADO — NÃO EDITE MANUALMENTE.
+ * Fonte: backend/src
+ * Regenerar: npm run contracts:sync
+ */
+
 export interface CustomerPortalOrganizationReadModel {
   id: string;
   slug: string;

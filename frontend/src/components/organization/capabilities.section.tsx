@@ -132,7 +132,23 @@ export function CapabilitiesSection() {
                       <code className="min-w-0 flex-1 truncate text-xs">
                         {row.key}
                       </code>
-                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {/*
+                        * Encolhe junto com a linha.
+                        *
+                        * Era `shrink-0`: a lista de planos chegava a 342px e,
+                        * numa tela de 375, empurrava a página inteira para a
+                        * rolagem horizontal. Truncar aqui é o mesmo que o
+                        * código ao lado já faz, e o texto completo continua no
+                        * `title`.
+                        */}
+                      <span
+                        className="min-w-0 shrink truncate text-[10px] text-muted-foreground"
+                        title={
+                          row.grantedBy.length > 0
+                            ? row.grantedBy.join(", ")
+                            : undefined
+                        }
+                      >
                         {row.grantedBy.length > 0
                           ? row.grantedBy.join(", ")
                           : "sem plano"}

@@ -7,14 +7,21 @@ import {
   Post,
   Req,
 } from '@nestjs/common';
-import { ApiCreatedResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiBody,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Permissions } from '../../decorators';
 import { ParseUUIDv7Pipe } from '../../pipes';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import { Capabilities } from '../subscription-plans/plan-access';
 import { InviteCustomerPortalIdentityDto } from './customer-portal.dto';
-import { CustomerPortalInvitationReadModel } from './customer-portal.read-models';
+import type { CustomerPortalInvitationReadModel } from './customer-portal.read-models';
 import { CustomerPortalService } from './customer-portal.service';
+import { CustomerPortalInvitationSchema } from './customer-portal.openapi';
 
 @ApiTags('Customer Portal Management')
 @Controller({ path: 'customers/:customerId/portal', version: '1' })
@@ -24,12 +31,13 @@ export class CustomerPortalManagementController {
   @Post('invitations')
   @Capabilities('crm.manage')
   @Permissions('customers.update')
-  @ApiCreatedResponse({ type: CustomerPortalInvitationReadModel })
+  @ApiBody({ type: InviteCustomerPortalIdentityDto })
+  @ApiCreatedResponse({ type: CustomerPortalInvitationSchema })
   invite(
     @Param('customerId', ParseUUIDv7Pipe) customerId: string,
     @Req() request: IdentityRequest,
     @Body() input: InviteCustomerPortalIdentityDto,
-  ) {
+  ): Promise<CustomerPortalInvitationReadModel> {
     return this.portal.invite(customerId, request, input);
   }
 
@@ -37,6 +45,7 @@ export class CustomerPortalManagementController {
   @Capabilities('crm.manage')
   @Permissions('customers.update')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
   disable(
     @Param('customerId', ParseUUIDv7Pipe) customerId: string,
     @Param('identityId', ParseUUIDv7Pipe) identityId: string,
@@ -48,6 +57,7 @@ export class CustomerPortalManagementController {
   @Post('identities/:identityId/revoke-sessions')
   @Capabilities('crm.manage')
   @Permissions('customers.update')
+  @ApiOkResponse()
   revokeSessions(
     @Param('customerId', ParseUUIDv7Pipe) customerId: string,
     @Param('identityId', ParseUUIDv7Pipe) identityId: string,
@@ -56,4 +66,3 @@ export class CustomerPortalManagementController {
     return this.portal.revokeSessions(customerId, identityId, request);
   }
 }
-

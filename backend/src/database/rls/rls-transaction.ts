@@ -5,10 +5,10 @@
  * declara-se quem está falando, e só então o trabalho acontece. As políticas de
  * RLS leem exatamente esses ajustes.
  *
- * ## Uma ida ao banco, não sete
+ * ## Uma ida ao banco, independentemente da quantidade de campos
  *
- * O contexto tem sete campos, e a primeira versão os declarava em sete
- * `SELECT set_config(...)` sequenciais. Funcionava — e custava sete idas ao
+ * A primeira versão declarava cada campo em um
+ * `SELECT set_config(...)` separado. Funcionava — e custava sete idas ao
  * banco **em toda transação da aplicação**, antes da primeira consulta útil.
  *
  * Isso deixou de ser detalhe de desempenho na PR-26.6.1: o tempo limite de uma
@@ -18,7 +18,7 @@
  * o relógio da transação continua correndo. Transação expirada aparece como
  * erro genérico bem longe daqui.
  *
- * `set_config` devolve valor, então os sete cabem numa projeção só. Mesma
+ * `set_config` devolve valor, então todos cabem numa projeção só. Mesma
  * semântica, mesma localidade (`is_local = true`), uma ida.
  */
 import { Injectable } from '@nestjs/common';

@@ -1,9 +1,11 @@
 import { JwtService } from '@nestjs/jwt';
+import type { UUID } from '../../contracts';
 import { EnvironmentProvider } from '../../providers';
 import { IdentityTokenService } from '../identity/application/token.service';
 import { CustomerPortalTokenService } from './customer-portal-token.service';
 
 describe('CustomerPortalTokenService', () => {
+  const uuid = (value: string) => value as UUID;
   const secret = 'test-secret-with-more-than-thirty-two-characters';
   const environment = {
     get: () => secret,
@@ -24,10 +26,10 @@ describe('CustomerPortalTokenService', () => {
     );
     const pair = await service.issue({
       actorType: 'CUSTOMER_PORTAL',
-      identityId: '01900000-0000-7000-8000-000000000001',
-      sessionId: '01900000-0000-7000-8000-000000000002',
-      organizationId: '01900000-0000-7000-8000-000000000003',
-      customerId: '01900000-0000-7000-8000-000000000004',
+      identityId: uuid('01900000-0000-7000-8000-000000000001'),
+      sessionId: uuid('01900000-0000-7000-8000-000000000002'),
+      organizationId: uuid('01900000-0000-7000-8000-000000000003'),
+      customerId: uuid('01900000-0000-7000-8000-000000000004'),
     });
     const claims = await service.verifyAccessToken(pair.accessToken);
 
@@ -51,13 +53,14 @@ describe('CustomerPortalTokenService', () => {
     const internal = new IdentityTokenService(internalJwt);
     const pair = await portal.issue({
       actorType: 'CUSTOMER_PORTAL',
-      identityId: '01900000-0000-7000-8000-000000000001',
-      sessionId: '01900000-0000-7000-8000-000000000002',
-      organizationId: '01900000-0000-7000-8000-000000000003',
-      customerId: '01900000-0000-7000-8000-000000000004',
+      identityId: uuid('01900000-0000-7000-8000-000000000001'),
+      sessionId: uuid('01900000-0000-7000-8000-000000000002'),
+      organizationId: uuid('01900000-0000-7000-8000-000000000003'),
+      customerId: uuid('01900000-0000-7000-8000-000000000004'),
     });
 
-    await expect(internal.verifyAccessToken(pair.accessToken)).rejects.toThrow();
+    await expect(
+      internal.verifyAccessToken(pair.accessToken),
+    ).rejects.toThrow();
   });
 });
-

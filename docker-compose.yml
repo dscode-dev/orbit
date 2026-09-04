@@ -64,7 +64,12 @@ services:
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-LOCAL}
       STORAGE_BUCKET: ${STORAGE_BUCKET:-orbit-artifacts}
       STORAGE_LOCAL_DIR: /app/storage/objects
-      STORAGE_LOCAL_PUBLIC_URL: ${STORAGE_LOCAL_PUBLIC_URL:-http://localhost:5001/api/v1}
+      # A URL pública do storage segue a porta publicada, não uma fixa: a API é
+      # exposta em ${API_PORT}, e era 5001 aqui enquanto o mapeamento acima
+      # dizia 6001. O endereço assinado que a API devolvia apontava para a porta
+      # interna do container e não era alcançável do host — o upload do smoke de
+      # RVT falhava com ECONNREFUSED.
+      STORAGE_LOCAL_PUBLIC_URL: ${STORAGE_LOCAL_PUBLIC_URL:-http://localhost:${API_PORT:-5001}/api/v1}
       STORAGE_SIGNED_URL_TTL_SECONDS: ${STORAGE_SIGNED_URL_TTL_SECONDS:-300}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
       SMTP_HOST: ${SMTP_HOST:-}

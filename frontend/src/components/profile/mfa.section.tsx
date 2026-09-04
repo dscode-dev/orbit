@@ -48,11 +48,11 @@ export function MfaSection({ enabled }: { enabled: boolean }) {
   if (enabled) {
     return (
       <section className="glass-panel space-y-3 rounded-xl p-5">
-        <h3 className="flex flex-wrap items-center gap-2 text-sm font-medium">
+        <h2 className="flex flex-wrap items-center gap-2 text-sm font-medium">
           <ShieldCheck className="size-4 text-emerald-400" aria-hidden />
           Autenticação em dois fatores
           <Badge variant="secondary">ativa</Badge>
-        </h3>
+        </h2>
         <p className="text-sm text-muted-foreground">
           Sua conta pede um código do aplicativo autenticador a cada novo
           acesso.
@@ -75,10 +75,10 @@ export function MfaSection({ enabled }: { enabled: boolean }) {
   return (
     <section className="glass-panel space-y-4 rounded-xl p-5">
       <div className="space-y-1">
-        <h3 className="flex items-center gap-2 text-sm font-medium">
+        <h2 className="flex items-center gap-2 text-sm font-medium">
           <ShieldPlus className="size-4 text-muted-foreground" aria-hidden />
           Autenticação em dois fatores
-        </h3>
+        </h2>
         <p className="text-xs text-muted-foreground">
           Um código do aplicativo autenticador passa a ser exigido junto da
           senha.

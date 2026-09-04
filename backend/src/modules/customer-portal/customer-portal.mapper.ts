@@ -3,6 +3,7 @@ import type {
   CustomerPortalInvitation,
   CustomerPortalIdentity,
 } from '@prisma/client';
+import { InfrastructureException } from '../../exceptions';
 import type { PortalSessionRecord } from './customer-portal.types';
 import type {
   CustomerPortalInvitationReadModel,
@@ -18,7 +19,7 @@ export class CustomerPortalMapper {
         id: record.id,
         displayName: record.displayName,
         email: record.email,
-        status: record.status.toLocaleLowerCase('en-US'),
+        status: this.status(record.status),
         contactId: record.contactId,
       },
       organization: {
@@ -49,5 +50,19 @@ export class CustomerPortalMapper {
       status: 'invited',
     };
   }
-}
 
+  private status(
+    value: string,
+  ): CustomerPortalMeReadModel['identity']['status'] {
+    switch (value) {
+      case 'INVITED':
+        return 'invited';
+      case 'ACTIVE':
+        return 'active';
+      case 'DISABLED':
+        return 'disabled';
+      default:
+        throw new InfrastructureException('Invalid customer portal status');
+    }
+  }
+}

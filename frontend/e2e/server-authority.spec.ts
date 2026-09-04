@@ -11,6 +11,7 @@
  * quebra. É o gate que impede o frontend de reconstruir a máquina de estados.
  */
 import { expect, test } from "@playwright/test";
+import { operationRow, provisionOperation } from "./provision";
 import { assertClean, login, record, settled } from "./support";
 
 /** O enum inteiro. Se todos aparecerem, houve regressão. */
@@ -26,10 +27,12 @@ const ALL_STATUSES = [
 test("o menu de ações vem do que o registro permite", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await page.goto("/operacoes");
+  /** O cenário age sobre a operação que criou, não sobre a primeira da lista. */
+  const operation = await provisionOperation(page, "acoes");
+  const row = await operationRow(page, operation.code);
   await settled(page);
 
-  const trigger = page.getByRole("button", { name: /Ações da operação/i }).first();
+  const trigger = row.getByRole("button", { name: /Ações da operação/i });
   await expect(trigger).toBeVisible();
   await trigger.click();
 
@@ -52,16 +55,15 @@ test("o menu de ações vem do que o registro permite", async ({ page }) => {
 test("o seletor de status oferece só as transições do servidor", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await page.goto("/operacoes");
+  const operation = await provisionOperation(page, "transicoes");
+  const row = await operationRow(page, operation.code);
   await settled(page);
 
   /** Lido **antes** de abrir o diálogo: depois, a sobreposição cobre a linha. */
-  const row = (
-    await page.getByRole("row").filter({ hasText: "OS-" }).first().innerText()
-  ).trim();
-  const currentStatus = ALL_STATUSES.find((label) => row.includes(label));
+  const rowText = (await row.innerText()).trim();
+  const currentStatus = ALL_STATUSES.find((label) => rowText.includes(label));
 
-  await page.getByRole("button", { name: /Ações da operação/i }).first().click();
+  await row.getByRole("button", { name: /Ações da operação/i }).click();
   await page.getByRole("menuitem", { name: /Alterar status/i }).click();
 
   const dialog = page.getByRole("dialog");
@@ -94,10 +96,11 @@ test("o seletor de status oferece só as transições do servidor", async ({ pag
 test("uma transição válida aplica e o estado autoritativo volta", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await page.goto("/operacoes");
+  const operation = await provisionOperation(page, "aplicar");
+  const row = await operationRow(page, operation.code);
   await settled(page);
 
-  await page.getByRole("button", { name: /Ações da operação/i }).first().click();
+  await row.getByRole("button", { name: /Ações da operação/i }).click();
   await page.getByRole("menuitem", { name: /Alterar status/i }).click();
 
   const dialog = page.getByRole("dialog");

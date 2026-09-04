@@ -6,9 +6,7 @@ import type {
 
 /** Safe boundary: no token is logged or returned while email is not connected. */
 @Injectable()
-export class NoopCustomerPortalTokenDelivery
-  implements CustomerPortalTokenDelivery
-{
+export class NoopCustomerPortalTokenDelivery implements CustomerPortalTokenDelivery {
   deliver(
     purpose: CustomerPortalTokenPurpose,
     recipient: string,
@@ -20,4 +18,3 @@ export class NoopCustomerPortalTokenDelivery
     return Promise.resolve();
   }
 }
-

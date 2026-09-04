@@ -1,14 +1,10 @@
-import {
-  HttpException,
-  HttpStatus,
-  Inject,
-  Injectable,
-} from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { IHashProvider, IUuidProvider, UUID } from '../../contracts';
 import {
   ConflictException,
   EntityNotFoundException,
+  RateLimitException,
   UnauthorizedException,
 } from '../../exceptions';
 import { HASH_PROVIDER, UUID_PROVIDER } from '../../providers';
@@ -81,9 +77,11 @@ export class CustomerPortalService {
     );
     if (!identity || !passwordMatches || !this.isEligible(identity)) {
       if (identity) await this.repository.recordFailedLogin(identity.id);
+      this.metrics.increment('login.failure');
       throw this.invalidCredentials();
     }
     if (identity.lockedUntil && identity.lockedUntil.getTime() > Date.now()) {
+      this.metrics.increment('login.failure');
       throw this.invalidCredentials();
     }
     const response = await this.openSession(identity, metadata);
@@ -94,8 +92,7 @@ export class CustomerPortalService {
 
   async refresh(refreshToken: string): Promise<CustomerPortalSessionReadModel> {
     const currentHash = this.tokens.hashOpaqueToken(refreshToken);
-    const session =
-      await this.repository.findSessionByRefreshHash(currentHash);
+    const session = await this.repository.findSessionByRefreshHash(currentHash);
     if (!session || !this.isEligible(session)) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
@@ -289,7 +286,6 @@ export class CustomerPortalService {
           'Customer portal identity',
           identityId,
         );
-      throw new ConflictException('Portal identity has no active sessions');
     }
     return { revokedSessions };
   }
@@ -360,14 +356,7 @@ export class CustomerPortalService {
       15 * 60,
     );
     if (!result.allowed) {
-      throw new HttpException(
-        {
-          code: 'PORTAL_RATE_LIMITED',
-          message: 'Too many requests. Try again later.',
-          retryAfterSeconds: result.retryAfterSeconds,
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+      throw new RateLimitException(result.retryAfterSeconds);
     }
   }
 

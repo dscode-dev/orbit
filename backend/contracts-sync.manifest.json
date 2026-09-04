@@ -27,7 +27,7 @@
     "modules/mobile-field/mobile-offline-sync.read-models.ts",
     "modules/mobile-field/mobile-evidence.read-models.ts",
     "modules/mobile-field/mobile-field-artifact.read-models.ts",
-    "modules/notifications/mobile-device.read-models.ts"
-    ,"modules/customer-portal/customer-portal.read-models.ts"
+    "modules/notifications/mobile-device.read-models.ts",
+    "modules/customer-portal/customer-portal.read-models.ts"
   ]
 }

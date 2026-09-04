@@ -91,4 +91,3 @@ export class CustomerPortalTokenService {
     return value as UUID;
   }
 }
-

@@ -27,7 +27,12 @@ export function AppShell({
     <div className="flex min-h-dvh">
       <Sidebar navigation={navigation} activeLabel={activeLabel} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar onOpenCommand={() => setCommandOpen(true)} breadcrumb={breadcrumb} />
+        <Topbar
+          onOpenCommand={() => setCommandOpen(true)}
+          navigation={navigation}
+          activeLabel={activeLabel}
+          breadcrumb={breadcrumb}
+        />
         <main className="flex-1">{children}</main>
       </div>
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />

@@ -230,6 +230,7 @@ export class BackgroundJobWorker implements OnModuleInit, OnModuleDestroy {
 
     const context = new RequestContext({
       requestId: job.correlationId,
+      actorType: 'SYSTEM',
       userId: asUuid(job.actorUserId),
       organizationId: asUuid(job.organizationId),
       businessUnitId: asUuid(job.businessUnitId),

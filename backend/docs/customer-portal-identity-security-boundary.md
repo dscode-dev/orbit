@@ -24,7 +24,9 @@ autoridade.
 Por isso o Portal não possui seletor de BU. Reads futuros devem combinar
 Organization + Customer ownership e só atravessar Units quando o recurso
 continuar pertencendo ao mesmo Customer. Essa regra é o ponto de extensão da
-PR-33.
+PR-33. `CustomerPortalAuthorizationPolicy.scope()` produz esse predicado a
+partir do actor validado e `assertOwns()` responde como ausência (404) para
+resource de outro Customer/tenant, evitando probing.
 
 ## Fluxos
 
@@ -106,21 +108,23 @@ guardar refresh em cookie com nome próprio (`orbit_portal_refresh`),
 Portal. Nunca usar o cookie interno nem `localStorage` para refresh. Se o BFF
 adotar mutations cookie-authenticated, deverá aplicar token CSRF/origin check.
 
-O CORS global existente continua baseado em allowlist explícita. O origin do
-Portal deve ser adicionado por configuração no deployment; wildcard não é
-aceitável.
+O HTTP bootstrap atual não habilita CORS, porque o Web usa BFF same-origin. Se
+um Portal separado passar a chamar o Nest diretamente, seu origin deverá ser
+adicionado por allowlist explícita no deployment; wildcard não é aceitável.
+Também não há middleware geral de security headers no backend para duplicar;
+esses headers continuam responsabilidade da borda Web/reverse proxy.
 
 ## Threat model
 
-| Ameaça | Controle |
-| --- | --- |
-| credential stuffing | rate limit PostgreSQL + lockout após 5 falhas |
-| enumeração | mensagem e timing genéricos; reset sempre aceito |
-| furto de sessão | access curto, refresh opaco/hashado, rotação e revogação |
-| replay de invite/reset | hash, expiry, row lock e consumo single-use |
-| cross-customer/tenant | claims derivadas da sessão, FK composta, RLS/FORCE |
+| Ameaça                           | Controle                                                  |
+| -------------------------------- | --------------------------------------------------------- |
+| credential stuffing              | rate limit PostgreSQL + lockout após 5 falhas             |
+| enumeração                       | mensagem e timing genéricos; reset sempre aceito          |
+| furto de sessão                  | access curto, refresh opaco/hashado, rotação e revogação  |
+| replay de invite/reset           | hash, expiry, row lock e consumo single-use               |
+| cross-customer/tenant            | claims derivadas da sessão, FK composta, RLS/FORCE        |
 | confusão de token interno/Portal | secret derivado, issuer, audience, type e guard separados |
-| furto de token de e-mail | token nunca armazenado em claro nem logado |
+| furto de token de e-mail         | token nunca armazenado em claro nem logado                |
 
 Métricas usam apenas nomes de evento (`login.attempt`, `login.success`,
 `invite.activation`, `password.reset`, `session.active`), sem IDs, Customer ou
@@ -134,4 +138,3 @@ e-mail como label.
 - Read Models operacionais (OS, PMOC, RVT, documentos etc.) pertencem à PR-33;
 - a migration é entregue sem execução; validação PostgreSQL/E2E com
   `orbit_app` depende do gate de aplicação da migration.
-

@@ -175,7 +175,7 @@ function unitLabel(
   return trade === organization ? unit.legalName : trade;
 }
 
-function ActiveContext() {
+export function ActiveContext() {
   const session = useSession();
   const { businessUnit } = useActiveScope();
 
@@ -219,10 +219,13 @@ function SidebarItem({
   item,
   collapsed,
   active,
+  onNavigate,
 }: {
   item: NavItem;
   collapsed: boolean;
   active: boolean;
+  /** Avisa a gaveta que um destino foi escolhido, para ela se fechar. */
+  onNavigate?: () => void;
 }) {
   const Icon = item.icon;
   const content = (
@@ -277,6 +280,7 @@ function SidebarItem({
       href={item.to}
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
+      onClick={onNavigate}
       className="block"
     >
       {content}
@@ -300,6 +304,62 @@ function SidebarItem({
   );
 }
 
+/**
+ * A lista de navegação — uma só, para o menu fixo e para a gaveta.
+ *
+ * O menu de largura estreita mostra os mesmos grupos e os mesmos itens porque
+ * lê a mesma estrutura; não há uma segunda lista escrita à mão que envelheça
+ * quando um módulo entra ou sai do registry.
+ */
+export function NavigationGroups({
+  navigation,
+  collapsed,
+  activeLabel,
+  onNavigate,
+  className,
+}: {
+  navigation: { group: string; items: NavItem[] }[];
+  collapsed: boolean;
+  activeLabel?: string;
+  /** A gaveta fecha quando se escolhe um destino. */
+  onNavigate?: () => void;
+  className?: string;
+}) {
+  const pathname = usePathname();
+  const isActive = (item: NavItem) =>
+    item.to
+      ? item.to === pathname && item.label === activeLabel
+      : item.label === activeLabel;
+
+  return (
+    <nav
+      aria-label="Navegação principal"
+      className={cn("scroll-panel flex-1 space-y-6 px-3 py-2", className)}
+    >
+      {navigation.map((group) => (
+        <div key={group.group} className="space-y-1">
+          {!collapsed ? (
+            <p className="px-3 pb-1 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground/70 uppercase">
+              {group.group}
+            </p>
+          ) : (
+            <div className="mx-auto mb-2 h-px w-8 bg-sidebar-border" />
+          )}
+          {group.items.map((item) => (
+            <SidebarItem
+              key={item.label}
+              item={item}
+              collapsed={collapsed}
+              active={isActive(item)}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
 export function Sidebar({
   navigation = defaultNavigation,
   activeLabel = "Visão geral",
@@ -310,12 +370,6 @@ export function Sidebar({
   footer?: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(true);
-  const pathname = usePathname();
-
-  const isActive = (item: NavItem) =>
-    item.to
-      ? item.to === pathname && item.label === activeLabel
-      : item.label === activeLabel;
 
   return (
     <motion.aside
@@ -336,30 +390,11 @@ export function Sidebar({
 
       {!collapsed ? <ActiveContext /> : null}
 
-      <nav
-        aria-label="Navegação principal"
-        className="scroll-panel flex-1 space-y-6 px-3 py-2"
-      >
-        {navigation.map((group) => (
-          <div key={group.group} className="space-y-1">
-            {!collapsed ? (
-              <p className="px-3 pb-1 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground/70 uppercase">
-                {group.group}
-              </p>
-            ) : (
-              <div className="mx-auto mb-2 h-px w-8 bg-sidebar-border" />
-            )}
-            {group.items.map((item) => (
-              <SidebarItem
-                key={item.label}
-                item={item}
-                collapsed={collapsed}
-                active={isActive(item)}
-              />
-            ))}
-          </div>
-        ))}
-      </nav>
+      <NavigationGroups
+        navigation={navigation}
+        collapsed={collapsed}
+        activeLabel={activeLabel}
+      />
 
       <div className="space-y-2 border-t border-sidebar-border p-3">
         {footer}

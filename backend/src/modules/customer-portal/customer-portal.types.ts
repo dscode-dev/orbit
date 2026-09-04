@@ -61,4 +61,3 @@ export interface PortalSessionRecord extends PortalIdentityRecord {
   sessionRevokedAt: Date | null;
   refreshTokenHash?: string;
 }
-

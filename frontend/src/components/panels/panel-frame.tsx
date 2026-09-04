@@ -27,7 +27,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api-error";
@@ -80,7 +79,18 @@ export function PanelFrame({
     <Card data-panel={panelId} className={cn("glass-panel", className)}>
       <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
         <div className="min-w-0 space-y-1">
-          <CardTitle className="text-base">{title}</CardTitle>
+          {/*
+            * O título do painel é um cabeçalho de verdade.
+            *
+            * `CardTitle` desenha um `div`: bonito e mudo. Com dezenas de
+            * painéis por página, quem navega por cabeçalhos ia do `h1` da
+            * página direto para os `h3` escritos dentro das seções, sem nada
+            * que dissesse onde cada bloco começa. `h2` é o nível certo — o
+            * painel é uma seção logo abaixo do título da página.
+            */}
+          <h2 className="text-base font-semibold leading-none tracking-tight">
+            {title}
+          </h2>
           {description ? (
             <CardDescription>{description}</CardDescription>
           ) : null}

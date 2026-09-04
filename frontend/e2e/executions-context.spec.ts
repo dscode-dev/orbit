@@ -13,6 +13,12 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 
+import {
+  coverAsset,
+  provisionOperationWithArtifact,
+  provisionPmocPlan,
+  provisionRvtVisit,
+} from "./provision";
 import { assertClean, login, record } from "./support";
 
 /**
@@ -128,14 +134,17 @@ test("a execução de um RVT abre na rota do próprio RVT", async ({ page }) => 
   const recorder = record(page);
   await login(page);
 
-  await openFirst(page, "/rvt");
+  /**
+   * A visita é do cenário. Antes ele abria a primeira configuração da lista e
+   * se pulava quando aquela não tinha visita executada — um cenário
+   * obrigatório que não provava nada quando o tenant não colaborava.
+   */
+  const visit = await provisionRvtVisit(page, "contexto");
+  await page.goto(`/rvt/${visit.configurationId}`);
   await page.getByRole("tab", { name: "Visitas" }).click();
 
-  const link = page.locator('a[href^="/rvt/execucoes/"]').first();
-  if ((await link.count()) === 0) {
-    test.skip(true, "a configuração aberta não tem visita executada");
-    return;
-  }
+  const link = page.locator(`a[href="/rvt/execucoes/${visit.executionId}"]`);
+  await expect(link).toBeVisible({ timeout: 20_000 });
   await link.click();
   await page.waitForURL(/\/rvt\/execucoes\/[0-9a-f-]{36}/, { timeout: 20_000 });
 
@@ -213,29 +222,17 @@ test("a navegação nomeia o domínio de cada execução", async ({ page }) => {
 /* ------------------------------------------------------------------ */
 
 /**
- * Duas operações que têm execução de artefato, descobertas pela própria API.
+ * Duas operações, cada uma com a sua execução de artefato.
  *
- * Não é "o primeiro registro que casar": o teste escolhe dois vínculos
- * distintos e depois afirma o conteúdo de cada um. Se o ambiente não tiver
- * dois, o cenário diz isso em vez de fingir que passou.
+ * Antes o cenário garimpava, entre as sessenta execuções mais recentes, duas
+ * que tivessem operação — e se pulava quando não achava. Um cenário
+ * obrigatório que se pula não prova nada. Agora o vínculo é criado aqui, e o
+ * teste sabe exatamente o que espera ver em cada operação.
  */
 async function twoOperationsWithExecutions(page: Page) {
-  const response = await bff(page, "/api/orbit/artifact-executions?limit=60&page=1");
-  expect(response.ok()).toBe(true);
-  const body = await response.json();
-  const rows: Array<{ id: string; code: string; operationId: string | null }> =
-    body.data?.data ?? body.data ?? [];
-
-  const byOperation = new Map<string, { id: string; code: string }>();
-  for (const row of rows) {
-    if (row.operationId && !byOperation.has(row.operationId)) {
-      byOperation.set(row.operationId, { id: row.id, code: row.code });
-    }
-  }
-  const pairs = [...byOperation.entries()];
-  return pairs.length >= 2
-    ? { a: pairs[0], b: pairs[1] }
-    : null;
+  const a = await provisionOperationWithArtifact(page, "ctx-a");
+  const b = await provisionOperationWithArtifact(page, "ctx-b");
+  return { a, b };
 }
 
 test("a operação mostra as suas execuções de artefato, e só as suas", async ({
@@ -244,13 +241,7 @@ test("a operação mostra as suas execuções de artefato, e só as suas", async
   const recorder = record(page);
   await login(page);
 
-  const found = await twoOperationsWithExecutions(page);
-  if (!found) {
-    test.skip(true, "o ambiente não tem duas operações com execução");
-    return;
-  }
-  const [operationA, executionA] = found.a;
-  const [, executionB] = found.b;
+  const { a: operationA, b: operationB } = await twoOperationsWithExecutions(page);
 
   const scoped: string[] = [];
   page.on("request", (request) => {
@@ -263,19 +254,19 @@ test("a operação mostra as suas execuções de artefato, e só as suas", async
     }
   });
 
-  await page.goto(`/operacoes/${operationA}`);
+  await page.goto(`/operacoes/${operationA.id}`);
   await page.waitForLoadState("networkidle").catch(() => {});
 
   const panel = page.locator('[data-panel="operation-artifact-executions"]');
   await expect(panel).toBeVisible({ timeout: 20_000 });
 
   /** O que é desta operação aparece. */
-  await expect(panel).toContainText(executionA.code);
+  await expect(panel).toContainText(operationA.executionCode);
   /** O que é de outra, não. */
-  await expect(panel).not.toContainText(executionB.code);
+  await expect(panel).not.toContainText(operationB.executionCode);
 
   /** O recorte foi decidido no servidor, não aqui. */
-  expect(scoped).toContain(operationA);
+  expect(scoped).toContain(operationA.id);
 
   assertClean(recorder, "execuções de artefato da operação");
 });
@@ -284,19 +275,14 @@ test("o recorte da operação viaja no “Ver tudo”", async ({ page }) => {
   const recorder = record(page);
   await login(page);
 
-  const found = await twoOperationsWithExecutions(page);
-  if (!found) {
-    test.skip(true, "o ambiente não tem operação com execução");
-    return;
-  }
-  const [operationA] = found.a;
+  const { a: operationA } = await twoOperationsWithExecutions(page);
 
-  await page.goto(`/operacoes/${operationA}`);
+  await page.goto(`/operacoes/${operationA.id}`);
   const panel = page.locator('[data-panel="operation-artifact-executions"]');
   await expect(panel).toBeVisible({ timeout: 20_000 });
 
   await panel.getByRole("link", { name: /Ver tudo/i }).click();
-  await page.waitForURL(new RegExp(`/execucoes\\?operationId=${operationA}`), {
+  await page.waitForURL(new RegExp(`/execucoes\\?operationId=${operationA.id}`), {
     timeout: 20_000,
   });
 
@@ -312,24 +298,19 @@ test("a execução abre pela rota canônica do artefato", async ({ page }) => {
   const recorder = record(page);
   await login(page);
 
-  const found = await twoOperationsWithExecutions(page);
-  if (!found) {
-    test.skip(true, "o ambiente não tem operação com execução");
-    return;
-  }
-  const [operationA, executionA] = found.a;
+  const { a: operationA } = await twoOperationsWithExecutions(page);
 
-  await page.goto(`/operacoes/${operationA}`);
+  await page.goto(`/operacoes/${operationA.id}`);
   const panel = page.locator('[data-panel="operation-artifact-executions"]');
   await expect(panel).toBeVisible({ timeout: 20_000 });
 
   /** O código fica na linha de apoio; o link é o título, na mesma linha da lista. */
   await panel
     .getByRole("listitem")
-    .filter({ hasText: executionA.code })
+    .filter({ hasText: operationA.executionCode })
     .getByRole("link")
     .click();
-  await page.waitForURL(new RegExp(`/execucoes/${executionA.id}`), {
+  await page.waitForURL(new RegExp(`/execucoes/${operationA.executionId}`), {
     timeout: 20_000,
   });
 
@@ -342,14 +323,9 @@ test("execuções de artefato e checklists continuam seções distintas", async 
   const recorder = record(page);
   await login(page);
 
-  const found = await twoOperationsWithExecutions(page);
-  if (!found) {
-    test.skip(true, "o ambiente não tem operação com execução");
-    return;
-  }
-  const [operationA] = found.a;
+  const { a: operationA } = await twoOperationsWithExecutions(page);
 
-  await page.goto(`/operacoes/${operationA}`);
+  await page.goto(`/operacoes/${operationA.id}`);
   await expect(
     page.locator('[data-panel="operation-artifact-executions"]'),
   ).toBeVisible({ timeout: 20_000 });
@@ -399,18 +375,22 @@ test("a disponibilidade da lista concorda com a preparação canônica", async (
   const recorder = record(page);
   await login(page);
 
-  const detail = await openFirst(page, "/pmoc");
-  expect(detail).not.toBeNull();
-  const planId = detail!.split("/").pop()!;
+  /**
+   * O plano é do cenário, e nasce com cobertura: assim ele tem ciclo e tem
+   * linha de equipamento, que é o que a paridade compara. Antes abria o
+   * primeiro plano da listagem e se pulava quando aquele não tinha ciclo.
+   */
+  const plan = await provisionPmocPlan(page, "paridade", 2);
+  await coverAsset(page, plan.id, plan.assets[0].id);
+  const planId = plan.id;
 
   const cycles = await bff(page, `/api/orbit/pmoc/plans/${planId}/executions`);
   expect(cycles.ok()).toBe(true);
   const cycleBody = await cycles.json();
-  const cycleId = (cycleBody.data?.data ?? cycleBody.data ?? [])[0]?.id;
-  if (!cycleId) {
-    test.skip(true, "o plano aberto não tem ciclo");
-    return;
-  }
+  const cycleId = (cycleBody.data?.data ?? cycleBody.data ?? [])[0]?.id as
+    | string
+    | undefined;
+  expect(cycleId, "o plano ativado precisa ter um ciclo aberto").toBeTruthy();
 
   const listResponse = await bff(
     page,

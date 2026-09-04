@@ -33,10 +33,20 @@ export interface IAuthenticatedUser {
   permissions: readonly string[];
 }
 
+export type ActorType =
+  | 'ANONYMOUS'
+  | 'INTERNAL_USER'
+  | 'CUSTOMER_PORTAL'
+  | 'CUSTOMER_PORTAL_AUTH'
+  | 'SYSTEM';
+
 export interface IRequestContext {
   requestId: string;
+  actorType: ActorType;
   userId: Nullable<UUID>;
+  portalIdentityId: Nullable<UUID>;
   organizationId: Nullable<UUID>;
+  customerId: Nullable<UUID>;
   businessUnitId: Nullable<UUID>;
   businessUnitIds: readonly UUID[];
   roles: readonly string[];

@@ -211,64 +211,58 @@ ALTER TABLE "customer_portal_password_resets" FORCE ROW LEVEL SECURITY;
 ALTER TABLE "customer_portal_rate_limits" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "customer_portal_rate_limits" FORCE ROW LEVEL SECURITY;
 
-CREATE POLICY "customer_portal_identities_boundary" ON "customer_portal_identities"
+CREATE POLICY "customer_portal_identities_self_read" ON "customer_portal_identities"
+  FOR SELECT USING (
+    app_current_actor_type() = 'CUSTOMER_PORTAL'
+    AND "id" = app_current_portal_identity_id()
+    AND "organization_id" = app_current_organization_id()
+    AND "customer_id" = app_current_customer_id()
+  );
+CREATE POLICY "customer_portal_identities_internal_manage" ON "customer_portal_identities"
   FOR ALL USING (
-    (app_current_actor_type() = 'CUSTOMER_PORTAL'
-      AND "id" = app_current_portal_identity_id()
-      AND "organization_id" = app_current_organization_id()
-      AND "customer_id" = app_current_customer_id())
-    OR
-    (app_current_actor_type() = 'INTERNAL_USER'
-      AND "organization_id" = app_current_organization_id()
-      AND app_has_permission('customers.update'))
+    app_current_actor_type() = 'INTERNAL_USER'
+    AND "organization_id" = app_current_organization_id()
+    AND (app_has_permission('customers.update') OR app_has_permission('*'))
   ) WITH CHECK (
-    (app_current_actor_type() = 'CUSTOMER_PORTAL'
-      AND "id" = app_current_portal_identity_id()
-      AND "organization_id" = app_current_organization_id()
-      AND "customer_id" = app_current_customer_id())
-    OR
-    (app_current_actor_type() = 'INTERNAL_USER'
-      AND "organization_id" = app_current_organization_id()
-      AND app_has_permission('customers.update'))
+    app_current_actor_type() = 'INTERNAL_USER'
+    AND "organization_id" = app_current_organization_id()
+    AND (app_has_permission('customers.update') OR app_has_permission('*'))
   );
 
-CREATE POLICY "customer_portal_sessions_boundary" ON "customer_portal_sessions"
+CREATE POLICY "customer_portal_sessions_self_read" ON "customer_portal_sessions"
+  FOR SELECT USING (
+    app_current_actor_type() = 'CUSTOMER_PORTAL'
+    AND "portal_identity_id" = app_current_portal_identity_id()
+    AND "organization_id" = app_current_organization_id()
+    AND "customer_id" = app_current_customer_id()
+  );
+CREATE POLICY "customer_portal_sessions_internal_manage" ON "customer_portal_sessions"
   FOR ALL USING (
-    (app_current_actor_type() = 'CUSTOMER_PORTAL'
-      AND "portal_identity_id" = app_current_portal_identity_id()
-      AND "organization_id" = app_current_organization_id()
-      AND "customer_id" = app_current_customer_id())
-    OR
-    (app_current_actor_type() = 'INTERNAL_USER'
-      AND "organization_id" = app_current_organization_id()
-      AND app_has_permission('customers.update'))
+    app_current_actor_type() = 'INTERNAL_USER'
+    AND "organization_id" = app_current_organization_id()
+    AND (app_has_permission('customers.update') OR app_has_permission('*'))
   ) WITH CHECK (
-    (app_current_actor_type() = 'CUSTOMER_PORTAL'
-      AND "portal_identity_id" = app_current_portal_identity_id()
-      AND "organization_id" = app_current_organization_id()
-      AND "customer_id" = app_current_customer_id())
-    OR
-    (app_current_actor_type() = 'INTERNAL_USER'
-      AND "organization_id" = app_current_organization_id()
-      AND app_has_permission('customers.update'))
+    app_current_actor_type() = 'INTERNAL_USER'
+    AND "organization_id" = app_current_organization_id()
+    AND (app_has_permission('customers.update') OR app_has_permission('*'))
   );
 
 CREATE POLICY "customer_portal_invitations_internal_manage" ON "customer_portal_invitations"
   FOR ALL USING (
     app_current_actor_type() = 'INTERNAL_USER'
     AND "organization_id" = app_current_organization_id()
-    AND app_has_permission('customers.update')
+    AND (app_has_permission('customers.update') OR app_has_permission('*'))
   ) WITH CHECK (
     app_current_actor_type() = 'INTERNAL_USER'
     AND "organization_id" = app_current_organization_id()
-    AND app_has_permission('customers.update')
+    AND (app_has_permission('customers.update') OR app_has_permission('*'))
   );
 
 CREATE POLICY "customer_portal_password_resets_internal_read" ON "customer_portal_password_resets"
   FOR SELECT USING (
     app_current_actor_type() = 'INTERNAL_USER'
     AND "organization_id" = app_current_organization_id()
-    AND app_has_permission('customers.update')
+    AND (app_has_permission('customers.update') OR app_has_permission('*'))
   );
 
 -- No direct policy is intentionally defined for rate limits. Public auth uses
@@ -293,7 +287,7 @@ BEGIN
   IF NOT FOUND THEN
     INSERT INTO customer_portal_rate_limits
       (id, action, scope_hash, window_start, attempts, updated_at)
-    VALUES (uuidv7(), p_action, p_scope_hash, v_now, 1, v_now);
+    VALUES (gen_random_uuid(), p_action, p_scope_hash, v_now, 1, v_now);
     RETURN QUERY SELECT true, 0;
     RETURN;
   END IF;
@@ -346,12 +340,22 @@ $$;
 
 CREATE OR REPLACE FUNCTION app_customer_portal_record_failed_login(p_identity_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE
+  v_org uuid;
+  v_attempts integer;
 BEGIN
   UPDATE customer_portal_identities SET
     failed_attempts = failed_attempts + 1,
     locked_until = CASE WHEN failed_attempts + 1 >= 5 THEN clock_timestamp() + interval '15 minutes' ELSE locked_until END,
     updated_at = clock_timestamp()
-  WHERE id = p_identity_id;
+  WHERE id = p_identity_id
+  RETURNING organization_id, failed_attempts INTO v_org, v_attempts;
+  IF v_attempts = 5 THEN
+    INSERT INTO audit_logs (id, organization_id, action, entity_type, entity_id, metadata)
+    VALUES (gen_random_uuid(), v_org, 'customer.portal.login.locked',
+      'CUSTOMER_PORTAL_IDENTITY', p_identity_id,
+      jsonb_build_object('actorType', 'CUSTOMER_PORTAL', 'reason', 'FAILED_ATTEMPT_THRESHOLD'));
+  END IF;
 END;
 $$;
 
@@ -388,7 +392,7 @@ BEGIN
     last_login_at = clock_timestamp(), updated_at = clock_timestamp()
   WHERE customer_portal_identities.id = p_identity_id;
   INSERT INTO audit_logs (id, organization_id, action, entity_type, entity_id, metadata)
-  SELECT uuidv7(), i.organization_id, 'customer.portal.login.succeeded',
+  SELECT gen_random_uuid(), i.organization_id, 'customer.portal.login.succeeded',
     'CUSTOMER_PORTAL_IDENTITY', i.id, jsonb_build_object('actorType', 'CUSTOMER_PORTAL')
   FROM customer_portal_identities i WHERE i.id = p_identity_id;
   RETURN QUERY
@@ -475,7 +479,7 @@ BEGIN
    RETURNING organization_id INTO v_org;
   IF FOUND THEN
     INSERT INTO audit_logs (id, organization_id, action, entity_type, entity_id, metadata)
-    VALUES (uuidv7(), v_org, 'customer.portal.session.revoked', 'CUSTOMER_PORTAL_IDENTITY',
+    VALUES (gen_random_uuid(), v_org, 'customer.portal.session.revoked', 'CUSTOMER_PORTAL_IDENTITY',
       p_identity_id, jsonb_build_object('actorType', 'CUSTOMER_PORTAL'));
     RETURN true;
   END IF;
@@ -506,8 +510,8 @@ BEGIN
   IF NOT FOUND THEN RETURN; END IF;
   UPDATE customer_portal_invitations SET accepted_at = clock_timestamp()
    WHERE customer_portal_invitations.id = v_inv.id;
-  INSERT INTO audit_logs (id, organization_id, user_id, action, entity_type, entity_id, metadata)
-  VALUES (uuidv7(), v_inv.organization_id, v_inv.invited_by_id,
+  INSERT INTO audit_logs (id, organization_id, action, entity_type, entity_id, metadata)
+  VALUES (gen_random_uuid(), v_inv.organization_id,
     'customer.portal.identity.activated', 'CUSTOMER_PORTAL_IDENTITY', v_inv.portal_identity_id,
     jsonb_build_object('actorType', 'CUSTOMER_PORTAL'));
   RETURN QUERY SELECT * FROM app_customer_portal_find_login(
@@ -556,7 +560,7 @@ BEGIN
   UPDATE customer_portal_sessions SET revoked_at = clock_timestamp()
    WHERE portal_identity_id = v_reset.portal_identity_id AND revoked_at IS NULL;
   INSERT INTO audit_logs (id, organization_id, action, entity_type, entity_id, metadata)
-  VALUES (uuidv7(), v_reset.organization_id, 'customer.portal.password.reset',
+  VALUES (gen_random_uuid(), v_reset.organization_id, 'customer.portal.password.reset',
     'CUSTOMER_PORTAL_IDENTITY', v_reset.portal_identity_id,
     jsonb_build_object('actorType', 'CUSTOMER_PORTAL'));
   RETURN true;
@@ -579,7 +583,7 @@ BEGIN
   UPDATE customer_portal_sessions SET revoked_at = clock_timestamp()
    WHERE portal_identity_id = p_identity_id AND id <> p_keep_session_id AND revoked_at IS NULL;
   INSERT INTO audit_logs (id, organization_id, action, entity_type, entity_id, metadata)
-  VALUES (uuidv7(), v_org, 'customer.portal.password.changed',
+  VALUES (gen_random_uuid(), v_org, 'customer.portal.password.changed',
     'CUSTOMER_PORTAL_IDENTITY', p_identity_id, jsonb_build_object('actorType', 'CUSTOMER_PORTAL'));
   RETURN true;
 END;

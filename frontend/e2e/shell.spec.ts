@@ -149,3 +149,90 @@ test.describe("shell", () => {
     assertClean(recorder, "marco de navegação");
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* Navegação em telas estreitas                                        */
+/* ------------------------------------------------------------------ */
+
+test.describe("navegação abaixo do desktop", () => {
+  for (const width of [768, 375]) {
+    test(`a ${width}px o menu abre, navega e devolve o foco`, async ({ page }) => {
+      const recorder = record(page);
+      await login(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/dashboard");
+
+      /** A barra fixa não existe aqui; o gatilho é o botão do cabeçalho. */
+      await expect(page.locator("aside")).toBeHidden();
+      const trigger = page.getByRole("button", { name: "Abrir menu" });
+      await expect(trigger).toBeVisible();
+
+      await trigger.click();
+      const drawer = page.getByRole("dialog");
+      await expect(drawer).toBeVisible();
+
+      /** A mesma lista do menu fixo — não uma segunda navegação escrita à mão. */
+      const links = drawer.getByRole("link");
+      await expect(links).toHaveCount(18);
+      await expect(drawer.getByRole("link", { name: "Execuções de artefato" })).toBeVisible();
+      await expect(drawer.getByRole("link", { name: "Minha conta" })).toBeVisible();
+      await expect(drawer.getByRole("link", { name: "Organização" })).toHaveCount(0);
+      await expect(drawer).not.toContainText(/copilot/i);
+
+      /** Cabe na tela e rola por dentro quando os itens não cabem. */
+      const box = (await drawer.boundingBox())!;
+      expect(box.width).toBeLessThanOrEqual(width);
+      expect(
+        await drawer.getByRole("navigation").evaluate((n) => n.scrollHeight > n.clientHeight),
+      ).toBe(true);
+
+      /** O foco entra na gaveta. */
+      expect(
+        await page.evaluate(() =>
+          document.querySelector('[role="dialog"]')?.contains(document.activeElement),
+        ),
+      ).toBe(true);
+
+      /** Escape fecha e devolve o foco a quem abriu. */
+      await page.keyboard.press("Escape");
+      await expect(drawer).toBeHidden();
+      expect(await trigger.evaluate((el) => el === document.activeElement)).toBe(true);
+
+      /** Escolher um destino navega e fecha. */
+      await trigger.click();
+      await page.getByRole("dialog").getByRole("link", { name: "Clientes" }).click();
+      await page.waitForURL(/\/clientes/, { timeout: 20_000 });
+      await expect(page.getByRole("dialog")).toBeHidden();
+
+      /** E o item ativo continua sendo anunciado. */
+      await trigger.click();
+      const ativo = page.getByRole("dialog").locator('a[aria-current="page"]');
+      await expect(ativo).toHaveCount(1);
+      await expect(ativo).toHaveAttribute("aria-label", "Clientes");
+      await page.keyboard.press("Escape");
+
+      /** A página não ganha barra horizontal por causa da gaveta. */
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBe(0);
+
+      assertClean(recorder, `navegação a ${width}px`);
+    });
+  }
+
+  test("o contexto da sessão aparece também na gaveta", async ({ page }) => {
+    const recorder = record(page);
+    await login(page);
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page.goto("/dashboard");
+
+    await page.getByRole("button", { name: "Abrir menu" }).click();
+    const drawer = page.getByRole("dialog");
+    await expect(drawer).not.toContainText("Acme Industries");
+    await expect(drawer.locator('a[href*="secao=contexto"]')).toBeVisible();
+
+    assertClean(recorder, "contexto na gaveta");
+  });
+});

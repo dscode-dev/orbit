@@ -26,7 +26,6 @@ exclusivos e não carrega RBAC interno.
 - tokens e sessões não são substituíveis entre superfícies;
 - mesmo e-mail interno/Portal e cross-organization é válido;
 - toda leitura futura do Portal nasce de `portal identity → organization →
-  customer → resource ownership`;
+customer → resource ownership`;
 - suporte/admin não ganha impersonation implícita;
 - MFA/SSO e membership multi-Customer exigirão decisões futuras explícitas.
-

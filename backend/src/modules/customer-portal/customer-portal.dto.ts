@@ -108,4 +108,3 @@ export class InviteCustomerPortalIdentityDto {
   @IsUUIDv7()
   contactId?: string;
 }
-

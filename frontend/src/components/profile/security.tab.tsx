@@ -52,10 +52,10 @@ export function SecurityTab() {
 
       <section className="space-y-3">
         <div className="space-y-1">
-          <h3 className="flex items-center gap-2 text-sm font-medium">
+          <h2 className="flex items-center gap-2 text-sm font-medium">
             <Laptop className="size-4 text-muted-foreground" aria-hidden />
             Dispositivos e sessões
-          </h3>
+          </h2>
           <p className="text-xs text-muted-foreground">
             Cada sessão é um dispositivo que entrou na conta. Encerrar uma
             sessão desconecta aquele dispositivo imediatamente.
@@ -173,10 +173,10 @@ function PasswordSection() {
       className="glass-panel space-y-4 rounded-xl p-5"
     >
       <div className="space-y-1">
-        <h3 className="flex items-center gap-2 text-sm font-medium">
+        <h2 className="flex items-center gap-2 text-sm font-medium">
           <KeyRound className="size-4 text-muted-foreground" aria-hidden />
           Senha
-        </h3>
+        </h2>
         <p className="text-xs text-muted-foreground">
           Trocar a senha encerra as outras sessões. Esta janela continua
           conectada.

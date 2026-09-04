@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Menu, PanelsTopLeft, LogOut, UserRound } from "lucide-react";
+import { Search, PanelsTopLeft, LogOut, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OrbitLogo } from "@/components/brand/orbit-logo";
+import { MobileNav } from "@/components/layout/mobile-nav";
+import type { NavItem } from "@/components/layout/sidebar";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -20,10 +22,14 @@ import {
 
 export function Topbar({
   onOpenCommand,
+  navigation,
+  activeLabel,
   breadcrumb,
   className,
 }: {
   onOpenCommand: () => void;
+  navigation?: { group: string; items: NavItem[] }[];
+  activeLabel?: string;
   breadcrumb?: ReactNode;
   className?: string;
 }) {
@@ -42,14 +48,12 @@ export function Topbar({
         className,
       )}
     >
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="Abrir menu"
-        className="lg:hidden"
-      >
-        <Menu className="size-4" />
-      </Button>
+      {/*
+        * Aqui havia um botão "Abrir menu" sem `onClick`. Abaixo de `lg` a barra
+        * lateral é `hidden`, então quem entrasse pelo tablet ficava sem
+        * navegação alguma. Agora o botão é o gatilho da gaveta.
+        */}
+      <MobileNav navigation={navigation} activeLabel={activeLabel} />
       <div className="lg:hidden">
         <OrbitLogo variant="mark" />
       </div>

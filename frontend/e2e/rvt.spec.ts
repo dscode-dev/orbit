@@ -148,13 +148,38 @@ test.beforeAll(async ({ request }) => {
   });
   const unit = (await context.json()).data.businessUnits[0].id as string;
 
-  const customers = await request.get(`${api}/customers?limit=1`, { headers });
-  const customerId = (await customers.json()).data.data[0].id as string;
+  /**
+   * Cliente e equipamentos próprios, na mesma unidade das visitas.
+   *
+   * O seed pegava `customers?limit=1` e `assets?limit=4` — os primeiros do
+   * tenant. Quando outro cenário passou a criar clientes e equipamentos, os
+   * primeiros passaram a ser de outra unidade e o servidor recusava a criação
+   * com `BUSINESS_UNIT_SCOPE_INVALID`. Criando os seus, o cenário sabe que
+   * cliente, equipamentos e visita estão no mesmo escopo.
+   */
+  const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
 
-  const assets = await request.get(`${api}/assets?limit=4`, { headers });
-  const ids = (await assets.json()).data.data.map(
-    (item: { id: string }) => item.id,
-  ) as string[];
+  const customer = await request.post(`${api}/customers`, {
+    headers,
+    data: { type: "COMPANY", legalName: `Cenário RVT ${suffix}` },
+  });
+  expect(customer.ok(), await customer.text()).toBe(true);
+  const customerId = (await customer.json()).data.id as string;
+
+  const ids: string[] = [];
+  for (let index = 1; index <= 4; index += 1) {
+    const asset = await request.post(`${api}/assets`, {
+      headers,
+      data: {
+        businessUnitId: unit,
+        customerId,
+        category: "EQUIPMENT",
+        name: `Equipamento RVT ${index} ${suffix}`,
+      },
+    });
+    expect(asset.ok(), await asset.text()).toBe(true);
+    ids.push((await asset.json()).data.id as string);
+  }
 
   const adHoc = async (name: string, equipmentIds: string[]) => {
     const created = await request.post(`${api}/rvt/ad-hoc/executions`, {

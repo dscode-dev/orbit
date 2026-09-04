@@ -9,14 +9,26 @@
  * o seguinte encontra, como aconteceria com duas pessoas usando o produto.
  */
 import { expect, test } from "@playwright/test";
+import { coverAsset, provisionPmocPlan, suspendPlan } from "./provision";
 import { assertClean, login, record, settled } from "./support";
 
 /** Abre o plano de teste e para na aba pedida. */
-async function openPlan(page: import("@playwright/test").Page, tab: string) {
-  await page.goto("/pmoc");
+/**
+ * Abre a aba de um plano que o cenário conhece pelo `id`.
+ *
+ * Antes clicava no plano semeado "Manutenção preventiva" e mexia na cobertura
+ * dele. O conjunto de equipamentos **não cobertos** daquele cliente encolhia a
+ * cada execução da suíte: depois de algumas rodadas o seletor perdia a página
+ * seguinte e "Sala 9" já estava coberto — três cenários falhavam sem que o
+ * produto tivesse mudado. Cada teste agora traz o seu plano.
+ */
+async function openPlan(
+  page: import("@playwright/test").Page,
+  planId: string,
+  tab: string,
+) {
+  await page.goto(`/pmoc/${planId}`);
   await settled(page);
-  await page.getByRole("link", { name: /Manutenção preventiva/ }).click();
-  await page.waitForURL(/\/pmoc\/[0-9a-f-]+$/, { timeout: 20_000 });
   await page.getByRole("tab", { name: tab }).click();
   await settled(page);
 }
@@ -24,7 +36,8 @@ async function openPlan(page: import("@playwright/test").Page, tab: string) {
 test("o seletor de equipamento pagina no servidor e busca", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await openPlan(page, "Cobertura");
+  const plan = await provisionPmocPlan(page, "paginacao");
+  await openPlan(page, plan.id, "Cobertura");
 
   await page.getByRole("button", { name: /Adicionar equipamento/ }).first().click();
   const dialog = page.getByRole("dialog");
@@ -50,15 +63,16 @@ test("o seletor de equipamento pagina no servidor e busca", async ({ page }) => 
   page.on("request", (request) => {
     if (request.url().includes("/api/orbit/assets")) queries += 1;
   });
-  await dialog.getByLabel("Buscar", { exact: true }).pressSequentially("Sala 7", {
-    delay: 40,
-  });
+  /** Digitado tecla a tecla: é o que prova que a consulta espera a digitação parar. */
+  await dialog
+    .getByLabel("Buscar", { exact: true })
+    .pressSequentially("Sala 07", { delay: 40 });
   await page.waitForTimeout(1_500);
   await settled(page);
 
-  /** Seis teclas não podem virar seis consultas. */
+  /** Sete teclas não podem virar sete consultas. */
   expect(queries).toBeLessThan(4);
-  await expect(dialog.getByText(/Sala 7/)).toBeVisible();
+  await expect(dialog.getByText(plan.assets[6].name)).toBeVisible();
 
   await page.keyboard.press("Escape");
   assertClean(recorder, "seletor de equipamento");
@@ -67,27 +81,29 @@ test("o seletor de equipamento pagina no servidor e busca", async ({ page }) => 
 test("adicionar equipamento persiste e sobrevive à recarga", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await openPlan(page, "Cobertura");
+  const plan = await provisionPmocPlan(page, "adicionar");
+  const escolhido = plan.assets[8];
+  await openPlan(page, plan.id, "Cobertura");
 
   await page.getByRole("button", { name: /Adicionar equipamento/ }).first().click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Buscar", { exact: true }).fill("Sala 9");
+  await dialog.getByLabel("Buscar", { exact: true }).fill(escolhido.name);
   await page.waitForTimeout(1_200);
   await settled(page);
 
-  await dialog.getByRole("button", { name: /Sala 9/ }).first().click();
+  await dialog.getByRole("button", { name: escolhido.name }).click();
   await dialog.getByRole("button", { name: "Adicionar", exact: true }).click();
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   await settled(page);
 
-  await expect(page.getByRole("cell", { name: /Sala 9/ }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: escolhido.name }).first()).toBeVisible();
 
   /** Persistência: recarregar não é cache — é o servidor respondendo de novo. */
   await page.reload();
   await settled(page);
   await page.getByRole("tab", { name: "Cobertura" }).click();
   await settled(page);
-  await expect(page.getByRole("cell", { name: /Sala 9/ }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: escolhido.name }).first()).toBeVisible();
 
   assertClean(recorder, "adicionar cobertura");
 });
@@ -95,11 +111,15 @@ test("adicionar equipamento persiste e sobrevive à recarga", async ({ page }) =
 test("equipamento já coberto não é oferecido de novo", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await openPlan(page, "Cobertura");
+  const plan = await provisionPmocPlan(page, "duplicidade");
+  const coberto = plan.assets[8];
+  /** O estado de partida é montado pelo comando real, não por outro teste. */
+  await coverAsset(page, plan.id, coberto.id);
+  await openPlan(page, plan.id, "Cobertura");
 
   await page.getByRole("button", { name: /Adicionar equipamento/ }).first().click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Buscar", { exact: true }).fill("Sala 9");
+  await dialog.getByLabel("Buscar", { exact: true }).fill(coberto.name);
   await page.waitForTimeout(1_200);
   await settled(page);
 
@@ -107,7 +127,7 @@ test("equipamento já coberto não é oferecido de novo", async ({ page }) => {
    * Some da oferta porque já está coberto. A regra continua sendo do servidor,
    * que responde `CONFLICT` — isto aqui evita oferecer o que seria recusado.
    */
-  await expect(dialog.getByRole("button", { name: /Sala 9/ })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: coberto.name })).toHaveCount(0);
 
   await page.keyboard.press("Escape");
   assertClean(recorder, "duplicidade");
@@ -116,9 +136,12 @@ test("equipamento já coberto não é oferecido de novo", async ({ page }) => {
 test("remover da cobertura confirma e persiste", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await openPlan(page, "Cobertura");
+  const plan = await provisionPmocPlan(page, "remover");
+  const coberto = plan.assets[8];
+  await coverAsset(page, plan.id, coberto.id);
+  await openPlan(page, plan.id, "Cobertura");
 
-  const row = page.getByRole("row").filter({ hasText: "Sala 9" });
+  const row = page.getByRole("row").filter({ hasText: coberto.name });
   await expect(row).toBeVisible();
   await row.getByRole("button", { name: /Remover/ }).click();
 
@@ -144,7 +167,8 @@ test("as ações de estado vêm das transições publicadas pelo servidor", asyn
 }) => {
   const recorder = record(page);
   await login(page);
-  await openPlan(page, "Visão geral");
+  const plan = await provisionPmocPlan(page, "acoes", 4);
+  await openPlan(page, plan.id, "Visão geral");
 
   await page.getByRole("button", { name: /Ações do plano/ }).click();
   const menu = page.getByRole("menu");
@@ -168,7 +192,8 @@ test("as ações de estado vêm das transições publicadas pelo servidor", asyn
 test("editar o plano salva e o servidor confirma", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await openPlan(page, "Visão geral");
+  const plan = await provisionPmocPlan(page, "editar", 4);
+  await openPlan(page, plan.id, "Visão geral");
 
   await page.getByRole("button", { name: "Editar" }).click();
   const dialog = page.getByRole("dialog");
@@ -177,7 +202,14 @@ test("editar o plano salva e o servidor confirma", async ({ page }) => {
   /** Cliente, unidade e código são imutáveis — nem aparecem como campo. */
   await expect(dialog).toContainText(/não mudam/i);
 
-  const novo = `Manutenção preventiva — sede administrativa (rev. ${Date.now() % 1000})`;
+  /**
+   * O novo nome carrega o do cenário.
+   *
+   * Renomear para "Manutenção preventiva — sede administrativa" colidia com o
+   * plano semeado: o locator por nome de outro spec passava a encontrar três
+   * links e falhava por ambiguidade.
+   */
+  const novo = `${plan.name} — revisado`;
   await dialog.getByLabel("Nome").fill(novo);
   await dialog.getByRole("button", { name: "Salvar" }).click();
   await expect(dialog).toBeHidden({ timeout: 20_000 });
@@ -195,7 +227,13 @@ test("suspender o plano bloqueia a execução, com o motivo do servidor", async 
 }) => {
   const recorder = record(page);
   await login(page);
-  await openPlan(page, "Visão geral");
+  const plan = await provisionPmocPlan(page, "suspender", 4);
+  /**
+   * O motivo do bloqueio aparece por equipamento coberto: sem cobertura, a aba
+   * de ciclos não tem linha onde mostrá-lo.
+   */
+  await coverAsset(page, plan.id, plan.assets[0].id);
+  await openPlan(page, plan.id, "Visão geral");
 
   await page.getByRole("button", { name: /Ações do plano/ }).click();
   await page.getByRole("menuitem", { name: "Suspender" }).click();
@@ -231,7 +269,10 @@ test("suspender o plano bloqueia a execução, com o motivo do servidor", async 
 test("reativar devolve o plano ao estado ativo", async ({ page }) => {
   const recorder = record(page);
   await login(page);
-  await openPlan(page, "Visão geral");
+  const plan = await provisionPmocPlan(page, "reativar", 4);
+  /** O cenário parte de um plano suspenso, montado pelo comando real. */
+  await suspendPlan(page, plan.id);
+  await openPlan(page, plan.id, "Visão geral");
 
   await page.getByRole("button", { name: /Ações do plano/ }).click();
   /** Agora sim "Ativar" aparece — porque o servidor voltou a publicá-la. */
@@ -253,7 +294,8 @@ test("conflito real de cobertura não duplica e explica o que houve", async ({
 }) => {
   const recorder = record(page);
   await login(page);
-  await openPlan(page, "Cobertura");
+  const plan = await provisionPmocPlan(page, "conflito", 4);
+  await openPlan(page, plan.id, "Cobertura");
 
   await page.getByRole("button", { name: /Adicionar equipamento/ }).first().click();
   const dialog = page.getByRole("dialog");

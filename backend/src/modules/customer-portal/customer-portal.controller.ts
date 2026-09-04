@@ -10,8 +10,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiAcceptedResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -35,6 +38,11 @@ import {
   type CustomerPortalRequest,
 } from './customer-portal.guard';
 import { CustomerPortalService } from './customer-portal.service';
+import {
+  CustomerPortalMeSchema,
+  CustomerPortalSessionSchema,
+  PortalMessageSchema,
+} from './customer-portal.openapi';
 
 const metadata = (request: CustomerPortalRequest) => ({
   ipAddress: request.ip,
@@ -49,30 +57,39 @@ export class CustomerPortalAuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOkResponse({ type: CustomerPortalSessionReadModel })
-  login(@Body() input: PortalLoginDto, @Req() request: CustomerPortalRequest) {
+  @ApiBody({ type: PortalLoginDto })
+  @ApiOkResponse({ type: CustomerPortalSessionSchema })
+  login(
+    @Body() input: PortalLoginDto,
+    @Req() request: CustomerPortalRequest,
+  ): Promise<CustomerPortalSessionReadModel> {
     return this.portal.login(input, metadata(request));
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOkResponse({ type: CustomerPortalSessionReadModel })
-  refresh(@Body() input: PortalRefreshDto) {
+  @ApiBody({ type: PortalRefreshDto })
+  @ApiOkResponse({ type: CustomerPortalSessionSchema })
+  refresh(
+    @Body() input: PortalRefreshDto,
+  ): Promise<CustomerPortalSessionReadModel> {
     return this.portal.refresh(input.refreshToken);
   }
 
   @Post('activate')
-  @ApiCreatedResponse({ type: CustomerPortalSessionReadModel })
+  @ApiBody({ type: ActivatePortalInvitationDto })
+  @ApiCreatedResponse({ type: CustomerPortalSessionSchema })
   activate(
     @Body() input: ActivatePortalInvitationDto,
     @Req() request: CustomerPortalRequest,
-  ) {
+  ): Promise<CustomerPortalSessionReadModel> {
     return this.portal.activate(input, metadata(request));
   }
 
   @Post('password/reset-request')
   @HttpCode(HttpStatus.ACCEPTED)
-  @ApiOkResponse({ type: PortalMessageReadModel })
+  @ApiBody({ type: RequestPortalPasswordResetDto })
+  @ApiAcceptedResponse({ type: PortalMessageSchema })
   async resetRequest(
     @Body() input: RequestPortalPasswordResetDto,
     @Req() request: CustomerPortalRequest,
@@ -85,6 +102,8 @@ export class CustomerPortalAuthController {
 
   @Post('password/reset-confirm')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBody({ type: ConfirmPortalPasswordResetDto })
+  @ApiNoContentResponse()
   resetConfirm(
     @Body() input: ConfirmPortalPasswordResetDto,
     @Req() request: CustomerPortalRequest,
@@ -96,6 +115,7 @@ export class CustomerPortalAuthController {
   @UseGuards(CustomerPortalGuard)
   @ApiBearerAuth('customer-portal')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
   logout(@Req() request: CustomerPortalRequest) {
     if (!request.portalActor) throw new UnauthorizedException();
     return this.portal.logout(request.portalActor);
@@ -104,7 +124,9 @@ export class CustomerPortalAuthController {
   @Patch('password')
   @UseGuards(CustomerPortalGuard)
   @ApiBearerAuth('customer-portal')
+  @ApiBody({ type: ChangePortalPasswordDto })
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
   changePassword(
     @Req() request: CustomerPortalRequest,
     @Body() input: ChangePortalPasswordDto,
@@ -123,10 +145,11 @@ export class CustomerPortalController {
   constructor(private readonly portal: CustomerPortalService) {}
 
   @Get('me')
-  @ApiOkResponse({ type: CustomerPortalMeReadModel })
-  me(@Req() request: CustomerPortalRequest) {
+  @ApiOkResponse({ type: CustomerPortalMeSchema })
+  me(
+    @Req() request: CustomerPortalRequest,
+  ): Promise<CustomerPortalMeReadModel> {
     if (!request.portalActor) throw new UnauthorizedException();
     return this.portal.me(request.portalActor);
   }
 }
-

@@ -65,6 +65,19 @@ export class UnauthorizedException extends BaseException {
   }
 }
 
+export class RateLimitException extends BaseException {
+  constructor(retryAfterSeconds: number) {
+    super(
+      {
+        code: 'RATE_LIMITED',
+        message: 'Too many requests. Try again later.',
+        details: { retryAfterSeconds },
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
+}
+
 export class InfrastructureException extends BaseException {
   readonly internalCategory?: string;
   override readonly cause: unknown;

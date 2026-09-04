@@ -41,10 +41,10 @@ export function ContextTab() {
   return (
     <div className="max-w-3xl space-y-6">
       <section className="glass-panel space-y-4 rounded-xl p-5">
-        <h3 className="flex items-center gap-2 text-sm font-medium">
+        <h2 className="flex items-center gap-2 text-sm font-medium">
           <Building2 className="size-4 text-muted-foreground" aria-hidden />
           Organização
-        </h3>
+        </h2>
 
         <dl className="grid gap-4 sm:grid-cols-2">
           <Entry label="Nome">
@@ -77,10 +77,10 @@ export function ContextTab() {
       </section>
 
       <section className="glass-panel space-y-4 rounded-xl p-5">
-        <h3 className="flex items-center gap-2 text-sm font-medium">
+        <h2 className="flex items-center gap-2 text-sm font-medium">
           <Layers className="size-4 text-muted-foreground" aria-hidden />
           Unidade ativa
-        </h3>
+        </h2>
 
         {scope.canSwitchBusinessUnit ? (
           <div className="max-w-sm space-y-2">
@@ -118,10 +118,10 @@ export function ContextTab() {
       </section>
 
       <section className="glass-panel space-y-4 rounded-xl p-5">
-        <h3 className="flex items-center gap-2 text-sm font-medium">
+        <h2 className="flex items-center gap-2 text-sm font-medium">
           <ShieldCheck className="size-4 text-muted-foreground" aria-hidden />
           Papéis e permissões efetivas
-        </h3>
+        </h2>
 
         <div className="space-y-3">
           <div>

@@ -17,6 +17,7 @@
  * chega ao usuário.
  */
 import { expect, test } from "@playwright/test";
+import { provisionOperation, provisionOperationWithTeam } from "./provision";
 import { assertClean, login, record, settled } from "./support";
 
 test("a aba Profissionais separa ofício de acesso", async ({ page }) => {
@@ -54,14 +55,28 @@ test("o seletor de Técnico em Campo não oferece quem só é Responsável Técn
 }) => {
   const recorder = record(page);
   await login(page);
-  await page.goto("/operacoes");
+  /**
+   * O cenário abre a operação que ele mesmo criou.
+   *
+   * Antes clicava na primeira `OS-` da listagem: com 225 operações no tenant,
+   * a primeira página virou toda de visitas avulsas de outros testes e o link
+   * deixou de existir. Uma operação própria não depende de ordenação nem de
+   * quantos registros existem.
+   */
+  const operation = await provisionOperation(page, "papeis");
+  await page.goto(`/operacoes/${operation.id}`);
   await settled(page);
 
-  await page.getByRole("link", { name: /OS-/ }).first().click();
-  await settled(page);
-
-  /** O painel de equipe vive no detalhe, não atrás de um modal. */
-  await expect(page.getByRole("heading", { name: "Equipe" })).toBeVisible();
+  /**
+   * O painel de equipe vive no detalhe, não atrás de um modal.
+   *
+   * O título do painel e o rótulo interno se chamam ambos "Equipe" desde que
+   * os painéis passaram a ter cabeçalho de verdade; o que interessa aqui é que
+   * a seção esteja na página.
+   */
+  await expect(
+    page.getByRole("heading", { name: "Equipe" }).first(),
+  ).toBeVisible();
 
   const trigger = page
     .getByRole("button", { name: /Definir responsável|Trocar/ })
@@ -95,9 +110,8 @@ test("definir responsável e adicionar auxiliares usa os comandos reais", async 
 }) => {
   const recorder = record(page);
   await login(page);
-  await page.goto("/operacoes");
-  await settled(page);
-  await page.getByRole("link", { name: /OS-/ }).first().click();
+  const operation = await provisionOperation(page, "equipe");
+  await page.goto(`/operacoes/${operation.id}`);
   await settled(page);
 
   const team = page.getByRole("region", { name: "Equipe" });
@@ -135,9 +149,9 @@ test("promover um auxiliar troca o responsável em um comando", async ({
 }) => {
   const recorder = record(page);
   await login(page);
-  await page.goto("/operacoes");
-  await settled(page);
-  await page.getByRole("link", { name: /OS-/ }).first().click();
+  /** A equipe é montada pelo cenário: um responsável e um auxiliar a promover. */
+  const operation = await provisionOperationWithTeam(page, "promover");
+  await page.goto(`/operacoes/${operation.id}`);
   await settled(page);
 
   const team = page.getByRole("region", { name: "Equipe" });
@@ -160,7 +174,7 @@ test("promover um auxiliar troca o responsável em um comando", async ({
    */
   const teamText = await team.innerText();
   const [, auxiliaryBlock = ""] = teamText.split("auxiliares técnico");
-  expect(auxiliaryBlock).not.toContain("Carla Dupla");
+  expect(auxiliaryBlock).not.toContain(operation.auxiliary);
 
   assertClean(recorder, "promoção");
 });
