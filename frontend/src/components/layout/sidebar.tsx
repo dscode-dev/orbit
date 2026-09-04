@@ -11,7 +11,6 @@ import {
   UserCircle,
   PanelLeftClose,
   ChevronsUpDown,
-  Sparkles,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { OrbitLogo } from "@/components/brand/orbit-logo";
@@ -23,7 +22,10 @@ import {
 } from "@/components/ui/tooltip";
 import { getEntity, type EntityId } from "@/entities/entity-registry";
 import { ROUTES } from "@/lib/routes";
+import { SECTION_PARAM } from "@/lib/section-navigation";
 import { cn } from "@/lib/utils";
+import { useActiveScope } from "@/providers/use-active-scope";
+import { useSession } from "@/providers/session-provider";
 
 export type NavItem = {
   label: string;
@@ -142,6 +144,77 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
   },
 ];
 
+/**
+ * Onde a pessoa está trabalhando.
+ *
+ * Substitui um bloco que dizia "Acme Industries — Workspace produção" com um
+ * `ChevronsUpDown` ao lado e nenhum `onClick`: nome inventado, unidade
+ * inventada e um controle que prometia trocar de organização sem trocar nada.
+ * Organização não se troca — o backend deriva uma das claims do token, e a
+ * H05 já declarava isso na seção Contexto.
+ *
+ * O que fica é o que é verdade: a organização da sessão e a unidade em que as
+ * consultas estão recortadas. Trocar de **unidade** existe de verdade, e o
+ * bloco leva para onde isso se faz.
+ */
+/**
+ * Como chamar a unidade ativa sob o nome da organização.
+ *
+ * A matriz costuma se chamar como a empresa — no ambiente de referência a
+ * organização é "Orbit Owner" e a unidade também. Repetir a mesma palavra em
+ * duas linhas parece defeito, então a razão social entra no lugar do nome
+ * fantasia quando os dois coincidem: continua sendo a unidade, dita de outro
+ * jeito, em vez de esconder qual está ativa.
+ */
+function unitLabel(
+  unit: { tradeName: string | null; legalName: string } | null,
+  organization: string,
+): string {
+  if (!unit) return "Todas as unidades";
+  const trade = unit.tradeName ?? unit.legalName;
+  return trade === organization ? unit.legalName : trade;
+}
+
+function ActiveContext() {
+  const session = useSession();
+  const { businessUnit } = useActiveScope();
+
+  const organization = session.organization?.displayName;
+  if (!organization) return null;
+
+  const initials = organization
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+
+  return (
+    <div className="px-4 pb-3">
+      <Link
+        href={`${ROUTES.profile}?${SECTION_PARAM}=contexto`}
+        className="flex w-full items-center gap-2 rounded-xl border border-sidebar-border bg-card px-3 py-2 text-left transition-colors hover:bg-sidebar-accent/50"
+      >
+        <span
+          className="bg-gradient-orbit flex size-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold text-primary-foreground"
+          aria-hidden
+        >
+          {initials}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs font-semibold text-foreground">
+            {organization}
+          </span>
+          <span className="block truncate text-[11px] text-muted-foreground">
+            {unitLabel(businessUnit, organization)}
+          </span>
+        </span>
+        <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      </Link>
+    </div>
+  );
+}
+
 function SidebarItem({
   item,
   collapsed,
@@ -193,7 +266,19 @@ function SidebarItem({
   );
 
   const node = item.to ? (
-    <Link href={item.to} aria-label={item.label} className="block">
+    /**
+     * O item ativo é dito, não só pintado.
+     *
+     * O realce era só cor e sombra: quem navega por leitor de tela ouvia
+     * dezessete links iguais, sem saber em qual página estava. `aria-current`
+     * é a forma padrão de responder isso.
+     */
+    <Link
+      href={item.to}
+      aria-label={item.label}
+      aria-current={active ? "page" : undefined}
+      className="block"
+    >
       {content}
     </Link>
   ) : (
@@ -249,27 +334,7 @@ export function Sidebar({
         </Link>
       </div>
 
-      {!collapsed ? (
-        <div className="px-4 pb-3">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 rounded-xl border border-sidebar-border bg-card px-3 py-2 text-left transition-colors hover:bg-sidebar-accent/50"
-          >
-            <span className="bg-gradient-orbit flex size-7 items-center justify-center rounded-lg text-[11px] font-bold text-primary-foreground">
-              AC
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-semibold text-foreground">
-                Acme Industries
-              </span>
-              <span className="block truncate text-[11px] text-muted-foreground">
-                Workspace produção
-              </span>
-            </span>
-            <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
-          </button>
-        </div>
-      ) : null}
+      {!collapsed ? <ActiveContext /> : null}
 
       <nav
         aria-label="Navegação principal"
@@ -295,21 +360,6 @@ export function Sidebar({
           </div>
         ))}
       </nav>
-
-      {!collapsed ? (
-        <div className="mx-3 mb-2 rounded-xl border border-sidebar-border bg-gradient-to-br from-primary/10 to-accent/10 p-3">
-          <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-            <Sparkles className="size-3.5 text-primary" />
-            Orbit Copilot
-          </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-            Automatize rotinas operacionais com sugestões inteligentes.
-          </p>
-          <Button size="sm" className="mt-2 h-7 w-full text-xs">
-            Ativar
-          </Button>
-        </div>
-      ) : null}
 
       <div className="space-y-2 border-t border-sidebar-border p-3">
         {footer}
