@@ -136,5 +136,27 @@ e-mail como label.
 - MFA, SSO, federação, self-signup e impersonation estão fora de escopo;
 - UI/BFF do Portal ainda não existe;
 - Read Models operacionais (OS, PMOC, RVT, documentos etc.) pertencem à PR-33;
-- a migration é entregue sem execução; validação PostgreSQL/E2E com
-  `orbit_app` depende do gate de aplicação da migration.
+
+## Closure Gate PostgreSQL
+
+O gate final aplicou a migration
+`20260906120000_pr32_customer_portal_identity_boundary` pelo fluxo oficial do
+projeto. A validação em PostgreSQL real revelou dois problemas de execução nas
+funções públicas do Portal: uma referência ambígua a `status` durante a
+ativação e a desserialização, pelo Prisma, do retorno `void` do registro de
+falha de login.
+
+A migration original permaneceu imutável. A correção foi entregue de forma
+aditiva em `20260906130000_pr32_portal_function_runtime_fix`, qualificando a
+coluna ambígua e preservando os grants restritos ao `orbit_app`; o repositório
+passou a projetar o retorno `void` como texto para compatibilidade com o driver.
+
+Estado validado no encerramento:
+
+- 44 migrations aplicadas e nenhuma pendente;
+- RLS e FORCE RLS habilitados nas cinco tabelas do Portal;
+- `orbit_app` sem `SUPERUSER` e sem `BYPASSRLS`;
+- E2E dedicado aprovado duas vezes, com 16 testes por execução;
+- E2E global aprovado, com 24 suites e 245 testes;
+- testes unitários aprovados, com 85 suites e 467 testes;
+- builds, lint, contratos, Next.js e Flutter aprovados.

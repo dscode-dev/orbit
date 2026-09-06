@@ -180,6 +180,20 @@ describe('PMOC (e2e)', () => {
     for (let round = 0; round < rounds; round += 1) await worker.tick();
   }
 
+  async function drainUntil<T>(
+    probe: () => Promise<T | null>,
+    rounds = 80,
+  ): Promise<T> {
+    for (let round = 0; round < rounds; round += 1) {
+      const value = await probe();
+      if (value !== null) return value;
+      await worker.tick();
+    }
+    const value = await probe();
+    if (value !== null) return value;
+    throw new Error('target job effect was not observed while draining queues');
+  }
+
   async function createAsset(unit: string, name: string, tok = token) {
     const response = await auth(http().post('/api/v1/assets'), tok)
       .send({
@@ -1377,11 +1391,9 @@ describe('PMOC (e2e)', () => {
       SELECT tablename FROM pg_policies
        WHERE tablename IN ('pmoc_plans', 'pmoc_equipment_coverages', 'pmoc_executions')
     `;
-    expect(policies.map((policy) => policy.tablename).sort()).toEqual([
-      'pmoc_equipment_coverages',
-      'pmoc_executions',
-      'pmoc_plans',
-    ]);
+    expect(
+      [...new Set(policies.map((policy) => policy.tablename))].sort(),
+    ).toEqual(['pmoc_equipment_coverages', 'pmoc_executions', 'pmoc_plans']);
 
     const forced = await prisma.$queryRaw<{ relforcerowsecurity: boolean }[]>`
       SELECT relforcerowsecurity FROM pg_class
@@ -2130,15 +2142,16 @@ describe('PMOC (e2e)', () => {
         where: { pmocEquipmentExecution: { id: firstExecutionId } },
       }),
     ).toBe(1);
-    await drain(20);
-    const rendered = await prisma.artifactExecution.findUniqueOrThrow({
-      where: { id: artifactId },
-      include: {
-        snapshot: true,
-        signatures: true,
-        manifests: { include: { file: true } },
-      },
-    });
+    const rendered = await drainUntil(() =>
+      prisma.artifactExecution.findFirst({
+        where: { id: artifactId, renderStatus: 'READY' },
+        include: {
+          snapshot: true,
+          signatures: true,
+          manifests: { include: { file: true } },
+        },
+      }),
+    );
     expect(rendered.renderStatus).toBe('READY');
     expect(rendered.context).toMatchObject({
       sourceType: 'PMOC_EQUIPMENT_EXECUTION',
@@ -2171,11 +2184,12 @@ describe('PMOC (e2e)', () => {
     await auth(http().post(`/api/v1/artifact-executions/${artifactId}/render`))
       .send({ renderer: 'pdf.default' })
       .expect(202);
-    await drain(20);
-    const pdfManifest = await prisma.artifactManifest.findFirstOrThrow({
-      where: { executionId: artifactId, isActive: true, format: 'PDF' },
-      include: { file: true },
-    });
+    const pdfManifest = await drainUntil(() =>
+      prisma.artifactManifest.findFirst({
+        where: { executionId: artifactId, isActive: true, format: 'PDF' },
+        include: { file: true },
+      }),
+    );
     const pdf = await storage.get({
       bucket: pdfManifest.file!.bucket,
       objectKey: pdfManifest.file!.objectKey,
@@ -2222,11 +2236,12 @@ describe('PMOC (e2e)', () => {
     const artifactCId = (
       generatedC.body as Envelope<{ artifactExecutionId: string }>
     ).data.artifactExecutionId;
-    await drain(20);
-    const manifestC = await prisma.artifactManifest.findFirstOrThrow({
-      where: { executionId: artifactCId, isActive: true, format: 'HTML' },
-      include: { file: true },
-    });
+    const manifestC = await drainUntil(() =>
+      prisma.artifactManifest.findFirst({
+        where: { executionId: artifactCId, isActive: true, format: 'HTML' },
+        include: { file: true },
+      }),
+    );
     const htmlC = (
       await storage.get({
         bucket: manifestC.file!.bucket,
@@ -2268,12 +2283,16 @@ describe('PMOC (e2e)', () => {
       (retryRender.body as Envelope<{ artifactExecutionId: string }>).data
         .artifactExecutionId,
     ).toBe(failedRenderLink.artifactExecution!.id);
-    await drain(20);
     expect(
-      await prisma.artifactExecution.findUniqueOrThrow({
-        where: { id: failedRenderLink.artifactExecution!.id },
-        select: { renderStatus: true },
-      }),
+      await drainUntil(() =>
+        prisma.artifactExecution.findFirst({
+          where: {
+            id: failedRenderLink.artifactExecution!.id,
+            renderStatus: 'READY',
+          },
+          select: { renderStatus: true },
+        }),
+      ),
     ).toEqual({ renderStatus: 'READY' });
 
     const volumeAssets = Array.from({ length: 52 }, (_, index) => ({

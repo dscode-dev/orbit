@@ -21,6 +21,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
     ChecklistService,
     OperationReadModelMapper,
   ],
-  exports: [OperationService, ChecklistService],
+  exports: [OperationService, OperationRepository, ChecklistService],
 })
 export class OperationsModule {}

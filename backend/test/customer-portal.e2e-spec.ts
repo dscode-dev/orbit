@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument */
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import request from 'supertest';
 import type { App } from 'supertest/types';
@@ -19,6 +19,7 @@ jest.setTimeout(180_000);
 const INTERNAL_PASSWORD = 'Orbit#Portal@2026';
 const PORTAL_PASSWORD = 'Orbit#Customer@2026';
 const RESET_PASSWORD = 'Orbit#Customer@2027';
+const CHANGED_PASSWORD = 'Orbit#Customer@2028';
 
 interface Envelope<T> {
   data: T;
@@ -63,6 +64,7 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
   let identityId: string;
   let sessionId: string;
   let email: string;
+  let invitationToken: string;
 
   const api = () => request(app.getHttpServer());
   const internal = (test: request.Test) =>
@@ -123,7 +125,7 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
 
   afterAll(async () => {
     await runtime?.end();
-    await app.close();
+    await app?.close();
     await disconnectAdminPrisma();
   });
 
@@ -134,6 +136,7 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
       .send({ email, displayName: 'External Portal Person' })
       .expect(201);
     identityId = (invitation.body as Envelope<any>).data.identityId;
+    invitationToken = delivery.latest('INVITATION', email);
 
     const internalUser = await prisma.user.findUniqueOrThrow({
       where: { normalizedEmail: email },
@@ -146,6 +149,49 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
     expect(external.passwordHash).toBeNull();
     expect(internalUser.credential?.passwordHash).toBeTruthy();
     expect(JSON.stringify(invitation.body)).not.toContain('token');
+    const persistedInvitation =
+      await prisma.customerPortalInvitation.findFirstOrThrow({
+        where: { portalIdentityId: identityId, revokedAt: null },
+      });
+    expect(persistedInvitation.tokenHash).toBe(
+      createHash('sha256').update(invitationToken).digest('hex'),
+    );
+    expect(persistedInvitation.tokenHash).not.toBe(invitationToken);
+  });
+
+  it('revokes the previous invitation on reinvite and rejects expiration', async () => {
+    const inviteEmail = `portal.e2e.reinvite.${randomUUID()}@orbit.local`;
+    const first = await internal(
+      api().post(`/api/v1/customers/${customerId}/portal/invitations`),
+    )
+      .send({ email: inviteEmail, displayName: 'Reinvited Person' })
+      .expect(201);
+    const firstToken = delivery.latest('INVITATION', inviteEmail);
+    const second = await internal(
+      api().post(`/api/v1/customers/${customerId}/portal/invitations`),
+    )
+      .send({ email: inviteEmail, displayName: 'Reinvited Person' })
+      .expect(201);
+    const secondToken = delivery.latest('INVITATION', inviteEmail);
+    expect((second.body as Envelope<any>).data.identityId).toBe(
+      (first.body as Envelope<any>).data.identityId,
+    );
+    await api()
+      .post('/api/v1/portal/auth/activate')
+      .send({ token: firstToken, password: PORTAL_PASSWORD })
+      .expect(409);
+    await prisma.customerPortalInvitation.updateMany({
+      where: {
+        portalIdentityId: (first.body as Envelope<any>).data.identityId,
+        acceptedAt: null,
+        revokedAt: null,
+      },
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    });
+    await api()
+      .post('/api/v1/portal/auth/activate')
+      .send({ token: secondToken, password: PORTAL_PASSWORD })
+      .expect(409);
   });
 
   it('allows the same portal email in another organization without merging actors', async () => {
@@ -190,7 +236,7 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
   });
 
   it('activates atomically, rejects replay and issues a distinct Portal session', async () => {
-    const token = delivery.latest('INVITATION', email);
+    const token = invitationToken;
     const activation = await api()
       .post('/api/v1/portal/auth/activate')
       .send({ token, password: PORTAL_PASSWORD })
@@ -205,6 +251,9 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
       organization: { id: organizationId },
       customer: { id: customerId },
     });
+    expect(JSON.stringify(data.me)).not.toMatch(
+      /passwordHash|refreshTokenHash|lockedUntil|failedAttempts/,
+    );
 
     await api()
       .post('/api/v1/portal/auth/activate')
@@ -241,6 +290,14 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
         where: { id: concurrentIdentityId, status: 'ACTIVE' },
       }),
     ).toBe(1);
+    expect(
+      await prisma.customerPortalInvitation.count({
+        where: {
+          portalIdentityId: concurrentIdentityId,
+          acceptedAt: { not: null },
+        },
+      }),
+    ).toBe(1);
   });
 
   it('denies token substitution in both directions', async () => {
@@ -250,16 +307,21 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
   });
 
   it('rejects client-controlled tenant/customer authorities', async () => {
-    await api()
-      .post('/api/v1/portal/auth/login')
-      .send({
-        organizationSlug,
-        email,
-        password: PORTAL_PASSWORD,
-        organizationId: randomUUID(),
-        customerId: randomUUID(),
-      })
-      .expect(400);
+    for (const authority of [
+      { organizationId: randomUUID() },
+      { customerId: randomUUID() },
+      { businessUnitId: randomUUID() },
+    ]) {
+      await api()
+        .post('/api/v1/portal/auth/login')
+        .send({
+          organizationSlug,
+          email,
+          password: PORTAL_PASSWORD,
+          ...authority,
+        })
+        .expect(400);
+    }
   });
 
   it('rotates refresh with compare-and-swap and logout revokes only Portal session', async () => {
@@ -324,6 +386,50 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
       .expect(429);
   });
 
+  it('locks an identity after five invalid passwords and records the aggregate audit', async () => {
+    const lockEmail = `portal.e2e.lock.${randomUUID()}@orbit.local`;
+    const invitation = await internal(
+      api().post(`/api/v1/customers/${customerId}/portal/invitations`),
+    )
+      .send({ email: lockEmail, displayName: 'Locked Portal Person' })
+      .expect(201);
+    const lockIdentityId = (invitation.body as Envelope<any>).data.identityId;
+    await api()
+      .post('/api/v1/portal/auth/activate')
+      .send({
+        token: delivery.latest('INVITATION', lockEmail),
+        password: PORTAL_PASSWORD,
+      })
+      .expect(201);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await api()
+        .post('/api/v1/portal/auth/login')
+        .send({
+          organizationSlug,
+          email: lockEmail,
+          password: 'incorrect-password',
+        })
+        .expect(401);
+    }
+    const locked = await prisma.customerPortalIdentity.findUniqueOrThrow({
+      where: { id: lockIdentityId },
+    });
+    expect(locked.failedAttempts).toBe(5);
+    expect(locked.lockedUntil?.getTime()).toBeGreaterThan(Date.now());
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          entityId: lockIdentityId,
+          action: 'customer.portal.login.locked',
+        },
+      }),
+    ).toBe(1);
+    await api()
+      .post('/api/v1/portal/auth/login')
+      .send({ organizationSlug, email: lockEmail, password: PORTAL_PASSWORD })
+      .expect(429);
+  });
+
   it('resets password single-use and revokes all previous sessions', async () => {
     const login = await api().post('/api/v1/portal/auth/login').send({
       organizationSlug,
@@ -338,6 +444,15 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
       .send({ organizationSlug, email })
       .expect(202);
     const resetToken = delivery.latest('PASSWORD_RESET', email);
+    const reset = await prisma.customerPortalPasswordReset.findFirstOrThrow({
+      where: { portalIdentityId: identityId, usedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(reset.tokenHash).toBe(
+      createHash('sha256').update(resetToken).digest('hex'),
+    );
+    expect(reset.tokenHash).not.toBe(resetToken);
+    expect(reset.expiresAt.getTime()).toBeGreaterThan(Date.now());
     await api()
       .post('/api/v1/portal/auth/password/reset-confirm')
       .send({ token: resetToken, password: RESET_PASSWORD })
@@ -347,6 +462,62 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
       .send({ token: resetToken, password: RESET_PASSWORD })
       .expect(409);
     await portal(api().get('/api/v1/portal/me'), oldAccess).expect(401);
+    expect(
+      (
+        await prisma.customerPortalPasswordReset.findUniqueOrThrow({
+          where: { id: reset.id },
+        })
+      ).usedAt,
+    ).not.toBeNull();
+    await api()
+      .post('/api/v1/portal/auth/password/reset-request')
+      .send({
+        organizationSlug,
+        email: `missing.${randomUUID()}@orbit.local`,
+      })
+      .expect(202);
+  });
+
+  it('changes password and revokes other sessions while preserving the current one', async () => {
+    const changeEmail = `portal.e2e.change.${randomUUID()}@orbit.local`;
+    await internal(
+      api().post(`/api/v1/customers/${customerId}/portal/invitations`),
+    )
+      .send({ email: changeEmail, displayName: 'Password Change Person' })
+      .expect(201);
+    const activation = await api()
+      .post('/api/v1/portal/auth/activate')
+      .send({
+        token: delivery.latest('INVITATION', changeEmail),
+        password: PORTAL_PASSWORD,
+      })
+      .expect(201);
+    const currentAccess = (activation.body as Envelope<any>).data.accessToken;
+    const otherSession = await api()
+      .post('/api/v1/portal/auth/login')
+      .send({ organizationSlug, email: changeEmail, password: PORTAL_PASSWORD })
+      .expect(200);
+    const otherAccess = (otherSession.body as Envelope<any>).data.accessToken;
+    await portal(api().patch('/api/v1/portal/auth/password'), currentAccess)
+      .send({
+        currentPassword: PORTAL_PASSWORD,
+        newPassword: CHANGED_PASSWORD,
+      })
+      .expect(204);
+    await portal(api().get('/api/v1/portal/me'), currentAccess).expect(200);
+    await portal(api().get('/api/v1/portal/me'), otherAccess).expect(401);
+    await api()
+      .post('/api/v1/portal/auth/login')
+      .send({ organizationSlug, email: changeEmail, password: PORTAL_PASSWORD })
+      .expect(401);
+    await api()
+      .post('/api/v1/portal/auth/login')
+      .send({
+        organizationSlug,
+        email: changeEmail,
+        password: CHANGED_PASSWORD,
+      })
+      .expect(200);
   });
 
   it('fails RLS closed for missing/wrong context and does not leak via pooled connection', async () => {
@@ -383,6 +554,20 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
       await client.query(`SELECT set_config('app.customer_id', $1, true)`, [
         randomUUID(),
       ]);
+      expect(
+        Number(
+          (
+            await client.query(
+              'SELECT count(*)::int AS count FROM customer_portal_identities',
+            )
+          ).rows[0].count,
+        ),
+      ).toBe(0);
+      await client.query(
+        `SELECT set_config('app.organization_id', $1, true),
+                set_config('app.customer_id', $2, true)`,
+        [randomUUID(), customerId],
+      );
       expect(
         Number(
           (
@@ -468,9 +653,17 @@ describe('Customer Portal identity & security boundary (e2e)', () => {
     const audits = await prisma.auditLog.findMany({
       where: { entityType: 'CUSTOMER_PORTAL_IDENTITY', entityId: identityId },
     });
+    expect(audits.map(({ action }) => action)).toEqual(
+      expect.arrayContaining([
+        'customer.portal.identity.activated',
+        'customer.portal.session.revoked',
+        'customer.portal.password.reset',
+      ]),
+    );
     const serialized = JSON.stringify(audits);
     expect(serialized).not.toContain(PORTAL_PASSWORD);
     expect(serialized).not.toContain(RESET_PASSWORD);
+    expect(portalRefreshToken).toBeTruthy();
     expect(serialized).not.toContain(portalRefreshToken);
     expect(sessionId).toBeTruthy();
   });

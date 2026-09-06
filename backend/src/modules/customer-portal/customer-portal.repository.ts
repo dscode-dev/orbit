@@ -47,7 +47,7 @@ export class CustomerPortalRepository {
 
   async recordFailedLogin(identityId: string): Promise<void> {
     await this.prisma.$queryRaw`
-      SELECT app_customer_portal_record_failed_login(${identityId}::uuid)`;
+      SELECT app_customer_portal_record_failed_login(${identityId}::uuid)::text AS "result"`;
   }
 
   async createSession(data: {

@@ -4,7 +4,7 @@ import type { CustomerPortalActor } from './customer-portal.types';
 
 export interface CustomerPortalOwnedResource {
   organizationId: string;
-  customerId: string;
+  customerId: string | null;
 }
 
 /**

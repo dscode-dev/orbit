@@ -22,7 +22,7 @@ module.exports = async function cleanupE2eTenants() {
     const users = await client.query(`
       SELECT id
         FROM users
-       WHERE email ~ '^(manifest\\.e2e\\.|render\\.e2e\\.|portal\\.e2e\\.|inv\\.|quotes\\.|conc\\.|financial\\.|rep\\.|rls\\.|auto\\.|pmoc\\.|professional\\.)'
+       WHERE email ~ '^(manifest\\.e2e\\.|render\\.e2e\\.|portal\\.e2e\\.|inv\\.|quotes\\.|conc\\.|financial\\.|rep\\.|rls\\.|auto\\.|pmoc\\.|professional\\.|evidence\\.|rvt\\.|qr\\.|assignment\\.|mobile\\.sign\\.|push\\.|offline\\.|mobile\\.field\\.|field\\.execution\\.|artifact\\.|analytics\\.)'
          AND email LIKE '%@orbit.local'
     `);
     const ids = users.rows.map(({ id }) => id);

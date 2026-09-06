@@ -14,12 +14,17 @@ import { CustomerPortalRepository } from './customer-portal.repository';
 import { CustomerPortalService } from './customer-portal.service';
 import { CustomerPortalTokenService } from './customer-portal-token.service';
 import { CUSTOMER_PORTAL_TOKEN_DELIVERY } from './customer-portal.types';
+import { CustomerPortalReadController } from './customer-portal-read.controller';
+import { CustomerPortalReadMapper } from './customer-portal-read.mapper';
+import { CustomerPortalReadRepository } from './customer-portal-read.repository';
+import { CustomerPortalReadService } from './customer-portal-read.service';
 
 @Module({
   imports: [JwtModule.register({})],
   controllers: [
     CustomerPortalAuthController,
     CustomerPortalController,
+    CustomerPortalReadController,
     CustomerPortalManagementController,
   ],
   providers: [
@@ -30,6 +35,9 @@ import { CUSTOMER_PORTAL_TOKEN_DELIVERY } from './customer-portal.types';
     CustomerPortalMapper,
     CustomerPortalMetrics,
     CustomerPortalAuthorizationPolicy,
+    CustomerPortalReadMapper,
+    CustomerPortalReadRepository,
+    CustomerPortalReadService,
     NoopCustomerPortalTokenDelivery,
     {
       provide: CUSTOMER_PORTAL_TOKEN_DELIVERY,
@@ -38,6 +46,8 @@ import { CUSTOMER_PORTAL_TOKEN_DELIVERY } from './customer-portal.types';
   ],
   exports: [
     CustomerPortalGuard,
+    CustomerPortalTokenService,
+    CustomerPortalRepository,
     CustomerPortalService,
     CustomerPortalAuthorizationPolicy,
   ],

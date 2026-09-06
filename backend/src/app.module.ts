@@ -33,6 +33,7 @@ import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-
 import { RvtModule } from './modules/rvt/rvt.module';
 import { MobileFieldModule } from './modules/mobile-field/mobile-field.module';
 import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
+import { CustomerServiceRequestModule } from './modules/customer-service-requests/customer-service-request.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { CustomerPortalModule } from './modules/customer-portal/customer-portal.
     RvtModule,
     MobileFieldModule,
     CustomerPortalModule,
+    CustomerServiceRequestModule,
   ],
   controllers: [AppController],
   providers: [AppService],

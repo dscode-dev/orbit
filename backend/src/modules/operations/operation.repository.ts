@@ -4,6 +4,7 @@ import { RlsTransaction } from '../../database';
 import { DomainEventEmitter } from '../automations/domain-event.emitter';
 import { PaginationHelper } from '../../database/helpers/database.helpers';
 import type { OperationQueryDto } from './dto/operation.dto';
+import type { PrismaTransactionClient } from '../../database/prisma.types';
 
 const operationInclude = {
   businessUnit: {
@@ -143,52 +144,66 @@ export class OperationRepository {
     details: Prisma.InputJsonValue,
     auxiliaryUserIds: string[] = [],
   ) {
-    return this.rls.run(async (transaction) => {
-      const operation = await transaction.operation.create({
-        data: {
-          ...data,
-          auxiliaryTechnicians: auxiliaryUserIds.length
-            ? {
-                create: auxiliaryUserIds.map((auxiliaryUserId) => ({
-                  organizationId: data.organizationId,
-                  userId: auxiliaryUserId,
-                  assignedById: userId,
-                })),
-              }
-            : undefined,
-        },
-        include: operationInclude,
-      });
-      await transaction.operationHistory.create({
-        data: {
-          operationId: operation.id,
-          userId,
-          action: 'CREATED',
-          toStatus: operation.status,
-          details,
-        },
-      });
+    return this.rls.run((transaction) =>
+      this.createWithin(transaction, data, userId, details, auxiliaryUserIds),
+    );
+  }
 
-      /** Ponto autoritativo: é aqui que uma ordem de serviço passa a existir. */
-      await this.events.emit(transaction, {
-        type: 'operation.created',
-        organizationId: operation.organizationId,
-        businessUnitId: operation.businessUnitId,
-        actorId: userId,
-        entityType: 'OPERATION',
-        entityId: operation.id,
-        payload: {
-          kind: operation.kind,
-          status: operation.status,
-          priority: operation.priority,
-          businessUnitId: operation.businessUnitId,
-          customerId: operation.customerId,
-          createdById: operation.createdById,
-        },
-      });
-
-      return operation;
+  /**
+   * Transaction-aware creation boundary used by aggregates that must create an
+   * Operation atomically with their own transition (for example PR-34).
+   */
+  async createWithin(
+    transaction: PrismaTransactionClient,
+    data: Prisma.OperationUncheckedCreateInput,
+    userId: string,
+    details: Prisma.InputJsonValue,
+    auxiliaryUserIds: string[] = [],
+  ) {
+    const operation = await transaction.operation.create({
+      data: {
+        ...data,
+        auxiliaryTechnicians: auxiliaryUserIds.length
+          ? {
+              create: auxiliaryUserIds.map((auxiliaryUserId) => ({
+                organizationId: data.organizationId,
+                userId: auxiliaryUserId,
+                assignedById: userId,
+              })),
+            }
+          : undefined,
+      },
+      include: operationInclude,
     });
+    await transaction.operationHistory.create({
+      data: {
+        operationId: operation.id,
+        userId,
+        action: 'CREATED',
+        toStatus: operation.status,
+        details,
+      },
+    });
+
+    /** Ponto autoritativo: é aqui que uma ordem de serviço passa a existir. */
+    await this.events.emit(transaction, {
+      type: 'operation.created',
+      organizationId: operation.organizationId,
+      businessUnitId: operation.businessUnitId,
+      actorId: userId,
+      entityType: 'OPERATION',
+      entityId: operation.id,
+      payload: {
+        kind: operation.kind,
+        status: operation.status,
+        priority: operation.priority,
+        businessUnitId: operation.businessUnitId,
+        customerId: operation.customerId,
+        createdById: operation.createdById,
+      },
+    });
+
+    return operation;
   }
 
   replaceResponsibleFieldTechnician(

@@ -101,6 +101,8 @@ model User {
   fieldEvidenceUploads               FieldEvidenceUpload[]          @relation("FieldEvidenceUploadActor")
   fieldEvidenceCaptured              FieldEvidence[]                @relation("FieldEvidenceCapturedBy")
   customerPortalInvitationsSent      CustomerPortalInvitation[]     @relation("CustomerPortalInvitationInviter")
+  assignedCustomerServiceRequests    CustomerServiceRequest[]       @relation("CustomerServiceRequestAssignee")
+  customerServiceRequestEvents       CustomerServiceRequestEvent[]  @relation("CustomerServiceRequestInternalActor")
 
   @@index([status, deletedAt])
   @@map("users")
@@ -298,6 +300,8 @@ model Organization {
   customerPortalSessions        CustomerPortalSession[]
   customerPortalInvitations     CustomerPortalInvitation[]
   customerPortalPasswordResets  CustomerPortalPasswordReset[]
+  customerServiceRequests       CustomerServiceRequest[]
+  customerServiceRequestEvents  CustomerServiceRequestEvent[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -375,10 +379,11 @@ model BusinessUnit {
 
   automationRules AutomationRule[]
 
-  managementReports ManagementReport[]
-  pmocPlans         PmocPlan[]
-  fieldEvidenceUploads FieldEvidenceUpload[]
-  fieldEvidence        FieldEvidence[]
+  managementReports       ManagementReport[]
+  pmocPlans               PmocPlan[]
+  fieldEvidenceUploads    FieldEvidenceUpload[]
+  fieldEvidence           FieldEvidence[]
+  customerServiceRequests CustomerServiceRequest[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -569,19 +574,20 @@ model Customer {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  contacts           Contact[]
-  assets             Asset[]
-  operations         Operation[]
-  reports            Report[]
-  signatures         Signature[]
-  aiExecutions       AiExecution[]
-  schedulingEvents   SchedulingEvent[]
-  artifactExecutions ArtifactExecution[]
-  portalIdentities   CustomerPortalIdentity[]
-  portalSessions     CustomerPortalSession[]
-  portalInvitations  CustomerPortalInvitation[]
+  organization         Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts             Contact[]
+  assets               Asset[]
+  operations           Operation[]
+  reports              Report[]
+  signatures           Signature[]
+  aiExecutions         AiExecution[]
+  schedulingEvents     SchedulingEvent[]
+  artifactExecutions   ArtifactExecution[]
+  portalIdentities     CustomerPortalIdentity[]
+  portalSessions       CustomerPortalSession[]
+  portalInvitations    CustomerPortalInvitation[]
   portalPasswordResets CustomerPortalPasswordReset[]
+  serviceRequests      CustomerServiceRequest[]
 
   financialEntries FinancialEntry[]
 
@@ -607,8 +613,8 @@ model Contact {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
-  customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  businessUnit     BusinessUnit?            @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  customer         Customer?                @relation(fields: [customerId], references: [id], onDelete: Cascade)
   portalIdentities CustomerPortalIdentity[]
 
   @@index([organizationId, customerId, deletedAt])
@@ -621,30 +627,32 @@ model Contact {
 // -----------------------------------------------------------------------------
 
 model CustomerPortalIdentity {
-  id                  String    @id @default(uuid(7)) @db.Uuid
-  organizationId      String    @map("organization_id") @db.Uuid
-  customerId          String    @map("customer_id") @db.Uuid
-  contactId           String?   @map("contact_id") @db.Uuid
-  email               String    @db.VarChar(320)
-  normalizedEmail     String    @map("normalized_email") @db.VarChar(320)
-  displayName         String    @map("display_name") @db.VarChar(180)
-  passwordHash        String?   @map("password_hash") @db.VarChar(255)
-  status              String    @default("INVITED") @db.VarChar(30)
-  failedAttempts      Int       @default(0) @map("failed_attempts")
-  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz(3)
-  emailVerifiedAt     DateTime? @map("email_verified_at") @db.Timestamptz(3)
-  passwordUpdatedAt   DateTime? @map("password_updated_at") @db.Timestamptz(3)
-  lastLoginAt         DateTime? @map("last_login_at") @db.Timestamptz(3)
-  disabledAt          DateTime? @map("disabled_at") @db.Timestamptz(3)
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  customerId        String    @map("customer_id") @db.Uuid
+  contactId         String?   @map("contact_id") @db.Uuid
+  email             String    @db.VarChar(320)
+  normalizedEmail   String    @map("normalized_email") @db.VarChar(320)
+  displayName       String    @map("display_name") @db.VarChar(180)
+  passwordHash      String?   @map("password_hash") @db.VarChar(255)
+  status            String    @default("INVITED") @db.VarChar(30)
+  failedAttempts    Int       @default(0) @map("failed_attempts")
+  lockedUntil       DateTime? @map("locked_until") @db.Timestamptz(3)
+  emailVerifiedAt   DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  passwordUpdatedAt DateTime? @map("password_updated_at") @db.Timestamptz(3)
+  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz(3)
+  disabledAt        DateTime? @map("disabled_at") @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  contact      Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  sessions     CustomerPortalSession[]
-  invitations  CustomerPortalInvitation[]
-  passwordResets CustomerPortalPasswordReset[]
+  organization         Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer             Customer                      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  contact              Contact?                      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  sessions             CustomerPortalSession[]
+  invitations          CustomerPortalInvitation[]
+  passwordResets       CustomerPortalPasswordReset[]
+  serviceRequests      CustomerServiceRequest[]
+  serviceRequestEvents CustomerServiceRequestEvent[]
 
   @@unique([organizationId, normalizedEmail])
   @@index([organizationId, customerId, status])
@@ -822,6 +830,7 @@ model Asset {
   pmocEquipmentExecutions PmocEquipmentExecution[]
   pmocCoverages           PmocEquipmentCoverage[]
   qrIdentities            EquipmentQrIdentity[]
+  customerServiceRequests CustomerServiceRequest[]
 
   @@unique([organizationId, identifier])
   @@index([organizationId, businessUnitId, status, deletedAt])
@@ -902,6 +911,7 @@ model Operation {
   artifactExecutions         ArtifactExecution[]
   fieldEvidenceUploads       FieldEvidenceUpload[]
   fieldEvidence              FieldEvidence[]
+  sourceServiceRequest       CustomerServiceRequest?
 
   financialEntries FinancialEntry[]
 
@@ -921,6 +931,78 @@ model Operation {
   @@index([organizationId, completedAt])
   @@index([organizationId, responsibleFieldTechnicianId, status, scheduledStart])
   @@map("operations")
+}
+
+// -----------------------------------------------------------------------------
+// CUSTOMER SERVICE REQUESTS — Portal demand, never an Operation by itself
+// -----------------------------------------------------------------------------
+
+model CustomerServiceRequest {
+  id                        String    @id @default(uuid(7)) @db.Uuid
+  organizationId            String    @map("organization_id") @db.Uuid
+  customerId                String    @map("customer_id") @db.Uuid
+  createdByPortalIdentityId String    @map("created_by_portal_identity_id") @db.Uuid
+  businessUnitId            String?   @map("business_unit_id") @db.Uuid
+  assetId                   String?   @map("asset_id") @db.Uuid
+  code                      String    @db.VarChar(60)
+  category                  String    @db.VarChar(40)
+  subject                   String    @db.VarChar(180)
+  description               String    @db.Text
+  status                    String    @default("OPEN") @db.VarChar(30)
+  assignedToUserId          String?   @map("assigned_to_user_id") @db.Uuid
+  convertedOperationId      String?   @unique @map("converted_operation_id") @db.Uuid
+  version                   Int       @default(1)
+  createIdempotencyKey      String    @map("create_idempotency_key") @db.VarChar(160)
+  createPayloadHash         String    @map("create_payload_hash") @db.Char(64)
+  conversionIdempotencyKey  String?   @map("conversion_idempotency_key") @db.VarChar(160)
+  conversionPayloadHash     String?   @map("conversion_payload_hash") @db.Char(64)
+  submittedAt               DateTime  @default(now()) @map("submitted_at") @db.Timestamptz(3)
+  closedAt                  DateTime? @map("closed_at") @db.Timestamptz(3)
+  cancelledAt               DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization            Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer                Customer                      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdByPortalIdentity CustomerPortalIdentity        @relation(fields: [createdByPortalIdentityId], references: [id], onDelete: Restrict)
+  businessUnit            BusinessUnit?                 @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  asset                   Asset?                        @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  assignedTo              User?                         @relation("CustomerServiceRequestAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  convertedOperation      Operation?                    @relation(fields: [convertedOperationId], references: [id], onDelete: Restrict)
+  events                  CustomerServiceRequestEvent[]
+
+  @@unique([organizationId, code])
+  @@unique([createdByPortalIdentityId, createIdempotencyKey])
+  @@index([organizationId, customerId, status, createdAt])
+  @@index([organizationId, businessUnitId, status, createdAt])
+  @@index([organizationId, assignedToUserId, status, createdAt])
+  @@map("customer_service_requests")
+}
+
+model CustomerServiceRequestEvent {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  requestId        String   @map("request_id") @db.Uuid
+  visibility       String   @db.VarChar(20)
+  type             String   @db.VarChar(40)
+  actorType        String   @map("actor_type") @db.VarChar(30)
+  portalIdentityId String?  @map("portal_identity_id") @db.Uuid
+  internalUserId   String?  @map("internal_user_id") @db.Uuid
+  actorDisplayName String   @map("actor_display_name") @db.VarChar(180)
+  message          String?  @db.Text
+  fromStatus       String?  @map("from_status") @db.VarChar(30)
+  toStatus         String?  @map("to_status") @db.VarChar(30)
+  metadata         Json     @default("{}") @db.JsonB
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  request        CustomerServiceRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  portalIdentity CustomerPortalIdentity? @relation(fields: [portalIdentityId], references: [id], onDelete: SetNull)
+  internalUser   User?                   @relation("CustomerServiceRequestInternalActor", fields: [internalUserId], references: [id], onDelete: SetNull)
+
+  @@index([requestId, createdAt, id])
+  @@index([organizationId, visibility, createdAt])
+  @@map("customer_service_request_events")
 }
 
 model OperationUser {
@@ -1414,26 +1496,26 @@ model FieldEvidenceUpload {
 /// Evidência final e imutável. As três FKs opcionais são protegidas por CHECK
 /// no PostgreSQL: exatamente um target sempre existe.
 model FieldEvidence {
-  id                       String   @id @default(uuid(7)) @db.Uuid
-  organizationId           String   @map("organization_id") @db.Uuid
-  businessUnitId           String   @map("business_unit_id") @db.Uuid
-  uploadId                 String   @unique @map("upload_id") @db.Uuid
-  operationId              String?  @map("operation_id") @db.Uuid
-  pmocEquipmentExecutionId String?  @map("pmoc_equipment_execution_id") @db.Uuid
-  rvtExecutionId           String?  @map("rvt_execution_id") @db.Uuid
-  storageFileId            String   @unique @map("storage_file_id") @db.Uuid
-  category                 String   @db.VarChar(30)
-  source                   String   @db.VarChar(20)
-  fileName                 String   @map("file_name") @db.VarChar(255)
-  mimeType                 String   @map("mime_type") @db.VarChar(160)
-  sizeBytes                BigInt   @map("size_bytes")
-  sha256                   String   @db.Char(64)
+  id                       String    @id @default(uuid(7)) @db.Uuid
+  organizationId           String    @map("organization_id") @db.Uuid
+  businessUnitId           String    @map("business_unit_id") @db.Uuid
+  uploadId                 String    @unique @map("upload_id") @db.Uuid
+  operationId              String?   @map("operation_id") @db.Uuid
+  pmocEquipmentExecutionId String?   @map("pmoc_equipment_execution_id") @db.Uuid
+  rvtExecutionId           String?   @map("rvt_execution_id") @db.Uuid
+  storageFileId            String    @unique @map("storage_file_id") @db.Uuid
+  category                 String    @db.VarChar(30)
+  source                   String    @db.VarChar(20)
+  fileName                 String    @map("file_name") @db.VarChar(255)
+  mimeType                 String    @map("mime_type") @db.VarChar(160)
+  sizeBytes                BigInt    @map("size_bytes")
+  sha256                   String    @db.Char(64)
   capturedAt               DateTime? @map("captured_at") @db.Timestamptz(3)
-  uploadedAt               DateTime @map("uploaded_at") @db.Timestamptz(3)
-  capturedByUserId         String   @map("captured_by_user_id") @db.Uuid
-  localMediaId             String?  @map("local_media_id") @db.VarChar(160)
-  status                   String   @default("FINALIZED") @db.VarChar(20)
-  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  uploadedAt               DateTime  @map("uploaded_at") @db.Timestamptz(3)
+  capturedByUserId         String    @map("captured_by_user_id") @db.Uuid
+  localMediaId             String?   @map("local_media_id") @db.VarChar(160)
+  status                   String    @default("FINALIZED") @db.VarChar(20)
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   businessUnit           BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
@@ -1676,15 +1758,15 @@ model Notification {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit BusinessUnit?          @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
-  recipient    User                   @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
-  deliveries   NotificationDelivery[]
+  organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit         BusinessUnit?          @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  recipient            User                   @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+  deliveries           NotificationDelivery[]
   mobilePushDeliveries MobilePushDelivery[]
 
+  @@unique([organizationId, dedupeKey], map: "notifications_org_dedupe_key")
   @@index([recipientUserId, readAt, createdAt])
   @@index([organizationId, status, scheduledAt])
-  @@unique([organizationId, dedupeKey], map: "notifications_org_dedupe_key")
   @@map("notifications")
 }
 
@@ -3265,9 +3347,9 @@ model RvtExecution {
   createdAt                     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  occurrence RvtOccurrence           @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
-  equipment  RvtExecutionEquipment[]
-  evidence   RvtExecutionEvidence[]
+  occurrence           RvtOccurrence           @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
+  equipment            RvtExecutionEquipment[]
+  evidence             RvtExecutionEvidence[]
   fieldEvidenceUploads FieldEvidenceUpload[]
   fieldEvidence        FieldEvidence[]
 

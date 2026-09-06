@@ -9,6 +9,7 @@ import { configureApiVersioning } from '../src/configure-api';
 import { generateUuidV7 } from '../src/utils';
 import { adminPrisma, disconnectAdminPrisma } from './support/admin-prisma';
 import { BackgroundJobWorker } from '../src/modules/jobs/background-job.worker';
+import { JOB_QUEUES } from '../src/modules/jobs/background-job.types';
 
 jest.setTimeout(180_000);
 const PASSWORD = 'Orbit#OfflineSync@2026';
@@ -429,8 +430,38 @@ describe('Mobile Offline Command & Sync Protocol (e2e)', () => {
       where: { sequence: oldJournal.sequence },
       data: { expiresAt: new Date(Date.now() - 60_000) },
     });
+    await prisma.backgroundJob.create({
+      data: {
+        organizationId,
+        scope: 'ORGANIZATION',
+        businessUnitIds: [unitId],
+        queue: JOB_QUEUES.mobileSyncCleanup,
+        jobKey: `mobile-sync-cleanup:e2e:${randomUUID()}`,
+        payload: {},
+        correlationId: randomUUID(),
+        actorUserId: actorId,
+        maxAttempts: 3,
+        availableAt: new Date(0),
+      },
+    });
     const worker = app.get(BackgroundJobWorker);
-    await worker.tick();
+    // A global E2E run can leave independent jobs ahead of this suite's
+    // organization-scoped cleanup. Drain with a strict bound and observe the
+    // intended postcondition instead of assuming queue position.
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const [receipt, journal] = await Promise.all([
+        prisma.mobileOfflineCommandReceipt.findUnique({
+          where: { id: expiredReceipt.id },
+          select: { id: true },
+        }),
+        prisma.mobileSyncChange.findUnique({
+          where: { sequence: oldJournal.sequence },
+          select: { sequence: true },
+        }),
+      ]);
+      if (!receipt && !journal) break;
+      await worker.tick();
+    }
     expect(
       await prisma.mobileOfflineCommandReceipt.findUnique({
         where: { id: expiredReceipt.id },

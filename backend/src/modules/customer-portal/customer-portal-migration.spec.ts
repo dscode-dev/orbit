@@ -9,6 +9,20 @@ describe('Customer Portal migration contract', () => {
     ),
     'utf8',
   );
+  const runtimeFixSql = readFileSync(
+    resolve(
+      process.cwd(),
+      'prisma/migrations/20260906130000_pr32_portal_function_runtime_fix/migration.sql',
+    ),
+    'utf8',
+  );
+  const readPolicySql = readFileSync(
+    resolve(
+      process.cwd(),
+      'prisma/migrations/20260907120000_pr33_customer_portal_read_policies/migration.sql',
+    ),
+    'utf8',
+  );
   const tables = [
     'customer_portal_identities',
     'customer_portal_sessions',
@@ -44,5 +58,32 @@ describe('Customer Portal migration contract', () => {
     expect(sql).toContain(
       'REVOKE ALL ON FUNCTION app_customer_portal_consume_password_reset(text,text) FROM PUBLIC',
     );
+  });
+
+  it('qualifies the activation status predicate in the additive runtime fix', () => {
+    expect(runtimeFixSql).toContain(
+      "customer_portal_identities.status = 'INVITED'",
+    );
+    expect(runtimeFixSql).toContain(
+      'REVOKE ALL ON FUNCTION app_customer_portal_activate_invitation(text,text) FROM PUBLIC',
+    );
+  });
+
+  it('grants Portal operational access only through customer-scoped SELECT policies', () => {
+    for (const policy of [
+      'operations_portal_customer_read',
+      'assets_portal_customer_read',
+      'pmoc_plans_portal_customer_read',
+      'rvt_configurations_portal_customer_read',
+      'artifact_manifests_portal_customer_read',
+      'storage_files_portal_document_read',
+    ]) {
+      expect(readPolicySql).toContain(`"${policy}"`);
+    }
+    expect(readPolicySql).toContain(
+      "app_current_actor_type() = 'CUSTOMER_PORTAL'",
+    );
+    expect(readPolicySql).toContain('app_current_customer_id()');
+    expect(readPolicySql).not.toMatch(/FOR\s+(INSERT|UPDATE|DELETE)/i);
   });
 });

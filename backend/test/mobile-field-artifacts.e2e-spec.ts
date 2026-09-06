@@ -198,12 +198,17 @@ describe('Mobile Field Artifacts & Final Reports (e2e)', () => {
     expect(renders.every((value) => [200, 201].includes(value.status))).toBe(
       true,
     );
-    for (let tick = 0; tick < 8; tick += 1)
-      await app.get(BackgroundJobWorker).tick();
-
-    const ready = await auth(
+    const worker = app.get(BackgroundJobWorker);
+    let ready = await auth(
       api().get(`/api/v1/mobile/field/artifacts/${artifact.id}`),
     ).expect(200);
+    for (let tick = 0; tick < 80; tick += 1) {
+      if ((ready.body as Envelope<any>).data.status === 'READY') break;
+      await worker.tick();
+      ready = await auth(
+        api().get(`/api/v1/mobile/field/artifacts/${artifact.id}`),
+      ).expect(200);
+    }
     expect((ready.body as Envelope<any>).data).toMatchObject({
       status: 'READY',
       previewAvailable: true,

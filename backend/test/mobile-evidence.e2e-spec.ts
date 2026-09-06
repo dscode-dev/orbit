@@ -10,6 +10,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApiVersioning } from '../src/configure-api';
 import { BackgroundJobWorker } from '../src/modules/jobs/background-job.worker';
+import { JOB_QUEUES } from '../src/modules/jobs/background-job.types';
 import { adminPrisma, disconnectAdminPrisma } from './support/admin-prisma';
 
 jest.setTimeout(180_000);
@@ -321,7 +322,29 @@ describe('Mobile Evidence & Media Pipeline (e2e)', () => {
       where: { id: safe.uploadId },
       data: { expiresAt: new Date(Date.now() - 1000) },
     });
-    await app.get(BackgroundJobWorker).tick();
+    await prisma.backgroundJob.create({
+      data: {
+        organizationId,
+        scope: 'ORGANIZATION',
+        businessUnitIds: [unitId],
+        queue: JOB_QUEUES.mobileEvidenceCleanup,
+        jobKey: `mobile-evidence-cleanup:e2e:${randomUUID()}`,
+        payload: {},
+        correlationId: randomUUID(),
+        actorUserId: actorId,
+        maxAttempts: 5,
+        availableAt: new Date(0),
+      },
+    });
+    const worker = app.get(BackgroundJobWorker);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const current = await prisma.fieldEvidenceUpload.findUniqueOrThrow({
+        where: { id: orphan.uploadId },
+        select: { status: true },
+      });
+      if (current.status === 'EXPIRED') break;
+      await worker.tick();
+    }
     expect(
       (
         await prisma.fieldEvidenceUpload.findUniqueOrThrow({
