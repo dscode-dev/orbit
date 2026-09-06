@@ -11,6 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { ApiPublicErrors } from '../../../common/public-errors';
 import { ParseUUIDv7Pipe } from '../../../pipes';
 import { AuthenticationService } from '../application/authentication.service';
 import { MfaService } from '../application/mfa.service';
@@ -24,6 +25,7 @@ import {
 } from './dto/identity.dto';
 
 @ApiTags('Identity Profile')
+@ApiPublicErrors()
 @Controller('identity/me')
 export class ProfileController {
   constructor(

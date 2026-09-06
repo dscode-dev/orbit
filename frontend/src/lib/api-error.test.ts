@@ -18,7 +18,11 @@ describe("parseErrorEnvelope", () => {
   it("lê o envelope do backend inteiro", () => {
     const parsed = parseErrorEnvelope({
       success: false,
-      error: { code: "OPERATION_INVALID_TRANSITION", message: "Transição inválida." },
+      error: {
+        code: "OPERATION_INVALID_TRANSITION",
+        message: "Transição inválida.",
+        status: 422,
+      },
       requestId: "01a0-abc",
     });
 
@@ -27,13 +31,30 @@ describe("parseErrorEnvelope", () => {
     expect(parsed.requestId).toBe("01a0-abc");
   });
 
-  it("junta as mensagens do ValidationPipe em uma frase", () => {
+  it("lê os detalhes estruturados do contrato de validação", () => {
     const parsed = parseErrorEnvelope({
-      error: { code: "HTTP_ERROR", message: ["code é obrigatório", "title é obrigatório"] },
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Revise os campos informados.",
+        status: 400,
+        details: [
+          {
+            field: "email",
+            code: "INVALID_FORMAT",
+            message: "Informe um e-mail válido.",
+          },
+        ],
+      },
     });
 
-    expect(parsed.message).toBe("code é obrigatório title é obrigatório");
-    expect(parsed.details).toEqual(["code é obrigatório", "title é obrigatório"]);
+    expect(parsed.message).toBe("Revise os campos informados.");
+    expect(parsed.details).toEqual([
+      {
+        field: "email",
+        code: "INVALID_FORMAT",
+        message: "Informe um e-mail válido.",
+      },
+    ]);
   });
 
   it("corpo irreconhecível cai na frase neutra, nunca em undefined", () => {
@@ -96,7 +117,11 @@ describe("toApiError", () => {
   });
 
   it("não reembrulha um ApiError já normalizado", () => {
-    const original = new ApiError({ kind: "http", message: "Recusado", status: 403 });
+    const original = new ApiError({
+      kind: "http",
+      message: "Recusado",
+      status: 403,
+    });
     expect(toApiError(original)).toBe(original);
   });
 });

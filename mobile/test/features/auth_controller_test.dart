@@ -4,6 +4,7 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:orbit_operator/core/contracts/session_contracts.dart';
+import 'package:orbit_operator/core/errors/orbit_exception.dart';
 import 'package:orbit_operator/core/network/session_authenticator.dart';
 import 'package:orbit_operator/core/observability/orbit_logger.dart';
 import 'package:orbit_operator/core/storage/token_storage.dart';
@@ -241,5 +242,42 @@ void main() {
     final session = (controller.state as AuthAuthenticated).session;
     expect(session.businessUnitId, 'unit-2');
     expect(session.businessUnit?.name, 'Sul');
+  });
+
+  test('servidor inalcançável leva ao login, não à splash eterna', () async {
+    when(
+      () => repository.readClaims(),
+    ).thenAnswer((_) async => AuthRepository.decodeClaims(fakeAccessToken()));
+    when(() => repository.loadProfile()).thenThrow(
+      const OrbitException(
+        kind: OrbitErrorKind.network,
+        message: 'sem rede',
+        code: 'NETWORK',
+      ),
+    );
+
+    final controller = buildController(repository);
+    await controller.restore();
+
+    /**
+     * O erro era relançado e ninguém o pegava — `restore()` é chamada sem
+     * `await` na abertura —, então o estado ficava em `AuthRestoring` e o app
+     * girava na splash para sempre.
+     */
+    final state = controller.state;
+    expect(state, isA<AuthUnauthenticated>());
+    expect(
+      (state as AuthUnauthenticated).reason,
+      contains('Não foi possível falar com o servidor'),
+    );
+  });
+
+  test('falha inesperada na restauração também sai da splash', () async {
+    when(() => repository.readClaims()).thenThrow(StateError('armazenamento'));
+
+    final controller = buildController(repository);
+    await controller.restore();
+
+    expect(controller.state, isA<AuthUnauthenticated>());
   });
 }

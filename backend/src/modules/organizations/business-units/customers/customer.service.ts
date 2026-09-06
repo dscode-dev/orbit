@@ -186,7 +186,10 @@ export class CustomerService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      throw new ConflictException('Customer document is already registered');
+      throw new ConflictException(
+        'Customer document is already registered',
+        'CUSTOMER_DOCUMENT_ALREADY_EXISTS',
+      );
     }
     throw error;
   }
@@ -196,7 +199,10 @@ export class CustomerService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      throw new ConflictException('The customer already has a primary contact');
+      throw new ConflictException(
+        'The customer already has a primary contact',
+        'CUSTOMER_PRIMARY_CONTACT_ALREADY_EXISTS',
+      );
     }
     throw error;
   }

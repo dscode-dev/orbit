@@ -20,7 +20,12 @@ export interface BffErrorInit {
 export function bffError(init: BffErrorInit): NextResponse<ApiErrorEnvelope> {
   const body: ApiErrorEnvelope = {
     success: false,
-    error: { code: init.code, message: init.message, details: init.details },
+    error: {
+      code: init.code,
+      message: init.message,
+      status: init.status,
+      details: init.details,
+    },
     requestId: init.requestId,
     timestamp: new Date().toISOString(),
   };

@@ -69,7 +69,9 @@ void main() {
     );
   });
 
-  testWidgets('mostra a mensagem devolvida pelo backend', (tester) async {
+  testWidgets('mostra a mensagem pública devolvida pelo backend', (
+    tester,
+  ) async {
     when(
       () => repository.login(
         email: any(named: 'email'),
@@ -80,7 +82,7 @@ void main() {
       const OrbitException(
         kind: OrbitErrorKind.http,
         status: 401,
-        message: 'Invalid credentials',
+        message: 'Sua sessão não é válida ou expirou.',
         code: 'UNAUTHORIZED',
       ),
     );
@@ -97,7 +99,7 @@ void main() {
     await tester.tap(find.byKey(const Key('login.submit')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Invalid credentials'), findsOneWidget);
+    expect(find.text('Sua sessão não é válida ou expirou.'), findsOneWidget);
   });
 
   testWidgets('revela o campo de MFA quando o backend exige', (tester) async {
@@ -111,8 +113,8 @@ void main() {
       const OrbitException(
         kind: OrbitErrorKind.http,
         status: 401,
-        message: 'MFA code is required',
-        code: 'UNAUTHORIZED',
+        message: 'Informe o código do seu autenticador.',
+        code: 'MFA_REQUIRED',
       ),
     );
 

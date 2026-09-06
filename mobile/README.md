@@ -33,17 +33,23 @@ A URL nunca é constante de código: chega por `--dart-define` e é lida em
 
 | Alvo                            | `ORBIT_API_URL`                                                                       |
 | ------------------------------- | ------------------------------------------------------------------------------------- |
-| Emulador Android                | `http://10.0.2.2:3001/api/v1` (o `localhost` da máquina, visto de dentro do emulador) |
-| Simulador iOS                   | `http://localhost:3001/api/v1`                                                        |
-| **Aparelho físico, mesma rede** | `http://<ip-da-máquina>:3001/api/v1`                                                  |
+| Emulador Android                | `http://10.0.2.2:6001/api/v1` (o `localhost` da máquina, visto de dentro do emulador) |
+| Simulador iOS                   | `http://localhost:6001/api/v1`                                                        |
+| **Aparelho físico, mesma rede** | `http://<ip-da-máquina>:6001/api/v1`                                                  |
 
 `config/local.json` é **ignorado pelo git**: o IP é da máquina de quem
 desenvolve, não do projeto. O que está versionado é
 `config/local.example.json`.
 
-A API já escuta em `0.0.0.0` (`docker-compose.yml` publica `0.0.0.0:3001` e
-`main.ts` usa `HOST ?? '0.0.0.0'`), então não é preciso mexer no backend —
-basta o aparelho estar na mesma rede e o firewall do macOS liberar a porta.
+A API já escuta em `0.0.0.0` (`docker-compose.yml` publica
+`0.0.0.0:${API_PORT}` e `main.ts` usa `HOST ?? '0.0.0.0'`), então não é preciso
+mexer no backend — basta o aparelho estar na mesma rede e o firewall do macOS
+liberar a porta.
+
+**A porta é a publicada, não a interna.** O compose mapeia `${API_PORT}` para a
+`5001` de dentro do container: é `${API_PORT}` que o aparelho enxerga. Confira
+com `docker compose ps` antes de supor — apontar para a porta interna dá
+"connection refused" e nenhuma mensagem no app que explique por quê.
 
 ### HTTP em rede local
 

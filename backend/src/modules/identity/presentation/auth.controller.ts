@@ -7,6 +7,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { ApiPublicErrors } from '../../../common/public-errors';
 import { Public } from '../../../decorators';
 import { AuthenticationService } from '../application/authentication.service';
 import { PasswordRecoveryService } from '../application/password-recovery.service';
@@ -23,6 +24,7 @@ import {
 } from './dto/identity.dto';
 
 @ApiTags('Identity')
+@ApiPublicErrors()
 @Controller('identity')
 export class AuthController {
   constructor(

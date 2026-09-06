@@ -8,8 +8,8 @@ import {
 } from '@nestjs/common';
 import { redactSensitivePath } from './redact-sensitive-path';
 import type { Request, Response } from 'express';
-import { BaseException } from '../exceptions';
 import { classifyInternalError, internalErrorStack } from '../errors';
+import { PublicErrorMapper } from './public-errors';
 
 interface RequestWithId extends Request {
   id?: string;
@@ -22,6 +22,7 @@ interface RequestWithId extends Request {
 @Catch()
 export class FoundationExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(FoundationExceptionFilter.name);
+  private readonly publicErrors = new PublicErrorMapper();
 
   /**
    * Lido a cada uso, não na construção.
@@ -42,29 +43,17 @@ export class FoundationExceptionFilter implements ExceptionFilter {
       exception instanceof HttpException
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
-    const domainPayload =
-      exception instanceof BaseException
-        ? {
-            code: exception.code,
-            message: exception.message,
-            details: exception.details,
-          }
-        : exception instanceof HttpException
-          ? this.httpPayload(exception)
-          : {
-              code: 'INTERNAL_SERVER_ERROR',
-              message: 'An unexpected error occurred',
-            };
-    const payload =
-      status >= 500
-        ? {
-            code:
-              exception instanceof BaseException
-                ? exception.code
-                : 'INTERNAL_SERVER_ERROR',
-            message: 'An unexpected error occurred',
-          }
-        : domainPayload;
+    const payload = this.publicErrors.map(exception);
+    if (
+      payload.code === 'RATE_LIMITED' &&
+      payload.details &&
+      'retryAfterSeconds' in payload.details
+    ) {
+      response.setHeader(
+        'Retry-After',
+        String(payload.details.retryAfterSeconds),
+      );
+    }
     if (status >= 500) {
       const classified = classifyInternalError(exception);
       this.logger.error(
@@ -109,25 +98,5 @@ export class FoundationExceptionFilter implements ExceptionFilter {
       requestId: request.id ?? 'unknown',
       timestamp: new Date().toISOString(),
     });
-  }
-
-  private httpPayload(exception: HttpException): {
-    code: string;
-    message: string | string[];
-  } {
-    const response = exception.getResponse();
-    if (typeof response === 'string') {
-      return { code: 'HTTP_ERROR', message: response };
-    }
-    const message = 'message' in response ? response.message : undefined;
-    return {
-      code: 'HTTP_ERROR',
-      message:
-        typeof message === 'string' ||
-        (Array.isArray(message) &&
-          message.every((item) => typeof item === 'string'))
-          ? message
-          : exception.message,
-    };
   }
 }

@@ -256,7 +256,9 @@ describe('AppController (e2e)', () => {
         requestId: string;
       };
       expect(body.requestId).toBe('fault-auth-connection');
-      expect(body.error.message).toBe('An unexpected error occurred');
+      expect(body.error.message).toBe(
+        'Não foi possível concluir a solicitação.',
+      );
       expect(JSON.stringify(body)).not.toContain('connection reset');
       expect(body.error.stack).toBeUndefined();
       expect(JSON.stringify(log.mock.calls)).toContain('CONNECTION_FAILURE');
@@ -318,7 +320,9 @@ describe('AppController (e2e)', () => {
         requestId: string;
       };
       expect(body.requestId).toBe('fault-entitlements-timeout');
-      expect(body.error.message).toBe('An unexpected error occurred');
+      expect(body.error.message).toBe(
+        'Não foi possível concluir a solicitação.',
+      );
       expect(JSON.stringify(body)).not.toContain('pool acquisition');
       expect(JSON.stringify(log.mock.calls)).toContain('DATABASE_TIMEOUT');
       expect(JSON.stringify(log.mock.calls)).toContain(

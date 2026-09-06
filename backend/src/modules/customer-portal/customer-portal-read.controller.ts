@@ -7,6 +7,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { ApiPublicErrors } from '../../common/public-errors';
 import { Public } from '../../decorators';
 import { UnauthorizedException } from '../../exceptions';
 import { ParseUUIDv7Pipe } from '../../pipes';
@@ -37,6 +38,7 @@ import {
 } from './customer-portal.guard';
 
 @Public()
+@ApiPublicErrors()
 @UseGuards(CustomerPortalGuard)
 @ApiBearerAuth('customer-portal')
 @ApiTags('Customer Portal Read Models')

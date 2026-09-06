@@ -25,6 +25,7 @@ import { OrbitLogo } from "@/components/brand/orbit-logo";
 import { LoadingState } from "@/components/feedback/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { PostalCodeField } from "@/components/address/postal-code-field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +36,7 @@ import {
   isValidBrazilianDocument,
   normalizeBrazilianDocument,
 } from "@/lib/brazilian-document";
+import type { PostalAddress } from "@/lib/postal-code";
 import { cn } from "@/lib/utils";
 
 const schema = z
@@ -192,6 +194,8 @@ function PlanStep({
 export default function CadastroPage() {
   const createAccount = useRegister();
   const [step, setStep] = useState(0);
+  /** O CEP não faz parte do cadastro; só preenche o endereço da matriz. */
+  const [cep, setCep] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const {
     register,
@@ -478,6 +482,32 @@ export default function CadastroPage() {
 
                 {step === 3 && (
                   <div className="grid gap-5 sm:grid-cols-[1fr_6rem]">
+                    {/*
+                      * O CEP preenche cidade, UF e endereço — e não viaja no
+                      * cadastro: o contrato de criação da organização não tem
+                      * campo para ele, e o `ValidationPipe` recusa o que não
+                      * está declarado. Aqui ele serve só para poupar digitação.
+                      */}
+                    <PostalCodeField
+                      id="cadastro-cep"
+                      className="sm:col-span-2"
+                      value={cep}
+                      onChange={setCep}
+                      onAddressFound={(endereco: PostalAddress) => {
+                        const preencher = (
+                          campo: "city" | "stateCode" | "street",
+                          valor: string,
+                        ) => {
+                          if (valor) {
+                            setValue(campo, valor, { shouldValidate: true });
+                          }
+                        };
+                        preencher("city", endereco.city);
+                        preencher("stateCode", endereco.stateCode);
+                        preencher("street", endereco.street);
+                      }}
+                    />
+
                     <div className="space-y-2">
                       <Label htmlFor="city">Cidade</Label>
                       <Input id="city" {...register("city")} />

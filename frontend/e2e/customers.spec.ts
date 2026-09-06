@@ -186,10 +186,29 @@ test.describe("cadastro de cliente", () => {
     const dialog = page.getByRole("dialog");
     const alert = dialog.getByRole("alert");
     await expect(alert).toBeVisible({ timeout: 15_000 });
-    /** A recusa é do servidor; a frase é do produto, e não cita o campo do DTO. */
-    await expect(alert).toContainText(/informe um e-mail válido/i);
-    await expect(alert).not.toContainText(/must be an email/i);
+
+    /**
+     * A recusa é do servidor, e a frase é do produto.
+     *
+     * O contrato público de erros (PR-35) devolve `VALIDATION_ERROR` com copy
+     * PT-BR determinística para o que o `ValidationPipe` recusa — de propósito
+     * sem citar o campo, para não publicar o vocabulário do DTO. Antes o
+     * backend respondia "email must be an email" e o Web traduzia por regex;
+     * essas traduções foram removidas junto, porque a origem passou a falar a
+     * língua do produto.
+     *
+     * O que se afirma aqui é o invariante, não a frase do catálogo: a tela
+     * mostra texto em português e nenhum termo de contrato escapa.
+     */
+    const texto = (await alert.innerText()).trim();
+    expect(texto.length).toBeGreaterThan(0);
+    expect(texto).not.toMatch(/must be|should not|isEmail|property |constraint/i);
+    /** Acentuação é a prova barata de que a frase é a de produto, não a do validador. */
+    expect(texto).toMatch(/[À-úçÇ]/);
+
+    /** E a recusa mantém o formulário aberto, com o que foi digitado. */
     await expect(dialog).toBeVisible();
+    await expect(page.getByLabel("E-mail")).toHaveValue("contato@exemplo..com");
 
     assertHandled(recorder, "validação do servidor");
   });

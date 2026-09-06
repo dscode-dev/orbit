@@ -14,6 +14,7 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiPublicErrors } from '../../common/public-errors';
 import { Permissions } from '../../decorators';
 import { ParseUUIDv7Pipe } from '../../pipes';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
@@ -24,6 +25,7 @@ import { CustomerPortalService } from './customer-portal.service';
 import { CustomerPortalInvitationSchema } from './customer-portal.openapi';
 
 @ApiTags('Customer Portal Management')
+@ApiPublicErrors()
 @Controller({ path: 'customers/:customerId/portal', version: '1' })
 export class CustomerPortalManagementController {
   constructor(private readonly portal: CustomerPortalService) {}

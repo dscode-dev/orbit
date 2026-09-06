@@ -92,7 +92,7 @@ void main() {
       onRequest: (_) async => _json(
         errorEnvelope(
           code: 'CONFLICT',
-          message: 'Cannot transition from COMPLETED to OPEN',
+          message: 'Esta mudança de status não é permitida.',
         ),
         status: 409,
       ),
@@ -107,11 +107,38 @@ void main() {
             .having(
               (error) => error.message,
               'message',
-              contains('Cannot transition'),
+              equals('Esta mudança de status não é permitida.'),
             ),
       ),
     );
   });
+
+  test(
+    'lê detalhes estruturados de validação sem depender de texto interno',
+    () {
+      final error = OrbitException.fromEnvelope(
+        status: 400,
+        body: const {
+          'success': false,
+          'error': {
+            'code': 'VALIDATION_ERROR',
+            'message': 'Revise os campos informados.',
+            'status': 400,
+            'details': [
+              {
+                'field': 'email',
+                'code': 'INVALID_FORMAT',
+                'message': 'Informe um e-mail válido.',
+              },
+            ],
+          },
+        },
+      );
+
+      expect(error.code, 'VALIDATION_ERROR');
+      expect(error.validationMessages, ['Informe um e-mail válido.']);
+    },
+  );
 
   test('envia x-request-id e o token guardado', () async {
     final storage = InMemoryTokenStorage(
@@ -176,7 +203,10 @@ void main() {
         // Primeira tentativa: token vencido.
         if (options.headers['authorization'] == 'Bearer access-vencido') {
           return _json(
-            errorEnvelope(code: 'UNAUTHORIZED', message: 'Unauthorized'),
+            errorEnvelope(
+              code: 'UNAUTHORIZED',
+              message: 'Sua sessão não é válida ou expirou.',
+            ),
             status: 401,
           );
         }

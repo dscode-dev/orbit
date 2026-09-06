@@ -11,7 +11,7 @@ existe**.
 | Frontend Web | Next.js 16 (App Router)            | via BFF próprio (`/api/orbit/**`)  |
 | Mobile       | Flutter 3.44 (Orbit Operator)      | direto no NestJS, com Bearer token |
 
-Última revisão: PR-34 (Customer Service Requests / Chamados).
+Última revisão: PR-35 (PT-BR Product Language & Public Error Contract).
 
 ---
 
@@ -42,14 +42,16 @@ Erro (`FoundationExceptionFilter`):
 ```jsonc
 {
   "success": false,
-  "error": { "code": "…", "message": "… | […]", "details": … },
+  "error": { "code": "…", "message": "…", "status": 400, "details": … },
   "requestId": "…",
   "timestamp": "…"
 }
 ```
 
-`message` pode ser string ou lista (validação do `ValidationPipe`). Os dois
-clientes normalizam para uma única mensagem.
+`code` é a authority estável. `message` é sempre uma string pública PT-BR.
+Validações usam `details[]` com `{ field, code, message }`; nenhum cliente
+precisa interpretar texto cru do ValidationPipe. O Web mantém leitura
+temporária do array legado somente durante a migração.
 
 | Cliente | Onde desembrulha                                                     |
 | ------- | -------------------------------------------------------------------- |
@@ -93,6 +95,7 @@ clientes.
 | Notifications                                    | registro do Prisma, sem Read Model              | **espelhado à mão** em `src/types/notifications.ts`                             | não consumido                                           |
 | Customer Portal Identity                         | Read Models públicos + mapper explícito          | contrato disponível; BFF ainda fora de escopo                                  | não consumido                                           |
 | Customer Service Requests                        | Read Models públicos + mapper explícito          | contrato sincronizado; UI fora de escopo                                        | contrato disponível; UI fora de escopo                  |
+| Public Error Contract                            | catálogo + mapper HTTP central                   | sincronizado; `ApiError`                                                         | `OrbitException` compatível                              |
 
 ### Consequência prática
 

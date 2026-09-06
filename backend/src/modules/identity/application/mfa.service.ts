@@ -55,7 +55,9 @@ export class MfaService {
     factor: { id: string; secret: string; recoveryCodes: string[] },
     code: string | undefined,
   ): Promise<void> {
-    if (!code) throw new UnauthorizedException('MFA code is required');
+    if (!code) {
+      throw new UnauthorizedException('MFA code is required', 'MFA_REQUIRED');
+    }
     if (verifyTotp(this.crypto.decrypt(factor.secret), code)) {
       await this.repository.touchMfaFactor(factor.id);
       return;

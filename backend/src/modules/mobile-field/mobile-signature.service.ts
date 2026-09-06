@@ -62,12 +62,18 @@ export class MobileSignatureService {
         'O arquivo de assinatura deve pertencer ao usuário autenticado e estar disponível',
       );
     if (file.sizeBytes > 2_000_000n)
-      throw new ValidationException('A assinatura deve ter no máximo 2 MB');
+      throw new ValidationException(
+        'A assinatura deve ter no máximo 2 MB',
+        undefined,
+        'FILE_TOO_LARGE',
+      );
     const body = await this.files.read(file.bucket, file.objectKey);
     const detected = this.detectImageMime(body);
     if (!detected || detected !== file.mimeType)
       throw new ValidationException(
         'O conteúdo da assinatura deve ser PNG, JPEG ou WEBP válido',
+        undefined,
+        'FILE_INVALID',
       );
     if (body.length > 2_000_000 || this.sha(body) !== file.sha256)
       throw new ValidationException(
@@ -208,6 +214,8 @@ export class MobileSignatureService {
       )
         throw new ValidationException(
           'A assinatura do cliente deve ser PNG, JPEG ou WEBP válido e ter no máximo 2 MB',
+          undefined,
+          'FILE_INVALID',
         );
       signatureSha256 = file.sha256;
     }

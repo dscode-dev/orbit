@@ -7,6 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "contracts:guard": "ts-node scripts/check-contract-boundaries.ts",
+    "lint:public-errors": "ts-node scripts/check-public-error-contract.ts",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

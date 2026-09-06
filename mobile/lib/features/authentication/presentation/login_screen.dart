@@ -12,6 +12,7 @@ import '../../../app/providers.dart';
 import '../../../core/errors/orbit_exception.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/orbit_brand.dart';
+import '../domain/session.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -56,7 +57,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           );
       // A navegação reage à mudança de sessão; nada a fazer aqui.
     } on OrbitException catch (error) {
-      final needsMfa = error.message.toLowerCase().contains('mfa');
+      final needsMfa = error.code == 'MFA_REQUIRED';
       if (!mounted) return;
       setState(() {
         _requiresMfa = _requiresMfa || needsMfa;
@@ -71,6 +72,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = ref.watch(authControllerProvider);
+    final motivo = auth is AuthUnauthenticated ? auth.reason : null;
     return Scaffold(
       body: OrbitBackground(
         child: SafeArea(
@@ -165,6 +168,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ],
 
+                      // O motivo de ter caído aqui — sessão expirada, servidor
+                      // inalcançável — só aparece enquanto ninguém digitou nada.
+                      // Depois de uma tentativa, quem manda é o erro dela.
+                      if (_error == null && motivo != null) ...[
+                        const SizedBox(height: OrbitSpacing.md),
+                        _ErrorBanner(message: motivo),
+                      ],
                       if (_error != null) ...[
                         const SizedBox(height: OrbitSpacing.md),
                         _ErrorBanner(message: _error!),

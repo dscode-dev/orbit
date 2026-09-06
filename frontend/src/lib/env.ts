@@ -13,6 +13,15 @@ export const BFF_BASE_PATH = "/api/orbit";
 /** Rotas de autenticação do BFF (fora do proxy genérico). */
 export const BFF_AUTH_PATH = "/api/auth";
 
+/**
+ * Consulta de CEP no BFF (fora do proxy genérico).
+ *
+ * Não é rota do backend: quem responde é o próprio servidor do frontend, que
+ * fala com o serviço público dos Correios. O navegador continua conversando só
+ * com a nossa origem.
+ */
+export const BFF_POSTAL_PATH = "/api/cep";
+
 export const DEFAULT_TIMEOUT_MS = 30_000;
 export const DEFAULT_UPLOAD_TIMEOUT_MS = 120_000;
 export const DEFAULT_LOCALE = "pt-BR";

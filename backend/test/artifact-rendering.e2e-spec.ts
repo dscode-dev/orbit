@@ -206,11 +206,15 @@ describe('Artifact Rendering (e2e)', () => {
       .send({ renderer: 'inexistente' })
       .expect(400);
 
-    /** A recusa diz o que existe, para quem pediu não ter de adivinhar. */
-    const message = (response.body as { error: { message: string } }).error
-      .message;
-    expect(message).toContain('html.default');
-    expect(message).toContain('pdf.default');
+    const error = (
+      response.body as { error: { code: string; message: string } }
+    ).error;
+    expect(error).toEqual({
+      code: 'RENDERER_NOT_SUPPORTED',
+      message: 'O formato de documento solicitado não está disponível.',
+      status: 400,
+    });
+    expect(JSON.stringify(error)).not.toMatch(/html\.default|pdf\.default/);
   });
 
   it('aceita o pedido e responde 202 sem esperar o documento', async () => {

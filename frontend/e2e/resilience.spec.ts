@@ -71,6 +71,7 @@ test("API fora do ar mostra erro com nova tentativa e código de referência", a
         error: {
           code: "INTERNAL_SERVER_ERROR",
           message: "Não foi possível concluir a solicitação.",
+          status: 500,
         },
         requestId: "01a0-referencia-de-teste",
         timestamp: new Date().toISOString(),

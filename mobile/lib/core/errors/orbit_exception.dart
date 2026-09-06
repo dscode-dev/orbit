@@ -36,11 +36,21 @@ class OrbitException implements Exception {
   bool get isServer => status >= 500;
   bool get isOffline => kind == OrbitErrorKind.network;
 
-  /// Mensagens de validação do `ValidationPipe` (array de strings).
+  /// Mensagens seguras do contrato estruturado de validação.
   List<String> get validationMessages {
     final value = details;
     if (value is List) {
-      return value.whereType<String>().toList(growable: false);
+      return value
+          .map(
+            (item) => switch (item) {
+              final String message => message,
+              final Map issue when issue['message'] is String =>
+                issue['message'] as String,
+              _ => null,
+            },
+          )
+          .whereType<String>()
+          .toList(growable: false);
     }
     return const [];
   }

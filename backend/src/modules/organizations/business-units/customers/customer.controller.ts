@@ -12,6 +12,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { ApiPublicErrors } from '../../../../common/public-errors';
 import { Permissions } from '../../../../decorators';
 import { ForbiddenException } from '../../../../exceptions';
 import { ParseUUIDv7Pipe } from '../../../../pipes';
@@ -31,6 +32,7 @@ import { CustomerReadModelMapper } from './customer.mapper';
 import { CustomerService } from './customer.service';
 
 @ApiTags('Customers')
+@ApiPublicErrors()
 @Controller('customers')
 @RequiresActivePlan()
 export class CustomerController {

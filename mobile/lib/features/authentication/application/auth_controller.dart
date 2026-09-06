@@ -38,12 +38,14 @@ class AuthController extends StateNotifier<AuthState> {
   /// dispara a renovação pelo interceptor. Isso deixa a abertura rápida mesmo
   /// com rede ruim.
   Future<void> restore() async {
-    final claims = await _repository.readClaims();
-    if (claims == null) {
-      state = const AuthUnauthenticated();
-      return;
-    }
     try {
+      // A leitura do armazenamento seguro entra no `try`: ela também pode
+      // falhar, e falhar aqui deixava a splash girando pelo mesmo motivo.
+      final claims = await _repository.readClaims();
+      if (claims == null) {
+        state = const AuthUnauthenticated();
+        return;
+      }
       state = AuthAuthenticated(await _composeSession(claims));
     } on OrbitException catch (error) {
       if (error.isUnauthorized) {
@@ -52,7 +54,26 @@ class AuthController extends StateNotifier<AuthState> {
         );
         return;
       }
-      rethrow;
+      // Qualquer outra falha também precisa sair da restauração.
+      //
+      // O erro era relançado, e ninguém o pegava: `restore()` é chamada sem
+      // `await` na abertura do app. Sem servidor alcançável, o estado ficava em
+      // `AuthRestoring` para sempre e a pessoa via a splash girando sem
+      // explicação nenhuma.
+      //
+      // A sessão guardada **não** é apagada: o problema é chegar ao servidor,
+      // não o token. Entrar de novo, ou uma rede que volte, resolve.
+      state = AuthUnauthenticated(
+        reason: error.isOffline
+            ? 'Não foi possível falar com o servidor. Verifique a conexão e entre novamente.'
+            : error.message,
+      );
+    } catch (_) {
+      // Nada justifica ficar preso na abertura: o que não se sabe explicar
+      // ainda assim leva ao login, onde há o que fazer.
+      state = const AuthUnauthenticated(
+        reason: 'Não foi possível retomar a sessão. Entre novamente.',
+      );
     }
   }
 

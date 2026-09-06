@@ -18,6 +18,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiPublicErrors } from '../../common/public-errors';
 import { Permissions, Public } from '../../decorators';
 import { ForbiddenException, UnauthorizedException } from '../../exceptions';
 import { ParseUUIDv7Pipe } from '../../pipes';
@@ -52,6 +53,7 @@ import {
 } from './customer-service-request.openapi';
 
 @Public()
+@ApiPublicErrors()
 @UseGuards(CustomerPortalGuard)
 @ApiBearerAuth('customer-portal')
 @ApiTags('Customer Portal Service Requests')
@@ -120,6 +122,7 @@ export class CustomerServiceRequestPortalController {
 }
 
 @ApiTags('Customer Service Requests')
+@ApiPublicErrors()
 @Controller({ path: 'customer-service-requests', version: '1' })
 @RequiresActivePlan()
 export class CustomerServiceRequestInternalController {

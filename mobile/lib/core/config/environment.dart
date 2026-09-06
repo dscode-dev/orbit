@@ -5,7 +5,7 @@
 /// de código.
 ///
 /// ```sh
-/// flutter run --dart-define=ORBIT_API_URL=http://10.0.2.2:3001/api/v1
+/// flutter run --dart-define=ORBIT_API_URL=http://10.0.2.2:6001/api/v1
 /// flutter build apk --dart-define=ORBIT_API_URL=https://api.orbit.app/api/v1
 /// ```
 library;
@@ -24,10 +24,14 @@ class OrbitEnvironment {
   ///
   /// O padrão aponta para `10.0.2.2`, que é como o emulador Android enxerga o
   /// `localhost` da máquina — o valor mais útil em desenvolvimento.
+  ///
+  /// A porta é a que o compose **publica** (`API_PORT`), não a `5001` que a
+  /// API escuta dentro do container. Apontar para a interna dá "connection
+  /// refused" sem nenhuma pista no app.
   factory OrbitEnvironment.fromDefines() {
     const url = String.fromEnvironment(
       'ORBIT_API_URL',
-      defaultValue: 'http://10.0.2.2:3001/api/v1',
+      defaultValue: 'http://10.0.2.2:6001/api/v1',
     );
     const flavorName = String.fromEnvironment(
       'ORBIT_FLAVOR',

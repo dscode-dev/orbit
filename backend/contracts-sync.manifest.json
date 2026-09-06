@@ -1,5 +1,6 @@
 {
   "readModels": [
+    "common/public-errors/public-error.read-models.ts",
     "modules/dashboards/dashboard.read-models.ts",
     "modules/analytics/analytics.read-models.ts",
     "modules/scheduling/scheduling.read-models.ts",

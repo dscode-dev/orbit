@@ -25,6 +25,7 @@
  */
 import { useRef, useState } from "react";
 
+import { PostalCodeField } from "@/components/address/postal-code-field";
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +55,7 @@ import {
   initialCustomerForm,
   type CustomerFormState,
 } from "@/lib/customer-form";
+import type { PostalAddress } from "@/lib/postal-code";
 import { cn } from "@/lib/utils";
 import { CustomerStatus, CustomerType } from "@/types/contracts";
 import { CUSTOMER_LIMITS, type Customer } from "@/types/customers";
@@ -63,8 +65,8 @@ const TYPE_OPTIONS = Object.values(CustomerType);
 const STATUS_OPTIONS = Object.values(CustomerStatus);
 
 /** Rótulos do endereço. O backend não define esquema; estas são as chaves que o produto já lê. */
+/** O CEP tem campo próprio: é ele que preenche o resto. */
 const ADDRESS_LABELS = [
-  ["postalCode", "CEP"],
   ["street", "Logradouro"],
   ["number", "Número"],
   ["complement", "Complemento"],
@@ -134,6 +136,25 @@ function Body({
     setForm((current) => ({
       ...current,
       address: { ...current.address, [key]: value },
+    }));
+
+  /**
+   * O endereço que o CEP trouxe.
+   *
+   * Número e complemento ficam como estavam: o CEP conhece a rua, não a porta.
+   */
+  const preencherEndereco = (endereco: PostalAddress) =>
+    setForm((current) => ({
+      ...current,
+      address: {
+        ...current.address,
+        postalCode: endereco.postalCode,
+        street: endereco.street,
+        district: endereco.district,
+        city: endereco.city,
+        state: endereco.state,
+        stateCode: endereco.stateCode,
+      },
     }));
 
   const issues = customerFormIssues(form);
@@ -341,6 +362,17 @@ function Body({
       </Section>
 
       <Section title="Endereço">
+        {/*
+          * Digitado o CEP, logradouro, bairro, cidade e estado chegam sozinhos
+          * — e continuam editáveis. Número e complemento não vêm do CEP.
+          */}
+        <PostalCodeField
+          id="customer-address-postalCode"
+          value={form.address.postalCode}
+          onChange={(value) => setAddress("postalCode", value)}
+          onAddressFound={preencherEndereco}
+        />
+
         {ADDRESS_LABELS.map(([key, label]) => (
           <Field key={key} label={label} htmlFor={`customer-address-${key}`}>
             <Input

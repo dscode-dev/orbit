@@ -18,6 +18,7 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiPublicErrors } from '../../common/public-errors';
 import { Public } from '../../decorators';
 import { UnauthorizedException } from '../../exceptions';
 import {
@@ -50,6 +51,7 @@ const metadata = (request: CustomerPortalRequest) => ({
 });
 
 @Public()
+@ApiPublicErrors()
 @ApiTags('Customer Portal Authentication')
 @Controller({ path: 'portal/auth', version: '1' })
 export class CustomerPortalAuthController {
@@ -137,6 +139,7 @@ export class CustomerPortalAuthController {
 }
 
 @Public()
+@ApiPublicErrors()
 @UseGuards(CustomerPortalGuard)
 @ApiBearerAuth('customer-portal')
 @ApiTags('Customer Portal')
