@@ -11,11 +11,18 @@ import type {
   CreateBusinessUnitDto,
   UpdateBusinessUnitDto,
 } from '../dto/organization.dto';
+import {
+  AllocationResource,
+  EntitlementService,
+} from '../../subscription-plans/entitlements';
 import { BusinessUnitRepository } from './business-unit.repository';
 
 @Injectable()
 export class BusinessUnitService {
-  constructor(private readonly repository: BusinessUnitRepository) {}
+  constructor(
+    private readonly repository: BusinessUnitRepository,
+    private readonly entitlements: EntitlementService,
+  ) {}
 
   list(organizationId: string) {
     return this.repository.list(organizationId);
@@ -38,13 +45,22 @@ export class BusinessUnitService {
     const slug = SlugHelper.create(input.tradeName ?? input.legalName);
     if (!slug) throw new ValidationException('Unable to generate a valid slug');
     try {
-      return await this.repository.create(
+      /**
+       * A vaga de unidade é conferida e mantida até o commit: entre a
+       * contagem e a inserção não cabe outra requisição.
+       */
+      return await this.entitlements.guardAllocation(
         organizationId,
-        actorUserId,
-        accessibleUnitIds,
-        role.roleId,
-        input,
-        slug,
+        AllocationResource.BUSINESS_UNITS,
+        () =>
+          this.repository.create(
+            organizationId,
+            actorUserId,
+            accessibleUnitIds,
+            role.roleId,
+            input,
+            slug,
+          ),
       );
     } catch (error) {
       if (

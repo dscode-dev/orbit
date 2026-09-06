@@ -5,6 +5,20 @@ import { OperationService } from './operation.service';
 import type { OperationStorageService } from './operation-storage.service';
 import { OperationStateMachine } from './operation-state-machine';
 import type { WorkforceRepository } from '../workforce/workforce.repository';
+import type { EntitlementService } from '../subscription-plans/entitlements';
+
+/** Estes testes são sobre as regras da ordem, não sobre cota. */
+const semCota = {
+  guardAllocation: <T>(_o: string, _r: string, work: () => Promise<T>) =>
+    work(),
+  guardUsage: <T>(
+    _o: string,
+    _r: string,
+    _s: unknown,
+    work: () => Promise<T>,
+  ) => work(),
+  countAuxiliaryAdditions: () => Promise.resolve(0),
+} as unknown as EntitlementService;
 
 describe('OperationService', () => {
   const repository = {
@@ -23,6 +37,7 @@ describe('OperationService', () => {
     repository as unknown as OperationRepository,
     storage as unknown as OperationStorageService,
     workforce as unknown as WorkforceRepository,
+    semCota,
   );
 
   beforeEach(() => {

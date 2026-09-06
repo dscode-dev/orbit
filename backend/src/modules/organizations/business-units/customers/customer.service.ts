@@ -12,11 +12,18 @@ import type {
   UpdateContactDto,
   UpdateCustomerDto,
 } from './customer.dto';
+import {
+  AllocationResource,
+  EntitlementService,
+} from '../../../subscription-plans/entitlements';
 import { CustomerRepository } from './customer.repository';
 
 @Injectable()
 export class CustomerService {
-  constructor(private readonly repository: CustomerRepository) {}
+  constructor(
+    private readonly repository: CustomerRepository,
+    private readonly entitlements: EntitlementService,
+  ) {}
 
   list(organizationId: string, query: CustomerQueryDto) {
     return this.repository.list(organizationId, query);
@@ -31,18 +38,23 @@ export class CustomerService {
   async create(organizationId: string, input: CreateCustomerDto) {
     this.validateDocument(input.documentType, input.documentNumber);
     try {
-      return await this.repository.create({
+      return await this.entitlements.guardAllocation(
         organizationId,
-        type: input.type,
-        legalName: input.legalName,
-        tradeName: input.tradeName,
-        documentType: input.documentType,
-        documentNumber: this.document(input.documentNumber),
-        email: input.email?.toLowerCase(),
-        phone: input.phone,
-        notes: input.notes,
-        address: input.address as Prisma.InputJsonValue | undefined,
-      });
+        AllocationResource.ACTIVE_CUSTOMERS,
+        () =>
+          this.repository.create({
+            organizationId,
+            type: input.type,
+            legalName: input.legalName,
+            tradeName: input.tradeName,
+            documentType: input.documentType,
+            documentNumber: this.document(input.documentNumber),
+            email: input.email?.toLowerCase(),
+            phone: input.phone,
+            notes: input.notes,
+            address: input.address as Prisma.InputJsonValue | undefined,
+          }),
+      );
     } catch (error) {
       this.mapConflict(error);
     }

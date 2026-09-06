@@ -232,6 +232,7 @@ model Organization {
   memberships                   OrganizationMembership[]
   roles                         Role[]
   usages                        PlanUsage[]
+  usageEvents                   PlanUsageEvent[]
   integrations                  Integration[]
   sessions                      Session[]
   customers                     Customer[]
@@ -527,6 +528,34 @@ model PlanUsage {
   @@unique([organizationId, resource, periodStart, periodEnd])
   @@index([organizationId, periodEnd])
   @@map("plan_usage")
+}
+
+/// Cada consumo de cota, uma linha — o razão de uso.
+///
+/// O agregado `plan_usage` responde "quanto já se usou" em O(1); este razão
+/// responde "por causa de quê", e é ele que torna a contagem idempotente: o
+/// índice único por origem faz a segunda tentativa do mesmo evento de negócio
+/// falhar em vez de somar de novo. É o que separa um retry técnico de uma nova
+/// emissão — renderizar três vezes o mesmo documento consome uma unidade.
+model PlanUsageEvent {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  resource       String   @db.VarChar(100)
+  /// A janela é sempre mensal, e vem de fora: a PR-PL-02 dará a âncora da
+  /// assinatura. Nada aqui deriva do mês do calendário.
+  windowStart    DateTime @map("window_start") @db.Timestamptz(3)
+  windowEnd      DateTime @map("window_end") @db.Timestamptz(3)
+  quantity       Decimal  @default(1) @db.Decimal(20, 4)
+  /// A identidade do evento de negócio que consumiu a cota.
+  sourceType     String   @map("source_type") @db.VarChar(60)
+  sourceId       String   @map("source_id") @db.VarChar(120)
+  occurredAt     DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, resource, sourceType, sourceId], map: "plan_usage_events_source_unique")
+  @@index([organizationId, resource, windowStart, windowEnd])
+  @@map("plan_usage_events")
 }
 
 model Integration {

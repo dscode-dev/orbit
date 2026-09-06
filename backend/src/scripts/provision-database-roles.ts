@@ -152,6 +152,28 @@ async function provision(): Promise<void> {
      */
     await admin.query(`REVOKE ALL ON TABLE _prisma_migrations FROM ${role}`);
 
+    /**
+     * O razão de uso de plano é acrescido, nunca corrigido.
+     *
+     * O `GRANT` amplo acima cobre esta tabela como cobre todas as outras, e é
+     * por isso que a exceção mora **aqui**, depois dele: uma cota consumida
+     * por engano se resolve com evento próprio, não apagando história. Sem
+     * `UPDATE` e sem `DELETE`, um defeito na aplicação não tem como reescrever
+     * o que já foi contado.
+     *
+     * A verificação de existência é necessária porque este script também roda
+     * antes da migration que cria a tabela: provisionar papel não pode
+     * depender da ordem do deploy.
+     */
+    await admin.query(
+      `DO $$
+         BEGIN
+           IF to_regclass('public.plan_usage_events') IS NOT NULL THEN
+             EXECUTE 'REVOKE UPDATE, DELETE ON TABLE public.plan_usage_events FROM ${role}';
+           END IF;
+         END $$`,
+    );
+
     const attributes = (
       await admin.query<RoleAttributes>(
         'SELECT rolsuper, rolbypassrls, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = $1',

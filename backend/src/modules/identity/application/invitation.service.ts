@@ -11,6 +11,10 @@ import {
   IdentityTokenPurpose,
   type IIdentityTokenDelivery,
 } from '../domain/identity.types';
+import {
+  AllocationResource,
+  EntitlementService,
+} from '../../subscription-plans/entitlements';
 import { IdentityRepository } from '../infrastructure/identity.repository';
 import { IdentityTokenService } from './token.service';
 
@@ -22,6 +26,7 @@ export class InvitationService {
     @Inject(HASH_PROVIDER) private readonly hashes: IHashProvider,
     @Inject(IDENTITY_TOKEN_DELIVERY)
     private readonly delivery: IIdentityTokenDelivery,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   async create(input: {
@@ -31,6 +36,17 @@ export class InvitationService {
     invitedById: string;
     email: string;
   }): Promise<{ id: string; expiresAt: Date }> {
+    /**
+     * Aviso antecipado, não a autoridade.
+     *
+     * A vaga só é de fato ocupada quando alguém aceita, e é lá que o teto é
+     * aplicado sob bloqueio. Conferir aqui existe para que a recusa apareça
+     * para quem convida, e não para o convidado no meio do cadastro.
+     */
+    await this.entitlements.assertCanAllocate(
+      input.organizationId,
+      AllocationResource.PLATFORM_USERS,
+    );
     const token = this.tokens.generateOpaqueToken();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60_000);
     try {
@@ -88,7 +104,6 @@ export class InvitationService {
     organizationId: string,
   ): Promise<{ id: string; expiresAt: Date }> {
     const invitation = await this.requirePending(id, organizationId);
-
     const token = this.tokens.generateOpaqueToken();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60_000);
 
@@ -145,15 +160,24 @@ export class InvitationService {
     ) {
       throw new ValidationException('Invalid or expired invitation');
     }
-    await this.repository.acceptInvitation(invitation.id, {
-      email: invitation.email,
-      normalizedEmail: invitation.normalizedEmail,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      passwordHash: await this.hashes.hash(input.password),
-      organizationId: invitation.organizationId,
-      businessUnitId: invitation.businessUnitId,
-      roleId: invitation.roleId,
-    });
+    await this.repository.acceptInvitation(
+      invitation.id,
+      {
+        email: invitation.email,
+        normalizedEmail: invitation.normalizedEmail,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        passwordHash: await this.hashes.hash(input.password),
+        organizationId: invitation.organizationId,
+        businessUnitId: invitation.businessUnitId,
+        roleId: invitation.roleId,
+      },
+      (transaction) =>
+        this.entitlements.enforceAllocationIn(
+          transaction,
+          invitation.organizationId,
+          AllocationResource.PLATFORM_USERS,
+        ),
+    );
   }
 }

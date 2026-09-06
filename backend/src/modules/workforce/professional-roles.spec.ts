@@ -1,6 +1,13 @@
+import type { EntitlementService } from '../subscription-plans/entitlements';
 import { WorkforceService } from './workforce.service';
 import { WorkforceMapper } from './workforce.mapper';
 import { ProfessionalSignatoryPolicy } from './professional-signatory.policy';
+
+/** Estes testes são sobre elegibilidade profissional, não sobre cota. */
+const semCota = {
+  guardAllocation: <T>(_o: string, _r: string, work: () => Promise<T>) =>
+    work(),
+} as unknown as EntitlementService;
 
 describe('Professional roles and eligibility', () => {
   const profile = (
@@ -57,6 +64,7 @@ describe('Professional roles and eligibility', () => {
       repository as never,
       new WorkforceMapper(),
       new ProfessionalSignatoryPolicy(),
+      semCota,
     );
   };
 

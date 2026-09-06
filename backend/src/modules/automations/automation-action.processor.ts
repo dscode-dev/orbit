@@ -36,6 +36,11 @@ import {
 import { JobProcessorRegistry } from '../jobs/job-processor.registry';
 import { ALLOWED_JOB_QUEUES, type RuleAction } from './automation.catalog';
 import { AutomationRepository } from './automation.repository';
+import {
+  EntitlementService,
+  PlanUsageLimitReachedException,
+  UsageResource,
+} from '../subscription-plans/entitlements';
 
 /**
  * Lê uma chave de configuração como texto.
@@ -71,6 +76,7 @@ export class AutomationActionProcessor implements JobProcessor, OnModuleInit {
     private readonly repository: AutomationRepository,
     private readonly jobs: BackgroundJobQueue,
     private readonly registry: JobProcessorRegistry,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   onModuleInit(): void {
@@ -100,6 +106,34 @@ export class AutomationActionProcessor implements JobProcessor, OnModuleInit {
           correlationId: job.correlationId,
         }),
       );
+      return;
+    }
+
+    /**
+     * A execução reivindicada é a unidade comercial de automação.
+     *
+     * Cobrada aqui, depois de a reivindicação decidir que há trabalho a fazer
+     * e antes de a ação acontecer (§81). Retry técnico volta a reivindicar a
+     * mesma linha, e o razão recusa a segunda contagem — uma automação, uma
+     * unidade, quantas tentativas forem precisas.
+     *
+     * Sem cota a execução é descartada, e não falha: uma fila que repete para
+     * sempre uma ação que o plano não permite não ajuda ninguém. O motivo fica
+     * registrado em linguagem de negócio, onde quem configurou a regra o lê.
+     */
+    try {
+      await this.entitlements.consume(
+        job.organizationId,
+        UsageResource.AUTOMATION_RUNS,
+        { type: 'AUTOMATION_EXECUTION', id: claimed.id },
+      );
+    } catch (error) {
+      if (!(error instanceof PlanUsageLimitReachedException)) throw error;
+      await this.repository.finish({
+        id: claimed.id,
+        status: 'SKIPPED',
+        detail: 'Limite mensal de automações do plano atingido.',
+      });
       return;
     }
 

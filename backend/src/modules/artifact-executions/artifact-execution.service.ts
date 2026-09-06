@@ -32,6 +32,10 @@ import {
   ProfessionalSignatoryPolicy,
   type DocumentType,
 } from '../workforce/professional-signatory.policy';
+import {
+  EntitlementService,
+  documentUsageResource,
+} from '../subscription-plans/entitlements';
 
 @Injectable()
 export class ArtifactExecutionService {
@@ -44,6 +48,7 @@ export class ArtifactExecutionService {
     private readonly progress: ArtifactExecutionProgressCalculator,
     private readonly workforce: WorkforceRepository,
     private readonly signatoryPolicy: ProfessionalSignatoryPolicy,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   async list(
@@ -117,8 +122,42 @@ export class ArtifactExecutionService {
         'ARTIFACT_EXECUTION_INCOMPLETE',
       );
     }
+    if (input.status !== 'COMPLETED') {
+      return this.mapper.details(
+        await this.repository.status(id, organizationId, actorId, input.status),
+      );
+    }
+
+    /**
+     * Concluir é emitir — e é aqui, uma única vez, que o documento custa cota.
+     *
+     * A identidade é a própria execução: renderizar de novo, tentar de novo
+     * depois de uma falha, ou baixar o PDF outra vez não passam por aqui, e o
+     * índice único do razão recusa a segunda contagem mesmo que passassem. A
+     * concessão e a transição estão na mesma transação: cota estourada não
+     * deixa documento concluído para trás.
+     *
+     * O documento da ordem de serviço é a exceção declarada: a ordem já foi
+     * cobrada ao ser criada, e cobrar o papel dela de novo seria contar o
+     * mesmo atendimento duas vezes.
+     */
+    const cota = documentUsageResource(current.snapshot.artifactType);
+    if (cota === null) {
+      return this.mapper.details(
+        await this.repository.status(id, organizationId, actorId, input.status),
+      );
+    }
+
     return this.mapper.details(
-      await this.repository.status(id, organizationId, actorId, input.status),
+      await this.entitlements.guardUsage(
+        organizationId,
+        cota,
+        (concluida: { id: string }) => ({
+          type: 'ARTIFACT_EXECUTION',
+          id: concluida.id,
+        }),
+        () => this.repository.status(id, organizationId, actorId, input.status),
+      ),
     );
   }
 

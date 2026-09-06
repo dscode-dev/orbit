@@ -27,7 +27,9 @@
     "seed:platform-admin": "node dist/src/scripts/seed-platform-admin.js",
     "seed:platform-admin:dev": "ts-node src/scripts/seed-platform-admin.ts",
     "seed:artifact-templates": "node dist/src/scripts/seed-artifact-templates.js",
-    "seed:artifact-templates:dev": "ts-node src/scripts/seed-artifact-templates.ts"
+    "seed:artifact-templates:dev": "ts-node src/scripts/seed-artifact-templates.ts",
+    "seed:plan-catalog": "node dist/src/scripts/seed-plan-catalog.js",
+    "seed:plan-catalog:dev": "ts-node src/scripts/seed-plan-catalog.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database';
+import type { PrismaTransactionClient } from '../../../database/prisma.types';
 
 const identityInclude = {
   credential: true,
@@ -433,6 +434,14 @@ export class IdentityRepository {
       businessUnitId: string | null;
       roleId: string;
     },
+    /**
+     * A cota de usuários da plataforma, conferida **aqui dentro**.
+     *
+     * O aceite é anônimo: fora desta transação a organização nem existe para
+     * a política de RLS, e uma contagem feita lá fora voltaria zero. O
+     * chamador entrega a verificação; a transação empresta o contexto.
+     */
+    assertQuota?: (transaction: PrismaTransactionClient) => Promise<void>,
   ): Promise<void> {
     return this.prisma
       .$transaction(async (transaction) => {
@@ -468,6 +477,21 @@ export class IdentityRepository {
           create: { userId: user.id, passwordHash: input.passwordHash },
           update: {},
         });
+        /**
+         * Só cobra vaga quem ainda não ocupa uma: reaceitar um convite de
+         * quem já é membro ativo não consome uma segunda unidade (§60).
+         */
+        const jaAtivo = await transaction.organizationMembership.findFirst({
+          where: {
+            organizationId: input.organizationId,
+            userId: user.id,
+            status: 'ACTIVE',
+            deletedAt: null,
+          },
+          select: { id: true },
+        });
+        if (!jaAtivo) await assertQuota?.(transaction);
+
         await transaction.organizationMembership.upsert({
           where: {
             organizationId_userId: {

@@ -1,7 +1,14 @@
 import { CustomerType } from '../../../../contracts';
 import { ValidationException } from '../../../../exceptions';
+import type { EntitlementService } from '../../../subscription-plans/entitlements';
 import type { CustomerRepository } from './customer.repository';
 import { CustomerService } from './customer.service';
+
+/** Sem plano no caminho: estes testes são sobre normalização, não sobre cota. */
+const semCota = {
+  guardAllocation: <T>(_o: string, _r: string, work: () => Promise<T>) =>
+    work(),
+} as unknown as EntitlementService;
 
 describe('CustomerService', () => {
   const repository = {
@@ -12,6 +19,7 @@ describe('CustomerService', () => {
   };
   const service = new CustomerService(
     repository as unknown as CustomerRepository,
+    semCota,
   );
 
   beforeEach(() => jest.clearAllMocks());

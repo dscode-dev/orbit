@@ -1,7 +1,14 @@
 import { AssetCategory, AssetIdentifierType } from '../../../../contracts';
 import { ValidationException } from '../../../../exceptions';
+import type { EntitlementService } from '../../../subscription-plans/entitlements';
 import type { AssetRepository } from './asset.repository';
 import { AssetService } from './asset.service';
+
+/** Sem plano no caminho: estes testes são sobre validação, não sobre cota. */
+const semCota = {
+  guardAllocation: <T>(_o: string, _r: string, work: () => Promise<T>) =>
+    work(),
+} as unknown as EntitlementService;
 
 describe('AssetService', () => {
   const repository = {
@@ -10,7 +17,10 @@ describe('AssetService', () => {
     create: jest.fn(),
     findByIdentifier: jest.fn(),
   };
-  const service = new AssetService(repository as unknown as AssetRepository);
+  const service = new AssetService(
+    repository as unknown as AssetRepository,
+    semCota,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();

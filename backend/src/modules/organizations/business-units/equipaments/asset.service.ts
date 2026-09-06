@@ -10,11 +10,18 @@ import type {
   CreateAssetDto,
   UpdateAssetDto,
 } from './asset.dto';
+import {
+  AllocationResource,
+  EntitlementService,
+} from '../../../subscription-plans/entitlements';
 import { AssetRepository } from './asset.repository';
 
 @Injectable()
 export class AssetService {
-  constructor(private readonly repository: AssetRepository) {}
+  constructor(
+    private readonly repository: AssetRepository,
+    private readonly entitlements: EntitlementService,
+  ) {}
 
   list(organizationId: string, query: AssetQueryDto) {
     return this.repository.list(organizationId, query);
@@ -42,23 +49,28 @@ export class AssetService {
     this.validateIdentifier(input.identifierType, input.identifier);
     this.validateDates(input.installationAt, input.warrantyUntil);
     try {
-      return await this.repository.create({
+      return await this.entitlements.guardAllocation(
         organizationId,
-        businessUnitId: input.businessUnitId,
-        customerId: input.customerId,
-        category: input.category,
-        name: input.name,
-        manufacturer: input.manufacturer,
-        model: input.model,
-        serialNumber: input.serialNumber,
-        identifierType: input.identifierType,
-        identifier: input.identifier,
-        installationAt: input.installationAt,
-        warrantyUntil: input.warrantyUntil,
-        location: input.location,
-        specifications: input.specifications as
-          Prisma.InputJsonValue | undefined,
-      });
+        AllocationResource.ACTIVE_EQUIPMENT,
+        () =>
+          this.repository.create({
+            organizationId,
+            businessUnitId: input.businessUnitId,
+            customerId: input.customerId,
+            category: input.category,
+            name: input.name,
+            manufacturer: input.manufacturer,
+            model: input.model,
+            serialNumber: input.serialNumber,
+            identifierType: input.identifierType,
+            identifier: input.identifier,
+            installationAt: input.installationAt,
+            warrantyUntil: input.warrantyUntil,
+            location: input.location,
+            specifications: input.specifications as
+              Prisma.InputJsonValue | undefined,
+          }),
+      );
     } catch (error) {
       this.mapConflict(error);
     }

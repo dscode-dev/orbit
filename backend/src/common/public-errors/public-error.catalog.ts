@@ -158,6 +158,32 @@ const entries = [
     'A unidade informada não pertence ao escopo deste Chamado.',
   ],
   [
+    // 403: a organização não contratou a área. Não é falta de permissão da
+    // pessoa, e a copy não nomeia a capacidade interna.
+    'PLAN_CAPABILITY_NOT_AVAILABLE',
+    HttpStatus.FORBIDDEN,
+    'Seu plano não inclui este recurso.',
+  ],
+  [
+    // 409: teto de quantidade simultânea. A copy fala do que a pessoa vê —
+    // usuários, unidades, clientes —, jamais do nome interno do recurso.
+    'PLAN_LIMIT_REACHED',
+    HttpStatus.CONFLICT,
+    'Seu plano atingiu o limite disponível para este item.',
+  ],
+  [
+    'PLAN_USAGE_LIMIT_REACHED',
+    HttpStatus.CONFLICT,
+    'Seu plano atingiu o limite mensal deste recurso.',
+  ],
+  [
+    // 500: catálogo mal configurado é defeito nosso, e falha fechada. Nunca
+    // libera recurso por omissão.
+    'PLAN_CONFIGURATION_INVALID',
+    HttpStatus.INTERNAL_SERVER_ERROR,
+    'Não foi possível concluir a solicitação.',
+  ],
+  [
     'EVIDENCE_LIMIT_REACHED',
     HttpStatus.CONFLICT,
     'O limite de evidências desta execução foi atingido.',

@@ -11,6 +11,7 @@ import {
   UpdatePlanDto,
 } from './subscription-plan.dto';
 import { SubscriptionPlanService } from './subscription-plan.service';
+import { EntitlementService } from './entitlements/entitlement.service';
 import { UsageService } from './usage.service';
 import { RequiresActivePlan } from './plan-access';
 
@@ -20,12 +21,26 @@ export class SubscriptionPlanController {
   constructor(
     private readonly plans: SubscriptionPlanService,
     private readonly usage: UsageService,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   @Public()
   @Get('plans')
   listPlans() {
     return this.plans.listPlans();
+  }
+
+  /**
+   * O catálogo comercial congelado.
+   *
+   * Vem do código, não do banco: é o mesmo catálogo que decide acesso, e
+   * publicar uma segunda cópia editável abriria espaço para as duas
+   * divergirem. Só informação comercial — nada de cobrança (§99).
+   */
+  @Public()
+  @Get('plans/catalog')
+  planCatalog() {
+    return this.entitlements.catalog();
   }
 
   @Post('plans')
@@ -55,6 +70,19 @@ export class SubscriptionPlanController {
     @Body() input: ChangeSubscriptionDto,
   ) {
     return this.plans.changeSubscription(this.organizationId(request), input);
+  }
+
+  /**
+   * Quanto esta organização tem, quanto usou e quanto falta.
+   *
+   * O servidor é a autoridade: o cliente lê `current`, `limit` e `remaining`,
+   * e nunca recalcula teto (§95, §96). O razão de uso não aparece — só o
+   * agregado que interessa a quem está olhando a tela.
+   */
+  @Get('organizations/current/entitlements')
+  @Permissions('usage.read')
+  currentEntitlements(@Req() request: IdentityRequest) {
+    return this.entitlements.describe(this.organizationId(request));
   }
 
   @Get('organizations/current/usage')

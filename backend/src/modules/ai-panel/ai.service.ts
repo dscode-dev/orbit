@@ -17,6 +17,11 @@ import type {
   UpdateAiAgentDto,
 } from './ai.dto';
 import { AiContextTool } from './ai.dto';
+import {
+  EntitlementService,
+  PlanCapability,
+  UsageResource,
+} from '../subscription-plans/entitlements';
 import { AiProviderRegistry } from './ai-provider';
 import { AiRepository } from './ai.repository';
 
@@ -29,6 +34,7 @@ export class AiService {
     private readonly providers: AiProviderRegistry,
     private readonly notifications: NotificationService,
     @Inject(CRYPTO_PROVIDER) private readonly crypto: ICryptoProvider,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   listAgents(organizationId: string, query: AiAgentQueryDto) {
@@ -130,6 +136,22 @@ export class AiService {
     userId: string,
     input: ExecuteAiAgentDto,
   ) {
+    /**
+     * O portão da camada de inteligência.
+     *
+     * É aqui, e só aqui, que o plano decide sobre IA: este é o caminho de IA
+     * **vendida ao cliente**. Processamento interno da plataforma não passa
+     * por este serviço e não é barrado por plano nenhum (§90) — confundir os
+     * dois desligaria funcionalidade que o cliente já pagou por outro nome.
+     *
+     * Cobrar e liberar são coisas diferentes: o portão é a capacidade; a
+     * medição acontece depois, e vale também para quem tem a capacidade.
+     */
+    await this.entitlements.assertCapability(
+      organizationId,
+      PlanCapability.ORBIT_INTELLIGENCE,
+    );
+
     const agent = await this.repository.findAgentInternal(
       agentId,
       organizationId,
@@ -251,6 +273,7 @@ export class AiService {
         durationMs: Date.now() - startedAt,
         completedAt: new Date(),
       });
+      await this.meter(organizationId, completed.id);
       if (input.notifyOnCompletion)
         await this.notify(organizationId, userId, completed.id, true);
       return completed;
@@ -267,6 +290,39 @@ export class AiService {
       if (input.notifyOnCompletion)
         await this.notify(organizationId, userId, failed.id, false);
       throw error;
+    }
+  }
+
+  /**
+   * Registra a execução de IA consumida, sem barrar ninguém.
+   *
+   * A unidade comercial de IA ainda não foi escolhida — chamada, token ou
+   * custo —, e inventar um teto agora congelaria a escolha errada (§33). O
+   * que existe hoje é a medição: uma execução, um evento no razão. O detalhe
+   * caro (modelo, tokens, custo estimado em decimal, tempo) já mora em
+   * `ai_executions`, então nada precisa ser duplicado aqui.
+   *
+   * Medir nunca pode derrubar a resposta que o cliente já recebeu: falha de
+   * medição vira registro, e não exceção.
+   */
+  private async meter(
+    organizationId: string,
+    executionId: string,
+  ): Promise<void> {
+    try {
+      await this.entitlements.consume(
+        organizationId,
+        UsageResource.AI_COMPUTE,
+        { type: 'AI_EXECUTION', id: executionId },
+      );
+    } catch (error) {
+      this.logger.warn(
+        JSON.stringify({
+          stage: 'ai-metering-failed',
+          executionId,
+          reason: this.errorMessage(error).slice(0, 200),
+        }),
+      );
     }
   }
 

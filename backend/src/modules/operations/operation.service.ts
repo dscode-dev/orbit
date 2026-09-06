@@ -19,6 +19,10 @@ import { OperationStorageService } from './operation-storage.service';
 import { OperationStateMachine } from './operation-state-machine';
 import { WorkforceRepository } from '../workforce/workforce.repository';
 import { MobileNotificationService } from '../notifications/mobile-notification.service';
+import {
+  EntitlementService,
+  UsageResource,
+} from '../subscription-plans/entitlements';
 import { generateUuidV7 } from '../../utils';
 
 @Injectable()
@@ -29,6 +33,7 @@ export class OperationService {
     private readonly repository: OperationRepository,
     private readonly storage: OperationStorageService,
     private readonly workforce: WorkforceRepository,
+    private readonly entitlements: EntitlementService,
     @Optional()
     private readonly mobileNotifications?: MobileNotificationService,
   ) {}
@@ -62,31 +67,55 @@ export class OperationService {
       input.responsibleFieldTechnicianId,
       input.auxiliaryTechnicianIds ?? [],
     );
+    const auxiliares = input.auxiliaryTechnicianIds ?? [];
     try {
-      const operation = await this.repository.create(
-        {
-          organizationId,
-          businessUnitId: input.businessUnitId,
-          customerId: input.customerId ?? references.assetCustomerId,
-          assetId: input.assetId,
-          code: input.code.trim().toUpperCase(),
-          kind: input.kind,
-          title: input.title,
-          description: input.description,
-          status: input.scheduledStart
-            ? OperationStatus.SCHEDULED
-            : OperationStatus.OPEN,
-          priority: input.priority,
-          scheduledStart: input.scheduledStart,
-          scheduledEnd: input.scheduledEnd,
-          location: input.location as Prisma.InputJsonValue | undefined,
-          data: input.data as Prisma.InputJsonValue | undefined,
-          createdById: actorId,
-          responsibleFieldTechnicianId: input.responsibleFieldTechnicianId,
-        },
-        actorId,
-        this.json({ code: input.code, title: input.title }),
-        input.auxiliaryTechnicianIds ?? [],
+      /**
+       * A ordem de serviço é a unidade comercial de OS.
+       *
+       * A cota mensal é cobrada da ordem canônica criada — não de tentativas
+       * de renderizar o documento dela, que podem ser muitas para a mesma
+       * ordem (§46). A cobrança e a criação estão na mesma transação: se o
+       * mês acabou, não sobra ordem criada sem cota.
+       */
+      /**
+       * Escalar alguém não compra licença.
+       *
+       * A vaga de equipe de campo é cobrada quando a pessoa é **habilitada**
+       * para operar, e não quando ela aparece numa ordem: designar o mesmo
+       * técnico em dez atendimentos continua sendo uma pessoa. O domínio já
+       * exige que todo designado seja um `FIELD_TECHNICIAN` ativo, então quem
+       * chega aqui ocupa a sua vaga desde a habilitação.
+       */
+      const operation = await this.entitlements.guardUsage(
+        organizationId,
+        UsageResource.SERVICE_ORDERS_CREATED,
+        (criada: { id: string }) => ({ type: 'OPERATION', id: criada.id }),
+        () =>
+          this.repository.create(
+            {
+              organizationId,
+              businessUnitId: input.businessUnitId,
+              customerId: input.customerId ?? references.assetCustomerId,
+              assetId: input.assetId,
+              code: input.code.trim().toUpperCase(),
+              kind: input.kind,
+              title: input.title,
+              description: input.description,
+              status: input.scheduledStart
+                ? OperationStatus.SCHEDULED
+                : OperationStatus.OPEN,
+              priority: input.priority,
+              scheduledStart: input.scheduledStart,
+              scheduledEnd: input.scheduledEnd,
+              location: input.location as Prisma.InputJsonValue | undefined,
+              data: input.data as Prisma.InputJsonValue | undefined,
+              createdById: actorId,
+              responsibleFieldTechnicianId: input.responsibleFieldTechnicianId,
+            },
+            actorId,
+            this.json({ code: input.code, title: input.title }),
+            auxiliares,
+          ),
       );
       const recipients = [
         input.responsibleFieldTechnicianId,
@@ -316,6 +345,7 @@ export class OperationService {
       operation.businessUnitId,
       userId,
     );
+    /** Designação não consome vaga: a pessoa já está habilitada (§24). */
     const result = await this.repository.addAuxiliaryTechnician(
       id,
       organizationId,

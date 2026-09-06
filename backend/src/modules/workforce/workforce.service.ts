@@ -19,6 +19,10 @@ import type {
   CreateProfessionalCredentialDto,
   ProfessionalEligibilityQueryDto,
 } from './workforce.dto';
+import {
+  AllocationResource,
+  EntitlementService,
+} from '../subscription-plans/entitlements';
 import { WorkforceRepository } from './workforce.repository';
 import { WorkforceMapper } from './workforce.mapper';
 import { ProfessionalSignatoryPolicy } from './professional-signatory.policy';
@@ -39,6 +43,7 @@ export class WorkforceService {
     private readonly repository: WorkforceRepository,
     private readonly mapper: WorkforceMapper,
     private readonly signatoryPolicy: ProfessionalSignatoryPolicy,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   async professionalProfile(organizationId: string, userId: string) {
@@ -61,11 +66,42 @@ export class WorkforceService {
     actorId: string,
     input: UpdateProfessionalProfileDto,
   ) {
-    const profile = await this.repository.upsertProfessionalProfile(
+    /**
+     * Habilitar para o campo é o que compra a vaga.
+     *
+     * A cota conta **pessoas habilitadas**, e é aqui — e só aqui — que uma
+     * pessoa passa a ocupar uma. Escalar essa mesma pessoa numa ordem, como
+     * responsável ou como auxiliar, não custa nada: os dois números
+     * comerciais ("técnicos operadores" e "auxiliares técnico") descrevem a
+     * mesma equipe, e ninguém paga duas vezes por acumular papéis.
+     *
+     * Desligar o papel não cobra; religar cobra de novo. A quantidade é
+     * decidida sob o bloqueio, olhando o perfil de agora.
+     */
+    const profile = await this.entitlements.guardAllocation(
       organizationId,
-      userId,
-      actorId,
-      input,
+      AllocationResource.FIELD_TECHNICIANS,
+      () =>
+        this.repository.upsertProfessionalProfile(
+          organizationId,
+          userId,
+          actorId,
+          input,
+        ),
+      async () => {
+        if (!input.fieldTechnicianEnabled || !input.active) return 0;
+        const atual = await this.repository.findProfessionalProfile(
+          organizationId,
+          userId,
+        );
+        /** O mesmo predicado da contagem canônica: pessoa ativa, perfil ativo. */
+        const jaOcupaVaga =
+          atual?.active === true &&
+          atual.fieldTechnicianEnabled &&
+          atual.user.status === 'ACTIVE' &&
+          atual.user.deletedAt === null;
+        return jaOcupaVaga ? 0 : 1;
+      },
     );
     if (!profile)
       throw new EntityNotFoundException('OrganizationMember', userId);
