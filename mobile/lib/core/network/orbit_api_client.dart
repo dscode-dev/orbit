@@ -54,7 +54,10 @@ class OrbitApiClient {
       locale: locale,
       timezone: timezone,
     );
-    plain.interceptors.addAll([context, ErrorMappingInterceptor()]);
+    plain.interceptors.addAll([
+      context,
+      ErrorMappingInterceptor(destination: environment.diagnosticHost),
+    ]);
 
     final authenticator = SessionAuthenticator(
       storage: storage,
@@ -84,7 +87,7 @@ class OrbitApiClient {
         retryClient: plain,
       ),
       LoggingInterceptor(logger),
-      ErrorMappingInterceptor(),
+      ErrorMappingInterceptor(destination: environment.diagnosticHost),
     ]);
 
     return OrbitApiClient._(dio: client, authenticator: authenticator);

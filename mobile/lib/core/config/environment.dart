@@ -56,6 +56,23 @@ class OrbitEnvironment {
 
   bool get isProduction => flavor == OrbitFlavor.production;
 
+  /// O destino, como `192.168.1.233:6001`.
+  ///
+  /// Serve para o app **dizer para onde tentou ir** quando a conexão falha.
+  /// Uma tela que só informa "sem conexão" esconde justamente o fato que
+  /// resolve o problema: quase sempre a URL é a errada, não a rede.
+  String get apiHost {
+    final uri = Uri.tryParse(apiBaseUrl);
+    if (uri == null || uri.host.isEmpty) return apiBaseUrl;
+    return uri.hasPort ? '${uri.host}:${uri.port}' : uri.host;
+  }
+
+  /// Fora de produção o endereço aparece na mensagem de erro.
+  ///
+  /// Em produção não: o endereço do servidor não é assunto de quem usa o app,
+  /// e a mensagem genérica continua sendo a certa.
+  String? get diagnosticHost => isProduction ? null : apiHost;
+
   /// Cliente informado ao backend em `LoginDto.client`.
   static const String client = 'MOBILE';
 }

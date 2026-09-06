@@ -172,6 +172,14 @@ class LoggingInterceptor extends Interceptor {
 
 /// Traduz qualquer falha do Dio para [OrbitException].
 class ErrorMappingInterceptor extends Interceptor {
+  ErrorMappingInterceptor({this.destination});
+
+  /// Para onde o cliente foi configurado a falar, como `192.168.1.233:6001`.
+  ///
+  /// Preenchido fora de produção. Quando a conexão nem chega a abrir, este é
+  /// o único dado que importa — e era exatamente o que faltava na tela.
+  final String? destination;
+
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     handler.reject(
@@ -194,7 +202,7 @@ class ErrorMappingInterceptor extends Interceptor {
       DioExceptionType.sendTimeout ||
       DioExceptionType.receiveTimeout => OrbitException(
         kind: OrbitErrorKind.timeout,
-        message: 'O servidor demorou a responder.',
+        message: _comDestino('O servidor demorou a responder.'),
         code: 'TIMEOUT',
         requestId: requestId,
       ),
@@ -206,9 +214,9 @@ class ErrorMappingInterceptor extends Interceptor {
       ),
       DioExceptionType.connectionError || DioExceptionType.unknown
           when err.response == null =>
-        const OrbitException(
+        OrbitException(
           kind: OrbitErrorKind.network,
-          message: 'Sem conexão com o servidor.',
+          message: _comDestino('Sem conexão com o servidor.'),
           code: 'NETWORK',
         ),
       _ => OrbitException.fromEnvelope(
@@ -218,4 +226,7 @@ class ErrorMappingInterceptor extends Interceptor {
       ),
     };
   }
+
+  String _comDestino(String mensagem) =>
+      destination == null ? mensagem : '$mensagem (tentei $destination)';
 }

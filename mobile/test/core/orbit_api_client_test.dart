@@ -266,4 +266,63 @@ void main() {
     final sent = setup.adapter.requests.single;
     expect(sent.queryParameters, {'status': 'OPEN'});
   });
+
+  group('a falha de conexão diz para onde tentou ir', () {
+    /// Uma tela que só informa "sem conexão" esconde o fato que resolve o
+    /// problema. Em desenvolvimento a URL errada é a causa quase sempre — e
+    /// era invisível.
+    DioException semRede(RequestOptions options) => DioException(
+      requestOptions: options,
+      type: DioExceptionType.connectionError,
+      error: 'nada respondeu',
+    );
+
+    Future<OrbitException> mapear(String? destino) async {
+      final dio = Dio()
+        ..httpClientAdapter = _ScriptedAdapter(
+          (options) async => throw semRede(options),
+        )
+        ..interceptors.add(ErrorMappingInterceptor(destination: destino));
+      try {
+        await dio.get<dynamic>('/operations');
+        fail('a requisição deveria ter falhado');
+      } on DioException catch (error) {
+        return error.error as OrbitException;
+      }
+    }
+
+    test('nomeia o destino fora de produção', () async {
+      final erro = await mapear('192.168.1.233:6001');
+      expect(erro.code, 'NETWORK');
+      expect(erro.message, contains('192.168.1.233:6001'));
+    });
+
+    test('não expõe o destino quando ele não é informado', () async {
+      final erro = await mapear(null);
+      expect(erro.code, 'NETWORK');
+      expect(erro.message, 'Sem conexão com o servidor.');
+    });
+
+    test('o ambiente de produção não informa destino', () {
+      const producao = OrbitEnvironment(
+        apiBaseUrl: 'https://api.orbit.app/api/v1',
+        flavor: OrbitFlavor.production,
+        connectTimeout: Duration(seconds: 15),
+        receiveTimeout: Duration(seconds: 30),
+      );
+      expect(producao.diagnosticHost, isNull);
+      expect(producao.apiHost, 'api.orbit.app');
+    });
+
+    test('o ambiente de desenvolvimento informa host e porta', () {
+      const local = OrbitEnvironment(
+        apiBaseUrl: 'http://192.168.1.233:6001/api/v1',
+        flavor: OrbitFlavor.development,
+        connectTimeout: Duration(seconds: 15),
+        receiveTimeout: Duration(seconds: 30),
+      );
+      expect(local.diagnosticHost, '192.168.1.233:6001');
+    });
+  });
+
 }

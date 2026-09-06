@@ -113,7 +113,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Sem conexão com o servidor.'), findsOneWidget);
+    /// Fora de produção a mensagem também nomeia o destino — é o que revela
+    /// uma URL mal configurada, que é a causa quase sempre.
+    expect(
+      find.textContaining('Sem conexão com o servidor.'),
+      findsOneWidget,
+    );
     expect(find.text('Tentar novamente'), findsOneWidget);
   });
 
