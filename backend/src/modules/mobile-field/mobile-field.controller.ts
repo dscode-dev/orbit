@@ -3,7 +3,10 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ForbiddenException } from '../../exceptions';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import { RequiresActivePlan } from '../subscription-plans/plan-access';
-import { MobileWorkQueueQueryDto } from './mobile-field.dto';
+import {
+  MobileDocumentsQueryDto,
+  MobileWorkQueueQueryDto,
+} from './mobile-field.dto';
 import {
   MobileFieldService,
   type MobileFieldActor,
@@ -14,6 +17,19 @@ import {
 @RequiresActivePlan()
 export class MobileFieldController {
   constructor(private readonly service: MobileFieldService) {}
+
+  /**
+   * A tela inicial, numa chamada.
+   *
+   * Existe para eliminar a cascata: montar "documentos recentes" no aplicativo
+   * custava uma requisição por atendimento da fila. Aqui é agregação de
+   * leituras que já existiam — nenhuma regra nova.
+   */
+  @Get('home')
+  @ApiOperation({ summary: 'Tela inicial do técnico, consolidada' })
+  home(@Req() request: IdentityRequest) {
+    return this.service.home(this.actor(request));
+  }
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Dashboard operacional consolidado do técnico' })
@@ -28,6 +44,15 @@ export class MobileFieldController {
     @Query() query: MobileWorkQueueQueryDto,
   ) {
     return this.service.workQueue(this.actor(request), query);
+  }
+
+  @Get('documents')
+  @ApiOperation({ summary: 'Documentos de campo emitidos, paginados' })
+  documents(
+    @Req() request: IdentityRequest,
+    @Query() query: MobileDocumentsQueryDto,
+  ) {
+    return this.service.documents(this.actor(request), query);
   }
 
   @Get('work-items/:id')

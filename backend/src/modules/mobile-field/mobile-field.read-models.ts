@@ -93,6 +93,67 @@ export interface MobileFieldDashboardReadModel {
   inProgress: readonly MobileWorkItemReadModel[];
   capabilities: { canScanEquipment: boolean; canCreateAdHocRvt: boolean };
 }
+/**
+ * Um documento de campo já emitido, na forma curta que a tela lista.
+ *
+ * O suficiente para reconhecer e abrir; nada do conteúdo, nada do caminho de
+ * armazenamento, nada de URL permanente.
+ */
+export interface MobileRecentDocumentReadModel {
+  artifactId: string;
+  documentType: string;
+  /** Rótulo público já resolvido: a tela não traduz enum. */
+  label: string;
+  customerName: string | null;
+  createdAt: string;
+  /**
+   * O que a tela pode oferecer.
+   *
+   * - `AVAILABLE` — há arquivo para abrir.
+   * - `PREPARING` — ainda vai haver; esperar resolve.
+   * - `FAILED` — não vai haver sem alguém pedir de novo. Chamar isto de
+   *   "preparando" deixaria a pessoa esperando por um documento que nunca
+   *   chega.
+   */
+  state: 'AVAILABLE' | 'PREPARING' | 'FAILED';
+}
+
+/** Um compromisso recente da agenda, para a tela inicial. */
+export interface MobileRecentAppointmentReadModel {
+  id: string;
+  title: string;
+  customerName: string | null;
+  type: string;
+  status: string;
+  startsAt: string;
+}
+
+/**
+ * A tela inicial, numa leitura.
+ *
+ * Agrega o que já existia — o painel do técnico — com duas listas curtas que
+ * exigiriam uma chamada por item se fossem montadas no aplicativo. É
+ * **agregação**, e não regra nova: cada parte continua vindo de quem já era
+ * dona dela, com os mesmos filtros de permissão e o mesmo isolamento.
+ */
+export interface MobileFieldHomeReadModel {
+  dashboard: MobileFieldDashboardReadModel;
+  recentDocuments: readonly MobileRecentDocumentReadModel[];
+  recentAppointments: readonly MobileRecentAppointmentReadModel[];
+}
+
+/**
+ * Uma página de documentos de campo.
+ *
+ * Mesma projeção de `recentDocuments`, sem o teto de cinco e com filtro por
+ * tipo. Existe porque a tela de Documentos precisa listar o que a tela inicial
+ * só resume — e montá-la no aplicativo custaria uma chamada por atendimento.
+ */
+export interface MobileDocumentsPageReadModel {
+  data: readonly MobileRecentDocumentReadModel[];
+  meta: { limit: number; hasNextPage: boolean; nextCursor: string | null };
+}
+
 export interface MobileAgendaReadModel {
   date: string;
   timezone: string;

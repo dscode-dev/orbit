@@ -19,7 +19,7 @@
  *
  * O que já tem Workspace próprio — templates, catálogo, equipe, agenda — é
  * **alcançado** daqui, não duplicado. As abas reusam as seções que já existem
- * (`GeneralSection`, `PlanSection`, `IntegrationsSection`, `CalendarSetup`,
+ * (`GeneralSection`, `IntegrationsSection`, `CalendarSetup`,
  * `OperationAuthorizationSection`); nenhuma foi reescrita.
  */
 import { ContentContainer } from "@/components/layout/page-primitives";

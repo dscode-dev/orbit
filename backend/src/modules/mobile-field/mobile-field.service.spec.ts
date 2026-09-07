@@ -63,6 +63,68 @@ describe('MobileFieldService', () => {
     expect(queue.data[0]?.allowedActions).not.toContain('START');
   });
 
+  it('reports a rendered document as available, and a failed one as failed', async () => {
+    /**
+     * A regressão que este teste existe para impedir foi silenciosa: a
+     * comparação era com `'RENDERED'`, estado que o domínio não tem — o pronto
+     * se chama `READY`. Nada quebrou, e todo documento emitido aparecia como
+     * "Preparando" para sempre.
+     */
+    const documentos = [
+      documentRow('READY'),
+      documentRow('NOT_RENDERED'),
+      documentRow('PENDING'),
+      documentRow('RENDERING'),
+      documentRow('FAILED'),
+      documentRow('ESTADO_QUE_AINDA_NAO_EXISTE'),
+    ];
+    const repository = {
+      project: jest.fn().mockResolvedValue(emptySource()),
+      recentDocuments: jest.fn().mockResolvedValue(documentos),
+      recentAppointments: jest.fn().mockResolvedValue([]),
+    };
+    const service = new MobileFieldService(repository as never);
+
+    const home = await service.home(actor);
+    expect(home.recentDocuments.map((value) => value.state)).toEqual([
+      'AVAILABLE',
+      'PREPARING',
+      'PREPARING',
+      'PREPARING',
+      'FAILED',
+
+      /**
+       * Um estado que este build não conhece degrada para "preparando" em vez
+       * de derrubar a tela inicial de quem está em campo.
+       */
+      'PREPARING',
+    ]);
+  });
+
+  it('resolves the public document label on the server', async () => {
+    const repository = {
+      project: jest.fn().mockResolvedValue(emptySource()),
+      recentDocuments: jest
+        .fn()
+        .mockResolvedValue([
+          documentRow('READY', 'SERVICE_ORDER'),
+          documentRow('READY', 'PMOC'),
+          documentRow('READY', 'TIPO_NOVO'),
+        ]),
+      recentAppointments: jest.fn().mockResolvedValue([]),
+    };
+    const service = new MobileFieldService(repository as never);
+
+    const home = await service.home(actor);
+    expect(home.recentDocuments.map((value) => value.label)).toEqual([
+      'Ordem de serviço',
+      'PMOC',
+
+      /** Sigla crua nunca chega à tela. */
+      'Documento',
+    ]);
+  });
+
   it('uses an opaque stable cursor without duplicates', async () => {
     const source = emptySource();
     source.businessUnits.push({
@@ -124,5 +186,14 @@ function emptySource() {
     rvtOccurrences: [] as any[],
     customers: [] as any[],
     rvtAssets: [] as any[],
+  };
+}
+
+function documentRow(renderStatus: string, documentType = 'SERVICE_ORDER') {
+  return {
+    id: '01900000-0000-7000-8000-00000000000a',
+    documentType,
+    createdAt: new Date('2026-09-01T12:00:00Z'),
+    artifactExecution: { renderStatus, customer: null },
   };
 }

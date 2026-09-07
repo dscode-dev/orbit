@@ -20,6 +20,8 @@ import { IdentityReadModelMapper } from './identity.mapper';
 import { AuthController } from './presentation/auth.controller';
 import { InvitationController } from './presentation/invitation.controller';
 import { ProfileController } from './presentation/profile.controller';
+import { AvatarService } from './application/avatar.service';
+import { AvatarRepository } from './infrastructure/avatar.repository';
 
 @Module({
   imports: [
@@ -52,6 +54,8 @@ import { ProfileController } from './presentation/profile.controller';
     InvitationService,
     InvitationReadModels,
     ProfileService,
+    AvatarService,
+    AvatarRepository,
     MfaService,
     RegistrationService,
     IdentityReadModelMapper,

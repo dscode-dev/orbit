@@ -83,8 +83,15 @@ test.describe("shell", () => {
     await expand(page);
 
     const menu = nav(page);
-    /** H04: o centro de artefatos diz de que execução se trata. */
-    await expect(menu.getByRole("link", { name: "Execuções de artefato" })).toBeVisible();
+    /**
+     * PR-FX-01: "Execuções de artefato" saiu do menu — era o nome do modelo,
+     * não o do trabalho. O documento continua alcançável em "Documentos" e
+     * dentro da OS, do PMOC e da visita técnica.
+     */
+    await expect(
+      menu.getByRole("link", { name: "Execuções de artefato" }),
+    ).toHaveCount(0);
+    await expect(menu.getByRole("link", { name: "Documentos" })).toBeVisible();
     /** H05: duas entradas de administração, e "Organização" não é uma delas. */
     await expect(menu.getByRole("link", { name: "Configurações" })).toBeVisible();
     await expect(menu.getByRole("link", { name: "Minha conta" })).toBeVisible();
@@ -173,8 +180,10 @@ test.describe("navegação abaixo do desktop", () => {
 
       /** A mesma lista do menu fixo — não uma segunda navegação escrita à mão. */
       const links = drawer.getByRole("link");
-      await expect(links).toHaveCount(18);
-      await expect(drawer.getByRole("link", { name: "Execuções de artefato" })).toBeVisible();
+      await expect(links).toHaveCount(17);
+      await expect(
+        drawer.getByRole("link", { name: "Execuções de artefato" }),
+      ).toHaveCount(0);
       await expect(drawer.getByRole("link", { name: "Minha conta" })).toBeVisible();
       await expect(drawer.getByRole("link", { name: "Organização" })).toHaveCount(0);
       await expect(drawer).not.toContainText(/copilot/i);

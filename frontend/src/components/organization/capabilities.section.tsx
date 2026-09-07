@@ -183,7 +183,16 @@ function buildGroups(
     for (const capability of plan.capabilities) {
       grantedBy.set(capability, [
         ...(grantedBy.get(capability) ?? []),
-        plan.key,
+
+        /**
+         * O nome comercial, não a chave.
+         *
+         * `plan.key` é identificador interno — `PROFESSIONAL_INTELLIGENCE` não
+         * é como ninguém chama o plano, nem no contrato nem na conversa. O
+         * `name` vem no mesmo Read Model; usar a chave era só descuido, e
+         * espalhava vocabulário de banco de dados por uma tela de produto.
+         */
+        plan.name || plan.key,
       ]);
     }
   }

@@ -39,3 +39,26 @@ export class MobileWorkQueueQueryDto {
   @IsString()
   cursor?: string;
 }
+
+/** Os tipos de documento que a tela de Documentos filtra. */
+export const MOBILE_DOCUMENT_TYPES = ['SERVICE_ORDER', 'PMOC', 'RVT'] as const;
+
+export class MobileDocumentsQueryDto {
+  @ApiPropertyOptional({ enum: MOBILE_DOCUMENT_TYPES })
+  @IsOptional()
+  @IsIn(MOBILE_DOCUMENT_TYPES)
+  type?: (typeof MOBILE_DOCUMENT_TYPES)[number];
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 50, default: 20 })
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+}

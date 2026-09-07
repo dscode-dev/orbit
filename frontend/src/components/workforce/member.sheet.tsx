@@ -217,7 +217,7 @@ function RelatedSection({ userId }: { userId: string }) {
         title="Execuções em andamento"
         isPending={executions.isPending}
         empty="Nenhuma execução sob responsabilidade."
-        seeAllHref={`${ROUTES.executions}?responsibleUserId=${userId}`}
+
         rows={(executions.data?.data ?? []).map((execution) => ({
           key: execution.id,
           href: entityHref("artifact-execution", execution.id),
@@ -266,7 +266,13 @@ function RelatedList({
   isPending: boolean;
   empty: string;
   rows: readonly RelatedRow[];
-  seeAllHref: string;
+  /**
+   * O destino do "Ver todas". **Opcional**: nem todo recorte tem uma listagem
+   * global correspondente, e mandar para uma lista sem o filtro seria pior do
+   * que não oferecer o link — pareceria um filtro que silenciosamente não
+   * valeu.
+   */
+  seeAllHref?: string;
 }) {
   return (
     <section className="rounded-xl border border-border">
@@ -275,12 +281,14 @@ function RelatedList({
           {icon}
           {title}
         </h3>
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={seeAllHref}>
-            Ver todas
-            <ArrowRight className="size-4" />
-          </Link>
-        </Button>
+        {seeAllHref ? (
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={seeAllHref}>
+              Ver todas
+              <ArrowRight className="size-4" />
+            </Link>
+          </Button>
+        ) : null}
       </header>
 
       {isPending ? (

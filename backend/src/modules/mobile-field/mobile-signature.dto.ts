@@ -24,6 +24,12 @@ export class MobileSignatureUploadDto {
   storageObjectId!: string;
 }
 
+/** Para que serve o arquivo reservado. É o que a trilha de auditoria registra. */
+export const SIGNATURE_UPLOAD_PURPOSES = [
+  'PROFESSIONAL_SIGNATURE',
+  'CUSTOMER_ACKNOWLEDGEMENT',
+] as const;
+
 export class MobileSignatureUploadReservationDto {
   @ApiProperty()
   @Transform(trim)
@@ -41,6 +47,20 @@ export class MobileSignatureUploadReservationDto {
   @Min(1)
   @Max(2_000_000)
   sizeBytes!: number;
+
+  /**
+   * O destino do arquivo. Opcional; ausente vale como assinatura profissional,
+   * que é o que a rota fazia antes de o aceite do cliente também reservar por
+   * aqui.
+   *
+   * Não decide autorização nem validação — as duas são idênticas. Decide o que
+   * a metadata do objeto vai dizer, e registrar a assinatura de um cliente como
+   * "assinatura profissional" seria uma linha falsa na trilha.
+   */
+  @ApiPropertyOptional({ enum: SIGNATURE_UPLOAD_PURPOSES })
+  @IsOptional()
+  @IsIn(SIGNATURE_UPLOAD_PURPOSES)
+  purpose?: (typeof SIGNATURE_UPLOAD_PURPOSES)[number];
 }
 
 export class CustomerAcknowledgementInputDto {

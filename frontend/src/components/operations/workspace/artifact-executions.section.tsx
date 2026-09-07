@@ -12,12 +12,14 @@
  * contrato próprio, e continua onde estava. As duas convivem porque são coisas
  * diferentes, e juntá-las apagaria a diferença.
  *
- * O recorte vai para o servidor e viaja também no "Ver tudo": a fila abre já
- * filtrada por esta operação, em vez da organização inteira.
+ * O recorte vai para o servidor: a consulta já sai filtrada por esta operação,
+ * em vez de trazer a organização inteira para peneirar no cliente.
+ *
+ * Não há "Ver tudo": a listagem global de execuções deixou de existir, e um
+ * link para uma lista sem o filtro pareceria um recorte que não valeu.
  */
 import { RelatedRecordsPanel } from "@/entities/related-records";
 import { useOperationArtifactExecutions } from "@/hooks/operations/use-operations";
-import { ROUTES } from "@/lib/routes";
 
 export function OperationArtifactExecutionsSection({
   operationId,
@@ -34,7 +36,6 @@ export function OperationArtifactExecutionsSection({
       description="Documentos preenchidos no atendimento desta operação"
       query={query}
       emptyMessage="Nenhuma execução de artefato vinculada a esta operação."
-      seeAllHref={`${ROUTES.executions}?operationId=${operationId}`}
       toRows={(page) =>
         page.data.map((execution) => ({
           key: execution.id,

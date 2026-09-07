@@ -183,6 +183,14 @@ test.describe("linguagem de produto — fechamento da H01", () => {
       test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
       test(`as superfícies principais sobrevivem à nova copy`, async ({ page }) => {
+        /**
+         * Quinze superfícies numa volta só, cada uma varrida elemento a
+         * elemento. Cada página abre em menos de dois segundos; é a soma que
+         * passa dos 60 segundos padrão, e ela cresce a cada tela nova do
+         * produto — a de Perfil ganhou foto e assinatura nesta PR.
+         */
+        test.setTimeout(180_000);
+
         const recorder = record(page);
         await login(page);
 

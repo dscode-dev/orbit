@@ -142,7 +142,9 @@ async function seed(): Promise<void> {
     const dados = {
       name: plano.label,
       description: plano.description,
-      monthlyPrice: (plano.prices[BillingInterval.MONTHLY]!.amountMinor / 100).toFixed(2),
+      monthlyPrice: (
+        plano.prices[BillingInterval.MONTHLY]!.amountMinor / 100
+      ).toFixed(2),
       currency: 'BRL',
       capabilities: permissoes(plano.capabilities),
       isActive: true,

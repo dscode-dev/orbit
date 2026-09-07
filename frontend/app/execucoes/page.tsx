@@ -1,23 +1,22 @@
-import { ExecutionCenter } from "@/components/artifact-executions/execution-center";
-import { WorkspacePage } from "@/workspace";
+import { redirect } from "next/navigation";
+
+import { ROUTES } from "@/lib/routes";
 
 /**
- * Execuções de artefato — Execution Center.
+ * A listagem global de execuções deixou de existir.
  *
- * Server Component: o `WorkspacePage` compõe guards, shell e cabeçalho.
+ * ## Por que redirecionar, e não devolver 404
  *
- * `contained={false}` porque as abas do centro gerenciam a própria largura —
- * envolvê-las no container do cabeçalho apertaria as filas.
+ * O caminho continua sendo alcançável por link salvo, favorito e histórico. Um
+ * 404 diria "isto não existe", quando o que existe é outro nome para a mesma
+ * coisa: o documento que a pessoa procurava está em **Documentos**, que reúne
+ * o que foi emitido por ordem de serviço, PMOC e visita técnica.
+ *
+ * O deep link por execução (`/execucoes/:id`) **continua funcionando**: ele é
+ * usado a partir do cliente, da equipe e do ciclo de PMOC, e apaga-lo quebraria
+ * navegação contextual legítima. O que saiu foi a porta de entrada global — a
+ * que oferecia um conceito de arquitetura como se fosse área de produto.
  */
 export default function ArtifactExecutionsPage() {
-  return (
-    <WorkspacePage
-      entity="artifact-execution"
-      title="Execuções de artefato"
-      description="Acompanhamento das execuções da unidade ativa: filas, contagens e revisões."
-      contained={false}
-    >
-      <ExecutionCenter />
-    </WorkspacePage>
-  );
+  redirect(ROUTES.documents);
 }

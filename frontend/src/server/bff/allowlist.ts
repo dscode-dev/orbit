@@ -40,6 +40,17 @@ export const ALLOWED_API_ROOTS: readonly string[] = [
   "reports",
   "rvt",
   "scheduling",
+  /**
+   * Objetos de storage.
+   *
+   * O navegador precisa alcançar o destino de um upload assinado — foto de
+   * perfil e assinatura chegam por aí. A URL assinada aponta para o backend, e
+   * o navegador só fala com o proxy: sem esta raiz, o envio morre em 404.
+   *
+   * A assinatura na URL continua sendo a credencial do objeto, e o proxy ainda
+   * exige sessão. Duas barreiras, não uma.
+   */
+  "storage",
   "workforce",
 ];
 

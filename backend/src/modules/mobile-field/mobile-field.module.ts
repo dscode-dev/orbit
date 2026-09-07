@@ -8,6 +8,7 @@ import { MobileFieldOperationController } from './mobile-field-operation.control
 import { MobileFieldOperationRepository } from './mobile-field-operation.repository';
 import { MobileFieldOperationService } from './mobile-field-operation.service';
 import { MobileSignatureController } from './mobile-signature.controller';
+import { ProfessionalSignatureController } from './professional-signature.controller';
 import { MobileSignatureRepository } from './mobile-signature.repository';
 import { MobileSignatureService } from './mobile-signature.service';
 import { MobileOfflineSyncController } from './mobile-offline-sync.controller';
@@ -35,6 +36,7 @@ import { MobileFieldArtifactService } from './mobile-field-artifact.service';
     MobileFieldController,
     MobileFieldOperationController,
     MobileSignatureController,
+    ProfessionalSignatureController,
     MobileOfflineSyncController,
     MobileEvidenceController,
     MobileFieldArtifactController,

@@ -75,7 +75,19 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
       { label: "Visão geral", icon: LayoutGrid, to: ROUTES.dashboard },
       fromEntity("scheduling-event"),
       fromEntity("operation"),
-      fromEntity("artifact-execution"),
+      /*
+       * "Execuções de artefato" não é item de menu.
+       *
+       * Era uma entrada de produto para um conceito de arquitetura: o que a
+       * pessoa procura é a **ordem de serviço**, o **PMOC** ou a **visita
+       * técnica** — e o documento de cada um já aparece dentro deles, e em
+       * "Documentos". Uma área global de "execuções" reunia as três sob um
+       * nome que ninguém usa para falar do próprio trabalho.
+       *
+       * A entidade continua registrada: o deep link contextual
+       * (`/execucoes/:id`, aberto a partir do cliente, da equipe e do ciclo
+       * PMOC) depende dela, e o backend não foi tocado.
+       */
       fromEntity("pmoc-plan"),
       fromEntity("rvt-configuration"),
       { label: "Documentos", icon: FileStack, to: ROUTES.documents },

@@ -78,7 +78,7 @@ export function ExecutionWorkspace({ executionId }: { executionId: string }) {
     return (
       <ContentContainer size="wide" className="space-y-6">
         <Button variant="ghost" size="sm" asChild>
-          <Link href={ROUTES.executions}>
+          <Link href={ROUTES.documents}>
             <ArrowLeft className="size-4" />
             Voltar
           </Link>
@@ -148,10 +148,17 @@ function WorkspaceBody({
     <ContentContainer size="wide" className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 space-y-2">
+          {/*
+            Volta para Documentos, não para "Execuções".
+
+            A listagem global de execuções deixou de existir, e um botão com o
+            nome dela apontaria para um lugar que só redireciona. Documentos é
+            de onde a pessoa plausivelmente veio, e existe.
+          */}
           <Button variant="ghost" size="sm" asChild className="-ml-2">
-            <Link href={ROUTES.executions}>
+            <Link href={ROUTES.documents}>
               <ArrowLeft className="size-4" />
-              Execuções
+              Documentos
             </Link>
           </Button>
           <div className="flex flex-wrap items-center gap-2">

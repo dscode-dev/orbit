@@ -154,65 +154,47 @@ test("a execução de um RVT abre na rota do próprio RVT", async ({ page }) => 
   assertClean(recorder, "execução do RVT");
 });
 
-test("o vínculo na URL recorta as execuções de artefato no servidor", async ({
-  page,
-}) => {
+/**
+ * A listagem global de execuções não existe mais.
+ *
+ * Os dois casos que viviam aqui — o recorte por ativo na URL e a visão geral
+ * sem recorte — testavam uma superfície que a PR-FX-01 removeu: uma entrada de
+ * produto para um conceito de arquitetura. O que sobrevive, e continua coberto
+ * abaixo, é o acesso **contextual**: a execução vista de dentro da operação,
+ * do PMOC e da visita técnica.
+ */
+test("a rota global leva ao Centro de Documentos", async ({ page }) => {
   const recorder = record(page);
   await login(page);
 
-  const queries: string[] = [];
-  page.on("request", (request) => {
-    const url = new URL(request.url());
-    if (url.pathname.endsWith("/artifact-executions") && url.searchParams.has("assetId")) {
-      queries.push(url.search);
-    }
-  });
-
-  const asset = "01a057ee-cfda-72de-9874-63bb83b988d8";
-  await page.goto(`/execucoes?assetId=${asset}`);
+  await page.goto("/execucoes?assetId=01a057ee-cfda-72de-9874-63bb83b988d8");
   await page.waitForLoadState("networkidle").catch(() => {});
 
-  /** Chega já na fila, e não na visão geral: é o recorte que a pessoa veio ver. */
-  await expect(page.locator('[role="tab"][data-state="active"]')).toHaveText(
-    "Filas",
-  );
+  /**
+   * Redireciona em vez de 404: o caminho continua alcançável por favorito e
+   * histórico, e o que a pessoa procurava existe com outro nome.
+   */
+  await expect(page).toHaveURL(/\/documentos$/);
 
-  /** O filtro viaja para o servidor — nada de buscar tudo e recortar aqui. */
-  await expect
-    .poll(() => queries.length, { timeout: 20_000 })
-    .toBeGreaterThan(0);
-  for (const search of queries) expect(search).toContain(asset);
-
-  assertClean(recorder, "recorte por ativo");
+  assertClean(recorder, "rota global redirecionada");
 });
 
-test("sem vínculo, o centro de artefatos abre na visão geral", async ({
-  page,
-}) => {
-  const recorder = record(page);
-  await login(page);
-
-  await page.goto("/execucoes");
-  await page.waitForLoadState("networkidle").catch(() => {});
-  await expect(page.locator('[role="tab"][data-state="active"]')).toHaveText(
-    "Visão geral",
-  );
-
-  assertClean(recorder, "centro sem recorte");
-});
-
-test("a navegação nomeia o domínio de cada execução", async ({ page }) => {
+test("a navegação nomeia os domínios, e não a arquitetura", async ({ page }) => {
   const recorder = record(page);
   await login(page);
   await page.goto("/dashboard");
 
   const nav = page.locator("nav").first();
-  /** PMOC e RVT têm as suas áreas; o centro de artefatos diz o que reúne. */
+
+  /** PMOC e RVT têm as suas áreas — é assim que a pessoa fala do trabalho. */
   await expect(nav.getByRole("link", { name: "PMOC" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "RVT" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Documentos" })).toBeVisible();
+
+  /** "Execuções de artefato" era o nome do modelo, não o do trabalho. */
   await expect(
     nav.getByRole("link", { name: "Execuções de artefato" }),
-  ).toBeVisible();
+  ).toHaveCount(0);
 
   assertClean(recorder, "navegação");
 });
@@ -271,7 +253,7 @@ test("a operação mostra as suas execuções de artefato, e só as suas", async
   assertClean(recorder, "execuções de artefato da operação");
 });
 
-test("o recorte da operação viaja no “Ver tudo”", async ({ page }) => {
+test("a operação não oferece um “Ver tudo” que não existe", async ({ page }) => {
   const recorder = record(page);
   await login(page);
 
@@ -281,17 +263,14 @@ test("o recorte da operação viaja no “Ver tudo”", async ({ page }) => {
   const panel = page.locator('[data-panel="operation-artifact-executions"]');
   await expect(panel).toBeVisible({ timeout: 20_000 });
 
-  await panel.getByRole("link", { name: /Ver tudo/i }).click();
-  await page.waitForURL(new RegExp(`/execucoes\\?operationId=${operationA.id}`), {
-    timeout: 20_000,
-  });
+  /**
+   * O painel mostra as execuções desta operação e para por aí. Sem a listagem
+   * global, um "Ver tudo" levaria a uma lista sem o filtro — que pareceria um
+   * recorte que silenciosamente não valeu.
+   */
+  await expect(panel.getByRole("link", { name: /Ver tudo/i })).toHaveCount(0);
 
-  /** A fila abre já recortada, e não na visão geral da organização. */
-  await expect(page.locator('[role="tab"][data-state="active"]')).toHaveText(
-    "Filas",
-  );
-
-  assertClean(recorder, "ver tudo da operação");
+  assertClean(recorder, "painel sem ver tudo");
 });
 
 test("a execução abre pela rota canônica do artefato", async ({ page }) => {

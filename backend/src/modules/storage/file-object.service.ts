@@ -38,6 +38,8 @@ export const STORAGE_NAMESPACES = {
   report: 'reports',
   signature: 'signatures',
   evidence: 'field-evidence',
+  /** Foto de perfil. Namespace próprio: outro dono, outro ciclo de vida. */
+  avatar: 'avatars',
 } as const;
 
 export type StorageNamespace =

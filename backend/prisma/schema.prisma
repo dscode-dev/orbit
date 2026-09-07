@@ -19,7 +19,12 @@ model User {
   lastName            String    @map("last_name") @db.VarChar(120)
   displayName         String    @map("display_name") @db.VarChar(180)
   phone               String?   @db.VarChar(32)
+  /// URL pública herdada (provedor externo). Continua publicada porque contas
+  /// antigas a possuem; foto enviada pelo produto vive em `avatarFile`.
   avatarUrl           String?   @map("avatar_url") @db.Text
+  /// Foto de perfil enviada pelo produto. Referência ao objeto de storage —
+  /// nunca o binário, e nunca uma URL permanente.
+  avatarStorageFileId String?   @map("avatar_storage_file_id") @db.Uuid
   locale              String    @default("pt-BR") @db.VarChar(16)
   timezone            String    @default("America/Recife") @db.VarChar(64)
   status              String    @default("PENDING_VERIFICATION") @db.VarChar(40)
@@ -29,6 +34,7 @@ model User {
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(3)
 
+  avatarFile                         StorageFile?                   @relation("UserAvatarFile", fields: [avatarStorageFileId], references: [id], onDelete: SetNull)
   credential                         Credential?
   sessions                           Session[]
   ownedOrganizations                 Organization[]                 @relation("OrganizationOwner")
@@ -1692,6 +1698,7 @@ model StorageFile {
 
   memberCertifications   MemberCertification[]
   professionalSignatures UserSignature[]
+  userAvatars            User[]                        @relation("UserAvatarFile")
   fieldEvidenceUploads   FieldEvidenceUpload[]
   fieldEvidence          FieldEvidence[]
 

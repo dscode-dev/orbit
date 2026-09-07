@@ -15,6 +15,112 @@ export interface MobileFieldProjectionSource {
 export class MobileFieldRepository {
   constructor(private readonly rls: RlsTransaction) {}
 
+  /**
+   * Documentos de campo emitidos recentemente nas unidades do técnico.
+   *
+   * Lê `field_artifacts` pelo índice `(organização, unidade, criado em)` — uma
+   * consulta, e não uma por atendimento. O aplicativo montava isso pedindo o
+   * contexto documental de cada item da fila, que é exatamente a cascata que
+   * esta leitura existe para eliminar.
+   */
+  recentDocuments(
+    organizationId: string,
+    businessUnitIds: readonly string[],
+    take: number,
+  ) {
+    if (businessUnitIds.length === 0) return Promise.resolve([]);
+    return this.rls.run((tx) =>
+      tx.fieldArtifact.findMany({
+        where: {
+          organizationId,
+          businessUnitId: { in: [...businessUnitIds] },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        select: {
+          id: true,
+          documentType: true,
+          createdAt: true,
+          artifactExecution: {
+            select: {
+              renderStatus: true,
+              customer: { select: { legalName: true, tradeName: true } },
+            },
+          },
+        },
+      }),
+    );
+  }
+
+  /**
+   * Uma página de documentos, na ordem em que foram emitidos.
+   *
+   * Ordena por `createdAt desc` com desempate por `id`: dois documentos
+   * emitidos no mesmo milissegundo — o que acontece quando uma execução gera
+   * mais de um — precisam de ordem total, senão a mesma linha aparece em duas
+   * páginas.
+   */
+  documentsPage(
+    organizationId: string,
+    businessUnitIds: readonly string[],
+    options: { type?: string; take: number; cursorId?: string },
+  ) {
+    if (businessUnitIds.length === 0) return Promise.resolve([]);
+    return this.rls.run((tx) =>
+      tx.fieldArtifact.findMany({
+        where: {
+          organizationId,
+          businessUnitId: { in: [...businessUnitIds] },
+          ...(options.type ? { documentType: options.type } : {}),
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: options.take,
+        ...(options.cursorId
+          ? { cursor: { id: options.cursorId }, skip: 1 }
+          : {}),
+        select: {
+          id: true,
+          documentType: true,
+          createdAt: true,
+          artifactExecution: {
+            select: {
+              renderStatus: true,
+              customer: { select: { legalName: true, tradeName: true } },
+            },
+          },
+        },
+      }),
+    );
+  }
+
+  /** Compromissos recentes da agenda, nas unidades do técnico. */
+  recentAppointments(
+    organizationId: string,
+    businessUnitIds: readonly string[],
+    take: number,
+  ) {
+    if (businessUnitIds.length === 0) return Promise.resolve([]);
+    return this.rls.run((tx) =>
+      tx.schedulingEvent.findMany({
+        where: {
+          organizationId,
+          businessUnitId: { in: [...businessUnitIds] },
+          deletedAt: null,
+        },
+        orderBy: { startsAt: 'desc' },
+        take,
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          status: true,
+          startsAt: true,
+          customer: { select: { legalName: true, tradeName: true } },
+        },
+      }),
+    );
+  }
+
   project(
     organizationId: string,
     actorId: string,

@@ -2,8 +2,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityNotFoundException, ForbiddenException } from '../../exceptions';
 import { civilDateKey } from '../scheduling/scheduling-time';
-import type { MobileWorkQueueQueryDto } from './mobile-field.dto';
+import type {
+  MobileDocumentsQueryDto,
+  MobileWorkQueueQueryDto,
+} from './mobile-field.dto';
 import { MobileFieldRepository } from './mobile-field.repository';
+import type { ArtifactRenderStatus } from '../artifact-rendering/artifact-render.read-models';
 import type {
   MobileArtifactSummaryReadModel,
   MobileCustomerSummaryReadModel,
@@ -14,7 +18,47 @@ import type {
   MobileFieldDashboardReadModel,
   MobileWorkItemReadModel,
   MobileWorkQueueReadModel,
+  MobileFieldHomeReadModel,
+  MobileDocumentsPageReadModel,
+  MobileRecentDocumentReadModel,
 } from './mobile-field.read-models';
+
+/** Quantos itens cada recorte curto da tela inicial traz. */
+const RECENTES = 5;
+
+/** Os rótulos públicos dos documentos de campo. A tela não traduz enum. */
+const DOCUMENT_LABELS: Readonly<Record<string, string>> = {
+  SERVICE_ORDER: 'Ordem de serviço',
+  ORDEM_SERVICO: 'Ordem de serviço',
+  PMOC: 'PMOC',
+  RVT: 'RVT',
+  RELATORIO_VISITA: 'RVT',
+  TECHNICAL_REPORT: 'Relatório técnico',
+  RELATORIO_TECNICO: 'Relatório técnico',
+};
+
+/**
+ * De estado de renderização para o que a tela pode oferecer.
+ *
+ * **Exaustivo de propósito.** A primeira versão comparava com a string
+ * `'RENDERED'`, que nenhum ponto do sistema produz — o estado pronto se chama
+ * `READY`. O efeito foi silencioso e do pior tipo: nada quebrou, nenhum teste
+ * caiu, e todo documento emitido aparecia como "Preparando" para sempre.
+ *
+ * Declarar o mapa sobre `ArtifactRenderStatus` transforma o mesmo erro em erro
+ * de compilação: um estado novo no domínio deixa de compilar aqui até alguém
+ * decidir o que ele significa para quem está em campo.
+ */
+const DOCUMENT_STATES: Record<
+  ArtifactRenderStatus,
+  MobileRecentDocumentReadModel['state']
+> = {
+  NOT_RENDERED: 'PREPARING',
+  PENDING: 'PREPARING',
+  RENDERING: 'PREPARING',
+  READY: 'AVAILABLE',
+  FAILED: 'FAILED',
+};
 
 export interface MobileFieldActor {
   id: string;
@@ -27,6 +71,122 @@ export interface MobileFieldActor {
 export class MobileFieldService {
   private readonly logger = new Logger(MobileFieldService.name);
   constructor(private readonly repository: MobileFieldRepository) {}
+
+  /**
+   * A tela inicial do técnico, numa leitura.
+   *
+   * Junta o painel que já existia com dois recortes curtos — documentos e
+   * compromissos recentes. Nenhuma regra nova: os filtros de permissão e o
+   * isolamento por unidade são os mesmos, e o rótulo público do tipo de
+   * documento é resolvido aqui para que a tela não traduza enum.
+   */
+  async home(actor: MobileFieldActor): Promise<MobileFieldHomeReadModel> {
+    const [dashboard, documentos, compromissos] = await Promise.all([
+      this.dashboard(actor),
+      this.repository.recentDocuments(
+        actor.organizationId,
+        actor.businessUnitIds,
+        RECENTES,
+      ),
+      this.repository.recentAppointments(
+        actor.organizationId,
+        actor.businessUnitIds,
+        RECENTES,
+      ),
+    ]);
+
+    return {
+      dashboard,
+      recentDocuments: documentos.map((documento) =>
+        this.toDocument(documento),
+      ),
+      recentAppointments: compromissos.map((compromisso) => ({
+        id: compromisso.id,
+        title: compromisso.title,
+        customerName:
+          compromisso.customer?.tradeName ??
+          compromisso.customer?.legalName ??
+          null,
+        type: compromisso.type,
+        status: compromisso.status,
+        startsAt: compromisso.startsAt.toISOString(),
+      })),
+    };
+  }
+
+  /**
+   * A tela de Documentos, paginada.
+   *
+   * Mesma projeção da tela inicial, sem o teto de cinco. Nenhuma regra nova: o
+   * isolamento por organização e unidade é o mesmo, e o filtro por tipo é
+   * recorte de leitura.
+   */
+  async documents(
+    actor: MobileFieldActor,
+    query: MobileDocumentsQueryDto,
+  ): Promise<MobileDocumentsPageReadModel> {
+    const started = performance.now();
+    const limit = query.limit ?? 20;
+    const cursor = query.cursor ? this.decodeCursor(query.cursor) : null;
+
+    /**
+     * Pede um a mais do que cabe na página. É como se sabe que existe próxima
+     * sem contar a tabela inteira — e sem prometer uma página seguinte vazia.
+     */
+    const linhas = await this.repository.documentsPage(
+      actor.organizationId,
+      actor.businessUnitIds,
+      {
+        ...(query.type ? { type: query.type } : {}),
+        take: limit + 1,
+        ...(cursor ? { cursorId: cursor.id } : {}),
+      },
+    );
+
+    const hasNextPage = linhas.length > limit;
+    const data = linhas.slice(0, limit).map((linha) => this.toDocument(linha));
+    const last = data.at(-1);
+    this.metric('documents', started, data.length);
+    return {
+      data,
+      meta: {
+        limit,
+        hasNextPage,
+        nextCursor:
+          hasNextPage && last ? this.encodeCursor(last.artifactId) : null,
+      },
+    };
+  }
+
+  /** A linha do banco vira documento público — o rótulo já resolvido. */
+  private toDocument(documento: {
+    id: string;
+    documentType: string;
+    createdAt: Date;
+    artifactExecution: {
+      renderStatus: string;
+      customer: { legalName: string; tradeName: string | null } | null;
+    };
+  }): MobileRecentDocumentReadModel {
+    return {
+      artifactId: documento.id,
+      documentType: documento.documentType,
+      label: DOCUMENT_LABELS[documento.documentType] ?? 'Documento',
+      customerName:
+        documento.artifactExecution.customer?.tradeName ??
+        documento.artifactExecution.customer?.legalName ??
+        null,
+      createdAt: documento.createdAt.toISOString(),
+      /**
+       * Disponível só quando a renderização terminou; nunca oferece um arquivo
+       * que não existe.
+       */
+      state:
+        DOCUMENT_STATES[
+          documento.artifactExecution.renderStatus as ArtifactRenderStatus
+        ] ?? 'PREPARING',
+    };
+  }
 
   async dashboard(
     actor: MobileFieldActor,

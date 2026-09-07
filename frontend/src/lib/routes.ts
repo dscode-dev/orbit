@@ -7,6 +7,14 @@
  */
 export const ROUTES = {
   home: "/",
+  /**
+   * Planos — a página comercial pública.
+   *
+   * Canônica e única: `/precos` não existe, e não deve passar a existir. Duas
+   * rotas para a mesma pergunta dividem link, SEO e manutenção, e uma delas
+   * envelhece.
+   */
+  plans: "/planos",
   login: "/login",
   register: "/cadastro",
   forgotPassword: "/recuperar-senha",

@@ -10,6 +10,7 @@ import {
   FileObjectService,
   STORAGE_NAMESPACES,
 } from '../storage/file-object.service';
+import { detectImageMime } from '../storage/image-signature';
 import type { MobileFieldActor } from './mobile-field.service';
 import type {
   CustomerAcknowledgementInputDto,
@@ -68,7 +69,7 @@ export class MobileSignatureService {
         'FILE_TOO_LARGE',
       );
     const body = await this.files.read(file.bucket, file.objectKey);
-    const detected = this.detectImageMime(body);
+    const detected = detectImageMime(body);
     if (!detected || detected !== file.mimeType)
       throw new ValidationException(
         'O conteúdo da assinatura deve ser PNG, JPEG ou WEBP válido',
@@ -113,7 +114,7 @@ export class MobileSignatureService {
       mimeType: input.mimeType,
       sizeBytes: input.sizeBytes,
       metadata: {
-        purpose: 'PROFESSIONAL_SIGNATURE',
+        purpose: input.purpose ?? 'PROFESSIONAL_SIGNATURE',
         ownerUserId: actor.id,
       },
       createdById: actor.id,
@@ -208,7 +209,7 @@ export class MobileSignatureService {
         );
       const body = await this.files.read(file.bucket, file.objectKey);
       if (
-        this.detectImageMime(body) !== file.mimeType ||
+        detectImageMime(body) !== file.mimeType ||
         body.length > 2_000_000 ||
         this.sha(body) !== file.sha256
       )
@@ -364,27 +365,7 @@ export class MobileSignatureService {
   private sha(body: Buffer): string {
     return createHash('sha256').update(body).digest('hex');
   }
-  private detectImageMime(body: Buffer): string | null {
-    if (
-      body.length >= 8 &&
-      body.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-    )
-      return 'image/png';
-    if (
-      body.length >= 3 &&
-      body[0] === 0xff &&
-      body[1] === 0xd8 &&
-      body[2] === 0xff
-    )
-      return 'image/jpeg';
-    if (
-      body.length >= 12 &&
-      body.toString('ascii', 0, 4) === 'RIFF' &&
-      body.toString('ascii', 8, 12) === 'WEBP'
-    )
-      return 'image/webp';
-    return null;
-  }
+
   private conflictMetric(actor: MobileFieldActor) {
     this.logger.warn(
       JSON.stringify({

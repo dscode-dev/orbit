@@ -370,6 +370,14 @@ const DEFINITIONS: readonly EntityDefinition[] = [
      */
     labelPlural: "Execuções de artefato",
     description: "Preenchimento e acompanhamento de um artefato em campo.",
+    /*
+     * Sem `basePath` que valha como destino de menu.
+     *
+     * `basePath` continua apontando para a raiz porque `href(id)` a compõe —
+     * e é o deep link contextual que precisa dela. O que deixou de existir é a
+     * listagem global: a rota `/execucoes` redireciona para Documentos, que é
+     * onde a pergunta "cadê o documento?" tem resposta.
+     */
     icon: ClipboardCheck,
     color: "text-emerald-400",
     basePath: ROUTES.executions,

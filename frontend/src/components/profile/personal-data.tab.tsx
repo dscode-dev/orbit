@@ -10,8 +10,12 @@
  *
  * - **E-mail** — é a chave de login (`@unique`) e o destino de recuperação de
  *   senha. Trocá-lo é mudar a identidade da conta, e o contrato não o aceita.
- * - **Foto** — `avatarUrl` é publicado na leitura mas recusado no `PATCH`, e
- *   não há endpoint de upload. A ausência é declarada, não escondida.
+ * ## O que mora ao lado
+ *
+ * **Foto** e **assinatura** são arquivos, não campos de formulário: têm upload
+ * próprio, validação de conteúdo e ciclo de vida separado. Ficam em painéis
+ * vizinhos nesta mesma aba porque são da pessoa — mas não entram no `PATCH`,
+ * que continua aceitando exatamente os seis campos acima.
  */
 import { useState } from "react";
 import { Mail, ShieldCheck } from "lucide-react";
@@ -26,8 +30,10 @@ import {
   useProfile,
   useUpdateProfile,
 } from "@/hooks/profile/use-profile";
-import { formatDateTime } from "@/lib/formatters";
+import { formatDateTime, initialsOf } from "@/lib/formatters";
 import { PROFILE_LIMITS, type UserProfile } from "@/types/settings";
+import { AvatarSection } from "./avatar.section";
+import { SignatureSection } from "./signature.section";
 
 export function PersonalDataTab() {
   const query = useProfile();
@@ -39,7 +45,13 @@ export function PersonalDataTab() {
     );
   }
 
-  return <Form key={query.data.updatedAt} profile={query.data} />;
+  return (
+    <div className="space-y-6">
+      <Form key={query.data.updatedAt} profile={query.data} />
+      <AvatarSection initials={initialsOf(query.data.displayName)} />
+      <SignatureSection />
+    </div>
+  );
 }
 
 function Form({ profile }: { profile: UserProfile }) {

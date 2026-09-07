@@ -87,7 +87,6 @@ export function AssetExecutionsSection({ assetId }: { assetId: string }) {
       query={query}
       emptyMessage="Nenhum artefato executado neste ativo."
       /** O vínculo viaja na URL: "ver todos" abre a fila deste ativo, não a da organização. */
-      seeAllHref={`${ROUTES.executions}?assetId=${assetId}`}
       toRows={(page) =>
         page.data.map((execution) => ({
           key: execution.id,
