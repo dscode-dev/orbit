@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/routing/orbit_router.dart';
+import '../../../core/design/orbit_primitives.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../sync/application/sync_providers.dart';
 import '../../../core/widgets/section_states.dart';
@@ -34,10 +35,10 @@ class ProfileScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(OrbitSpacing.md),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(OrbitSpacing.md),
-              child: Row(
+          /// A identidade é o caso em que a caixa se justifica: avatar, nome
+          /// e e-mail só significam alguma coisa juntos.
+          OrbitPanel(
+            child: Row(
                 children: [
                   CircleAvatar(
                     radius: 26,
@@ -73,12 +74,11 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                   ),
                 ],
-              ),
             ),
           ),
           const SizedBox(height: OrbitSpacing.md),
 
-          SectionCard(
+          SectionBlock(
             title: 'Contexto',
             child: Column(
               children: [
@@ -115,7 +115,7 @@ class ProfileScreen extends ConsumerWidget {
           /// A assinatura profissional pertence ao usuário — por isso mora
           /// aqui, e não escondida dentro de um atendimento: quem precisa
           /// cadastrá-la costuma descobrir isso longe do campo.
-          SectionCard(
+          SectionBlock(
             title: 'Assinatura profissional',
             subtitle: 'Usada nos documentos que você assina',
             child: ListTile(
@@ -133,7 +133,7 @@ class ProfileScreen extends ConsumerWidget {
           /// A fila local tem endereço fixo, e não só a faixa que aparece
           /// quando há pendência: quem quer conferir se o trabalho subiu
           /// precisa de um lugar para olhar, mesmo quando está tudo em ordem.
-          SectionCard(
+          SectionBlock(
             title: 'Sincronização',
             subtitle: 'O que ainda não chegou ao servidor',
             child: ListTile(
@@ -167,7 +167,7 @@ class ProfileScreen extends ConsumerWidget {
           ),
 
           if (units.length > 1)
-            SectionCard(
+            SectionBlock(
               title: 'Unidade ativa',
               subtitle: 'Filtra as consultas do aplicativo',
               child: Column(
@@ -201,7 +201,7 @@ class ProfileScreen extends ConsumerWidget {
               ),
             )
           else
-            SectionCard(
+            SectionBlock(
               title: 'Unidade ativa',
               child: _Row(
                 label: 'Unidade',
@@ -211,7 +211,7 @@ class ProfileScreen extends ConsumerWidget {
 
           const SizedBox(height: OrbitSpacing.md),
 
-          SectionCard(
+          SectionBlock(
             title: 'Módulos do plano',
             subtitle: 'Capabilities concedidas pelo backend',
             child: session.capabilities.isEmpty

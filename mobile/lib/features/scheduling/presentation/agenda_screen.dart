@@ -12,6 +12,7 @@ import '../../../app/providers.dart';
 import '../../../core/contracts/agenda_contracts.dart';
 import '../../../core/time/civil_time.dart';
 import '../../../core/presentation/orbit_format.dart';
+import '../../../core/design/orbit_primitives.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../../core/routing/orbit_router.dart';
@@ -128,11 +129,13 @@ class AgendaScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        for (final event in events)
-                          _EventCard(
+                        for (final (indice, event) in events.indexed) ...[
+                          if (indice > 0) const OrbitRowDivider(),
+                          _EventRow(
                             event: event,
                             workItemId: workItems[event.eventId],
                           ),
+                        ],
                       ],
                     ],
                   );
@@ -200,8 +203,12 @@ class _DayNavigator extends ConsumerWidget {
 /// Quando o evento corresponde a um item de campo, tocar abre **o item** — não
 /// uma tela paralela de agenda. O item de trabalho é o ponto de entrada
 /// operacional; a agenda é a projeção temporal dele.
-class _EventCard extends StatelessWidget {
-  const _EventCard({required this.event, this.workItemId});
+///
+/// É linha, não cartão: a agenda é uma sequência de horários, e o que a torna
+/// legível é a coluna da esquerda alinhada de cima a baixo — que a moldura de
+/// um cartão por evento desfazia.
+class _EventRow extends StatelessWidget {
+  const _EventRow({required this.event, this.workItemId});
 
   final AgendaEvent event;
 
@@ -209,69 +216,23 @@ class _EventCard extends StatelessWidget {
   final String? workItemId;
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: OrbitSpacing.sm),
-      child: InkWell(
-        onTap: workItemId == null
-            ? null
-            : () => context.push(OrbitRoutes.workItemDetail(workItemId!)),
-        borderRadius: OrbitRadius.card,
-        child: Padding(
-          padding: const EdgeInsets.all(OrbitSpacing.md),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    OrbitFormat.hourOf(event.startsAt),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: OrbitColors.brandBright,
-                    ),
-                  ),
-                  Text(
-                    OrbitFormat.hourOf(event.endsAt),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: OrbitColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: OrbitSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      event.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      [
-                        if (event.type != null) event.type!,
-                        event.status,
-                      ].join(' · '),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: OrbitColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => OrbitListRow(
+    leading: OrbitFormat.hourOf(event.startsAt),
+    title: event.title,
+    subtitle: [
+      if (event.type != null) event.type!,
+      event.status,
+    ].join(' · '),
+    detail: 'até ${OrbitFormat.hourOf(event.endsAt)}',
+    onTap: workItemId == null
+        ? null
+        : () => context.push(OrbitRoutes.workItemDetail(workItemId!)),
+
+    /// A seta só aparece quando há para onde ir. Um evento que não é trabalho
+    /// desta pessoa — bloqueio de agenda, atendimento de outro técnico —
+    /// existe legitimamente no calendário e não abre nada.
+    trailing: workItemId == null
+        ? null
+        : Icon(Icons.chevron_right, size: 20, color: context.orbit.inkSubtle),
+  );
 }

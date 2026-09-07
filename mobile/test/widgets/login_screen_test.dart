@@ -20,7 +20,7 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 Widget wrap(Widget child, {required AuthRepository repository}) {
   return ProviderScope(
     overrides: [authRepositoryProvider.overrideWithValue(repository)],
-    child: MaterialApp(theme: OrbitTheme.dark(), home: child),
+    child: MaterialApp(theme: OrbitTheme.light(), home: child),
   );
 }
 

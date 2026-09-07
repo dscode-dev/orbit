@@ -1,8 +1,22 @@
 /// Shell de navegação.
 ///
-/// As abas são montadas conforme o perfil derivado das permissões: o operador
-/// vê "Início", o gestor vê "Visão Geral". As demais abas são as mesmas — o
-/// conteúdo é que muda.
+/// ## Cinco destinos, na ordem do dia
+///
+/// ```text
+/// Início · Atendimentos · Agenda · Documentos · Perfil
+/// ```
+///
+/// Eram quatro, e faltava o quinto: documento emitido só existia por dentro do
+/// atendimento que o gerou, e "cadê a OS de ontem?" custava quatro toques e
+/// uma memória. Agora é destino.
+///
+/// A aba de trabalho passou a se chamar **Atendimentos** — o que a pessoa
+/// chama do que faz. "Trabalho" descrevia a estrutura de dados (a fila de itens
+/// de campo), não a coisa.
+///
+/// O rótulo da primeira aba ainda segue o perfil derivado das permissões: o
+/// operador vê "Início", o gestor vê "Visão Geral". As demais são as mesmas —
+/// o conteúdo é que muda.
 library;
 
 import 'package:flutter/material.dart';
@@ -39,7 +53,7 @@ class AppShell extends ConsumerWidget {
       /// trabalho, e apareciam fora dali.
       const _ShellDestination(
         route: OrbitRoutes.workQueue,
-        label: 'Trabalho',
+        label: 'Atendimentos',
         icon: Icons.checklist_rtl_outlined,
         selectedIcon: Icons.checklist_rtl,
       ),
@@ -50,6 +64,12 @@ class AppShell extends ConsumerWidget {
         selectedIcon: Icons.calendar_today,
       ),
       const _ShellDestination(
+        route: OrbitRoutes.documents,
+        label: 'Documentos',
+        icon: Icons.description_outlined,
+        selectedIcon: Icons.description,
+      ),
+      const _ShellDestination(
         route: OrbitRoutes.profile,
         label: 'Perfil',
         icon: Icons.person_outline,
@@ -57,9 +77,21 @@ class AppShell extends ConsumerWidget {
       ),
     ];
 
-    final index = destinations.indexWhere(
-      (destination) => location.startsWith(destination.route),
-    );
+    /// O destino mais específico vence.
+    ///
+    /// `/perfil/sincronizacao` começa com `/perfil`, e um `indexWhere` simples
+    /// acertaria por acaso enquanto os prefixos não colidissem. Comparar pelo
+    /// comprimento da rota casada torna a escolha independente da ordem em que
+    /// as abas foram declaradas.
+    var index = -1;
+    var casado = 0;
+    for (final (posicao, destino) in destinations.indexed) {
+      if (location.startsWith(destino.route) &&
+          destino.route.length > casado) {
+        index = posicao;
+        casado = destino.route.length;
+      }
+    }
 
     return Scaffold(
       body: child,

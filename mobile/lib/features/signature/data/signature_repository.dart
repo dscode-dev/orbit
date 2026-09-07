@@ -74,6 +74,44 @@ class SignatureRepository {
     );
   }
 
+  /// Reserva e envia uma imagem de assinatura, sem ativá-la como a sua.
+  ///
+  /// É o que o aceite do cliente usa: os bytes vão para o storage e devolvem
+  /// um identificador, que viaja no comando do aceite. **Não** chama
+  /// `POST /me/signature` — fazer isso transformaria a assinatura do cliente
+  /// na assinatura profissional de quem está com o aparelho.
+  ///
+  /// O `purpose` diz ao servidor o que registrar na trilha do arquivo. É a
+  /// única diferença em relação ao caminho profissional; validação, teto e
+  /// conferência de bytes são exatamente os mesmos.
+  Future<String> uploadSignatureImage({
+    required String fileName,
+    required String mimeType,
+    required List<int> bytes,
+    required String purpose,
+  }) async {
+    final reservation = MobileSignatureUploadReservation.fromJson(
+      await _client.post<Map<String, dynamic>>(
+        '/mobile/field/me/signature/uploads',
+        body: {
+          ...MobileSignatureUploadReservationInput(
+            fileName: fileName,
+            mimeType: mimeType,
+            sizeBytes: bytes.length,
+          ).toJson(),
+          'purpose': purpose,
+        },
+      ),
+    );
+
+    await _client.putBytes(
+      url: reservation.url,
+      bytes: bytes,
+      headers: reservation.requiredHeaders,
+    );
+    return reservation.fileId;
+  }
+
   Future<MobileSignatureStatus> revoke() async {
     final data = await _client.delete<Map<String, dynamic>>(
       '/mobile/field/me/signature',

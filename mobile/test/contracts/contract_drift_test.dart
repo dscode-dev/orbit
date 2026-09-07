@@ -59,6 +59,26 @@ const _mirrors = <_Mirror>[
     dart: 'lib/core/contracts/mobile_field_contracts.dart',
   ),
   _Mirror(
+    readModel: 'MobileFieldHomeReadModel',
+    source: 'src/modules/mobile-field/mobile-field.read-models.ts',
+    dart: 'lib/core/contracts/mobile_field_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'MobileRecentDocumentReadModel',
+    source: 'src/modules/mobile-field/mobile-field.read-models.ts',
+    dart: 'lib/core/contracts/mobile_field_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'MobileRecentAppointmentReadModel',
+    source: 'src/modules/mobile-field/mobile-field.read-models.ts',
+    dart: 'lib/core/contracts/mobile_field_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'MobileDocumentsPageReadModel',
+    source: 'src/modules/mobile-field/mobile-field.read-models.ts',
+    dart: 'lib/features/documents/data/documents_repository.dart',
+  ),
+  _Mirror(
     readModel: 'MobileFieldContextReadModel',
     source: 'src/modules/mobile-field/mobile-field.read-models.ts',
     dart: 'lib/core/contracts/mobile_field_contracts.dart',

@@ -39,7 +39,7 @@ class EvidenceSection extends ConsumerWidget {
         ref.watch(pendingMediaProvider(target)).valueOrNull ??
         const <LocalMedia>[];
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Evidências',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

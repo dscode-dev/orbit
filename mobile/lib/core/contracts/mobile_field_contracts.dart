@@ -531,3 +531,129 @@ class MobileFieldContextContract {
   final MobileFinancialSummaryContract? financialSummary;
   final int snapshotVersion;
 }
+
+/* ------------------------------------------------------------------ */
+/* Tela inicial (agregada)                                             */
+/* ------------------------------------------------------------------ */
+
+/// O que a tela pode oferecer para um documento.
+///
+/// `failed` é diferente de `preparing`, e a diferença importa para quem está
+/// esperando: preparando resolve sozinho, falhou não resolve. Chamar os dois de
+/// "preparando" deixaria a pessoa esperando um documento que nunca chega.
+enum MobileDocumentState { available, preparing, failed }
+
+/// Estado desconhecido vira `preparing` — nunca `available`.
+///
+/// Um build antigo diante de um estado novo deve, na dúvida, **não oferecer** o
+/// arquivo: oferecer e falhar na hora de abrir é pior do que pedir para
+/// esperar.
+MobileDocumentState mobileDocumentStateFrom(String? value) => switch (value) {
+  'AVAILABLE' => MobileDocumentState.available,
+  'FAILED' => MobileDocumentState.failed,
+  _ => MobileDocumentState.preparing,
+};
+
+/// Um documento recente, para a tela inicial.
+///
+/// O rótulo chega **pronto** do servidor. Traduzir `documentType` aqui criaria
+/// uma segunda tabela de nomes que divergiria da do backend no dia em que um
+/// tipo novo aparecesse — e o aplicativo antigo mostraria a sigla crua.
+class MobileRecentDocumentContract {
+  const MobileRecentDocumentContract({
+    required this.artifactId,
+    required this.documentType,
+    required this.label,
+    required this.createdAt,
+    required this.state,
+    this.customerName,
+  });
+
+  factory MobileRecentDocumentContract.fromJson(Map<String, dynamic> json) =>
+      MobileRecentDocumentContract(
+        artifactId: json['artifactId'] as String? ?? '',
+        documentType: json['documentType'] as String? ?? '',
+        label: json['label'] as String? ?? 'Documento',
+        customerName: json['customerName'] as String?,
+        createdAt:
+            DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+        state: mobileDocumentStateFrom(json['state'] as String?),
+      );
+
+  final String artifactId;
+  final String documentType;
+
+  /// Rótulo público — "Ordem de serviço", "PMOC", "RVT".
+  final String label;
+  final String? customerName;
+  final DateTime createdAt;
+  final MobileDocumentState state;
+
+  bool get isAvailable => state == MobileDocumentState.available;
+  bool get hasFailed => state == MobileDocumentState.failed;
+}
+
+/// Um compromisso recente da agenda, para a tela inicial.
+class MobileRecentAppointmentContract {
+  const MobileRecentAppointmentContract({
+    required this.id,
+    required this.title,
+    required this.type,
+    required this.status,
+    required this.startsAt,
+    this.customerName,
+  });
+
+  factory MobileRecentAppointmentContract.fromJson(Map<String, dynamic> json) =>
+      MobileRecentAppointmentContract(
+        id: json['id'] as String? ?? '',
+        title: json['title'] as String? ?? 'Compromisso',
+        customerName: json['customerName'] as String?,
+        type: json['type'] as String? ?? '',
+        status: json['status'] as String? ?? '',
+        startsAt:
+            DateTime.tryParse(json['startsAt'] as String? ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      );
+
+  final String id;
+  final String title;
+  final String? customerName;
+  final String type;
+  final String status;
+  final DateTime startsAt;
+}
+
+/// A tela inicial numa leitura só.
+///
+/// O painel do técnico mais duas listas curtas. Montar "documentos recentes"
+/// no aplicativo custaria uma requisição por atendimento da fila — a cascata
+/// que esta agregação existe para evitar.
+class MobileFieldHomeContract {
+  const MobileFieldHomeContract({
+    required this.dashboard,
+    required this.recentDocuments,
+    required this.recentAppointments,
+  });
+
+  factory MobileFieldHomeContract.fromJson(Map<String, dynamic> json) =>
+      MobileFieldHomeContract(
+        dashboard: MobileFieldDashboardContract.fromJson(
+          json['dashboard'] as Map<String, dynamic>? ?? const {},
+        ),
+        recentDocuments: (json['recentDocuments'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(MobileRecentDocumentContract.fromJson)
+            .toList(growable: false),
+        recentAppointments:
+            (json['recentAppointments'] as List<dynamic>? ?? const [])
+                .whereType<Map<String, dynamic>>()
+                .map(MobileRecentAppointmentContract.fromJson)
+                .toList(growable: false),
+      );
+
+  final MobileFieldDashboardContract dashboard;
+  final List<MobileRecentDocumentContract> recentDocuments;
+  final List<MobileRecentAppointmentContract> recentAppointments;
+}

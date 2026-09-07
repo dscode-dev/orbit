@@ -47,11 +47,11 @@ class OperationDetailScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(OrbitSpacing.md),
           children: [
             detail.when(
-              loading: () => const SectionCard(
+              loading: () => const SectionBlock(
                 title: 'Detalhes',
                 child: SectionLoading(lines: 4),
               ),
-              error: (error, _) => SectionCard(
+              error: (error, _) => SectionBlock(
                 title: 'Detalhes',
                 child: SectionError(
                   error: error,
@@ -107,7 +107,7 @@ class _DetailsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
+    return SectionBlock(
       title: operation.title,
       subtitle: operation.code,
       trailing: StatusBadge(status: operation.status),
@@ -142,7 +142,7 @@ class _RelationsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
+    return SectionBlock(
       title: 'Cliente e ativo',
       child: Column(
         children: [
@@ -173,7 +173,7 @@ class _ScheduleSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
+    return SectionBlock(
       title: 'Agendamento',
       child: Column(
         children: [
@@ -209,7 +209,7 @@ class _TeamSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
+    return SectionBlock(
       title: 'Equipe',
       trailing: Text(
         '${operation.assignees.length}',
@@ -278,7 +278,7 @@ class _AdditionalDataSection extends StatelessWidget {
     final hasLocation = _hasContent(operation.location);
     final hasData = _hasContent(operation.data);
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Informações adicionais',
       child: !hasLocation && !hasData
           ? const SectionEmpty(message: 'Nenhuma informação adicional.')
@@ -356,7 +356,7 @@ class _ChecklistsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final checklists = ref.watch(operationChecklistsProvider(operationId));
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Checklists',
       child: checklists.when(
         loading: () => const SectionLoading(lines: 2),
@@ -423,7 +423,7 @@ class _TimelineSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final timeline = ref.watch(operationTimelineProvider(operationId));
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Linha do tempo',
       child: timeline.when(
         loading: () => const SectionLoading(),
@@ -453,7 +453,7 @@ class _HistorySection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(operationHistoryProvider(operationId));
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Histórico',
       subtitle: 'Registro de auditoria',
       child: history.when(

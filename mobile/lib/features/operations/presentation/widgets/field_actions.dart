@@ -109,7 +109,7 @@ class _FieldActionsSectionState extends ConsumerState<FieldActionsSection> {
       return true;
     }).toList();
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Execução',
       subtitle: 'Cada transição é validada pelo servidor',
       child: PermissionGate(

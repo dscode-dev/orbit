@@ -136,7 +136,7 @@ class _OwnerIndicators extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(operationalSummaryProvider);
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Indicadores',
       subtitle: 'Read Model do Analytics',
       child: summary.when(
@@ -215,7 +215,7 @@ class _StatusCounts extends ConsumerWidget {
     final counts = ref.watch(statusCountsProvider);
     final overdue = ref.watch(overdueCountProvider);
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Operações',
       subtitle: 'Totais informados pelo servidor',
       child: counts.when(
@@ -300,7 +300,7 @@ class _UpcomingOperations extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final upcoming = ref.watch(upcomingOperationsProvider);
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Próximas operações',
       trailing: TextButton(
         onPressed: () => context.go(OrbitRoutes.operations),
@@ -345,7 +345,7 @@ class _TodayAgenda extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final agenda = ref.watch(todayAgendaProvider);
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Agenda de hoje',
       trailing: TextButton(
         onPressed: () => context.go(OrbitRoutes.agenda),
@@ -422,7 +422,7 @@ class _Alerts extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final alerts = ref.watch(alertsProvider);
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Alertas',
       subtitle: 'Notificações não lidas',
       child: alerts.when(

@@ -27,7 +27,7 @@ class DocumentSection extends ConsumerWidget {
     final state = ref.watch(artifactControllerProvider(source));
     final controller = ref.read(artifactControllerProvider(source).notifier);
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Documento',
       child: state.loading
           ? const SectionLoading(lines: 2)

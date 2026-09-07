@@ -11,6 +11,7 @@
 /// nova. Este arquivo não sabe o que é status.
 library;
 
+import '../contracts/equipment_qr_contracts.dart';
 import '../contracts/mobile_field_contracts.dart';
 import '../contracts/mobile_signature_contracts.dart';
 
@@ -534,3 +535,18 @@ const documentDownloadLabels = <String, String>{
   'availableLocally': 'Documento salvo neste aparelho',
   'error': 'Não foi possível baixar o documento',
 };
+
+/// O que o servidor permite fazer com um equipamento lido pela etiqueta.
+///
+/// A lista chega em `allowedActions` e é **a autoridade**: o app a exibe, não
+/// a deduz do status nem a completa com o que acha que faria sentido.
+const equipmentFieldActionLabels = <EquipmentFieldAction, FieldLabel>{
+  EquipmentFieldAction.viewDetails: FieldLabel('Ver detalhes'),
+  EquipmentFieldAction.startServiceOrder: FieldLabel('Abrir atendimento'),
+  EquipmentFieldAction.executePmoc: FieldLabel('Executar PMOC'),
+  EquipmentFieldAction.addToRvt: FieldLabel('Incluir em visita técnica'),
+  EquipmentFieldAction.viewHistory: FieldLabel('Ver histórico'),
+};
+
+String equipmentFieldActionLabel(EquipmentFieldAction action) =>
+    equipmentFieldActionLabels[action]?.label ?? '';

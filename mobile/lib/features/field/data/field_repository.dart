@@ -3,6 +3,7 @@
 /// Três endpoints, três leituras:
 ///
 /// ```text
+/// GET /mobile/field/home             → a tela inicial, agregada
 /// GET /mobile/field/dashboard        → o dia do profissional, consolidado
 /// GET /mobile/field/work-queue       → a fila, ordenada e paginada por cursor
 /// GET /mobile/field/work-items/:id   → o contexto de um item
@@ -45,6 +46,35 @@ class FieldRepository {
 
   final OrbitApiClient _client;
   final ReadCache _cache;
+
+  /// A tela inicial, numa requisição.
+  ///
+  /// O painel mais as duas listas curtas que a home mostra. Uma leitura só —
+  /// pedir documentos recentes item a item transformaria a abertura do
+  /// aplicativo numa cascata de chamadas.
+  Future<CachedResult<MobileFieldHomeContract>> home({
+    required String scopeKey,
+  }) async {
+    final key = 'field.home.$scopeKey';
+    try {
+      final data = await _client.get<Map<String, dynamic>>(
+        '/mobile/field/home',
+      );
+      await _cache.write(key, data);
+      return CachedResult(
+        value: MobileFieldHomeContract.fromJson(data),
+        cachedAt: null,
+      );
+    } on OrbitException catch (error) {
+      if (!error.isOffline && !error.isServer) rethrow;
+      final cached = await _cache.read(key);
+      if (cached == null) rethrow;
+      return CachedResult(
+        value: MobileFieldHomeContract.fromJson(cached.value),
+        cachedAt: cached.cachedAt,
+      );
+    }
+  }
 
   /// O dashboard do dia.
   ///

@@ -9,16 +9,34 @@ import 'package:flutter/material.dart';
 
 import '../errors/orbit_exception.dart';
 import '../presentation/field_registry.dart';
+import '../design/orbit_primitives.dart';
 import '../theme/orbit_theme.dart';
 
-/// Cartão de seção com título e conteúdo.
-class SectionCard extends StatelessWidget {
-  const SectionCard({
+/// Um bloco de seção: título, apoio e conteúdo.
+///
+/// ## Por que deixou de ser um cartão
+///
+/// Era um `Card` — e havia 53 deles. Numa tela de celular, meia dúzia de
+/// caixas empilhadas não organiza nada: divide o olhar em retângulos de mesma
+/// importância, e o que importa deixa de se destacar porque tudo se destaca
+/// igual.
+///
+/// Agora a separação é **tipográfica**: rótulo em caixa alta, respiro em
+/// volta, conteúdo alinhado à margem da tela. É como uma página organiza sem
+/// desenhar bordas.
+///
+/// A caixa continua existindo, sob demanda ([boxed]), para o caso que a
+/// justifica: um agrupamento em que coisas de naturezas diferentes formam uma
+/// unidade — o atendimento em andamento, com dados, estado e ação juntos.
+class SectionBlock extends StatelessWidget {
+  const SectionBlock({
     super.key,
     required this.title,
     required this.child,
     this.trailing,
     this.subtitle,
+    this.boxed = false,
+    this.flush = false,
   });
 
   final String title;
@@ -26,49 +44,71 @@ class SectionCard extends StatelessWidget {
   final Widget? trailing;
   final Widget child;
 
+  /// Desenha a caixa. Só quando o agrupamento é semântico de verdade.
+  final bool boxed;
+
+  /// Conteúdo colado às margens da tela — para listas de linhas, cujos
+  /// separadores devem atravessar a largura toda.
+  final bool flush;
+
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(OrbitSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    final palette = context.orbit;
+
+    final cabecalho = Padding(
+      padding: const EdgeInsets.fromLTRB(
+        OrbitSpacing.md,
+        OrbitSpacing.lg,
+        OrbitSpacing.md,
+        OrbitSpacing.sm,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (subtitle != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            subtitle!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: OrbitColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                    ],
+                Text(
+                  title.toUpperCase(),
+                  style: OrbitType.sectionTitle.copyWith(
+                    color: palette.inkSubtle,
                   ),
                 ),
-                if (trailing != null) trailing!,
+                if (subtitle != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      subtitle!,
+                      style: OrbitType.caption.copyWith(color: palette.inkMuted),
+                    ),
+                  ),
               ],
             ),
-            const SizedBox(height: OrbitSpacing.md),
-            child,
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: OrbitSpacing.sm),
+            trailing!,
           ],
-        ),
+        ],
       ),
+    );
+
+    final conteudo = boxed
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.md),
+            child: OrbitPanel(child: child),
+          )
+        : flush
+        ? child
+        : Padding(
+            padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.md),
+            child: child,
+          );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [cabecalho, conteudo],
     );
   }
 }

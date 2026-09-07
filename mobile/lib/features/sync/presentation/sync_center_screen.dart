@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/contracts/mobile_offline_sync_contracts.dart';
 import '../../../core/presentation/field_registry.dart';
 import '../../../core/presentation/orbit_format.dart';
+import '../../../core/design/orbit_primitives.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../evidence/application/evidence_providers.dart';
@@ -69,7 +70,7 @@ class _MediaQueueSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final media = ref.watch(allPendingMediaProvider);
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Evidências',
       child: media.when(
         loading: () => const SectionLoading(lines: 2),
@@ -122,7 +123,7 @@ class _Status extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return SectionCard(
+    return SectionBlock(
       title: 'Situação',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -215,10 +216,13 @@ class _CommandTile extends ConsumerWidget {
       offlineCommandTypeWire(command.envelope.commandType),
     );
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: OrbitSpacing.sm),
-      child: Padding(
-        padding: const EdgeInsets.all(OrbitSpacing.md),
+    /// Caixa, e aqui ela se justifica: um comando pendente reúne natureza,
+    /// motivo do bloqueio e ação de descarte — coisas de naturezas diferentes
+    /// que só fazem sentido lidas juntas.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: OrbitSpacing.sm),
+      child: OrbitPanel(
+        tone: blocked ? OrbitTone.danger : OrbitTone.neutral,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -44,7 +44,7 @@ Widget host(Widget child, {double textScale = 1.0, double width = 360}) =>
 
 /// Reproduz o cartão de resumo tal como a tela o monta, para provar o
 /// conteúdo sem levantar o Riverpod inteiro.
-Widget summaryCard(CustomerAcknowledgementPreparation value) => SectionCard(
+Widget summaryCard(CustomerAcknowledgementPreparation value) => SectionBlock(
   title: 'Resumo do atendimento',
   child: Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,7 +127,7 @@ void main() {
   testWidgets('nome de signatário longo não quebra o cartão', (tester) async {
     await tester.pumpWidget(
       host(
-        SectionCard(
+        SectionBlock(
           title: 'Ciência já registrada',
           child: const Text(
             'Maria Aparecida do Nascimento Silva Santos Oliveira Junqueira',

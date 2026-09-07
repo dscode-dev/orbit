@@ -44,6 +44,13 @@ final fieldDashboardProvider =
       return ref.watch(fieldRepositoryProvider).dashboard(scopeKey: scope);
     });
 
+/// A tela inicial — uma requisição para tudo o que a home mostra.
+final fieldHomeProvider =
+    FutureProvider.autoDispose<CachedResult<MobileFieldHomeContract>>((ref) {
+      final scope = fieldScopeKey(ref);
+      return ref.watch(fieldRepositoryProvider).home(scopeKey: scope);
+    });
+
 /// O contexto de um item.
 final fieldWorkItemProvider = FutureProvider.autoDispose
     .family<MobileFieldContextContract?, String>(

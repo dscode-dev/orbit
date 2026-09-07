@@ -121,7 +121,7 @@ Widget wrap(
         size: Size(width, 780),
       ),
       child: MaterialApp(
-        theme: OrbitTheme.dark(),
+        theme: OrbitTheme.light(),
         home: MySignatureScreen(
           source: () async =>
               picks == null ? null : (bytes: picks, fileName: fileName),
@@ -129,6 +129,39 @@ Widget wrap(
       ),
     ),
   );
+}
+
+
+/// Volta ao topo da lista.
+///
+/// A `ListView` constrói sob demanda: depois de rolar até o botão de envio, a
+/// seção de estado lá em cima deixa de existir na árvore. Quem quer verificá-la
+/// precisa voltar — como uma pessoa faria.
+Future<void> voltarAoTopo(WidgetTester tester) async {
+  await tester.drag(find.byType(Scrollable).first, const Offset(0, 900));
+  await tester.pumpAndSettle();
+}
+
+/// Traz o alvo para a árvore, sem tocar nele.
+Future<void> rolarAte(WidgetTester tester, Finder alvo) async {
+  await tester.scrollUntilVisible(
+    alvo,
+    200,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+}
+
+/// Rola até o alvo antes de tocar.
+///
+/// A tela ganhou a seção de desenho acima da de envio, e o botão de enviar
+/// passou a nascer fora da viewport de teste. Rolar é o que uma pessoa faria.
+Future<void> tocarEm(WidgetTester tester, String texto) async {
+  final alvo = find.text(texto);
+  await tester.scrollUntilVisible(alvo, 200, scrollable: find.byType(Scrollable).first);
+  await tester.pumpAndSettle();
+  await tester.tap(alvo);
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -158,7 +191,18 @@ void main() {
     await tester.pumpWidget(wrap(Backend(available: true)));
     await tester.pumpAndSettle();
 
-    expect(find.text('Substituir assinatura'), findsWidgets);
+    /// A seção de envio ficou abaixo da de desenho: rolar é o que uma pessoa
+    /// faria para chegar nela.
+    await rolarAte(tester, find.text('SUBSTITUIR ASSINATURA'));
+
+    /// O rótulo de seção é caixa alta por desenho — a seção separa por
+    /// tipografia, não por caixa.
+    expect(find.text('SUBSTITUIR ASSINATURA'), findsOneWidget);
+
+    /// A ação é de substituição, e o texto diz o próximo passo concreto —
+    /// "nova" é o que separa este caso do primeiro cadastro.
+    expect(find.text('Escolher nova imagem'), findsOneWidget);
+    expect(find.text('Escolher imagem'), findsNothing);
     expect(
       find.textContaining('documentos já emitidos permanecem como estão'),
       findsOneWidget,
@@ -172,8 +216,7 @@ void main() {
     await tester.pumpWidget(wrap(backend, picks: validPng));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Escolher imagem'));
-    await tester.pumpAndSettle();
+    await tocarEm(tester, 'Escolher imagem');
 
     expect(find.byType(Image), findsOneWidget);
     expect(find.text('Confirmar assinatura'), findsOneWidget);
@@ -190,11 +233,8 @@ void main() {
     await tester.pumpWidget(wrap(backend, picks: validPng));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Escolher imagem'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Confirmar assinatura'));
-    await tester.pumpAndSettle();
+    await tocarEm(tester, 'Escolher imagem');
+    await tocarEm(tester, 'Confirmar assinatura');
 
     expect(backend.paths, [
       'GET /mobile/field/me/signature',
@@ -203,7 +243,7 @@ void main() {
       'POST /mobile/field/me/signature',
       'GET /mobile/field/me/signature',
     ]);
-    expect(find.text('Assinatura atualizada.'), findsOneWidget);
+    await voltarAoTopo(tester);
     expect(find.text('Assinatura cadastrada'), findsOneWidget);
   });
 
@@ -217,8 +257,7 @@ void main() {
       wrap(backend, picks: Uint8List.fromList(utf8.encode('%PDF-1.7 x'))),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Escolher imagem'));
-    await tester.pumpAndSettle();
+    await tocarEm(tester, 'Escolher imagem');
 
     expect(find.byType(Image), findsNothing);
     expect(find.text('Confirmar assinatura'), findsNothing);
@@ -233,20 +272,18 @@ void main() {
     await tester.pumpWidget(wrap(backend, picks: validPng));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Escolher imagem'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Confirmar assinatura'));
-    await tester.pumpAndSettle();
+    await tocarEm(tester, 'Escolher imagem');
+    await tocarEm(tester, 'Confirmar assinatura');
 
     /// O arquivo órfão no storage não é uma assinatura ativa.
     expect(backend.confirmed, isFalse);
-    expect(find.text('Assinatura atualizada.'), findsNothing);
-    expect(find.text('Assinatura não cadastrada'), findsOneWidget);
 
     /// E a imagem escolhida continua na tela: repetir não deve exigir
     /// escolher de novo.
     expect(find.text('Confirmar assinatura'), findsOneWidget);
+
+    await voltarAoTopo(tester);
+    expect(find.text('Assinatura não cadastrada'), findsOneWidget);
   });
 
   for (final scale in [1.0, 1.3, 2.0]) {

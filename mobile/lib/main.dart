@@ -59,9 +59,11 @@ class _OrbitOperatorAppState extends ConsumerState<OrbitOperatorApp> {
     return MaterialApp.router(
       title: 'Orbit Operator',
       debugShowCheckedModeBanner: false,
-      theme: OrbitTheme.dark(),
-      darkTheme: OrbitTheme.dark(),
-      themeMode: ThemeMode.dark,
+      theme: OrbitTheme.light(),
+      /// Só o claro nesta rodada. A paleta é uma `ThemeExtension`: ligar o
+      /// escuro no futuro é acrescentar uma segunda paleta aqui, sem tocar em
+      /// tela nenhuma.
+      themeMode: ThemeMode.light,
       routerConfig: ref.watch(routerProvider),
     );
   }

@@ -18,6 +18,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/contracts/mobile_signature_contracts.dart';
 import '../../../core/presentation/field_registry.dart';
 import '../../../core/presentation/orbit_format.dart';
+import '../../../core/design/orbit_signature_pad.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../application/signature_providers.dart';
@@ -60,6 +61,36 @@ class _MySignatureScreenState extends ConsumerState<MySignatureScreen> {
   /// e mandar direto da galeria seria enviar às cegas.
   ({Uint8List bytes, String fileName})? _picked;
 
+  /// O traço do desenho. Vive enquanto a tela existe e não sai daqui até a
+  /// confirmação — desenhar não envia nada.
+  final _pad = OrbitSignatureController();
+
+  @override
+  void dispose() {
+    _pad.dispose();
+    super.dispose();
+  }
+
+  /// Transforma o traço em PNG e envia pelo mesmo caminho da imagem.
+  ///
+  /// Mesmo caminho de propósito: o desenho não ganha uma rota própria nem um
+  /// tratamento mais frouxo. Ele vira imagem e passa pela mesma reserva, pelo
+  /// mesmo envio e pela mesma conferência de bytes no servidor.
+  Future<void> _sendDrawn() async {
+    final bytes = await _pad.exportar();
+    if (bytes == null || !mounted) return;
+
+    await ref
+        .read(signatureUploadControllerProvider.notifier)
+        .submit(bytes: bytes, fileName: 'assinatura.png');
+
+    if (!mounted) return;
+    if (ref.read(signatureUploadControllerProvider).phase ==
+        SignatureUploadPhase.done) {
+      _pad.limpar();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(signatureStatusProvider);
@@ -83,7 +114,21 @@ class _MySignatureScreenState extends ConsumerState<MySignatureScreen> {
 
             const SizedBox(height: OrbitSpacing.md),
 
-            _UploadCard(
+            /// Desenhar primeiro.
+            ///
+            /// No celular o dedo já está na tela, e a assinatura sai do gesto
+            /// natural. Enviar imagem exige ter uma foto do traço pronta na
+            /// galeria — é o caminho alternativo, e fica embaixo por isso.
+            _DrawSection(
+              hasSignature: status.valueOrNull?.signatureAvailable ?? false,
+              controller: _pad,
+              busy: upload.isBusy,
+              onConfirm: _sendDrawn,
+            ),
+
+            const SizedBox(height: OrbitSpacing.md),
+
+            _UploadSection(
               hasSignature: status.valueOrNull?.signatureAvailable ?? false,
               upload: upload,
               picked: _picked,
@@ -137,7 +182,7 @@ class _Status extends StatelessWidget {
             ? 'available'
             : 'missing']!;
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Assinatura profissional',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,8 +265,8 @@ class _Status extends StatelessWidget {
   }
 }
 
-class _UploadCard extends StatelessWidget {
-  const _UploadCard({
+class _UploadSection extends StatelessWidget {
+  const _UploadSection({
     required this.hasSignature,
     required this.upload,
     required this.picked,
@@ -241,7 +286,7 @@ class _UploadCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final problem = upload.problem;
 
-    return SectionCard(
+    return SectionBlock(
       title: hasSignature ? 'Substituir assinatura' : 'Cadastrar assinatura',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -354,4 +399,72 @@ class _UploadCard extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// Desenhar a assinatura — o caminho principal no celular.
+class _DrawSection extends StatelessWidget {
+  const _DrawSection({
+    required this.hasSignature,
+    required this.controller,
+    required this.busy,
+    required this.onConfirm,
+  });
+
+  final bool hasSignature;
+  final OrbitSignatureController controller;
+  final bool busy;
+  final Future<void> Function() onConfirm;
+
+  @override
+  Widget build(BuildContext context) => SectionBlock(
+    title: 'Desenhar assinatura',
+    child: ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Use o dedo ou uma caneta. O traço só é enviado quando você '
+            'confirma.',
+            style: OrbitType.caption.copyWith(color: context.orbit.inkMuted),
+          ),
+          const SizedBox(height: OrbitSpacing.sm),
+          OrbitSignaturePad(
+            controller: controller,
+            hint: 'Assine neste espaço',
+            enabled: !busy,
+          ),
+          const SizedBox(height: OrbitSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: busy ? null : controller.limpar,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                  ),
+                  child: const Text('Limpar'),
+                ),
+              ),
+              const SizedBox(width: OrbitSpacing.sm),
+              Expanded(
+                child: FilledButton(
+                  /// Pad vazio não confirma. Uma assinatura vazia seria um
+                  /// retângulo transparente com valor de prova nenhum.
+                  onPressed: busy || !controller.temTraco
+                      ? null
+                      : () => onConfirm(),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                  ),
+                  child: Text(hasSignature ? 'Substituir' : 'Confirmar'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }

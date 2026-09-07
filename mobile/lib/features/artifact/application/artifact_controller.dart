@@ -15,40 +15,15 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/contracts/mobile_field_artifact_contracts.dart';
-import '../../../core/errors/orbit_exception.dart';
 import '../data/artifact_repository.dart';
 import '../data/document_file.dart';
+import 'document_downloader.dart';
 
-/// Em que ponto a busca do arquivo está — **neste** aparelho.
-enum DownloadPhase {
-  idle,
-  requestingUrl,
-  downloading,
-  verifying,
-  availableLocally,
-  error,
-}
-
-class DownloadState {
-  const DownloadState({
-    this.phase = DownloadPhase.idle,
-    this.progress,
-    this.path,
-    this.error,
-  });
-
-  final DownloadPhase phase;
-  final double? progress;
-
-  /// Caminho local do arquivo já verificado. Temporário.
-  final String? path;
-  final Object? error;
-
-  bool get isBusy =>
-      phase == DownloadPhase.requestingUrl ||
-      phase == DownloadPhase.downloading ||
-      phase == DownloadPhase.verifying;
-}
+/// O estado do download continua sendo lido por quem já o lia.
+///
+/// Ele mudou de arquivo, não de significado: reexportar evita uma migração de
+/// import em telas e testes que não têm nada a ver com esta separação.
+export 'document_downloader.dart' show DownloadPhase, DownloadState;
 
 class ArtifactState {
   const ArtifactState({
@@ -134,12 +109,14 @@ class ArtifactController extends StateNotifier<ArtifactState> {
     required this.sourceId,
   }) : _repository = repository,
        _files = files,
+       _downloader = DocumentDownloader(repository: repository, files: files),
        super(const ArtifactState()) {
     load();
   }
 
   final ArtifactRepository _repository;
   final DocumentFileStore _files;
+  final DocumentDownloader _downloader;
   final FieldArtifactSourceType sourceType;
   final String sourceId;
 
@@ -253,6 +230,10 @@ class ArtifactController extends StateNotifier<ArtifactState> {
   }
 
   /// Busca o arquivo e verifica antes de considerá-lo disponível.
+  ///
+  /// A sequência é do [DocumentDownloader] — a mesma que a tela de Documentos
+  /// usa. Aqui fica só o que é desta tela: a checagem de que o servidor
+  /// autorizou a ação, e a projeção de cada etapa no estado.
   Future<void> download({bool preview = false}) async {
     if (state.download.isBusy) return;
     final artifact = state.artifact;
@@ -263,59 +244,17 @@ class ArtifactController extends StateNotifier<ArtifactState> {
         : FieldArtifactAllowedAction.downloadDocument;
     if (!state.allows(action)) return;
 
-    state = state.copyWith(
-      download: const DownloadState(phase: DownloadPhase.requestingUrl),
+    final stream = _downloader.fetch(
+      artifactId: artifact.id,
+      fileName: documentFileName(
+        documentType: artifact.documentType.name,
+        snapshotVersion: artifact.snapshotVersion,
+      ),
+      preview: preview,
     );
-    try {
-      /// A URL é pedida agora e usada agora. Não vira estado.
-      final access = await _repository.access(artifact.id, preview: preview);
-
-      state = state.copyWith(
-        download: const DownloadState(phase: DownloadPhase.downloading),
-      );
-      final result = await _repository.download(access);
-
-      state = state.copyWith(
-        download: const DownloadState(phase: DownloadPhase.verifying),
-      );
-      final problem = checkDocumentBytes(result.bytes);
-      if (problem != null) {
-        state = state.copyWith(
-          download: DownloadState(
-            phase: DownloadPhase.error,
-            error: OrbitException(
-              kind: OrbitErrorKind.parse,
-              message: problem == DocumentFileProblem.empty
-                  ? 'O arquivo do documento veio vazio.'
-                  : 'O arquivo recebido não é um PDF válido.',
-              code: 'INVALID_DOCUMENT',
-            ),
-          ),
-        );
-        return;
-      }
-
-      /// O nome publicado pelo servidor vence; o construído é reserva para
-      /// quando o cabeçalho não vem.
-      final path = await _files.write(
-        result.fileName ??
-            documentFileName(
-              documentType: artifact.documentType.name,
-              snapshotVersion: artifact.snapshotVersion,
-            ),
-        result.bytes,
-      );
-      state = state.copyWith(
-        download: DownloadState(
-          phase: DownloadPhase.availableLocally,
-          path: path,
-        ),
-      );
-    } on Object catch (error) {
-      /// O download falhou; o documento no servidor continua o que era.
-      state = state.copyWith(
-        download: DownloadState(phase: DownloadPhase.error, error: error),
-      );
+    await for (final etapa in stream) {
+      if (!mounted) return;
+      state = state.copyWith(download: etapa);
     }
   }
 

@@ -12,6 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/contracts/field_operation_contracts.dart';
+import '../../../core/design/orbit_primitives.dart';
+import '../../../core/design/orbit_wizard.dart';
 import '../../../core/presentation/field_registry.dart';
 import '../../../core/presentation/orbit_format.dart';
 import '../../../core/theme/orbit_theme.dart';
@@ -75,6 +77,25 @@ class OperationExecutionScreen extends ConsumerWidget {
   }
 }
 
+/// O corpo da execução, em etapas.
+///
+/// ## O que mudou, e por quê
+///
+/// Eram sete seções empilhadas numa rolagem só. Quem executa em campo está de
+/// pé, de luva, com o celular numa mão — rolava para achar o checklist, rolava
+/// de volta para a evidência, e não tinha como saber o que ainda faltava antes
+/// de tentar concluir. O roteiro responde **onde estou** e **o que falta**.
+///
+/// ## O que continua igual
+///
+/// Tudo o que é domínio. Cada etapa continua mostrando exatamente o que o
+/// servidor publicou: `allowedActions` decide o que vira botão, `blockers`
+/// dizem por que ainda não dá, `version` viaja em todo comando, e o journal
+/// offline continua sendo o mesmo. Mudar de etapa **não envia comando nenhum**
+/// — é navegação, e sair no meio não perde o que já foi registrado.
+///
+/// Nenhuma etapa é marcada como cumprida por dedução da tela: "cumprida" vem
+/// de `eligible` e do `progress` que o servidor calcula.
 class _Body extends StatelessWidget {
   const _Body({
     required this.state,
@@ -89,82 +110,151 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final preparation = state.preparation!;
+    final checklists = preparation.checklist;
+
+    /// Progresso do checklist é **do servidor**. A tela não conta itens
+    /// respondidos para chegar a um número próprio.
+    final checklistCumprido =
+        checklists.isNotEmpty &&
+        checklists.every((lista) => lista.progress >= 100);
+
+    final etapas = <OrbitWizardStep>[
+      OrbitWizardStep(
+        title: 'Preparação',
+        hint: 'Confira para quem, onde e o quê antes de começar.',
+        complete: preparation.eligible,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Summary(preparation: preparation),
+
+            /// O que foi registrado e ainda não chegou ao servidor.
+            ///
+            /// Fica **acima** das ações e separado do estado confirmado: um
+            /// atendimento com início pendente não é um atendimento em
+            /// andamento, e a tela não pode sugerir que é.
+            if (state.pendingCommands.isNotEmpty)
+              _PendingIntentions(
+                commands: state.pendingCommands,
+                onOpenSyncCenter: () => context.push(OrbitRoutes.syncCenter),
+              ),
+
+            if (!preparation.eligible && preparation.blockers.isNotEmpty)
+              _Blockers(blockers: preparation.blockers),
+          ],
+        ),
+      ),
+
+      OrbitWizardStep(
+        title: 'Execução',
+        hint: 'Responda o checklist previsto para este atendimento.',
+
+        /// Sem checklist a etapa não some do trilho — fica desabilitada. Some
+        /// faria a contagem de etapas mudar de atendimento para atendimento, e
+        /// "etapa 3 de 5" deixaria de significar a mesma coisa.
+        enabled: checklists.isNotEmpty,
+        complete: checklistCumprido,
+        child: checklists.isEmpty
+            ? const OrbitEmptyState(
+                icon: Icons.checklist_outlined,
+                title: 'Sem checklist previsto',
+                description: 'Este atendimento não tem itens a responder.',
+              )
+            : ExecutionChecklist(
+                checklists: checklists,
+                enabled:
+                    state.allows(FieldOperationAllowedAction.updateChecklist) &&
+                    !state.isBusy,
+                onAnswer: (checklistId, itemId, answer) =>
+                    controller.answerChecklistItem(
+                      checklistId: checklistId,
+                      itemId: itemId,
+                      answer: answer,
+                    ),
+              ),
+      ),
+
+      OrbitWizardStep(
+        title: 'Evidências',
+        hint: 'Registre o que comprova o serviço feito.',
+
+        /// A seção só oferece captura quando o servidor publica
+        /// `ADD_EVIDENCE`. Quem pode anexar é decisão dele — o app mostra o
+        /// que foi autorizado.
+        child: EvidenceSection(
+          target: FieldEvidenceTargetRef(
+            type: FieldEvidenceTarget.operation,
+            id: operationId,
+          ),
+          canCapture: state.allows(FieldOperationAllowedAction.addEvidence),
+        ),
+      ),
+
+      OrbitWizardStep(
+        title: 'Materiais',
+        hint: 'Materiais aplicados e observações do atendimento.',
+        enabled:
+            preparation.materialPolicy.enabled ||
+            state.allows(FieldOperationAllowedAction.addNote),
+        child: ExecutionSecondaryActions(
+          state: state,
+          onNote: () => showNoteSheet(context, controller),
+          onMaterial: () => showMaterialSheet(context, controller),
+        ),
+      ),
+
+      OrbitWizardStep(
+        title: 'Confirmação',
+        hint: 'Assinatura profissional, aceite do cliente e documento.',
+        child: ExecutionSigningSections(
+          operationId: operationId,
+          preparation: preparation,
+        ),
+      ),
+
+      OrbitWizardStep(
+        title: 'Finalização',
+        hint: 'Encerre o atendimento e veja o que foi registrado.',
+        complete: preparation.operation.completedAt != null,
+        child: _Timeline(operationId: operationId),
+      ),
+    ];
 
     return RefreshIndicator(
       /// Não recarrega por cima de um comando em voo: o resultado dele é que
       /// define o estado seguinte.
       onRefresh: () async => state.isBusy ? null : controller.load(),
       child: ListView(
-        padding: const EdgeInsets.all(OrbitSpacing.md),
+        padding: const EdgeInsets.only(bottom: OrbitSpacing.xl),
         children: [
           if (state.phase == ExecutionPhase.conflict)
-            _ConflictBanner(onRefresh: controller.refreshAfterConflict),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                OrbitSpacing.md,
+                OrbitSpacing.md,
+                OrbitSpacing.md,
+                0,
+              ),
+              child: _ConflictBanner(
+                onRefresh: controller.refreshAfterConflict,
+              ),
+            ),
 
           if (state.phase == ExecutionPhase.error && state.error != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: OrbitSpacing.sm),
+              padding: const EdgeInsets.fromLTRB(
+                OrbitSpacing.md,
+                OrbitSpacing.md,
+                OrbitSpacing.md,
+                0,
+              ),
               child: SectionError(
                 error: state.error!,
                 onRetry: controller.load,
               ),
             ),
 
-          _Summary(preparation: preparation),
-
-          /// O que foi registrado e ainda não chegou ao servidor.
-          ///
-          /// Fica **acima** das ações e separado do estado confirmado: um
-          /// atendimento com início pendente não é um atendimento em
-          /// andamento, e a tela não pode sugerir que é.
-          if (state.pendingCommands.isNotEmpty)
-            _PendingIntentions(
-              commands: state.pendingCommands,
-              onOpenSyncCenter: () => context.push(OrbitRoutes.syncCenter),
-            ),
-
-          if (!preparation.eligible && preparation.blockers.isNotEmpty)
-            _Blockers(blockers: preparation.blockers),
-
-          /// A seção só oferece captura quando o servidor publica
-          /// `ADD_EVIDENCE`. Quem pode anexar é decisão dele — o app mostra o
-          /// que foi autorizado.
-          EvidenceSection(
-            target: FieldEvidenceTargetRef(
-              type: FieldEvidenceTarget.operation,
-              id: operationId,
-            ),
-            canCapture: state.allows(FieldOperationAllowedAction.addEvidence),
-          ),
-
-          if (preparation.checklist.isNotEmpty)
-            ExecutionChecklist(
-              checklists: preparation.checklist,
-              enabled:
-                  state.allows(FieldOperationAllowedAction.updateChecklist) &&
-                  !state.isBusy,
-              onAnswer: (checklistId, itemId, answer) =>
-                  controller.answerChecklistItem(
-                    checklistId: checklistId,
-                    itemId: itemId,
-                    answer: answer,
-                  ),
-            ),
-
-          ExecutionSigningSections(
-            operationId: operationId,
-            preparation: preparation,
-          ),
-
-          ExecutionSecondaryActions(
-            state: state,
-            onNote: () => showNoteSheet(context, controller),
-            onMaterial: () => showMaterialSheet(context, controller),
-          ),
-
-          _Timeline(operationId: operationId),
-
-          /// Espaço para a ação inferior não cobrir o conteúdo final.
-          const SizedBox(height: OrbitSpacing.xl),
+          OrbitWizard(steps: etapas),
         ],
       ),
     );
@@ -182,7 +272,7 @@ class _Summary extends StatelessWidget {
     final operation = preparation.operation;
     final status = operationalStatusLabel(operation.status);
 
-    return SectionCard(
+    return SectionBlock(
       title: operation.code,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -301,7 +391,7 @@ class _Blockers extends StatelessWidget {
   final List<String> blockers;
 
   @override
-  Widget build(BuildContext context) => SectionCard(
+  Widget build(BuildContext context) => SectionBlock(
     title: 'Ainda não é possível iniciar',
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -355,7 +445,7 @@ class _Timeline extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final timeline = ref.watch(executionTimelineProvider(operationId));
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Histórico',
       child: timeline.when(
         loading: () => const SectionLoading(lines: 3),
@@ -426,7 +516,7 @@ class _PendingIntentions extends StatelessWidget {
     final blocked = commands.where((value) => value.isBlocking).toList();
     final waiting = commands.where((value) => !value.isBlocking).toList();
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Registrado neste aparelho',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

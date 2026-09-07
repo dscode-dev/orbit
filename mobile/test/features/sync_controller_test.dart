@@ -31,6 +31,7 @@ OfflineCommandEnvelope envelope(
   int n, {
   OfflineCommandType type = OfflineCommandType.operationAddNote,
   String aggregate = 'op-a',
+  Map<String, Object?> payload = const {'note': 'x'},
 }) => OfflineCommandEnvelope(
   commandId: uuid(n),
   idempotencyKey: uuid(n),
@@ -38,7 +39,7 @@ OfflineCommandEnvelope envelope(
   aggregateId: aggregate,
   expectedVersion: '2026-09-01T10:00:00.000Z',
   occurredAt: DateTime.utc(2026, 9, 1, 10, 30),
-  payload: const {'note': 'x'},
+  payload: payload,
 );
 
 Map<String, Object?> receipt(
@@ -409,6 +410,78 @@ void main() {
         (backend.pushes[0].first as Map)['occurredAt'],
         (backend.pushes[1].first as Map)['occurredAt'],
       );
+    });
+  });
+
+  group('aceite do cliente', () {
+    test('o reenvio leva a mesma assinatura, e não uma segunda', () async {
+      /// O caso real: o técnico confirma, a rede cai antes da resposta, e o
+      /// journal tenta de novo. Se o reenvio gerasse outro comando — ou
+      /// perdesse o arquivo da assinatura —, o cliente apareceria assinando
+      /// duas vezes, ou assinando nada.
+      var attempt = 0;
+      final backend = Backend(
+        onPush: (_) {
+          attempt += 1;
+          if (attempt == 1) throw StateError('rede caiu');
+          return [receipt(1, 'ALREADY_APPLIED')];
+        },
+        onPull: (_) => pullPage(),
+      );
+      final harness = build(backend);
+
+      await harness.controller.enqueue(
+        envelope(
+          1,
+          type: OfflineCommandType.customerAcknowledgement,
+          payload: const {
+            'signerName': 'Maria Zeladora',
+            'contentHash': 'abc',
+            'signatureStorageFileId': 'file-cliente-1',
+          },
+        ),
+      );
+      await harness.controller.sync(manual: true);
+
+      /// Duas tentativas, um comando.
+      expect(backend.pushes, hasLength(2));
+      expect((await harness.journal.read()).commands, isEmpty);
+
+      final primeiro = backend.pushes[0].first as Map;
+      final segundo = backend.pushes[1].first as Map;
+      expect(segundo['commandId'], primeiro['commandId']);
+
+      /// E a assinatura é a mesma imagem — não uma coletada de novo.
+      expect(
+        (segundo['payload'] as Map)['signatureStorageFileId'],
+        'file-cliente-1',
+      );
+      expect(
+        (primeiro['payload'] as Map)['signatureStorageFileId'],
+        'file-cliente-1',
+      );
+    });
+
+    test('aceite sem assinatura não inventa uma', () async {
+      final backend = Backend(
+        onPush: (_) => [receipt(1, 'APPLIED')],
+        onPull: (_) => pullPage(),
+      );
+      final harness = build(backend);
+
+      await harness.controller.enqueue(
+        envelope(
+          1,
+          type: OfflineCommandType.customerAcknowledgement,
+          payload: const {
+            'signerName': 'Maria Zeladora',
+            'contentHash': 'abc',
+          },
+        ),
+      );
+
+      final payload = (backend.pushes.single.first as Map)['payload'] as Map;
+      expect(payload.containsKey('signatureStorageFileId'), isFalse);
     });
   });
 

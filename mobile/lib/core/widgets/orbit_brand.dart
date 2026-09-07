@@ -47,16 +47,19 @@ class OrbitWordmark extends StatelessWidget {
       children: [
         OrbitSymbol(size: symbolSize),
         const SizedBox(height: OrbitSpacing.sm),
-        ShaderMask(
-          shaderCallback: (bounds) => OrbitGradients.brand.createShader(bounds),
-          child: const Text(
-            'Orbit',
-            style: TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
-              color: Colors.white,
-            ),
+        /// O nome, em tinta.
+        ///
+        /// Antes era um gradiente azul–roxo aplicado por `ShaderMask`. Sobre
+        /// branco, gradiente em texto perde contraste nas pontas e nada
+        /// acrescenta: a marca aparece no símbolo, e a palavra só precisa ser
+        /// legível.
+        const Text(
+          'Orbit',
+          style: TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+            color: OrbitColors.textPrimary,
           ),
         ),
         if (showTagline) ...[
@@ -75,7 +78,11 @@ class OrbitWordmark extends StatelessWidget {
   }
 }
 
-/// Fundo da marca: azul profundo com o brilho azul–roxo da identidade.
+/// Fundo da marca.
+///
+/// Antes era um azul profundo com brilho azul–roxo. No tema claro o fundo é
+/// branco com um halo azul discreto no canto — presença de marca sem uma
+/// parede de cor atrás do conteúdo.
 class OrbitBackground extends StatelessWidget {
   const OrbitBackground({super.key, required this.child});
 
@@ -84,11 +91,14 @@ class OrbitBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: RadialGradient(
-          center: Alignment(-0.6, -0.8),
-          radius: 1.4,
-          colors: [Color(0xFF16305C), OrbitColors.deepSky],
+          center: const Alignment(-0.7, -0.9),
+          radius: 1.2,
+          colors: [
+            context.orbit.accentSoft,
+            context.orbit.background,
+          ],
         ),
       ),
       child: child,

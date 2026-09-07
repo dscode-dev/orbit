@@ -63,7 +63,7 @@ Widget wrap(Future<ResponseBody> Function(RequestOptions) handler) {
       ),
     ],
     child: MaterialApp(
-      theme: OrbitTheme.dark(),
+      theme: OrbitTheme.light(),
       home: const OperationsScreen(),
     ),
   );

@@ -89,6 +89,22 @@ final class OperationScenario {
       'atendimento $code';
 }
 
+/// A execução de RVT que uma suíte provisionou para si.
+final class RvtScenario {
+  const RvtScenario({
+    required this.scenarioId,
+    required this.suite,
+    required this.executionId,
+  });
+
+  final String scenarioId;
+  final String suite;
+  final String executionId;
+
+  String describe() =>
+      'RVT $scenarioId · suíte $suite · execução $executionId';
+}
+
 /// Falha no meio da provisão, com o que já foi criado.
 ///
 /// Um cenário parcial não é devolvido: reaproveitá-lo faria o teste medir um
@@ -129,6 +145,7 @@ class ScenarioProvisioner {
 
   /// Quantos recursos esta execução criou — para o relatório de crescimento.
   int createdOperations = 0;
+  int createdRvtExecutions = 0;
 
   /// Autentica e lê o contexto da sessão.
   ///
@@ -202,6 +219,19 @@ class ScenarioProvisioner {
       /// O código carrega a marca do smoke: o dado nasce reconhecível como
       /// teste, sem depender de alguém lembrar de anotá-lo depois.
       final code = 'SMOKE-$suite-$short';
+
+      /// **Com horário.**
+      ///
+      /// A projeção de campo entrega no máximo 500 atendimentos designados,
+      /// ordenados por `scheduledStart` — e no Postgres o nulo vai para o fim.
+      /// Um atendimento sem horário é o último da fila de 500: enquanto o
+      /// técnico tinha poucos, cabia; passados 500, o cenário recém-criado
+      /// deixava de existir para o aplicativo, e o smoke falhava com 404 num
+      /// recurso que acabara de criar.
+      ///
+      /// Marcar a hora não afrouxa nada — é o que um atendimento de verdade
+      /// tem. O que era acidental (caber na janela) passa a ser deliberado.
+      final agora = DateTime.now().toUtc();
       final operation = await client.post<Map<String, dynamic>>(
         '/operations',
         body: {
@@ -212,6 +242,10 @@ class ScenarioProvisioner {
           'description':
               'Criado pelo harness de smoke do aplicativo. Cenário '
               '$scenarioId.',
+          'scheduledStart': agora.toIso8601String(),
+          'scheduledEnd': agora
+              .add(const Duration(hours: 1))
+              .toIso8601String(),
         },
       );
       final operationId = operation['id']! as String;
@@ -263,6 +297,83 @@ class ScenarioProvisioner {
         workItemId: 'SERVICE_OPERATION:$operationId',
         code: code,
         version: version,
+      );
+    } on Object catch (error) {
+      throw ScenarioProvisioningFailure(
+        scenarioId: scenarioId,
+        step: step,
+        created: created,
+        cause: error,
+      );
+    }
+  }
+
+  /// Uma execução de RVT avulsa, nova, só desta suíte.
+  ///
+  /// ## Por que ela precisa existir
+  ///
+  /// O teste de evidência em RVT varria a fila atrás de "alguma execução que
+  /// aceite evidência" — e encontrava sempre a mesma, histórica, compartilhada
+  /// com todas as execuções anteriores da suíte. Cada rodada somava uma
+  /// evidência ali. Na vigésima, `FIELD_EVIDENCE_RVT_MAX_FILES` fez o que
+  /// existe para fazer, e o smoke passou a falhar por acúmulo de dado — não
+  /// por regressão.
+  ///
+  /// A correção é provisionar, não afrouxar: o limite do backend continua
+  /// sendo 20, e nenhuma evidência existente é apagada. O que muda é que o
+  /// alvo passa a nascer com zero.
+  ///
+  /// O cliente é **contextual**: a RVT avulsa aceita um cliente descrito no
+  /// próprio pedido, e usá-lo evita criar um cadastro de cliente que
+  /// sobreviveria ao teste.
+  Future<RvtScenario> rvtExecution({required String suite}) async {
+    assertProvisioningAllowed();
+
+    final scenarioId = newCommandId();
+    final short = scenarioId.split('-').last;
+    final created = <String>[];
+    var step = 'criar execução de RVT avulsa';
+
+    try {
+      final response = await client.post<Map<String, dynamic>>(
+        '/rvt/ad-hoc/executions',
+
+        /// A idempotência desta rota é de **cabeçalho**, não de corpo.
+        headers: {'Idempotency-Key': 'smoke-$suite-$short'},
+        body: {
+          'businessUnitId': businessUnitId,
+          'name': '[SMOKE-$suite] Visita técnica $short',
+          'visitType': 'WEEKLY',
+          'timezone': 'America/Recife',
+          'responsibleFieldTechnicianId': userId,
+          'customer': {
+            'legalName': 'SMOKE $suite $short',
+            'type': 'COMPANY',
+
+            /// O endereço é obrigatório no cliente contextual — a RVT o
+            /// carrega para o documento, e um relatório de visita sem local
+            /// não é um relatório de visita.
+            'address': {'city': 'Recife', 'state': 'PE'},
+          },
+          'serviceLocation': {
+            'label': 'Cenário automatizado de smoke $scenarioId',
+          },
+          'procedure': const <String, Object?>{},
+        },
+      );
+
+      final execution = response['execution'] as Map<String, dynamic>?;
+      final executionId = execution?['id'] as String?;
+      if (executionId == null) {
+        throw StateError('A resposta da RVT avulsa não trouxe o id da execução');
+      }
+      created.add('execução de RVT $executionId');
+      createdRvtExecutions += 1;
+
+      return RvtScenario(
+        scenarioId: scenarioId,
+        suite: suite,
+        executionId: executionId,
       );
     } on Object catch (error) {
       throw ScenarioProvisioningFailure(

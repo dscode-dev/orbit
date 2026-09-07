@@ -28,7 +28,7 @@ import '../../../core/routing/orbit_router.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../application/field_providers.dart';
-import 'widgets/work_item_card.dart';
+import 'widgets/work_item_row.dart';
 
 class WorkItemDetailScreen extends ConsumerWidget {
   const WorkItemDetailScreen({super.key, required this.workItemId});
@@ -95,7 +95,7 @@ class _Detail extends StatelessWidget {
 
         if (context$.requestDescription case final String description
             when description.trim().isNotEmpty)
-          SectionCard(
+          SectionBlock(
             title: 'O que foi pedido',
             child: Text(
               description,
@@ -107,7 +107,7 @@ class _Detail extends StatelessWidget {
           ),
 
         if (item.customer case final MobileCustomerSummaryContract customer)
-          SectionCard(
+          SectionBlock(
             title: 'Cliente',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,7 +147,7 @@ class _Detail extends StatelessWidget {
           ),
 
         if (item.equipmentSummary.isNotEmpty)
-          SectionCard(
+          SectionBlock(
             title: 'Equipamento',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,7 +185,7 @@ class _Detail extends StatelessWidget {
         _Team(item: item),
 
         if (context$.procedures.isNotEmpty)
-          SectionCard(
+          SectionBlock(
             title: 'Procedimentos',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,7 +206,7 @@ class _Detail extends StatelessWidget {
           ),
 
         if (context$.documentContext.isNotEmpty)
-          SectionCard(
+          SectionBlock(
             title: 'Documentos',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -242,7 +242,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = operationalStatusLabel(item.operationalStatus);
 
-    return SectionCard(
+    return SectionBlock(
       title: workItemKindLabel(item.kind),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,7 +296,7 @@ class _Team extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Equipe',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,7 +349,7 @@ class _Actions extends ConsumerWidget {
     ];
     if (actions.isEmpty) return const SizedBox.shrink();
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Ações',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

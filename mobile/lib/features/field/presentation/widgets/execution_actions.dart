@@ -123,7 +123,7 @@ class ExecutionSecondaryActions extends StatelessWidget {
 
     if (entries.isEmpty) return const SizedBox.shrink();
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Registrar',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

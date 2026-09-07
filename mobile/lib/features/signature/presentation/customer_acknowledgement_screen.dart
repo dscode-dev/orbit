@@ -27,6 +27,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/contracts/mobile_signature_contracts.dart';
 import '../../../core/errors/orbit_exception.dart';
 import '../../../core/presentation/orbit_format.dart';
+import '../../../core/design/orbit_signature_pad.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../field/application/execution_controller.dart' show newCommandId;
@@ -49,6 +50,10 @@ class CustomerAcknowledgementScreen extends ConsumerStatefulWidget {
 class _CustomerAcknowledgementScreenState
     extends ConsumerState<CustomerAcknowledgementScreen> {
   final _signerName = TextEditingController();
+
+  /// O traço do cliente. Vive enquanto a tela existe: sair e voltar apaga, e
+  /// isso é o comportamento certo — a assinatura é **daquele** momento.
+  final _pad = OrbitSignatureController();
   bool _sending = false;
   String? _failure;
 
@@ -59,9 +64,33 @@ class _CustomerAcknowledgementScreenState
   /// aplicativo de campo.
   _AcceptedState? _accepted;
 
+  /// Trocar de atendimento apaga o que foi coletado.
+  ///
+  /// A assinatura e o nome pertencem **àquele** atendimento. Se esta tela for
+  /// reaproveitada para outro — o Flutter atualiza o `State` quando o widget
+  /// no mesmo lugar é do mesmo tipo — o traço do cliente anterior continuaria
+  /// no pad, e o próximo cliente confirmaria um serviço com a assinatura de
+  /// outra pessoa.
+  ///
+  /// Hoje a navegação empurra uma rota nova e o `State` nasce limpo por acaso.
+  /// "Por acaso" não é garantia: isto torna a limpeza deliberada.
+  @override
+  void didUpdateWidget(CustomerAcknowledgementScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.operationId != widget.operationId) {
+      _pad.limpar();
+      _signerName.clear();
+      setState(() {
+        _accepted = null;
+        _failure = null;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _signerName.dispose();
+    _pad.dispose();
     super.dispose();
   }
 
@@ -84,6 +113,27 @@ class _CustomerAcknowledgementScreenState
       _failure = null;
     });
     try {
+      /// A imagem sobe **antes** do comando.
+      ///
+      /// O comando carrega o identificador do arquivo, então o arquivo precisa
+      /// existir primeiro. Falhar aqui não registra aceite nenhum: melhor
+      /// nenhum aceite do que um aceite sem a assinatura que o cliente
+      /// acabou de fazer.
+      String? signatureFileId;
+      if (_pad.temTraco) {
+        final bytes = await _pad.exportar();
+        if (bytes != null) {
+          signatureFileId = await ref
+              .read(signatureRepositoryProvider)
+              .uploadSignatureImage(
+                fileName: 'aceite.png',
+                mimeType: 'image/png',
+                bytes: bytes,
+                purpose: 'CUSTOMER_ACKNOWLEDGEMENT',
+              );
+        }
+      }
+
       final commandId = newCommandId();
       final sync = ref.read(syncControllerProvider.notifier);
       await sync.enqueue(
@@ -94,7 +144,12 @@ class _CustomerAcknowledgementScreenState
           aggregateId: widget.operationId,
           expectedVersion: preparation.contentVersion,
           occurredAt: DateTime.now().toUtc(),
-          payload: {'signerName': name, 'contentHash': preparation.contentHash},
+          payload: {
+            'signerName': name,
+            'contentHash': preparation.contentHash,
+            if (signatureFileId != null)
+              'signatureStorageFileId': signatureFileId,
+          },
           deviceInstanceId: ref.read(deviceInstanceIdProvider).valueOrNull,
         ),
       );
@@ -161,6 +216,7 @@ class _CustomerAcknowledgementScreenState
               ? _Form(
                   preparation: value,
                   signerName: _signerName,
+                  pad: _pad,
                   sending: _sending,
                   failure: _failure,
                   onSubmit: () => _submit(value),
@@ -179,6 +235,7 @@ class _Form extends StatelessWidget {
   const _Form({
     required this.preparation,
     required this.signerName,
+    required this.pad,
     required this.sending,
     required this.failure,
     required this.onSubmit,
@@ -186,6 +243,7 @@ class _Form extends StatelessWidget {
 
   final CustomerAcknowledgementPreparation preparation;
   final TextEditingController signerName;
+  final OrbitSignatureController pad;
   final bool sending;
   final String? failure;
   final VoidCallback onSubmit;
@@ -205,7 +263,7 @@ class _Form extends StatelessWidget {
         if (preparation.existingAcknowledgement case final existing?)
           _PreviousAcknowledgement(existing: existing),
 
-        SectionCard(
+        SectionBlock(
           title: 'Resumo do atendimento',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,7 +295,7 @@ class _Form extends StatelessWidget {
           ),
         ),
 
-        SectionCard(
+        SectionBlock(
           title: 'Quem está dando ciência',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -262,29 +320,81 @@ class _Form extends StatelessWidget {
                 ),
               ),
 
-              if (failure case final String message) ...[
+            ],
+          ),
+        ),
+
+        /// A assinatura vem **depois** do resumo e do nome, e não antes.
+        ///
+        /// O cliente precisa ter lido o que está confirmando: assinar primeiro
+        /// e ler depois inverte o sentido do gesto, e é o que transforma
+        /// aceite em formalidade vazia.
+        SectionBlock(
+          title: 'Assinatura',
+          child: ListenableBuilder(
+            listenable: pad,
+            builder: (context, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                OrbitSignaturePad(
+                  controller: pad,
+                  hint: 'Assine neste espaço',
+                  enabled: !sending,
+                ),
+                const SizedBox(height: OrbitSpacing.sm),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: sending ? null : pad.limpar,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                        ),
+                        child: const Text('Limpar'),
+                      ),
+                    ),
+                  ],
+                ),
+
+                /// A assinatura gráfica é opcional por política do servidor
+                /// (`signatureRequired: false`). Dizer isso evita que o técnico
+                /// fique parado esperando um cliente que não quer assinar.
                 const SizedBox(height: OrbitSpacing.sm),
                 Text(
-                  message,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: OrbitColors.danger,
+                  'A assinatura é opcional. Sem ela, fica registrado o nome de '
+                  'quem recebeu o serviço.',
+                  style: OrbitType.caption.copyWith(
+                    color: context.orbit.inkMuted,
+                  ),
+                ),
+
+                if (failure case final String message) ...[
+                  const SizedBox(height: OrbitSpacing.sm),
+                  Text(
+                    message,
+                    style: OrbitType.caption.copyWith(
+                      color: context.orbit.danger,
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: OrbitSpacing.md),
+                Semantics(
+                  button: true,
+                  enabled: !sending,
+                  label: 'Confirmar atendimento',
+                  child: FilledButton(
+                    onPressed: sending ? null : onSubmit,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 52),
+                    ),
+                    child: Text(
+                      sending ? 'Registrando…' : 'Confirmar atendimento',
+                    ),
                   ),
                 ),
               ],
-
-              const SizedBox(height: OrbitSpacing.md),
-              Semantics(
-                button: true,
-                enabled: !sending,
-                label: 'Confirmar ciência',
-                child: FilledButton(
-                  onPressed: sending ? null : onSubmit,
-                  style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
-                  child: Text(sending ? 'Registrando…' : 'Confirmar ciência'),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ],
@@ -299,7 +409,7 @@ class _PreviousAcknowledgement extends StatelessWidget {
   final ExistingAcknowledgement existing;
 
   @override
-  Widget build(BuildContext context) => SectionCard(
+  Widget build(BuildContext context) => SectionBlock(
     title: 'Ciência já registrada',
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -341,7 +451,7 @@ class _Accepted extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(OrbitSpacing.md),
       children: [
-        SectionCard(
+        SectionBlock(
           title: confirmed
               ? 'Ciência registrada'
               : 'Ciência salva neste aparelho',

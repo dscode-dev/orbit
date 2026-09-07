@@ -67,7 +67,7 @@ class _ProfessionalSignature extends StatelessWidget {
   final bool available;
 
   @override
-  Widget build(BuildContext context) => SectionCard(
+  Widget build(BuildContext context) => SectionBlock(
     title: 'Sua assinatura profissional',
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,7 +109,7 @@ class _Acknowledgement extends ConsumerWidget {
       acknowledgementPreparationProvider(operationId),
     );
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Aceite do cliente',
       child: preparation.when(
         loading: () => const SectionLoading(lines: 2),

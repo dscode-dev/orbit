@@ -37,7 +37,7 @@ class ExecutionChecklist extends StatelessWidget {
     return Column(
       children: [
         for (final checklist in checklists)
-          SectionCard(
+          SectionBlock(
             title: checklist.name,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/contracts/operation_contracts.dart';
 import '../../../core/routing/orbit_router.dart';
+import '../../../core/design/orbit_primitives.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../application/operations_providers.dart';
@@ -152,24 +153,17 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
                           ),
                         ),
                       ),
-                      for (final operation in page.data)
-                        Card(
-                          margin: const EdgeInsets.only(
-                            bottom: OrbitSpacing.sm,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: OrbitSpacing.md,
-                              vertical: OrbitSpacing.xs,
-                            ),
-                            child: OperationTile(
-                              operation: operation,
-                              onTap: () => context.push(
-                                OrbitRoutes.operationDetail(operation.id),
-                              ),
-                            ),
+                      /// Lista, não pilha de cartões: doze atendimentos em
+                      /// doze molduras é doze retângulos de mesma importância.
+                      for (final (indice, operation) in page.data.indexed) ...[
+                        if (indice > 0) const OrbitRowDivider(),
+                        OperationTile(
+                          operation: operation,
+                          onTap: () => context.push(
+                            OrbitRoutes.operationDetail(operation.id),
                           ),
                         ),
+                      ],
                       if (page.totalPages > 1)
                         _Pagination(
                           page: page,

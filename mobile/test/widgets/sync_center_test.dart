@@ -142,7 +142,7 @@ Future<Widget> host(
         size: Size(width, 780),
       ),
       child: MaterialApp(
-        theme: OrbitTheme.dark(),
+        theme: OrbitTheme.light(),
         home: const SyncCenterScreen(),
       ),
     ),

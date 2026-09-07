@@ -36,7 +36,7 @@ class EvidenceSection extends ConsumerWidget {
         .where((task) => task.status == UploadStatus.failed)
         .toList();
 
-    return SectionCard(
+    return SectionBlock(
       title: 'Evidências',
       subtitle: pending.isEmpty
           ? '${attachments.length} enviada(s)'

@@ -25,6 +25,7 @@ abstract final class OrbitFormat {
   static final _shortDate = DateFormat('dd/MM/y', 'pt_BR');
   static final _hour = DateFormat('HH:mm', 'pt_BR');
   static final _dateHour = DateFormat('dd/MM HH:mm', 'pt_BR');
+  static final _weekdayDay = DateFormat("EEEE, dd 'de' MMMM", 'pt_BR');
   static final _currency = NumberFormat.currency(
     locale: 'pt_BR',
     symbol: 'R\$',
@@ -42,6 +43,14 @@ abstract final class OrbitFormat {
   /// `01/09/2026`.
   static String shortDate(CivilDate date) =>
       _shortDate.format(DateTime.utc(date.year, date.month, date.day));
+
+  /// `sexta-feira, 06 de setembro` — o cabeçalho de "hoje".
+  ///
+  /// Recebe um **instante** e o lê no relógio do aparelho, de propósito: é a
+  /// única data da interface que descreve onde a pessoa está agora, e não um
+  /// prazo da operação. Prazo continua vindo decidido do servidor.
+  static String weekdayAndDay(DateTime instant) =>
+      _weekdayDay.format(instant.toLocal());
 
   /// A hora de um **instante**, no relógio de quem está lendo.
   static String hourOf(DateTime? instant) =>

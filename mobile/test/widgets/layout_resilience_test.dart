@@ -85,7 +85,7 @@ void main() {
   testWidgets('nome longo de cliente não quebra o cartão', (tester) async {
     await tester.pumpWidget(
       _host(
-        const SectionCard(title: _longName, child: Text(_longName)),
+        const SectionBlock(title: _longName, child: Text(_longName)),
         textScale: 1.3,
       ),
     );

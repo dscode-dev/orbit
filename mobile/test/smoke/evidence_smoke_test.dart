@@ -11,7 +11,6 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit_operator/core/contracts/mobile_evidence_contracts.dart';
-import 'package:orbit_operator/core/contracts/mobile_field_contracts.dart';
 import 'package:orbit_operator/core/errors/orbit_exception.dart';
 import 'package:orbit_operator/features/evidence/data/evidence_intake.dart';
 import 'package:orbit_operator/features/evidence/data/evidence_repository.dart';
@@ -46,9 +45,12 @@ void main() {
 
   late FieldEvidenceTargetRef target;
 
-  /// Uma execução de RVT, quando o tenant tiver uma. Prova que o pipeline
-  /// atende mais de um tipo de alvo.
+  /// Uma execução de RVT **desta suíte**. Prova que o pipeline atende mais de
+  /// um tipo de alvo.
   FieldEvidenceTargetRef? rvtTarget;
+
+  /// Por que a provisão de RVT pode não acontecer, quando não acontecer.
+  Object? rvtProvisioningError;
 
   setUpAll(() async {
     available = await smokeApiIsUp();
@@ -67,29 +69,27 @@ void main() {
       id: scenario.operationId,
     );
 
-    /// A execução de RVT continua vindo da fila: o harness não provisiona
-    /// RVT, e criar uma execução só para preencher cobertura ultrapassaria o
-    /// escopo. Sem uma, o teste de outro alvo se declara ausente.
-    final queue = await provisioner.client.get<Map<String, dynamic>>(
-      '/mobile/field/work-queue',
-      query: {'limit': 50},
-    );
-    for (final raw in (queue['data'] as List<dynamic>? ?? const [])) {
-      final item = MobileWorkItemContract.fromJson(
-        Map<String, dynamic>.from(raw as Map),
-      );
-      final executionId = item?.navigationContext.executionId;
-      if (item == null ||
-          item.kind != MobileWorkItemKind.rvt ||
-          executionId == null ||
-          !item.allowedActions.contains(MobileFieldAction.addEvidence)) {
-        continue;
-      }
+    /// Uma execução de RVT avulsa, nova, só desta suíte.
+    ///
+    /// Antes ela vinha da fila — a primeira execução de RVT que aceitasse
+    /// evidência. Era sempre a mesma, histórica, e cada rodada somava um
+    /// arquivo nela. Na vigésima, `FIELD_EVIDENCE_RVT_MAX_FILES` fez o que
+    /// existe para fazer, e o smoke passou a falhar por **acúmulo de dado**,
+    /// não por regressão do produto.
+    ///
+    /// Provisionar corrige na raiz certa: o limite do backend continua sendo
+    /// o mesmo, nenhuma evidência existente é tocada, e o alvo nasce com zero.
+    try {
+      final rvt = await provisioner.rvtExecution(suite: 'FL06');
       rvtTarget = FieldEvidenceTargetRef(
         type: FieldEvidenceTarget.rvtExecution,
-        id: executionId,
+        id: rvt.executionId,
       );
-      break;
+    } on Object catch (error) {
+      /// Guardado para virar mensagem no teste. Engolir aqui faria o caso se
+      /// declarar ausente sem dizer por quê — que é como um alvo que parou de
+      /// poder ser criado vira cobertura silenciosamente perdida.
+      rvtProvisioningError = error;
     }
   });
 
@@ -98,7 +98,8 @@ void main() {
     // ignore: avoid_print
     print(
       'FL-06 · atendimentos criados nesta execução: '
-      '${provisioner.createdOperations}',
+      '${provisioner.createdOperations} · execuções de RVT: '
+      '${provisioner.createdRvtExecutions}',
     );
   });
 
@@ -438,9 +439,13 @@ void main() {
         markTestSkipped('API indisponível em $smokeApiUrl');
         return;
       }
+      /// Sem alvo é **falha**, não ausência: a execução é provisionada por
+      /// esta suíte, e não conseguir criá-la é defeito de provisionamento.
       if (rvtTarget == null) {
-        markTestSkipped('sem execução de RVT que aceite evidência');
-        return;
+        fail(
+          'A execução de RVT desta suíte não pôde ser provisionada: '
+          '$rvtProvisioningError',
+        );
       }
 
       final bytes = uniquePng();

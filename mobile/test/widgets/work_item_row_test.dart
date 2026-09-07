@@ -1,11 +1,11 @@
-/// O cartão da fila em campo.
+/// A linha da fila em campo.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:orbit_operator/core/contracts/mobile_field_contracts.dart';
-import 'package:orbit_operator/features/field/presentation/widgets/work_item_card.dart';
+import 'package:orbit_operator/features/field/presentation/widgets/work_item_row.dart';
 
 MobileWorkItemContract item({
   String id = 'SERVICE_OPERATION:1',
@@ -69,7 +69,7 @@ void main() {
   testWidgets('mostra tipo, prazo, cliente e horário em português', (
     tester,
   ) async {
-    await tester.pumpWidget(host(WorkItemCard(item: item(), onOpen: () {})));
+    await tester.pumpWidget(host(WorkItemRow(item: item(), onOpen: () {})));
 
     expect(find.text('Atendimento'), findsOneWidget);
     expect(find.text('Hoje'), findsOneWidget);
@@ -85,11 +85,11 @@ void main() {
       host(
         Column(
           children: [
-            WorkItemCard(
+            WorkItemRow(
               item: item(id: 'a', kind: 'PMOC'),
               onOpen: () {},
             ),
-            WorkItemCard(
+            WorkItemRow(
               item: item(id: 'b', kind: 'RVT'),
               onOpen: () {},
             ),
@@ -104,19 +104,16 @@ void main() {
     expect(find.textContaining('RVT'), findsNothing);
   });
 
-  testWidgets('item sem data diz "Sem data" em vez de inventar uma', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      host(
-        WorkItemCard(
-          item: item(dueState: 'UNSCHEDULED', scheduledFor: null),
-          onOpen: () {},
-        ),
-      ),
-    );
+  testWidgets('item sem data não inventa uma', (tester) async {
+    final semData = item(dueState: 'UNSCHEDULED', scheduledFor: null);
+    await tester.pumpWidget(host(WorkItemRow(item: semData, onOpen: () {})));
 
-    expect(find.text('Sem data'), findsAtLeastNWidgets(1));
+    /// A coluna da esquerda mostra o travessão — "Sem data" não cabe em 46
+    /// pixels e viraria uma coluna de texto onde há uma coluna de números.
+    expect(find.text('—'), findsOneWidget);
+
+    /// Quem usa leitor de tela ouve a frase inteira, não o travessão.
+    expect(semanticLabel(semData), contains('Sem data'));
   });
 
   testWidgets('a função de quem lê aparece quando ele está escalado', (
@@ -126,12 +123,12 @@ void main() {
       host(
         Column(
           children: [
-            WorkItemCard(
+            WorkItemRow(
               item: item(id: 'a', responsibleId: 'eu'),
               currentUserId: 'eu',
               onOpen: () {},
             ),
-            WorkItemCard(
+            WorkItemRow(
               item: item(id: 'b', auxiliaryIds: const ['eu']),
               currentUserId: 'eu',
               onOpen: () {},
@@ -141,17 +138,19 @@ void main() {
       ),
     );
 
-    expect(find.text('Técnico em Campo'), findsOneWidget);
-    expect(find.text('Auxiliar'), findsOneWidget);
+    /// A função entra na linha de apoio, junto da natureza do trabalho —
+    /// `textContaining` porque a linha é uma frase só, não três textos.
+    expect(find.textContaining('Técnico em Campo'), findsOneWidget);
+    expect(find.textContaining('Auxiliar'), findsOneWidget);
 
     /// Nada de "Equipe" genérico: os papéis são distintos no domínio.
-    expect(find.text('Equipe'), findsNothing);
+    expect(find.textContaining('Equipe'), findsNothing);
   });
 
-  testWidgets('abrir o cartão chama a navegação', (tester) async {
+  testWidgets('abrir a linha chama a navegação', (tester) async {
     var opened = 0;
     await tester.pumpWidget(
-      host(WorkItemCard(item: item(), onOpen: () => opened += 1)),
+      host(WorkItemRow(item: item(), onOpen: () => opened += 1)),
     );
 
     await tester.tap(find.byType(InkWell));
@@ -160,7 +159,7 @@ void main() {
   });
 
   testWidgets('leitor de tela recebe um rótulo útil', (tester) async {
-    await tester.pumpWidget(host(WorkItemCard(item: item(), onOpen: () {})));
+    await tester.pumpWidget(host(WorkItemRow(item: item(), onOpen: () {})));
 
     final label = semanticLabel(item());
     expect(label, contains('Atendimento'));
@@ -172,7 +171,7 @@ void main() {
     testWidgets('não estoura com texto em ${scale}x', (tester) async {
       await tester.pumpWidget(
         host(
-          WorkItemCard(
+          WorkItemRow(
             item: item(
               customer:
                   'Condomínio Empresarial Torre Norte — Central de Água '
@@ -205,7 +204,7 @@ void main() {
   testWidgets('tela estreita continua íntegra', (tester) async {
     await tester.pumpWidget(
       host(
-        WorkItemCard(item: item(), onOpen: () {}),
+        WorkItemRow(item: item(), onOpen: () {}),
         width: 280,
         textScale: 1.5,
       ),

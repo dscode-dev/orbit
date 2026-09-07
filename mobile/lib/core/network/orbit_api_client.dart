@@ -110,10 +110,17 @@ class OrbitApiClient {
     ),
   );
 
+  /// `POST`.
+  ///
+  /// `headers` existe para o punhado de rotas que contrataram a idempotência
+  /// no **cabeçalho** em vez de no corpo — a criação de RVT avulsa é uma
+  /// delas. Não é um canal para cabeçalho arbitrário: autenticação continua
+  /// sendo do interceptor, e sobrescrevê-la aqui seria contorná-lo.
   Future<T> post<T>(
     String path, {
     Object? body,
     Map<String, dynamic>? query,
+    Map<String, String>? headers,
     CancelToken? cancelToken,
     bool isPublic = false,
   }) => _send<T>(
@@ -122,7 +129,7 @@ class OrbitApiClient {
       data: body,
       queryParameters: _clean(query),
       cancelToken: cancelToken,
-      options: _options(isPublic),
+      options: _options(isPublic, headers: headers),
     ),
   );
 
@@ -291,8 +298,10 @@ class OrbitApiClient {
     return name.isEmpty || name == '.' || name == '..' ? null : name;
   }
 
-  Options _options(bool isPublic) =>
-      Options(extra: isPublic ? {publicRequestKey: true} : null);
+  Options _options(bool isPublic, {Map<String, String>? headers}) => Options(
+    extra: isPublic ? {publicRequestKey: true} : null,
+    headers: headers,
+  );
 
   /// Remove chaves nulas ou vazias — o `ValidationPipe` do backend usa
   /// `forbidNonWhitelisted` e rejeita parâmetros vazios.

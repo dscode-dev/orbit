@@ -28,6 +28,8 @@ import '../../features/operations/presentation/operation_detail_screen.dart';
 import '../../features/operations/presentation/operations_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/scheduling/presentation/agenda_screen.dart';
+import '../../features/documents/presentation/documents_screen.dart';
+import '../../features/equipment/presentation/equipment_scanner_screen.dart';
 import 'app_shell.dart';
 
 abstract final class OrbitRoutes {
@@ -40,6 +42,17 @@ abstract final class OrbitRoutes {
   static const workQueue = '/trabalho';
   static const operations = '/operacoes';
   static const agenda = '/agenda';
+
+  /// O que já foi emitido. Era alcançável só por dentro de um atendimento;
+  /// agora é destino próprio, porque "cadê a OS de ontem?" é pergunta de todo
+  /// dia e não tinha resposta a menos de quatro toques.
+  static const documents = '/documentos';
+
+  /// A leitura de etiqueta. Fora do shell: a câmera ocupa a tela inteira.
+  static const scanner = '/etiqueta';
+
+  /// Perfil, sincronização e assinatura. É o "mais" do aplicativo, com o nome
+  /// do que ele de fato contém.
   static const profile = '/perfil';
 
   static String operationDetail(String id) => '$operations/$id';
@@ -173,6 +186,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: OrbitRoutes.agenda,
             builder: (context, state) => const AgendaScreen(),
+          ),
+          GoRoute(
+            path: OrbitRoutes.documents,
+            builder: (context, state) => const DocumentsScreen(),
+          ),
+          GoRoute(
+            path: OrbitRoutes.scanner,
+
+            /// Fora do shell: a câmera ocupa a tela inteira, e uma barra de
+            /// navegação por cima dela só rouba área de mira.
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const EquipmentScannerScreen(),
           ),
           GoRoute(
             path: OrbitRoutes.profile,

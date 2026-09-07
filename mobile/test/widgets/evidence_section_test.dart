@@ -107,7 +107,7 @@ Future<Widget> host({
         size: Size(width, 780),
       ),
       child: MaterialApp(
-        theme: OrbitTheme.dark(),
+        theme: OrbitTheme.light(),
         home: Scaffold(
           body: SingleChildScrollView(
             child: EvidenceSection(target: target, canCapture: canCapture),

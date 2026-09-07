@@ -20,7 +20,7 @@ import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../application/field_providers.dart';
 import '../data/field_repository.dart';
-import 'widgets/work_item_card.dart';
+import 'widgets/work_item_row.dart';
 
 const _views = <(WorkQueueView, String)>[
   (WorkQueueView.all, 'Tudo'),
@@ -201,7 +201,7 @@ class _Queue extends StatelessWidget {
                   ),
                 ),
               ),
-            WorkItemCard(
+            WorkItemRow(
               key: ValueKey(item.id),
               item: item,
               currentUserId: currentUserId,
