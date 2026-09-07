@@ -35,10 +35,12 @@ import { OperationsSettingsTab } from "./tabs/operations.tab";
 import { OrganizationTab } from "./tabs/organization.tab";
 import { SchedulingSettingsTab } from "./tabs/scheduling.tab";
 import { SecuritySettingsTab } from "./tabs/security.tab";
+import { SubscriptionSettingsTab } from "./tabs/subscription.tab";
 
 /** Os apelidos das seções, na ordem em que aparecem. */
 const SECOES = [
   "organizacao",
+  "assinatura",
   "operacao",
   "agenda",
   "documentos",
@@ -57,6 +59,7 @@ export function SettingsWorkspace() {
       <Tabs value={section.current} onValueChange={section.go}>
         <TabsList>
           <TabsTrigger value="organizacao">Organização</TabsTrigger>
+          <TabsTrigger value="assinatura">Plano e assinatura</TabsTrigger>
           <TabsTrigger value="operacao">Operação</TabsTrigger>
           <TabsTrigger value="agenda">Agenda</TabsTrigger>
           <TabsTrigger value="documentos">Documentos</TabsTrigger>
@@ -70,6 +73,12 @@ export function SettingsWorkspace() {
         <TabsContent value="organizacao">
           <TabBoundary id="settings-organization" label="a organização">
             <OrganizationTab />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="assinatura">
+          <TabBoundary id="settings-subscription" label="o plano e a assinatura">
+            <SubscriptionSettingsTab />
           </TabBoundary>
         </TabsContent>
 

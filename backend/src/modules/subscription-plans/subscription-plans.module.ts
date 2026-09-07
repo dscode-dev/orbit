@@ -50,6 +50,7 @@ import { UsageService } from './usage.service';
     UsageService,
     EntitlementService,
     SubscriptionService,
+    SubscriptionMapper,
     SubscriptionReconciliationService,
     SubscriptionProvisioningService,
     TrialEligibilityService,

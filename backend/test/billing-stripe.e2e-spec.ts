@@ -819,6 +819,32 @@ describe('Stripe billing integration and webhook reconciliation (e2e)', () => {
       expect(texto).not.toMatch(/sk_|whsec_|cus_|price_|sub_/);
     });
 
+    it('a visão consolidada traz catálogo, assinatura, uso e prontidão', async () => {
+      const inquilino = await registrar('overview');
+      const resposta = await auth(
+        http().get('/api/v1/billing/overview'),
+        inquilino.token,
+      ).expect(200);
+      const corpo = (
+        resposta.body as Envelope<{
+          catalog: { plans: { code: string }[] };
+          subscription: { planCode: string; allowedActions: string[] } | null;
+          entitlements: { allocation: unknown[]; usage: unknown[] };
+          billing: { configured: boolean };
+        }>
+      ).data;
+
+      expect(corpo.catalog.plans).toHaveLength(4);
+      expect(corpo.subscription?.planCode).toBe(PlanCode.PROFESSIONAL);
+      expect(corpo.entitlements.allocation.length).toBeGreaterThan(0);
+      expect(corpo.entitlements.usage.length).toBeGreaterThan(0);
+      expect(corpo.billing.configured).toBe(true);
+
+      /** Nada de segredo, identificador do provedor ou antifraude. */
+      const texto = JSON.stringify(corpo);
+      expect(texto).not.toMatch(/sk_|whsec_|cus_|price_|sub_|fingerprint/i);
+    });
+
     it('desligada, a tela recebe indisponibilidade e não erro técnico', async () => {
       const inquilino = await registrar('desligada');
       provedor.enabled = false;

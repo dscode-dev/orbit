@@ -341,12 +341,19 @@ test("conflito real de cobertura não duplica e explica o que houve", async ({
   await dialog.getByRole("button", { name: "Adicionar", exact: true }).click();
 
   /**
-   * O erro aparece **dentro do diálogo**, com a mensagem pública do servidor e
-   * a referência de suporte. Nada foi sobrescrito em silêncio.
+   * O erro aparece **dentro do diálogo**, com a copy pública do servidor e a
+   * referência de suporte. Nada foi sobrescrito em silêncio.
+   *
+   * A asserção é sobre o **conflito ter sido comunicado**, e não sobre a frase.
+   * A PR-35 tornou a copy pública determinística e em PT-BR: o texto inglês do
+   * domínio (`already covered`) deixou de sair da API, e um teste preso à
+   * mensagem passaria a reprovar a cada ajuste de copy — que é exatamente o
+   * acoplamento que a PR-35 removeu do produto.
    */
-  await expect(dialog.getByText(/already covered|já.*cobert/i).first()).toBeVisible({
+  await expect(dialog.getByRole("alert").first()).toBeVisible({
     timeout: 20_000,
   });
+  await expect(dialog.getByRole("alert").first()).toContainText(/conflito/i);
 
   await page.keyboard.press("Escape");
   await settled(page);

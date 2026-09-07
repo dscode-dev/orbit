@@ -35,6 +35,19 @@ export class BillingController {
     private readonly reads: BillingReadService,
   ) {}
 
+  /**
+   * Tudo o que a tela de plano precisa, numa chamada.
+   *
+   * Catálogo, assinatura, uso e prontidão vêm juntos porque a página os mostra
+   * juntos: quatro leituras separadas abririam com quatro carregamentos e
+   * quatro chances de exibir um pedaço inconsistente do outro.
+   */
+  @Get('overview')
+  @Permissions('usage.read')
+  overview(@Req() request: IdentityRequest) {
+    return this.reads.overview(this.organizationId(request));
+  }
+
   /** O que a organização pode fazer em cobrança agora. Autoridade do servidor. */
   @Get('readiness')
   @Permissions('subscription.manage')
