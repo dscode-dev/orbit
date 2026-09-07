@@ -34,6 +34,7 @@ import { RvtModule } from './modules/rvt/rvt.module';
 import { MobileFieldModule } from './modules/mobile-field/mobile-field.module';
 import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
 import { CustomerServiceRequestModule } from './modules/customer-service-requests/customer-service-request.module';
+import { BillingModule } from './modules/billing/billing.module';
 
 @Module({
   imports: [
@@ -69,6 +70,16 @@ import { CustomerServiceRequestModule } from './modules/customer-service-request
     MobileFieldModule,
     CustomerPortalModule,
     CustomerServiceRequestModule,
+    /**
+     * Por último, e nunca antes do módulo de identidade.
+     *
+     * A ordem dos imports é a ordem em que os `APP_GUARD` são registrados, e
+     * este módulo arrasta o de planos consigo. Posto no topo, ele fazia os
+     * guardas de plano rodarem **antes** do de autenticação: sem
+     * `request.identity`, todos recusavam a requisição com um 403 genérico —
+     * em toda rota do produto, não só nas de cobrança.
+     */
+    BillingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -12,6 +12,12 @@ import {
 } from './subscription-plan.dto';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { EntitlementService } from './entitlements/entitlement.service';
+import { SubscriptionMapper } from './subscriptions/subscription.mapper';
+import { SubscriptionService } from './subscriptions/subscription.service';
+import {
+  ChangeSubscriptionPlanDto,
+  SubscriptionVersionDto,
+} from './subscriptions/subscription.dto';
 import { UsageService } from './usage.service';
 import { RequiresActivePlan } from './plan-access';
 
@@ -22,6 +28,8 @@ export class SubscriptionPlanController {
     private readonly plans: SubscriptionPlanService,
     private readonly usage: UsageService,
     private readonly entitlements: EntitlementService,
+    private readonly subscriptions: SubscriptionService,
+    private readonly subscriptionMapper: SubscriptionMapper,
   ) {}
 
   @Public()
@@ -83,6 +91,68 @@ export class SubscriptionPlanController {
   @Permissions('usage.read')
   currentEntitlements(@Req() request: IdentityRequest) {
     return this.entitlements.describe(this.organizationId(request));
+  }
+
+  /**
+   * A assinatura corrente, já reconciliada.
+   *
+   * `version` volta no corpo porque todo comando a exige de volta: é o
+   * controle otimista que impede cancelar e trocar de plano ao mesmo tempo de
+   * produzir um estado que ninguém pediu.
+   */
+  @Get('organizations/current/subscription-details')
+  @Permissions('usage.read')
+  async currentSubscription(@Req() request: IdentityRequest) {
+    return this.subscriptionMapper.details(
+      await this.subscriptions.requireCurrent(this.organizationId(request)),
+    );
+  }
+
+  @Post('organizations/current/subscription/cancel')
+  @Permissions('subscription.manage')
+  async cancelSubscription(
+    @Req() request: IdentityRequest,
+    @Body() input: SubscriptionVersionDto,
+  ) {
+    await this.subscriptions.cancelAtPeriodEnd(
+      this.organizationId(request),
+      input.expectedVersion,
+    );
+    return this.subscriptionMapper.details(
+      await this.subscriptions.requireCurrent(this.organizationId(request)),
+    );
+  }
+
+  @Post('organizations/current/subscription/keep')
+  @Permissions('subscription.manage')
+  async keepSubscription(
+    @Req() request: IdentityRequest,
+    @Body() input: SubscriptionVersionDto,
+  ) {
+    await this.subscriptions.keepSubscription(
+      this.organizationId(request),
+      input.expectedVersion,
+    );
+    return this.subscriptionMapper.details(
+      await this.subscriptions.requireCurrent(this.organizationId(request)),
+    );
+  }
+
+  @Post('organizations/current/subscription/change-plan')
+  @Permissions('subscription.manage')
+  async changePlan(
+    @Req() request: IdentityRequest,
+    @Body() input: ChangeSubscriptionPlanDto,
+  ) {
+    await this.subscriptions.changePlan(
+      this.organizationId(request),
+      input.expectedVersion,
+      input.planCode,
+      input.billingInterval,
+    );
+    return this.subscriptionMapper.details(
+      await this.subscriptions.requireCurrent(this.organizationId(request)),
+    );
   }
 
   @Get('organizations/current/usage')

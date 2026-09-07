@@ -12,6 +12,7 @@ import {
   PlanConfigurationInvalidException,
   PlanUsageLimitReachedException,
 } from './entitlement.errors';
+import type { SubscriptionService } from '../subscriptions/subscription.service';
 import { EntitlementMapper } from './entitlement.mapper';
 import { EntitlementMetrics } from './entitlement.metrics';
 import type {
@@ -107,8 +108,13 @@ function montar(contexto?: RequestContext) {
   const contexts = {
     getOptional: () => contexto,
   } as unknown as RequestContextService;
+  /** Sem assinatura: estes testes são sobre o catálogo e os tetos. */
+  const semAssinatura = {
+    currentOrNull: () => Promise.resolve(null),
+  } as unknown as SubscriptionService;
   const service = new EntitlementService(
     repositorio as unknown as EntitlementRepository,
+    semAssinatura,
     rls,
     contexts,
     new EntitlementMetrics(),

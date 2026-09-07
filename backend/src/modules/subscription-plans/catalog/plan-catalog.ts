@@ -19,14 +19,34 @@
  */
 import {
   AllocationResource,
+  BillingInterval,
   PlanCapability,
   PlanCode,
   UNLIMITED,
+  brl,
   limited,
   type PlanDefinition,
   type PlanLimit,
+  type PlanPrice,
   UsageResource,
 } from './plan-catalog.types';
+
+/**
+ * Os três preços de um plano, em centavos.
+ *
+ * Semestral e anual custam menos por mês do que o mensal — é o desconto por
+ * compromisso, e é a única coisa que a periodicidade muda além da duração.
+ * Direito contratado é idêntico nos três.
+ */
+const precos = (
+  mensal: number,
+  semestral: number,
+  anual: number,
+): Record<BillingInterval, PlanPrice> => ({
+  [BillingInterval.MONTHLY]: brl(mensal),
+  [BillingInterval.SEMIANNUAL]: brl(semestral),
+  [BillingInterval.ANNUAL]: brl(anual),
+});
 
 /** Toda capacidade do catálogo V1. O Empresarial recebe exatamente esta lista. */
 const TODAS_AS_CAPACIDADES = Object.values(PlanCapability);
@@ -103,7 +123,7 @@ export const PLAN_CATALOG: readonly PlanDefinition[] = [
     label: 'Essencial',
     description:
       'A operação completa para quem está começando a organizar o campo.',
-    monthlyPrice: '59.90',
+    prices: precos(5990, 32940, 59900),
     capabilities: OPERACIONAL,
     allocation: alocacao(
       limited(1),
@@ -126,7 +146,7 @@ export const PLAN_CATALOG: readonly PlanDefinition[] = [
     code: PlanCode.PROFESSIONAL,
     label: 'Profissional',
     description: 'Mais unidades, mais equipe e mais volume mensal.',
-    monthlyPrice: '149.90',
+    prices: precos(14990, 82740, 149900),
     capabilities: OPERACIONAL,
     allocation: alocacao(
       limited(3),
@@ -150,7 +170,7 @@ export const PLAN_CATALOG: readonly PlanDefinition[] = [
     label: 'Profissional + Inteligência',
     description:
       'O Profissional com a camada de inteligência do Orbit habilitada.',
-    monthlyPrice: '249.90',
+    prices: precos(24990, 137940, 249900),
     capabilities: [...OPERACIONAL, ...INTELIGENCIA],
     allocation: alocacao(
       limited(3),
@@ -173,7 +193,7 @@ export const PLAN_CATALOG: readonly PlanDefinition[] = [
     code: PlanCode.ENTERPRISE_UNLIMITED,
     label: 'Empresarial Ilimitado',
     description: 'Sem tetos operacionais, com inteligência incluída.',
-    monthlyPrice: '699.90',
+    prices: precos(69990, 386340, 699900),
     capabilities: TODAS_AS_CAPACIDADES,
     allocation: alocacao(
       UNLIMITED,

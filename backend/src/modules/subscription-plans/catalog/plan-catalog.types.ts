@@ -24,6 +24,62 @@ export const PlanCode = literal({
 });
 export type PlanCode = (typeof PlanCode)[keyof typeof PlanCode];
 
+/**
+ * A versão do catálogo congelado.
+ *
+ * Sobe quando a matriz muda — um limite, um preço, uma capacidade. Cada
+ * assinatura guarda a versão que contratou junto com o retrato dos direitos,
+ * e é isso que impede uma edição de hoje de reescrever o que foi vendido
+ * ontem.
+ */
+export const CATALOG_VERSION = 1;
+
+/* ------------------------------------------------------------------ */
+/* Periodicidade de cobrança                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Por quanto tempo se paga de uma vez.
+ *
+ * Altera preço, duração e renovação. **Não** altera direito nenhum: o mesmo
+ * plano tem os mesmos limites e as mesmas capacidades nos três (§14). Por isso
+ * não existem doze planos, existem quatro planos e três periodicidades (§15).
+ */
+export const BillingInterval = literal({
+  MONTHLY: 'MONTHLY',
+  SEMIANNUAL: 'SEMIANNUAL',
+  ANNUAL: 'ANNUAL',
+});
+export type BillingInterval =
+  (typeof BillingInterval)[keyof typeof BillingInterval];
+
+/** Quantos meses de acesso cada periodicidade compra. */
+export const BILLING_INTERVAL_MONTHS: Readonly<
+  Record<BillingInterval, number>
+> = {
+  [BillingInterval.MONTHLY]: 1,
+  [BillingInterval.SEMIANNUAL]: 6,
+  [BillingInterval.ANNUAL]: 12,
+};
+
+/**
+ * Preço, em centavos.
+ *
+ * Inteiro de propósito: `0.1 + 0.2` não é `0.3` em ponto flutuante, e dinheiro
+ * não perdoa arredondamento silencioso. R$ 59,90 é `5990` (§13).
+ */
+export interface PlanPrice {
+  readonly amountMinor: number;
+  readonly currency: 'BRL';
+}
+
+export function brl(amountMinor: number): PlanPrice {
+  if (!Number.isInteger(amountMinor) || amountMinor < 0) {
+    throw new Error(`Preço inválido: ${amountMinor}. Centavos, inteiro.`);
+  }
+  return { amountMinor, currency: 'BRL' };
+}
+
 /* ------------------------------------------------------------------ */
 /* Capacidades                                                         */
 /* ------------------------------------------------------------------ */
@@ -159,8 +215,8 @@ export interface PlanDefinition {
   /** Rótulo comercial. Muda sem quebrar nada — nenhuma regra o consulta. */
   readonly label: string;
   readonly description: string;
-  /** Preço de tabela, em reais. Cobrança é da PR-PL-02; aqui é catálogo. */
-  readonly monthlyPrice: string;
+  /** Preço de tabela por periodicidade, em centavos. */
+  readonly prices: Readonly<Record<BillingInterval, PlanPrice>>;
   readonly capabilities: readonly PlanCapability[];
   readonly allocation: Readonly<Record<AllocationResource, PlanLimit>>;
   readonly usage: Readonly<Record<UsageResource, PlanLimit>>;

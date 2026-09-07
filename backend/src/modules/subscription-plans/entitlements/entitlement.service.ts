@@ -33,15 +33,19 @@ import {
   type PlanResource,
 } from '../catalog/plan-catalog.types';
 import { isKnownPlan, planDefinition } from '../catalog/plan-registry';
+import { SubscriptionService } from '../subscriptions/subscription.service';
+import { grantsProductAccess } from '../subscriptions/subscription.types';
 import {
   customProfile,
   fromCatalog,
+  fromSubscription,
   isAllocationResource,
   isUsageResource,
   legacyUngoverned,
   limitFor,
   type EffectiveEntitlements,
 } from './effective-entitlements';
+import { SubscriptionNotActiveException } from '../subscriptions/subscription.errors';
 import {
   PlanAllocationLimitReachedException,
   PlanCapabilityUnavailableException,
@@ -96,6 +100,7 @@ const EQUIPE_DE_CAMPO: readonly AllocationResource[] = [
 export class EntitlementService {
   constructor(
     private readonly repository: EntitlementRepository,
+    private readonly subscriptions: SubscriptionService,
     private readonly rls: RlsTransaction,
     private readonly contexts: RequestContextService,
     private readonly metrics: EntitlementMetrics,
@@ -114,6 +119,34 @@ export class EntitlementService {
    * direitos, não um `planId` (§24).
    */
   async resolve(organizationId: string): Promise<EffectiveEntitlements> {
+    const assinatura = await this.subscriptions.currentOrNull(organizationId);
+    if (assinatura) {
+      /**
+       * A mudança programada já venceu: os direitos passam a ser os do plano
+       * de destino. Rebaixar não apaga nada — o que existe continua existindo,
+       * e o que fica bloqueado é criar mais.
+       */
+      const vencida =
+        assinatura.pendingEffectiveAt !== null &&
+        assinatura.pendingEffectiveAt <= new Date() &&
+        assinatura.pendingEntitlementsSnapshot !== null;
+      return fromSubscription(
+        vencida ? assinatura.pendingPlanCode! : assinatura.planCode,
+        vencida ? assinatura.pendingPlanCode! : assinatura.planCode,
+        vencida
+          ? assinatura.pendingEntitlementsSnapshot
+          : assinatura.entitlementsSnapshot,
+        grantsProductAccess(assinatura.effectiveStatus),
+      );
+    }
+    /**
+     * Sem assinatura, a origem antiga responde.
+     *
+     * É a compatibilidade declarada da migração: inquilinos anteriores à
+     * PR-PL-02 continuam funcionando pelo plano apontado na organização. Não é
+     * "assumir ilimitado" — é a mesma resolução de sempre, e ela permanece
+     * fecha-falha para plano de catálogo.
+     */
     return this.direitosDe(await this.plano(organizationId));
   }
 
@@ -208,7 +241,8 @@ export class EntitlementService {
     capability: PlanCapability,
   ): Promise<boolean> {
     const direitos = await this.resolve(organizationId);
-    const permitido = direitos.capabilities.has(capability);
+    const permitido =
+      direitos.accessGranted && direitos.capabilities.has(capability);
     this.metrics.capability(capability, permitido ? 'ALLOWED' : 'DENIED');
     return permitido;
   }
@@ -218,8 +252,24 @@ export class EntitlementService {
     organizationId: string,
     capability: PlanCapability,
   ): Promise<void> {
+    await this.assertAccess(organizationId);
     if (!(await this.hasCapability(organizationId, capability))) {
       throw new PlanCapabilityUnavailableException(capability);
+    }
+  }
+
+  /**
+   * A assinatura autoriza usar o produto agora?
+   *
+   * Conferido num lugar só, antes de qualquer teto. Uma organização suspensa
+   * não deve ouvir "seu plano não inclui este recurso": o plano inclui, a
+   * assinatura é que não está valendo, e a diferença é o que a pessoa precisa
+   * saber para resolver.
+   */
+  async assertAccess(organizationId: string): Promise<void> {
+    const direitos = await this.resolve(organizationId);
+    if (!direitos.accessGranted) {
+      throw new SubscriptionNotActiveException(direitos.planCode);
     }
   }
 
@@ -266,7 +316,21 @@ export class EntitlementService {
     organizationId: string,
     at: Date = new Date(),
   ): Promise<UsageWindow> {
-    return monthlyWindow((await this.plano(organizationId)).anchor, at);
+    /**
+     * A âncora é a da assinatura, quando existe.
+     *
+     * É o que faz a janela de uso ser mensal mesmo numa assinatura anual: a
+     * cobrança compra doze meses de acesso, e a cota anda de mês em mês a
+     * partir do mesmo aniversário. Sem assinatura, a âncora antiga da
+     * organização continua respondendo.
+     */
+    const assinatura = await this.subscriptions.currentOrNull(
+      organizationId,
+      at,
+    );
+    const ancora =
+      assinatura?.billingAnchorAt ?? (await this.plano(organizationId)).anchor;
+    return monthlyWindow(ancora, at);
   }
 
   /**
@@ -318,6 +382,7 @@ export class EntitlementService {
     resource: AllocationResource,
     quantity = 1,
   ): Promise<void> {
+    await this.assertAccess(organizationId);
     const limite = await this.getEffectiveLimit(organizationId, resource);
     if (limite.kind === 'UNLIMITED') {
       this.metrics.limit(resource, 'ALLOWED');
@@ -457,6 +522,7 @@ export class EntitlementService {
         `usage quantity must be a positive integer, got ${quantity}`,
       );
     }
+    await this.assertAccess(organizationId);
     const limite = await this.getEffectiveLimit(organizationId, resource);
     const janela = await this.getCurrentWindow(organizationId);
 

@@ -29,7 +29,10 @@ import { config } from 'dotenv';
 import { resolve } from 'node:path';
 import { generateUuidV7 } from '../utils';
 import { PLAN_CATALOG } from '../modules/subscription-plans/catalog/plan-registry';
-import { PlanCapability } from '../modules/subscription-plans/catalog/plan-catalog.types';
+import {
+  BillingInterval,
+  PlanCapability,
+} from '../modules/subscription-plans/catalog/plan-catalog.types';
 
 config({ path: resolve(process.cwd(), '.env'), quiet: true });
 config({ path: resolve(process.cwd(), '../.env'), quiet: true });
@@ -139,7 +142,7 @@ async function seed(): Promise<void> {
     const dados = {
       name: plano.label,
       description: plano.description,
-      monthlyPrice: plano.monthlyPrice,
+      monthlyPrice: (plano.prices[BillingInterval.MONTHLY]!.amountMinor / 100).toFixed(2),
       currency: 'BRL',
       capabilities: permissoes(plano.capabilities),
       isActive: true,

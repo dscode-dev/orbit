@@ -32,10 +32,19 @@ import {
 } from '../catalog/plan-catalog.types';
 import { PlanConfigurationInvalidException } from './entitlement.errors';
 
-export type EntitlementSource = 'CATALOG' | 'CUSTOM' | 'LEGACY_UNGOVERNED';
+export type EntitlementSource =
+  'SUBSCRIPTION' | 'CATALOG' | 'CUSTOM' | 'LEGACY_UNGOVERNED';
 
 export interface EffectiveEntitlements {
   readonly source: EntitlementSource;
+  /**
+   * A assinatura autoriza uso do produto agora?
+   *
+   * Suspensa, cancelada ou vencida continua tendo plano e limites — o que ela
+   * não tem é acesso. Separar as duas coisas evita responder "seu plano não
+   * inclui este recurso" a quem só precisa regularizar a assinatura.
+   */
+  readonly accessGranted: boolean;
   /** `Plan.key`. Serve para log e leitura — nenhuma regra decide por ele. */
   readonly planCode: string;
   readonly label: string;
@@ -48,6 +57,7 @@ export interface EffectiveEntitlements {
 export function fromCatalog(plan: PlanDefinition): EffectiveEntitlements {
   return {
     source: 'CATALOG',
+    accessGranted: true,
     planCode: plan.code,
     label: plan.label,
     capabilities: new Set(plan.capabilities),
@@ -70,6 +80,7 @@ export function legacyUngoverned(
 ): EffectiveEntitlements {
   return {
     source: 'LEGACY_UNGOVERNED',
+    accessGranted: true,
     planCode,
     label,
     capabilities: new Set(Object.values(PlanCapability)),
@@ -111,6 +122,7 @@ export function customProfile(
   }
   return {
     source: 'CUSTOM',
+    accessGranted: true,
     planCode,
     label,
     capabilities: capacidades(planCode, perfil['capabilities']),
@@ -122,6 +134,28 @@ export function customProfile(
     ),
     usage: limites(planCode, 'usage', UsageResource, perfil['usage']),
   };
+}
+
+/**
+ * Os direitos retratados na assinatura.
+ *
+ * Passa pelo **mesmo** verificador do perfil declarado: retrato incompleto ou
+ * inválido falha fechado, e não vira ilimitado. Um contrato que a aplicação
+ * não consegue ler não pode virar acesso irrestrito.
+ */
+export function fromSubscription(
+  planCode: string,
+  label: string,
+  snapshot: unknown,
+  accessGranted: boolean,
+): EffectiveEntitlements {
+  const perfil = customProfile(planCode, label, { entitlements: snapshot });
+  if (!perfil) {
+    throw new PlanConfigurationInvalidException(
+      `${planCode}: subscription snapshot is empty`,
+    );
+  }
+  return { ...perfil, source: 'SUBSCRIPTION', accessGranted };
 }
 
 /**

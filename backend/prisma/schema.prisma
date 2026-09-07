@@ -233,6 +233,9 @@ model Organization {
   roles                         Role[]
   usages                        PlanUsage[]
   usageEvents                   PlanUsageEvent[]
+  subscriptions                 OrganizationSubscription[]
+  trialGrants                   SubscriptionTrialGrant[]
+  billingCustomers              BillingCustomer[]
   integrations                  Integration[]
   sessions                      Session[]
   customers                     Customer[]
@@ -556,6 +559,225 @@ model PlanUsageEvent {
   @@unique([organizationId, resource, sourceType, sourceId], map: "plan_usage_events_source_unique")
   @@index([organizationId, resource, windowStart, windowEnd])
   @@map("plan_usage_events")
+}
+
+/// A autoridade comercial da organização.
+///
+/// O que a empresa contratou, por quanto tempo e com que direitos — e é ela,
+/// não `organizations.plan_id`, que responde a partir da PR-PL-02. A coluna
+/// antiga continua existindo por compatibilidade e vira eco, não fonte.
+///
+/// ## O retrato vale mais que o catálogo
+///
+/// `entitlementsSnapshot` guarda os direitos **no momento da contratação**.
+/// Se amanhã o Essencial passar de 5 para 8 usuários, quem assinou ontem
+/// continua com 5 até renovar ou trocar de plano — um contrato histórico não
+/// muda porque alguém editou uma tabela.
+///
+/// ## Cobrança e uso são períodos diferentes
+///
+/// `currentPeriodStart/End` é o **acesso comprado**: 1, 6 ou 12 meses. A
+/// janela de uso é sempre de um mês e sai da mesma âncora. Assinar por ano não
+/// adianta doze meses de cota.
+model OrganizationSubscription {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  /// Código do catálogo contratado. Estável; o rótulo comercial pode mudar.
+  planCode             String @map("plan_code") @db.VarChar(60)
+  /// Versão do catálogo vigente quando o retrato foi tirado.
+  catalogVersion       Int    @map("catalog_version")
+  /// `{ capabilities, allocation, usage }` — o mesmo formato que o resolvedor
+  /// de direitos já valida, para não existirem dois caminhos de leitura.
+  entitlementsSnapshot Json   @map("entitlements_snapshot") @db.JsonB
+
+  /// `MONTHLY` · `SEMIANNUAL` · `ANNUAL`. Muda preço e duração, nunca direito.
+  billingInterval String @map("billing_interval") @db.VarChar(20)
+  /// `TRIALING` · `ACTIVE` · `PAST_DUE` · `GRACE_PERIOD` · `SUSPENDED` ·
+  /// `CANCELED` · `EXPIRED`.
+  status          String @db.VarChar(20)
+
+  /// O aniversário. Cobrança e uso saem daqui, e não do mês do calendário.
+  billingAnchorAt    DateTime @map("billing_anchor_at") @db.Timestamptz(3)
+  currentPeriodStart DateTime @map("current_period_start") @db.Timestamptz(3)
+  currentPeriodEnd   DateTime @map("current_period_end") @db.Timestamptz(3)
+
+  trialStartsAt DateTime? @map("trial_starts_at") @db.Timestamptz(3)
+  trialEndsAt   DateTime? @map("trial_ends_at") @db.Timestamptz(3)
+
+  /// Cancelamento é sempre no fim do período já pago. Não há devolução aqui.
+  cancelAtPeriodEnd Boolean   @default(false) @map("cancel_at_period_end")
+  canceledAt        DateTime? @map("canceled_at") @db.Timestamptz(3)
+
+  graceStartsAt DateTime? @map("grace_starts_at") @db.Timestamptz(3)
+  graceEndsAt   DateTime? @map("grace_ends_at") @db.Timestamptz(3)
+
+  /// Mudança programada. Rebaixar vale no próximo período; subir vale agora e
+  /// não passa por aqui.
+  pendingPlanCode             String?   @map("pending_plan_code") @db.VarChar(60)
+  pendingBillingInterval      String?   @map("pending_billing_interval") @db.VarChar(20)
+  pendingCatalogVersion       Int?      @map("pending_catalog_version")
+  pendingEntitlementsSnapshot Json?     @map("pending_entitlements_snapshot") @db.JsonB
+  pendingEffectiveAt          DateTime? @map("pending_effective_at") @db.Timestamptz(3)
+
+  startedAt DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  /// Preenchido quando a assinatura deixa de ser a corrente. Histórico fica.
+  endedAt   DateTime? @map("ended_at") @db.Timestamptz(3)
+
+  /// O vínculo com o provedor de pagamento.
+  ///
+  /// Colunas opcionais de propósito: uma assinatura existe e vale sem provedor
+  /// nenhum — é assim que a avaliação gratuita e os inquilinos anteriores à
+  /// integração continuam funcionando. `providerStatus` é diagnóstico; quem
+  /// decide acesso é `status`.
+  provider               String?   @db.VarChar(20)
+  providerSubscriptionId String?   @unique @map("provider_subscription_id") @db.VarChar(255)
+  providerCustomerId     String?   @map("provider_customer_id") @db.VarChar(255)
+  providerPriceId        String?   @map("provider_price_id") @db.VarChar(255)
+  providerStatus         String?   @map("provider_status") @db.VarChar(40)
+  /// O último evento do provedor já aplicado a esta linha.
+  providerLastEventId    String?   @map("provider_last_event_id") @db.VarChar(255)
+  providerUpdatedAt      DateTime? @map("provider_updated_at") @db.Timestamptz(3)
+
+  /// Controle otimista: dois comandos concorrentes não produzem estado torto.
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  trialGrants  SubscriptionTrialGrant[]
+
+  @@index([organizationId, endedAt])
+  @@index([status, currentPeriodEnd])
+  @@index([status, trialEndsAt])
+  @@index([status, graceEndsAt])
+  @@index([pendingEffectiveAt])
+  @@index([provider, providerCustomerId])
+  @@map("organization_subscriptions")
+}
+
+/// A concessão de avaliação gratuita — e a memória de que ela aconteceu.
+///
+/// O índice único é **global**, e é ele o antifraude: a mesma entidade
+/// jurídica não recebe um segundo período de teste, nem criando outra conta,
+/// nem outra organização, nem mudando de endereço. Não é uma consulta que
+/// alguém pode esquecer de fazer; é o banco recusando a segunda linha.
+///
+/// O documento cru não mora aqui. O que mora é o HMAC dele, com segredo do
+/// servidor: CPF e CNPJ são enumeráveis, e um SHA simples desta coluna seria
+/// um dicionário reversível de quem já testou o Orbit.
+model SubscriptionTrialGrant {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  planCode       String @map("plan_code") @db.VarChar(60)
+
+  /// HMAC-SHA256 do documento normalizado. Único no sistema inteiro.
+  legalDocumentFingerprint String @unique(map: "subscription_trial_grants_fingerprint_unique") @map("legal_document_fingerprint") @db.Char(64)
+
+  grantedAt DateTime @default(now()) @map("granted_at") @db.Timestamptz(3)
+  startsAt  DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt    DateTime @map("ends_at") @db.Timestamptz(3)
+
+  /// `GRANTED` · `CONVERTED` · `EXPIRED`.
+  status String @db.VarChar(20)
+
+  /// `ALLOW` · `REVIEW_REQUIRED` · `DENY`. Hoje só o documento decide negar;
+  /// os demais sinais são registrados, e não bloqueiam sozinhos.
+  riskDecision String @map("risk_decision") @db.VarChar(20)
+  riskSignals  Json?  @map("risk_signals") @db.JsonB
+
+  convertedSubscriptionId String? @map("converted_subscription_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription OrganizationSubscription? @relation(fields: [convertedSubscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([status, endsAt])
+  @@map("subscription_trial_grants")
+}
+
+/// A identidade da organização no provedor de pagamento.
+///
+/// Uma por organização, por provedor e por modo — misturar identificador de
+/// teste com chave de produção é o acidente mais comum desta integração, e o
+/// índice único torna isso impossível de acontecer por descuido.
+///
+/// O e-mail **não** é chave. E-mail muda, repete entre empresas do mesmo grupo
+/// e não pertence a ninguém; o identificador do provedor é persistido porque é
+/// ele que a reconciliação usa.
+model BillingCustomer {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+
+  /// `STRIPE`. Um só, por enquanto — enum ornamental não ajuda ninguém.
+  provider           String @db.VarChar(20)
+  /// `TEST` ou `LIVE`.
+  mode               String @db.VarChar(10)
+  providerCustomerId String @map("provider_customer_id") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerCustomerId], map: "billing_customers_provider_customer_unique")
+  @@unique([organizationId, provider, mode], map: "billing_customers_organization_unique")
+  @@index([organizationId])
+  @@map("billing_customers")
+}
+
+/// A caixa de entrada dos eventos do provedor.
+///
+/// ## Por que existe
+///
+/// O webhook precisa responder rápido e não pode perder evento. Guardar
+/// primeiro e processar depois separa as duas coisas: a resposta ao provedor
+/// depende só de verificar a assinatura e gravar uma linha; o trabalho pesado
+/// acontece fora do ciclo da requisição.
+///
+/// ## Por que o índice único é o antifraude da duplicidade
+///
+/// Provedores reentregam. O mesmo evento pode chegar dez vezes, e nenhuma
+/// delas pode virar um segundo efeito. O único por `(provider, event)` decide
+/// isso no banco — não numa consulta anterior, que teria janela entre ler e
+/// escrever.
+///
+/// ## Por que não guarda o corpo inteiro
+///
+/// O que o processamento precisa é do objeto **canônico** do provedor, buscado
+/// na hora de reconciliar — um corpo antigo guardado seria justamente a versão
+/// desatualizada que causa regressão de estado. E o corpo carrega dados que
+/// não temos motivo para reter.
+model BillingWebhookEvent {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  provider               String  @db.VarChar(20)
+  providerEventId        String  @map("provider_event_id") @db.VarChar(255)
+  eventType              String  @map("event_type") @db.VarChar(120)
+  /// O objeto tocado, e a assinatura envolvida quando o evento a revela.
+  providerObjectId       String? @map("provider_object_id") @db.VarChar(255)
+  providerSubscriptionId String? @map("provider_subscription_id") @db.VarChar(255)
+  apiVersion             String? @map("api_version") @db.VarChar(40)
+
+  providerCreatedAt DateTime  @map("provider_created_at") @db.Timestamptz(3)
+  receivedAt        DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
+  /// `PENDING` · `PROCESSED` · `IGNORED` · `FAILED`.
+  processingStatus  String    @default("PENDING") @map("processing_status") @db.VarChar(20)
+  attempts          Int       @default(0)
+  processedAt       DateTime? @map("processed_at") @db.Timestamptz(3)
+  /// Código curto da falha. Nunca a mensagem crua do provedor.
+  lastErrorCode     String?   @map("last_error_code") @db.VarChar(80)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([provider, providerEventId], map: "billing_webhook_events_provider_event_unique")
+  @@index([processingStatus, receivedAt])
+  @@index([providerSubscriptionId])
+  @@map("billing_webhook_events")
 }
 
 model Integration {

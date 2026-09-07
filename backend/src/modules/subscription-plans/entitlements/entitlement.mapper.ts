@@ -16,6 +16,7 @@ import type {
 } from '../subscription-plan.read-models';
 import {
   AllocationResource,
+  BillingInterval,
   UsageResource,
   type PlanDefinition,
   type PlanLimit,
@@ -23,6 +24,13 @@ import {
 import { PLAN_CATALOG } from '../catalog/plan-registry';
 import type { EffectiveEntitlements } from './effective-entitlements';
 import type { UsageWindow } from './usage-window';
+
+/** Centavos para o texto que a página mostra. Nunca ponto flutuante. */
+function reais(amountMinor: number): string {
+  const inteiro = Math.trunc(amountMinor / 100);
+  const centavos = String(amountMinor % 100).padStart(2, '0');
+  return `${inteiro}.${centavos}`;
+}
 
 @Injectable()
 export class EntitlementMapper {
@@ -69,8 +77,18 @@ export class EntitlementMapper {
       code: plan.code,
       label: plan.label,
       description: plan.description,
-      monthlyPrice: plan.monthlyPrice,
+      monthlyPrice: reais(plan.prices[BillingInterval.MONTHLY]!.amountMinor),
       currency: 'BRL',
+      prices: Object.fromEntries(
+        Object.entries(plan.prices).map(([intervalo, preco]) => [
+          intervalo,
+          {
+            amountMinor: preco.amountMinor,
+            currency: preco.currency,
+            formatted: reais(preco.amountMinor),
+          },
+        ]),
+      ),
       capabilities: [...plan.capabilities],
       allocation: this.limits(AllocationResource, plan.allocation),
       usage: this.limits(UsageResource, plan.usage),

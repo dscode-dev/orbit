@@ -184,6 +184,71 @@ const entries = [
     'Não foi possível concluir a solicitação.',
   ],
   [
+    // 404: a organização não tem assinatura. Não é ausência de recurso pedido,
+    // é ausência de contrato — e a copy fala do que a pessoa reconhece.
+    'SUBSCRIPTION_NOT_FOUND',
+    HttpStatus.NOT_FOUND,
+    'Não encontramos uma assinatura para esta organização.',
+  ],
+  [
+    'SUBSCRIPTION_NOT_ACTIVE',
+    HttpStatus.FORBIDDEN,
+    'A assinatura da sua organização não está ativa.',
+  ],
+  [
+    'SUBSCRIPTION_INVALID_TRANSITION',
+    HttpStatus.CONFLICT,
+    'Esta mudança não é possível para a assinatura no estado atual.',
+  ],
+  [
+    'PLAN_CHANGE_NOT_ALLOWED',
+    HttpStatus.CONFLICT,
+    'Não é possível trocar de plano agora.',
+  ],
+  [
+    // 409 e deliberadamente vaga: dizer *por que* transformaria a resposta num
+    // oráculo para descobrir quem já testou o Orbit a partir de um CNPJ.
+    'TRIAL_NOT_ELIGIBLE',
+    HttpStatus.CONFLICT,
+    'Este período de teste não está disponível.',
+  ],
+  [
+    // 503: a cobrança não está ligada neste ambiente. É indisponibilidade de
+    // funcionalidade, não defeito — a tela precisa saber disso sem ver um erro.
+    'BILLING_NOT_CONFIGURED',
+    HttpStatus.SERVICE_UNAVAILABLE,
+    'A cobrança não está disponível no momento.',
+  ],
+  [
+    // 500: configuração nossa inválida. Falha fechada, e a copy não nomeia
+    // preço, identificador nem provedor.
+    'BILLING_CONFIGURATION_INVALID',
+    HttpStatus.INTERNAL_SERVER_ERROR,
+    'Não foi possível concluir a solicitação.',
+  ],
+  [
+    'BILLING_CUSTOMER_NOT_AVAILABLE',
+    HttpStatus.CONFLICT,
+    'Ainda não foi possível preparar a cobrança da sua organização.',
+  ],
+  [
+    'BILLING_CHECKOUT_NOT_ALLOWED',
+    HttpStatus.CONFLICT,
+    'Não é possível iniciar a contratação agora.',
+  ],
+  [
+    // 503: o provedor não respondeu. Não é pagamento recusado, e a copy não
+    // sugere que seja — o acesso de quem está em dia continua valendo.
+    'BILLING_PROVIDER_UNAVAILABLE',
+    HttpStatus.SERVICE_UNAVAILABLE,
+    'A cobrança está indisponível no momento. Tente novamente em instantes.',
+  ],
+  [
+    'BILLING_WEBHOOK_INVALID',
+    HttpStatus.BAD_REQUEST,
+    'Revise os campos informados.',
+  ],
+  [
     'EVIDENCE_LIMIT_REACHED',
     HttpStatus.CONFLICT,
     'O limite de evidências desta execução foi atingido.',

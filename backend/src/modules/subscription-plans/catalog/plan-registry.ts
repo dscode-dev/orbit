@@ -8,6 +8,7 @@
  */
 import {
   AllocationResource,
+  BillingInterval,
   PlanCapability,
   PlanCode,
   UsageResource,
@@ -68,6 +69,22 @@ function validar(catalogo: readonly PlanDefinition[]): void {
       ...Object.entries(plano.usage),
     ]) {
       validarLimite(plano.code, recurso, limite);
+    }
+
+    // Toda periodicidade precisa de preço. Plano sem preço não é vendável, e
+    // descobrir isso no checkout seria tarde demais.
+    for (const intervalo of Object.values(BillingInterval)) {
+      const preco = plano.prices[intervalo];
+      if (!preco) {
+        throw new PlanCatalogError(
+          `Preço ausente em ${plano.code}: ${intervalo}`,
+        );
+      }
+      if (!Number.isInteger(preco.amountMinor) || preco.amountMinor < 0) {
+        throw new PlanCatalogError(
+          `Preço inválido em ${plano.code}.${intervalo}: ${String(preco.amountMinor)}`,
+        );
+      }
     }
   }
 

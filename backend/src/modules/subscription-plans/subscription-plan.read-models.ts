@@ -14,6 +14,13 @@
 export type PlanLimitReadModel =
   { unlimited: true; value: null } | { unlimited: false; value: number };
 
+/** Preço de uma periodicidade. `amountMinor` é a autoridade; o texto é vitrine. */
+export interface PlanPriceReadModel {
+  amountMinor: number;
+  currency: string;
+  formatted: string;
+}
+
 export interface PlanCatalogEntryReadModel {
   /** Código interno estável. É por ele que se compara, nunca pelo rótulo. */
   code: string;
@@ -21,6 +28,8 @@ export interface PlanCatalogEntryReadModel {
   description: string;
   monthlyPrice: string;
   currency: string;
+  /** `MONTHLY`, `SEMIANNUAL` e `ANNUAL`. Mesmos direitos, preços diferentes. */
+  prices: Readonly<Record<string, PlanPriceReadModel>>;
   capabilities: readonly string[];
   allocation: Readonly<Record<string, PlanLimitReadModel>>;
   usage: Readonly<Record<string, PlanLimitReadModel>>;
