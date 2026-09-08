@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/providers.dart';
 import '../../../../core/contracts/operation_contracts.dart';
+import '../../../../core/errors/orbit_exception.dart';
 import '../../../../core/routing/guards.dart';
 import '../../../../core/theme/orbit_theme.dart';
 import '../../../../core/uploads/upload_task.dart';
@@ -95,7 +96,14 @@ class _CaptureMenuState extends ConsumerState<_CaptureMenu> {
     } on Object catch (error) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Não foi possível registrar: $error')),
+        SnackBar(
+          content: Text(
+            OrbitException.publicCopyForAny(
+              error,
+              prefixo: 'Não foi possível registrar a evidência.',
+            ),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _busy = false);

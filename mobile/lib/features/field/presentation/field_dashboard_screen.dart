@@ -35,11 +35,14 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/contracts/mobile_field_contracts.dart';
 import '../../../core/design/orbit_primitives.dart';
+import '../../../core/errors/orbit_public_copy.dart';
 import '../../../core/presentation/orbit_format.dart';
 import '../../../core/routing/orbit_router.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
+import '../../authentication/domain/session.dart';
 import '../../documents/presentation/documents_screen.dart' show documentStateBadge;
+import '../../operations/data/operations_repository.dart' show CachedResult;
 import '../application/field_providers.dart';
 import 'widgets/work_item_row.dart';
 
@@ -57,35 +60,61 @@ class FieldDashboardScreen extends ConsumerWidget {
         bottom: false,
         child: RefreshIndicator(
           onRefresh: () async => ref.invalidate(fieldHomeProvider),
-          child: home.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.all(OrbitSpacing.md),
-              child: SectionLoading(lines: 6),
-            ),
 
-            /// A lista precisa rolar mesmo no erro: sem rolagem, o
-            /// `RefreshIndicator` não tem gesto, e a única saída seria fechar
-            /// o app.
-            error: (error, _) => ListView(
-              padding: const EdgeInsets.all(OrbitSpacing.md),
-              children: [
-                SectionError(
-                  error: error,
-                  onRetry: () => ref.invalidate(fieldHomeProvider),
-                ),
-              ],
-            ),
-            data: (result) => _Home(
-              home: result.value,
-              cachedAt: result.cachedAt,
-              userName: session?.user.displayName,
-              currentUserId: session?.user.id,
-            ),
-          ),
+          /// O que já está na tela sobrevive a um refresh que falha.
+          ///
+          /// `when` trocaria o dia inteiro de trabalho por uma tela de erro
+          /// porque a rede caiu no meio de um gesto de puxar. Quem está em
+          /// campo perderia a fila, os horários e o próximo atendimento — que
+          /// continuam válidos, só não foram atualizados.
+          ///
+          /// Com dado em mãos, a falha vira um aviso. Sem dado, aí sim a tela
+          /// é o erro: não há o que preservar.
+          child: _corpo(ref, home, session),
         ),
       ),
     );
   }
+}
+
+/// O que mostrar, dado o estado da leitura.
+///
+/// A ordem das perguntas é o comportamento: **primeiro** se há dado. Só quando
+/// não há é que a falha ocupa a tela.
+Widget _corpo(
+  WidgetRef ref,
+  AsyncValue<CachedResult<MobileFieldHomeContract>> home,
+  OrbitSession? session,
+) {
+  final dados = home.valueOrNull;
+  if (dados != null) {
+    return _Home(
+      home: dados.value,
+      cachedAt: dados.cachedAt,
+      userName: session?.user.displayName,
+      currentUserId: session?.user.id,
+      refreshFailed: home.hasError,
+    );
+  }
+
+  if (home.hasError) {
+    /// A lista precisa rolar mesmo no erro: sem rolagem, o `RefreshIndicator`
+    /// não tem gesto, e a única saída seria fechar o aplicativo.
+    return ListView(
+      padding: const EdgeInsets.all(OrbitSpacing.md),
+      children: [
+        SectionError(
+          error: home.error!,
+          onRetry: () => ref.invalidate(fieldHomeProvider),
+        ),
+      ],
+    );
+  }
+
+  return const Padding(
+    padding: EdgeInsets.all(OrbitSpacing.md),
+    child: SectionLoading(lines: 6),
+  );
 }
 
 class _Home extends StatelessWidget {
@@ -94,12 +123,17 @@ class _Home extends StatelessWidget {
     required this.cachedAt,
     required this.userName,
     required this.currentUserId,
+    this.refreshFailed = false,
   });
 
   final MobileFieldHomeContract home;
   final DateTime? cachedAt;
   final String? userName;
   final String? currentUserId;
+
+  /// A última atualização não veio. Os dados abaixo continuam sendo os
+  /// últimos que o servidor confirmou.
+  final bool refreshFailed;
 
   @override
   Widget build(BuildContext context) {
@@ -137,6 +171,9 @@ class _Home extends StatelessWidget {
             ),
             child: StaleDataBanner(cachedAt: cachedAt!),
           ),
+
+        /// Aviso discreto, não substituição.
+        if (refreshFailed) const _RefreshFailedNotice(),
 
         /// Em andamento primeiro, e em destaque: é o trabalho que já começou,
         /// e é para ele que a pessoa volta ao abrir o aplicativo.
@@ -454,4 +491,42 @@ class _AppointmentRow extends StatelessWidget {
     detail: OrbitFormat.dateHourOf(appointment.startsAt),
     onTap: () => context.go(OrbitRoutes.agenda),
   );
+}
+
+
+/// A atualização que não veio.
+///
+/// Uma linha, no topo, acima do trabalho — e não uma tela por cima dele. O que
+/// está abaixo continua sendo o que o servidor disse por último, e continua
+/// servindo para trabalhar.
+class _RefreshFailedNotice extends StatelessWidget {
+  const _RefreshFailedNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.orbit;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        OrbitSpacing.md,
+        0,
+        OrbitSpacing.md,
+        OrbitSpacing.sm,
+      ),
+      child: Semantics(
+        liveRegion: true,
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off_outlined, size: 16, color: palette.warning),
+            const SizedBox(width: OrbitSpacing.sm),
+            Expanded(
+              child: Text(
+                OrbitPublicCopy.refreshFailed,
+                style: OrbitType.caption.copyWith(color: palette.inkMuted),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

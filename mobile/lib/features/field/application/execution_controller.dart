@@ -279,7 +279,7 @@ class ExecutionController extends StateNotifier<ExecutionState> {
               status: outcome.command.state == PendingCommandState.conflict
                   ? 409
                   : 422,
-              message: outcome.message,
+              publicMessage: outcome.message,
               code: outcome.command.receipt?.error?.code ?? 'SYNC_BLOCKED',
             ),
             clearPending: true,

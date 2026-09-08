@@ -110,6 +110,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: OrbitRoutes.login,
         builder: (context, state) => const LoginScreen(),
       ),
+
+      /// A leitura de etiqueta fica **fora** do shell, e por isso é declarada
+      /// aqui — irmã da splash e do login, não filha do `ShellRoute`.
+      ///
+      /// A tentativa anterior era declará-la dentro do shell com
+      /// `parentNavigatorKey: _rootNavigatorKey`. O `go_router` recusa: uma
+      /// sub-rota direta de um `ShellRoute` só aceita a chave do próprio shell
+      /// ou nenhuma. A recusa é um `assert`, então o aplicativo **não abria** —
+      /// e nenhum teste de widget percebeu, porque todos montam telas
+      /// diretamente e nunca constroem o roteador.
+      GoRoute(
+        path: OrbitRoutes.scanner,
+        builder: (context, state) => const EquipmentScannerScreen(),
+      ),
       ShellRoute(
         /// Os gatilhos vivem no shell: existem enquanto houver sessão, e não
         /// por tela.
@@ -190,14 +204,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: OrbitRoutes.documents,
             builder: (context, state) => const DocumentsScreen(),
-          ),
-          GoRoute(
-            path: OrbitRoutes.scanner,
-
-            /// Fora do shell: a câmera ocupa a tela inteira, e uma barra de
-            /// navegação por cima dela só rouba área de mira.
-            parentNavigatorKey: _rootNavigatorKey,
-            builder: (context, state) => const EquipmentScannerScreen(),
           ),
           GoRoute(
             path: OrbitRoutes.profile,

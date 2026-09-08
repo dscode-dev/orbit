@@ -105,7 +105,7 @@ void main() {
             .having((error) => error.status, 'status', 409)
             .having((error) => error.code, 'code', 'CONFLICT')
             .having(
-              (error) => error.message,
+              (error) => error.publicMessage,
               'message',
               equals('Esta mudança de status não é permitida.'),
             ),
@@ -267,10 +267,16 @@ void main() {
     expect(sent.queryParameters, {'status': 'OPEN'});
   });
 
-  group('a falha de conexão diz para onde tentou ir', () {
-    /// Uma tela que só informa "sem conexão" esconde o fato que resolve o
-    /// problema. Em desenvolvimento a URL errada é a causa quase sempre — e
-    /// era invisível.
+  group('para onde tentou ir é diagnóstico, não mensagem', () {
+    /// Este grupo mudou de lado.
+    ///
+    /// Antes ele cobrava o contrário: que a mensagem pública **nomeasse** o
+    /// destino fora de produção, para que a URL errada não ficasse invisível.
+    /// A intenção era boa e o efeito foi o incidente — um técnico abriu o
+    /// aplicativo e leu "(tentei 10.0.2.2:6001)".
+    ///
+    /// O dado continua existindo, e continua sendo o que resolve o chamado.
+    /// Mudou de canal: vai para o diagnóstico, que a interface não recebe.
     DioException semRede(RequestOptions options) => DioException(
       requestOptions: options,
       type: DioExceptionType.connectionError,
@@ -291,37 +297,44 @@ void main() {
       }
     }
 
-    test('nomeia o destino fora de produção', () async {
+    test('o destino vai para o diagnóstico', () async {
       final erro = await mapear('192.168.1.233:6001');
+
       expect(erro.code, 'NETWORK');
-      expect(erro.message, contains('192.168.1.233:6001'));
+      expect(erro.diagnostics?.host, '192.168.1.233:6001');
     });
 
-    test('não expõe o destino quando ele não é informado', () async {
-      final erro = await mapear(null);
-      expect(erro.code, 'NETWORK');
-      expect(erro.message, 'Sem conexão com o servidor.');
+    test('e nunca para a mensagem pública', () async {
+      final erro = await mapear('192.168.1.233:6001');
+
+      expect(erro.publicMessage, isNot(contains('192.168.1.233')));
+      expect(erro.publicMessage, isNot(contains('6001')));
+      expect(erro.publicMessage, contains('conexão com a internet'));
     });
 
-    test('o ambiente de produção não informa destino', () {
+    test('sem destino informado, a mensagem é a mesma', () async {
+      /// A frase pública não depende de haver diagnóstico — se dependesse,
+      /// haveria duas mensagens para o mesmo caso, e uma delas seria a longa.
+      final comDestino = await mapear('192.168.1.233:6001');
+      final semDestino = await mapear(null);
+
+      expect(semDestino.publicMessage, comDestino.publicMessage);
+      expect(semDestino.diagnostics?.host, isNull);
+    });
+
+    test('o ambiente informa o destino em qualquer sabor', () {
+      /// Antes era `null` em produção, porque o ambiente era a única barreira
+      /// contra o vazamento. Hoje a barreira é estrutural, e quem investiga um
+      /// erro em produção precisa do endereço tanto quanto em bancada.
       const producao = OrbitEnvironment(
         apiBaseUrl: 'https://api.orbit.app/api/v1',
         flavor: OrbitFlavor.production,
         connectTimeout: Duration(seconds: 15),
         receiveTimeout: Duration(seconds: 30),
       );
-      expect(producao.diagnosticHost, isNull);
-      expect(producao.apiHost, 'api.orbit.app');
-    });
 
-    test('o ambiente de desenvolvimento informa host e porta', () {
-      const local = OrbitEnvironment(
-        apiBaseUrl: 'http://192.168.1.233:6001/api/v1',
-        flavor: OrbitFlavor.development,
-        connectTimeout: Duration(seconds: 15),
-        receiveTimeout: Duration(seconds: 30),
-      );
-      expect(local.diagnosticHost, '192.168.1.233:6001');
+      expect(producao.diagnosticHost, 'api.orbit.app');
+      expect(producao.apiHost, 'api.orbit.app');
     });
   });
 

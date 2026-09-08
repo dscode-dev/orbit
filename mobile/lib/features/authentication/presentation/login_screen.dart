@@ -63,7 +63,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _requiresMfa = _requiresMfa || needsMfa;
         _error = needsMfa
             ? 'Informe o código do seu autenticador.'
-            : error.message;
+            : error.publicMessage;
       });
     } finally {
       if (mounted) setState(() => _submitting = false);

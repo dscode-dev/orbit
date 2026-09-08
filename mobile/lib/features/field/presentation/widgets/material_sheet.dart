@@ -87,7 +87,7 @@ class _MaterialSheetState extends ConsumerState<_MaterialSheet> {
           .toList(growable: false);
       if (mounted) setState(() => _results = items);
     } on OrbitException catch (error) {
-      if (mounted) setState(() => _failure = error.message);
+      if (mounted) setState(() => _failure = error.publicMessage);
     } finally {
       if (mounted) setState(() => _searching = false);
     }

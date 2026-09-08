@@ -64,9 +64,7 @@ class AuthController extends StateNotifier<AuthState> {
       // A sessão guardada **não** é apagada: o problema é chegar ao servidor,
       // não o token. Entrar de novo, ou uma rede que volte, resolve.
       state = AuthUnauthenticated(
-        reason: error.isOffline
-            ? 'Não foi possível falar com o servidor. Verifique a conexão e entre novamente.'
-            : error.message,
+        reason: error.publicMessage,
       );
     } catch (_) {
       // Nada justifica ficar preso na abertura: o que não se sabe explicar
@@ -91,7 +89,7 @@ class AuthController extends StateNotifier<AuthState> {
     if (claims == null) {
       throw const OrbitException(
         kind: OrbitErrorKind.parse,
-        message: 'Não foi possível ler a sessão retornada pelo servidor.',
+        publicMessage: 'Não foi possível concluir a entrada. Tente novamente.',
         code: 'PARSE',
       );
     }

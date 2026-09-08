@@ -116,7 +116,7 @@ void main() {
     /// Fora de produção a mensagem também nomeia o destino — é o que revela
     /// uma URL mal configurada, que é a causa quase sempre.
     expect(
-      find.textContaining('Sem conexão com o servidor.'),
+      find.textContaining('Sem conexão'),
       findsOneWidget,
     );
     expect(find.text('Tentar novamente'), findsOneWidget);

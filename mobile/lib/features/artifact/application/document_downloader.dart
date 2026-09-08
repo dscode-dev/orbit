@@ -83,9 +83,9 @@ class DocumentDownloader {
           phase: DownloadPhase.error,
           error: OrbitException(
             kind: OrbitErrorKind.parse,
-            message: problem == DocumentFileProblem.empty
-                ? 'O arquivo do documento veio vazio.'
-                : 'O arquivo recebido não é um PDF válido.',
+            publicMessage: problem == DocumentFileProblem.empty
+                ? 'Não foi possível abrir este documento agora.'
+                : 'Não foi possível abrir este documento agora.',
             code: 'INVALID_DOCUMENT',
           ),
         );

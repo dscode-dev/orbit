@@ -251,7 +251,7 @@ void main() {
     when(() => repository.loadProfile()).thenThrow(
       const OrbitException(
         kind: OrbitErrorKind.network,
-        message: 'sem rede',
+        publicMessage: 'sem rede',
         code: 'NETWORK',
       ),
     );
@@ -266,9 +266,14 @@ void main() {
      */
     final state = controller.state;
     expect(state, isA<AuthUnauthenticated>());
+    /// O motivo é a mensagem **pública** da falha, atravessada sem reescrita.
+    ///
+    /// Antes o controlador montava a própria frase quando a falha era de rede,
+    /// e a do transporte era descartada. Hoje há uma frase só, e ela vem de
+    /// onde a falha foi classificada.
     expect(
       (state as AuthUnauthenticated).reason,
-      contains('Não foi possível falar com o servidor'),
+      'sem rede',
     );
   });
 

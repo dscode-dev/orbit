@@ -249,7 +249,7 @@ void main() {
       throwsA(
         isA<OrbitException>()
             .having((e) => e.isConflict, 'conflict', isTrue)
-            .having((e) => e.message, 'message', contains('Cannot transition')),
+            .having((e) => e.publicMessage, 'message', contains('Cannot transition')),
       ),
     );
   });

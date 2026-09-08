@@ -13,6 +13,7 @@ import 'package:dio/dio.dart';
 
 import '../config/environment.dart';
 import '../errors/orbit_exception.dart';
+import '../errors/orbit_public_copy.dart';
 import '../observability/orbit_logger.dart';
 import '../storage/token_storage.dart';
 import 'orbit_interceptors.dart';
@@ -71,7 +72,7 @@ class OrbitApiClient {
         if (data is! Map<String, dynamic>) {
           throw const OrbitException(
             kind: OrbitErrorKind.parse,
-            message: 'Resposta de renovação inválida.',
+            publicMessage: OrbitPublicCopy.unknown,
             code: 'PARSE',
           );
         }
@@ -216,10 +217,14 @@ class OrbitApiClient {
     } on DioException catch (error) {
       final mapped = error.error;
       if (mapped is OrbitException) throw mapped;
+      /// A mensagem do Dio carrega URI, host e porta. Ela nunca vira texto
+      /// público — o que sobe é a frase do aplicativo, e o endereço vai para o
+      /// diagnóstico.
       throw OrbitException(
         kind: OrbitErrorKind.network,
-        message: error.message ?? 'Falha ao enviar o arquivo.',
+        publicMessage: OrbitPublicCopy.offline,
         code: 'UPLOAD',
+        diagnostics: _diagnosticar(error),
       );
     }
   }
@@ -267,8 +272,9 @@ class OrbitApiClient {
       if (mapped is OrbitException) throw mapped;
       throw OrbitException(
         kind: OrbitErrorKind.network,
-        message: error.message ?? 'Falha ao baixar o arquivo.',
+        publicMessage: OrbitPublicCopy.offline,
         code: 'DOWNLOAD',
+        diagnostics: _diagnosticar(error),
       );
     }
   }
@@ -323,13 +329,26 @@ class OrbitApiClient {
     } on DioException catch (error) {
       final mapped = error.error;
       if (mapped is OrbitException) throw mapped;
+
+      /// Rede de segurança: o interceptor já deveria ter traduzido. Se chegou
+      /// aqui cru, o que sobe continua sendo a frase do aplicativo — nunca
+      /// `error.message`, que é onde a biblioteca escreve o endereço.
       throw OrbitException(
         kind: OrbitErrorKind.network,
-        message: error.message ?? 'Falha de comunicação.',
+        publicMessage: OrbitPublicCopy.offline,
         code: 'NETWORK',
+        diagnostics: _diagnosticar(error),
       );
     }
   }
+
+  /// O que a falha diz para o log — e só para ele.
+  OrbitDiagnostics _diagnosticar(DioException error) => OrbitDiagnostics(
+    transport: error.type.name,
+    path: error.requestOptions.path,
+    statusCode: error.response?.statusCode,
+    cause: error.error,
+  );
 
   /// Extrai `data` do envelope; respostas sem envelope passam direto.
   static Object? _unwrap(Object? body) {

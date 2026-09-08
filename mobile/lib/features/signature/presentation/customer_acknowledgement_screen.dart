@@ -178,7 +178,7 @@ class _CustomerAcknowledgementScreenState
       if (mounted) {
         setState(
           () => _failure = error is OrbitException
-              ? error.message
+              ? error.publicMessage
               : 'Não foi possível registrar a ciência.',
         );
       }

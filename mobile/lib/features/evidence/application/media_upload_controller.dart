@@ -293,7 +293,7 @@ class MediaUploadController extends StateNotifier<MediaSyncState> {
         (current) => current.copyWith(
           state: LocalMediaState.pending,
           failureCode: error.code,
-          failureMessage: error.message,
+          failureMessage: error.publicMessage,
         ),
       );
       _backoffUntil = DateTime.now().toUtc().add(
@@ -306,7 +306,7 @@ class MediaUploadController extends StateNotifier<MediaSyncState> {
       return;
     }
 
-    await _reject(media, error.code, error.message);
+    await _reject(media, error.code, error.publicMessage);
   }
 
   Future<void> _reject(LocalMedia media, String code, String message) =>

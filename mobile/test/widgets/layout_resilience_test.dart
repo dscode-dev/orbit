@@ -67,7 +67,7 @@ void main() {
             error: const OrbitException(
               kind: OrbitErrorKind.http,
               status: 500,
-              message:
+              publicMessage:
                   'Não foi possível concluir a solicitação no momento. '
                   'Tente novamente em instantes.',
               code: 'INTERNAL_SERVER_ERROR',

@@ -14,7 +14,7 @@ OrbitException _http(int status, {String? code, String? requestId}) =>
     OrbitException(
       kind: OrbitErrorKind.http,
       status: status,
-      message: 'mensagem do servidor',
+      publicMessage: 'mensagem do servidor',
       code: code ?? 'X',
       requestId: requestId,
     );
@@ -80,7 +80,7 @@ void main() {
         SectionError(
           error: const OrbitException(
             kind: OrbitErrorKind.network,
-            message: 'Sem conexão. Verifique a internet e tente de novo.',
+            publicMessage: 'Sem conexão. Verifique a internet e tente de novo.',
             code: 'NETWORK',
             requestId: 'req-999',
           ),

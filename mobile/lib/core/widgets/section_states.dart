@@ -229,7 +229,7 @@ class SectionError extends StatelessWidget {
     /// Mensagem do servidor quando existe; o mapa é a rede de segurança.
     final message = isConflict
         ? errorCodeLabels['CONFLICT']!
-        : (orbitError?.message ??
+        : (orbitError?.publicMessage ??
               errorCodeLabel(orbitError?.code) ??
               'Não foi possível carregar.');
 

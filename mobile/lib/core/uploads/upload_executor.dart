@@ -24,7 +24,10 @@ UploadExecutor createAttachmentUploadExecutor(OrbitApiClient client) {
         kind: OrbitErrorKind.http,
         status: 413,
         code: 'PAYLOAD_TOO_LARGE',
-        message: 'Arquivo acima do limite de 20 MB aceito pelo servidor.',
+
+        /// Fala do arquivo, não do servidor: o limite é do produto, e quem
+        /// precisa agir é quem escolheu a foto.
+        publicMessage: 'Este arquivo passa do limite de 20 MB.',
       );
     }
 

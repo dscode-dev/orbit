@@ -3,7 +3,11 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:orbit_operator/core/network/orbit_interceptors.dart';
+
+import '../security/public_error_guard.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:orbit_operator/app/providers.dart';
 import 'package:orbit_operator/core/contracts/session_contracts.dart';
@@ -69,6 +73,61 @@ void main() {
     );
   });
 
+  testWidgets('o servidor fora do ar não vira endereço na tela', (
+    tester,
+  ) async {
+    /// O cenário do incidente, no caminho que o técnico percorre: abre o
+    /// aplicativo, digita e toca em Entrar com o backend inalcançável.
+    ///
+    /// A falha vem do mapeamento real de transporte — não de uma mensagem
+    /// escrita à mão no teste —, então é a mesma que o aparelho produziria.
+    final falha = ErrorMappingInterceptor(destination: '10.0.2.2:6001').map(
+      DioException(
+        requestOptions: RequestOptions(
+          path: '/identity/login',
+          baseUrl: 'http://10.0.2.2:6001/api/v1',
+        ),
+        type: DioExceptionType.connectionTimeout,
+        message:
+            'The request connectionTimeout was exceeded, '
+            'uri: http://10.0.2.2:6001/api/v1/identity/login',
+      ),
+    );
+
+    when(
+      () => repository.login(
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+        mfaCode: any(named: 'mfaCode'),
+      ),
+    ).thenThrow(falha);
+
+    await tester.pumpWidget(wrap(const LoginScreen(), repository: repository));
+    await tester.enterText(
+      find.byKey(const Key('login.email')),
+      'tecnico@acme.com',
+    );
+    await tester.enterText(
+      find.byKey(const Key('login.password')),
+      'senha-longa',
+    );
+    await tester.tap(find.byKey(const Key('login.submit')));
+    await tester.pumpAndSettle();
+
+    /// Nada do que a biblioteca disse chega à tela.
+    final textos = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((widget) => widget.data ?? '')
+        .where((texto) => texto.isNotEmpty);
+    expectSafePublicErrorAll(textos, onde: 'login com servidor fora do ar');
+
+    /// E a pessoa recebe uma frase que diz o que aconteceu.
+    expect(
+      find.textContaining('demorando mais que o esperado'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('mostra a mensagem pública devolvida pelo backend', (
     tester,
   ) async {
@@ -82,7 +141,7 @@ void main() {
       const OrbitException(
         kind: OrbitErrorKind.http,
         status: 401,
-        message: 'Sua sessão não é válida ou expirou.',
+        publicMessage: 'Sua sessão não é válida ou expirou.',
         code: 'UNAUTHORIZED',
       ),
     );
@@ -113,7 +172,7 @@ void main() {
       const OrbitException(
         kind: OrbitErrorKind.http,
         status: 401,
-        message: 'Informe o código do seu autenticador.',
+        publicMessage: 'Informe o código do seu autenticador.',
         code: 'MFA_REQUIRED',
       ),
     );
