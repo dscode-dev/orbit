@@ -81,11 +81,11 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                   ref.read(documentsControllerProvider.notifier).load(),
               child: state.when(
                 loading: () => const Padding(
-                  padding: EdgeInsets.all(OrbitSpacing.md),
+                  padding: EdgeInsets.all(OrbitSpacing.gutter),
                   child: SectionLoading(lines: 6),
                 ),
                 error: (error, _) => ListView(
-                  padding: const EdgeInsets.all(OrbitSpacing.md),
+                  padding: const EdgeInsets.all(OrbitSpacing.gutter),
                   children: [
                     SectionError(
                       error: error,
@@ -116,7 +116,7 @@ class _Filters extends StatelessWidget {
     height: 52,
     child: ListView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
       children: [
         for (final opcao in DocumentFilter.values)
           Padding(
@@ -164,7 +164,7 @@ class _List extends StatelessWidget {
       itemBuilder: (context, index) {
         if (index >= state.items.length) {
           return Padding(
-            padding: const EdgeInsets.all(OrbitSpacing.md),
+            padding: const EdgeInsets.all(OrbitSpacing.gutter),
             child: state.error == null
                 ? const Center(
                     child: SizedBox(

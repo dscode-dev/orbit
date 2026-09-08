@@ -47,11 +47,11 @@ class WorkItemDetailScreen extends ConsumerWidget {
             ref.invalidate(fieldWorkItemProvider(workItemId)),
         child: context$.when(
           loading: () => const Padding(
-            padding: EdgeInsets.all(OrbitSpacing.md),
+            padding: EdgeInsets.all(OrbitSpacing.gutter),
             child: SectionLoading(lines: 6),
           ),
           error: (error, _) => ListView(
-            padding: const EdgeInsets.all(OrbitSpacing.md),
+            padding: const EdgeInsets.all(OrbitSpacing.gutter),
             children: [
               SectionError(
                 error: error,
@@ -62,7 +62,7 @@ class WorkItemDetailScreen extends ConsumerWidget {
           ),
           data: (value) => value == null
               ? ListView(
-                  padding: const EdgeInsets.all(OrbitSpacing.md),
+                  padding: const EdgeInsets.all(OrbitSpacing.gutter),
                   children: const [
                     SectionEmpty(
                       icon: Icons.search_off,
@@ -89,7 +89,7 @@ class _Detail extends StatelessWidget {
     final assignment = assignmentOf(item, currentUserId);
 
     return ListView(
-      padding: const EdgeInsets.all(OrbitSpacing.md),
+      padding: const EdgeInsets.all(OrbitSpacing.gutter),
       children: [
         _Header(item: item, assignment: assignment),
 

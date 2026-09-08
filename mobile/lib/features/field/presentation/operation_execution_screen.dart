@@ -47,11 +47,11 @@ class OperationExecutionScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Atendimento')),
       body: switch (state.phase) {
         ExecutionPhase.loading => const Padding(
-          padding: EdgeInsets.all(OrbitSpacing.md),
+          padding: EdgeInsets.all(OrbitSpacing.gutter),
           child: SectionLoading(lines: 6),
         ),
         ExecutionPhase.error when state.preparation == null => ListView(
-          padding: const EdgeInsets.all(OrbitSpacing.md),
+          padding: const EdgeInsets.all(OrbitSpacing.gutter),
           children: [
             SectionError(error: state.error!, onRetry: controller.load),
           ],
@@ -67,7 +67,7 @@ class OperationExecutionScreen extends ConsumerWidget {
       bottomNavigationBar: state.preparation == null
           ? null
           : SafeArea(
-              minimum: const EdgeInsets.all(OrbitSpacing.md),
+              minimum: const EdgeInsets.all(OrbitSpacing.gutter),
               child: ExecutionPrimaryAction(
                 state: state,
                 controller: controller,
@@ -417,7 +417,7 @@ class _ConflictBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.only(bottom: OrbitSpacing.sm),
-    padding: const EdgeInsets.all(OrbitSpacing.md),
+    padding: const EdgeInsets.all(OrbitSpacing.gutter),
     decoration: BoxDecoration(
       color: OrbitColors.warning.withValues(alpha: 0.12),
       borderRadius: OrbitRadius.field,

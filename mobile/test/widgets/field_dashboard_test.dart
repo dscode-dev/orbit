@@ -14,6 +14,7 @@ import 'package:orbit_operator/app/providers.dart';
 import 'package:orbit_operator/core/config/environment.dart';
 import 'package:orbit_operator/core/network/orbit_api_client.dart';
 import 'package:orbit_operator/core/observability/orbit_logger.dart';
+import 'package:orbit_operator/core/design/orbit_primitives.dart';
 import 'package:orbit_operator/core/theme/orbit_theme.dart';
 import 'package:orbit_operator/features/field/presentation/field_dashboard_screen.dart';
 
@@ -137,6 +138,17 @@ Widget host(
   );
 }
 
+/// O título de uma seção — e não um texto igual dentro dela.
+///
+/// O selo de prazo também diz "Hoje", e procurar o texto solto na tela acha os
+/// dois. A chave no `Text` do cabeçalho é o que separa um do outro.
+Finder tituloDeSecao(String titulo) => find.byWidgetPredicate(
+  (w) =>
+      w is Text &&
+      w.key == const Key('orbit.section.title') &&
+      w.data == titulo,
+);
+
 void main() {
   setUpAll(() async => initializeDateFormatting('pt_BR'));
 
@@ -147,27 +159,43 @@ void main() {
   });
   tearDown(() => FlutterError.onError = FlutterError.presentError);
 
-  testWidgets('abre com saudação e data, e não com contadores', (tester) async {
-    await tester.pumpWidget(host(home(today: [workItem()])));
+  testWidgets('abre com saudação, data e o painel de números', (tester) async {
+    await tester.pumpWidget(
+      host(home(today: [workItem()], counters: const {'today': 6})),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining(RegExp('Bom dia|Boa tarde|Boa noite')),
-        findsOneWidget);
+    expect(
+      find.textContaining(RegExp('Bom dia|Boa tarde|Boa noite')),
+      findsOneWidget,
+    );
 
-    /// A versão anterior abria com quatro números soltos. Contador informa;
-    /// ele não diz o que fazer.
-    expect(find.text('Em andamento'), findsNothing);
-    expect(find.text('Próximos'), findsNothing);
+    /// Uma rodada anterior tinha **removido** os contadores, com o argumento
+    /// de que "contador informa; ele não diz o que fazer". O produto pediu as
+    /// métricas de volta, e a objeção foi respondida em vez de descartada:
+    /// cada número é tocável e leva à lista que ele resume. É isso que este
+    /// teste cobra — número sem destino seria a reclamação de novo.
+    expect(find.text('Hoje'), findsWidgets);
+    expect(find.text('Próximos'), findsOneWidget);
+
+    final tocaveis = find.descendant(
+      of: find.byType(OrbitMetricStrip),
+      matching: find.byType(InkWell),
+    );
+    expect(
+      tester.widgetList<InkWell>(tocaveis).where((w) => w.onTap != null),
+      isNotEmpty,
+    );
   });
 
   testWidgets('seção vazia não aparece', (tester) async {
     await tester.pumpWidget(host(home(today: [workItem()])));
     await tester.pumpAndSettle();
 
-    expect(find.text('HOJE'), findsOneWidget);
-    expect(find.text('ATRASADOS'), findsNothing);
-    expect(find.text('DOCUMENTOS RECENTES'), findsNothing);
-    expect(find.text('AGENDAMENTOS RECENTES'), findsNothing);
+    expect(tituloDeSecao('Hoje'), findsOneWidget);
+    expect(tituloDeSecao('Atrasados'), findsNothing);
+    expect(tituloDeSecao('Documentos recentes'), findsNothing);
+    expect(tituloDeSecao('Agendamentos recentes'), findsNothing);
   });
 
   testWidgets('a contagem do servidor acompanha o título quando é maior', (
@@ -184,10 +212,21 @@ void main() {
     await tester.pumpAndSettle();
 
     /// Cinco linhas com "12" no rótulo é honesto; inventar doze linhas não.
-    expect(find.text('ATRASADOS · 7'), findsOneWidget);
+    /// A contagem virou selo ao lado do título — antes era sufixo no texto.
+    expect(tituloDeSecao('Atrasados'), findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(OrbitSection), matching: find.text('7')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('em andamento vem antes de tudo', (tester) async {
+    /// Viewport alta: o destaque e o painel de números empurraram as seções
+    /// para baixo, e a lista só constrói o que cabe na tela.
+    tester.view.physicalSize = const Size(1179, 3600);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
     await tester.pumpWidget(
       host(
         home(
@@ -198,8 +237,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    /// Em andamento deixou de ser uma seção e virou o cartão de destaque —
+    /// um por tela, com a ação de retomar dentro dele.
+    expect(find.byType(OrbitHeroCard), findsOneWidget);
+
     final andamento = tester.getTopLeft(find.text('EM ANDAMENTO')).dy;
-    final atrasados = tester.getTopLeft(find.text('ATRASADOS')).dy;
+    final atrasados = tester.getTopLeft(tituloDeSecao('Atrasados')).dy;
     expect(andamento, lessThan(atrasados));
   });
 
@@ -210,7 +253,7 @@ void main() {
     await tester.pumpWidget(host(home(inProgress: [item], next: item)));
     await tester.pumpAndSettle();
 
-    expect(find.text('PRÓXIMO ATENDIMENTO'), findsNothing);
+    expect(find.text('Próximo atendimento'), findsNothing);
   });
 
   testWidgets('documentos recentes usam o rótulo que o servidor mandou', (
@@ -229,7 +272,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('DOCUMENTOS RECENTES'), findsOneWidget);
+    expect(find.text('Documentos recentes'), findsOneWidget);
     expect(find.text('Ordem de serviço'), findsOneWidget);
 
     /// O que ainda está sendo gerado diz isso — nunca oferece um arquivo que
@@ -259,7 +302,7 @@ void main() {
     await tester.pumpWidget(host(home(today: [workItem()])));
     await tester.pumpAndSettle();
 
-    expect(find.text('AÇÕES RÁPIDAS'), findsOneWidget);
+    expect(find.text('Ações rápidas'), findsOneWidget);
     for (final rotulo in ['Minha fila', 'Agenda', 'Documentos']) {
       expect(find.text(rotulo), findsOneWidget);
     }

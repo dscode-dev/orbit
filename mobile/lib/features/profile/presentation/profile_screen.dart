@@ -33,7 +33,7 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Perfil')),
       body: ListView(
-        padding: const EdgeInsets.all(OrbitSpacing.md),
+        padding: const EdgeInsets.all(OrbitSpacing.gutter),
         children: [
           /// A identidade é o caso em que a caixa se justifica: avatar, nome
           /// e e-mail só significam alguma coisa juntos.

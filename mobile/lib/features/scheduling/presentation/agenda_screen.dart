@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/contracts/agenda_contracts.dart';
 import '../../../core/time/civil_time.dart';
+import '../../../core/presentation/field_registry.dart';
 import '../../../core/presentation/orbit_format.dart';
 import '../../../core/design/orbit_primitives.dart';
 import '../../../core/theme/orbit_theme.dart';
@@ -92,11 +93,11 @@ class AgendaScreen extends ConsumerWidget {
               onRefresh: () async => ref.invalidate(agendaProvider),
               child: agenda.when(
                 loading: () => const Padding(
-                  padding: EdgeInsets.all(OrbitSpacing.md),
+                  padding: EdgeInsets.all(OrbitSpacing.gutter),
                   child: SectionLoading(lines: 5),
                 ),
                 error: (error, _) => ListView(
-                  padding: const EdgeInsets.all(OrbitSpacing.md),
+                  padding: const EdgeInsets.all(OrbitSpacing.gutter),
                   children: [
                     SectionError(
                       error: error,
@@ -107,7 +108,7 @@ class AgendaScreen extends ConsumerWidget {
                 data: (result) {
                   final events = result.value.events;
                   return ListView(
-                    padding: const EdgeInsets.all(OrbitSpacing.md),
+                    padding: const EdgeInsets.all(OrbitSpacing.gutter),
                     children: [
                       if (result.cachedAt != null)
                         StaleDataBanner(cachedAt: result.cachedAt!),
@@ -119,23 +120,36 @@ class AgendaScreen extends ConsumerWidget {
                       else ...[
                         Padding(
                           padding: const EdgeInsets.only(
-                            bottom: OrbitSpacing.sm,
+                            left: OrbitSpacing.xs,
+                            bottom: OrbitSpacing.ms,
                           ),
                           child: Text(
-                            '${result.value.total} compromisso(s)',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: OrbitColors.textSecondary,
+                            result.value.total == 1
+                                ? '1 compromisso'
+                                : '${result.value.total} compromissos',
+                            style: OrbitType.caption.copyWith(
+                              color: context.orbit.inkSubtle,
                             ),
                           ),
                         ),
-                        for (final (indice, event) in events.indexed) ...[
-                          if (indice > 0) const OrbitRowDivider(),
-                          _EventRow(
-                            event: event,
-                            workItemId: workItems[event.eventId],
+
+                        /// O dia inteiro dentro de um cartão: a agenda é uma
+                        /// sequência contínua, e o cartão é o que a separa do
+                        /// fundo da página sem quebrar a coluna de horários.
+                        OrbitCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              for (final (indice, event) in events.indexed) ...[
+                                if (indice > 0) const OrbitRowDivider(),
+                                _EventRow(
+                                  event: event,
+                                  workItemId: workItems[event.eventId],
+                                ),
+                              ],
+                            ],
                           ),
-                        ],
+                        ),
                       ],
                     ],
                   );
@@ -174,7 +188,7 @@ class _DayNavigator extends ConsumerWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -216,23 +230,39 @@ class _EventRow extends StatelessWidget {
   final String? workItemId;
 
   @override
-  Widget build(BuildContext context) => OrbitListRow(
-    leading: OrbitFormat.hourOf(event.startsAt),
-    title: event.title,
-    subtitle: [
-      if (event.type != null) event.type!,
-      event.status,
-    ].join(' · '),
-    detail: 'até ${OrbitFormat.hourOf(event.endsAt)}',
-    onTap: workItemId == null
-        ? null
-        : () => context.push(OrbitRoutes.workItemDetail(workItemId!)),
+  Widget build(BuildContext context) {
+    /// Nada de código cru na tela. `SERVICE · SCHEDULED` era o que esta linha
+    /// mostrava; quem lê quer "Atendimento · Programado", e o que não tem
+    /// tradução simplesmente não aparece.
+    final natureza = agendaEventTypeLabel(event.type);
+    final situacao = operationalStatusLabel(event.status);
+    final prioridade = agendaPriorityLabel(event.priority);
 
-    /// A seta só aparece quando há para onde ir. Um evento que não é trabalho
-    /// desta pessoa — bloqueio de agenda, atendimento de outro técnico —
-    /// existe legitimamente no calendário e não abre nada.
-    trailing: workItemId == null
-        ? null
-        : Icon(Icons.chevron_right, size: 20, color: context.orbit.inkSubtle),
-  );
+    final contexto = [
+      if (natureza != null) natureza,
+      if (situacao != null) situacao,
+    ].join(' · ');
+
+    return OrbitListRow(
+      leading: OrbitFormat.hourOf(event.startsAt),
+      title: event.title,
+      subtitle: contexto.isEmpty ? null : contexto,
+      detail: 'até ${OrbitFormat.hourOf(event.endsAt)}',
+      tone: prioridade == null ? null : OrbitTone.warning,
+
+      /// A seta é da própria linha; aqui o espaço da direita fica para o selo
+      /// de prioridade, que só existe quando muda o que a pessoa faz.
+      onTap: workItemId == null
+          ? null
+          : () => context.push(OrbitRoutes.workItemDetail(workItemId!)),
+      trailing: prioridade == null
+          ? null
+          : OrbitStatusBadge(
+              label: prioridade,
+              tone: event.priority == 'HIGH'
+                  ? OrbitTone.warning
+                  : OrbitTone.danger,
+            ),
+    );
+  }
 }

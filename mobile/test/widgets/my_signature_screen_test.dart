@@ -175,6 +175,13 @@ void main() {
   tearDown(() => FlutterError.onError = FlutterError.presentError);
 
   testWidgets('sem assinatura, a tela convida a cadastrar', (tester) async {
+    /// Viewport de telefone de verdade. O padrão do `flutter_test` é 800x600,
+    /// que é mais **baixo** que qualquer aparelho, e com o desenho espaçoso o
+    /// botão principal caía fora dessa altura fictícia.
+    tester.view.physicalSize = const Size(1179, 2556);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
     await tester.pumpWidget(wrap(Backend()));
     await tester.pumpAndSettle();
 

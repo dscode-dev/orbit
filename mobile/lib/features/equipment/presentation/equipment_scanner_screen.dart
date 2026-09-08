@@ -156,10 +156,10 @@ class _Aviso extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(OrbitSpacing.md),
+    padding: const EdgeInsets.all(OrbitSpacing.gutter),
     child: Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: OrbitSpacing.md,
+        horizontal: OrbitSpacing.gutter,
         vertical: OrbitSpacing.sm,
       ),
       decoration: BoxDecoration(
@@ -215,7 +215,7 @@ class _EntradaManualBotao extends StatelessWidget {
     child: SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.all(OrbitSpacing.md),
+        padding: const EdgeInsets.all(OrbitSpacing.gutter),
         child: TextButton.icon(
           onPressed: () => showModalBottomSheet<void>(
             context: context,
@@ -332,11 +332,11 @@ class _Resultado extends ConsumerWidget {
         top: false,
         child: equipamento.when(
           loading: () => const Padding(
-            padding: EdgeInsets.all(OrbitSpacing.md),
+            padding: EdgeInsets.all(OrbitSpacing.gutter),
             child: SectionLoading(lines: 4),
           ),
           error: (error, _) => ListView(
-            padding: const EdgeInsets.all(OrbitSpacing.md),
+            padding: const EdgeInsets.all(OrbitSpacing.gutter),
             children: [
               SectionError(
                 error: error,
@@ -426,10 +426,9 @@ class _Equipamento extends StatelessWidget {
         if (equipment.allowedActions.isNotEmpty)
           OrbitSection(
             title: 'Permitido para você',
-            dense: true,
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                horizontal: OrbitSpacing.md,
+                horizontal: OrbitSpacing.gutter,
               ),
               child: Wrap(
                 spacing: OrbitSpacing.sm,
@@ -447,7 +446,7 @@ class _Equipamento extends StatelessWidget {
 
         const SizedBox(height: OrbitSpacing.md),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.md),
+          padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
           child: OutlinedButton.icon(
             onPressed: onFechar,
             icon: const Icon(Icons.qr_code_scanner, size: 18),

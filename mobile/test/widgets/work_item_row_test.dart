@@ -98,8 +98,11 @@ void main() {
       ),
     );
 
-    expect(find.text('Manutenção preventiva'), findsOneWidget);
-    expect(find.text('Visita técnica'), findsOneWidget);
+    /// `textContaining` porque a natureza agora divide a linha de contexto
+    /// com o resto — "Manutenção preventiva · Matriz". O que o teste cobra
+    /// continua sendo o mesmo: o nome do produto aparece, a sigla não.
+    expect(find.textContaining('Manutenção preventiva'), findsOneWidget);
+    expect(find.textContaining('Visita técnica'), findsOneWidget);
     expect(find.textContaining('PMOC'), findsNothing);
     expect(find.textContaining('RVT'), findsNothing);
   });

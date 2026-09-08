@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/providers.dart';
+import '../../../core/design/orbit_primitives.dart';
 import '../../../core/presentation/field_registry.dart';
 import '../../../core/routing/orbit_router.dart';
 import '../../../core/theme/orbit_theme.dart';
@@ -81,11 +82,11 @@ class _WorkQueueScreenState extends ConsumerState<WorkQueueScreen> {
                   ref.read(workQueueControllerProvider.notifier).load(),
               child: queue.when(
                 loading: () => const Padding(
-                  padding: EdgeInsets.all(OrbitSpacing.md),
+                  padding: EdgeInsets.all(OrbitSpacing.gutter),
                   child: SectionLoading(lines: 6),
                 ),
                 error: (error, _) => ListView(
-                  padding: const EdgeInsets.all(OrbitSpacing.md),
+                  padding: const EdgeInsets.all(OrbitSpacing.gutter),
                   children: [
                     SectionError(
                       error: error,
@@ -119,7 +120,7 @@ class _ViewSelector extends ConsumerWidget {
       height: 52,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.md),
+        padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
         itemCount: _views.length,
         separatorBuilder: (_, _) => const SizedBox(width: OrbitSpacing.sm),
         itemBuilder: (context, index) {
@@ -156,7 +157,7 @@ class _Queue extends StatelessWidget {
   Widget build(BuildContext context) {
     if (state.items.isEmpty) {
       return ListView(
-        padding: const EdgeInsets.all(OrbitSpacing.md),
+        padding: const EdgeInsets.all(OrbitSpacing.gutter),
         children: const [
           SectionEmpty(
             icon: Icons.inbox_outlined,
@@ -168,7 +169,7 @@ class _Queue extends StatelessWidget {
 
     return ListView.builder(
       controller: scroll,
-      padding: const EdgeInsets.all(OrbitSpacing.md),
+      padding: const EdgeInsets.all(OrbitSpacing.gutter),
 
       /// +1 pelo rodapé, +1 pelo aviso de lista local quando ele existe.
       itemCount: state.items.length + (state.isOffline ? 2 : 1),
@@ -179,33 +180,62 @@ class _Queue extends StatelessWidget {
 
         final item = state.items[index];
         final previous = index == 0 ? null : state.items[index - 1];
-        final startsGroup = previous?.dueState != item.dueState;
+        final proximo = index + 1 >= state.items.length
+            ? null
+            : state.items[index + 1];
+        final abreGrupo = previous?.dueState != item.dueState;
+        final fechaGrupo = proximo?.dueState != item.dueState;
+
+        /// Cada faixa é um cartão, e as linhas dela moram dentro dele.
+        ///
+        /// A lista é construída item a item — para paginar sem montar tudo —,
+        /// então o cartão não pode envolver o grupo de fora. O contorno é
+        /// desenhado por linha: a primeira arredonda em cima, a última
+        /// embaixo, e o miolo fica reto. Visualmente é um cartão só.
+        final palette = context.orbit;
+        final raio = BorderRadius.vertical(
+          top: abreGrupo ? const Radius.circular(20) : Radius.zero,
+          bottom: fechaGrupo ? const Radius.circular(20) : Radius.zero,
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             /// Cabeçalho apenas quando a faixa muda — o agrupamento acompanha
             /// a ordem recebida, nunca a reescreve.
-            if (startsGroup)
+            if (abreGrupo)
               Padding(
                 padding: EdgeInsets.only(
-                  top: index == 0 ? 0 : OrbitSpacing.sm,
-                  bottom: OrbitSpacing.xs,
+                  top: index == 0 ? 0 : OrbitSpacing.lg,
+                  left: OrbitSpacing.xs,
+                  bottom: OrbitSpacing.ms,
                 ),
                 child: Text(
                   dueStateLabel(item.dueState),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: OrbitColors.textSecondary,
-                  ),
+                  style: OrbitType.sectionTitle.copyWith(color: palette.ink),
                 ),
               ),
-            WorkItemRow(
-              key: ValueKey(item.id),
-              item: item,
-              currentUserId: currentUserId,
-              onOpen: () => context.push(OrbitRoutes.workItemDetail(item.id)),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: raio,
+                boxShadow: fechaGrupo ? OrbitShadow.card : null,
+              ),
+              child: ClipRRect(
+                borderRadius: raio,
+                child: Column(
+                  children: [
+                    if (!abreGrupo) const OrbitRowDivider(),
+                    WorkItemRow(
+                      key: ValueKey(item.id),
+                      item: item,
+                      currentUserId: currentUserId,
+                      onOpen: () =>
+                          context.push(OrbitRoutes.workItemDetail(item.id)),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         );

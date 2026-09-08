@@ -25,35 +25,85 @@ import 'package:flutter/material.dart';
 /// Os tons crus. **Nenhuma tela usa este arquivo diretamente**: as telas leem
 /// `OrbitPalette`, que é o que troca no dia do tema escuro.
 abstract final class _Tokens {
-  /// Superfícies: branco, e cinzas muito claros com leve viés frio.
+  /// Superfícies.
+  ///
+  /// O fundo da página não é branco puro: é o `muted` da marca, com o viés de
+  /// matiz do navy. Cartão branco sobre fundo levemente frio é o que dá a
+  /// sensação de camada — branco sobre branco não tem profundidade nenhuma.
   static const white = Color(0xFFFFFFFF);
-  static const surfaceMuted = Color(0xFFF6F7F9);
-  static const surfaceSunken = Color(0xFFEFF1F5);
-  static const border = Color(0xFFE2E5EB);
-  static const borderStrong = Color(0xFFCBD1DA);
+  static const surfaceMuted = Color(0xFFEDF1F7);
+  static const surfaceSunken = Color(0xFFE2E8F1);
+  static const border = Color(0x1F171F30);
+  static const borderStrong = Color(0x29171F30);
 
-  /// Texto: quase preto, e cinzas com contraste conferido sobre branco.
-  static const ink = Color(0xFF111827);
-  static const inkMuted = Color(0xFF4B5563);
-  static const inkSubtle = Color(0xFF6B7280);
-  static const inkDisabled = Color(0xFF9CA3AF);
+  /// Tinta. Navy da marca, não cinza neutro.
+  static const ink = Color(0xFF171F30);
+  static const inkMuted = Color(0xFF3F4A5F);
+  static const inkSubtle = Color(0xFF5A6474);
+  static const inkDisabled = Color(0xFF98A1B2);
 
-  /// Azul da marca. Ação, seleção e destaque — nunca área grande.
-  static const brand = Color(0xFF1D4ED8);
-  static const brandHover = Color(0xFF1E40AF);
-  static const brandSoft = Color(0xFFEFF4FF);
+  /// Azul orbital — a cor de ação do produto.
+  static const brand = Color(0xFF156CDD);
+  static const brandHover = Color(0xFF0F55B0);
+  static const brandSoft = Color(0xFFEAF1FD);
 
-  /// Semânticas.
-  static const success = Color(0xFF15803D);
-  static const successSoft = Color(0xFFECFDF3);
-  static const warning = Color(0xFFB45309);
-  static const warningSoft = Color(0xFFFFF7ED);
-  static const danger = Color(0xFFB91C1C);
-  static const dangerSoft = Color(0xFFFEF2F2);
+  /// Status. Os mesmos tons do produto web.
+  static const success = Color(0xFF009966);
+  static const successSoft = Color(0xFFE6F6F0);
+  static const warning = Color(0xFFD79700);
+  static const warningSoft = Color(0xFFFDF4E3);
+  static const danger = Color(0xFFD73240);
+  static const dangerSoft = Color(0xFFFCEBEC);
 
-  /// Roxo: **somente** inteligência. Não é cor de interface.
-  static const intelligence = Color(0xFF6D28D9);
-  static const intelligenceSoft = Color(0xFFF5F3FF);
+  /// Violeta da marca — reservado à camada de inteligência.
+  static const intelligence = Color(0xFF7962DD);
+  static const intelligenceSoft = Color(0xFFF1EEFC);
+}
+
+/// As sombras.
+///
+/// Premium não vem de sombra forte, vem de sombra **em camadas**: uma quase
+/// invisível colada no objeto, que dá a borda, e outra larga e difusa, que dá
+/// a distância do fundo. Sombra única e escura é o que faz interface parecer
+/// de 2014.
+abstract final class OrbitShadow {
+  static const List<BoxShadow> card = [
+    BoxShadow(
+      color: Color(0x0A171F30),
+      blurRadius: 2,
+      offset: Offset(0, 1),
+    ),
+    BoxShadow(
+      color: Color(0x0F171F30),
+      blurRadius: 16,
+      offset: Offset(0, 6),
+      spreadRadius: -4,
+    ),
+  ];
+
+  static const List<BoxShadow> raised = [
+    BoxShadow(
+      color: Color(0x0D171F30),
+      blurRadius: 3,
+      offset: Offset(0, 1),
+    ),
+    BoxShadow(
+      color: Color(0x1A171F30),
+      blurRadius: 28,
+      offset: Offset(0, 12),
+      spreadRadius: -8,
+    ),
+  ];
+
+  /// Para o cartão de destaque, que é azul: a sombra herda a cor da marca.
+  static const List<BoxShadow> brand = [
+    BoxShadow(
+      color: Color(0x33156CDD),
+      blurRadius: 24,
+      offset: Offset(0, 10),
+      spreadRadius: -6,
+    ),
+  ];
 }
 
 /// A paleta semântica que as telas consomem.
@@ -249,59 +299,133 @@ extension OrbitPaletteAccess on BuildContext {
       Theme.of(this).extension<OrbitPalette>() ?? OrbitPalette.light;
 }
 
-/// Raios. Consistentes e discretos — 24–32 em tudo faz interface de brinquedo.
+/// Raios.
+///
+/// Maiores que a versão anterior, de propósito: a direção é espaçosa, e canto
+/// suave é metade do que faz um cartão parecer objeto em vez de retângulo.
 abstract final class OrbitRadius {
-  static const card = BorderRadius.all(Radius.circular(14));
-  static const field = BorderRadius.all(Radius.circular(12));
+  static const hero = BorderRadius.all(Radius.circular(24));
+  static const card = BorderRadius.all(Radius.circular(20));
+  static const field = BorderRadius.all(Radius.circular(14));
+  static const chip = BorderRadius.all(Radius.circular(10));
   static const pill = BorderRadius.all(Radius.circular(999));
 }
 
 /// A escala de espaço. Múltiplos de quatro, e só estes.
+///
+/// Ganhou três degraus no topo (`xl2`, `xl3`) porque a direção espaçosa precisa
+/// de respiro de verdade entre blocos — 32 era o teto e virava o padrão.
 abstract final class OrbitSpacing {
   static const xs = 4.0;
   static const sm = 8.0;
   static const ms = 12.0;
   static const md = 16.0;
+  static const ml = 20.0;
   static const lg = 24.0;
   static const xl = 32.0;
+  static const xl2 = 40.0;
+  static const xl3 = 48.0;
+
+  /// A margem lateral da tela. Um valor, em todo lugar.
+  static const gutter = 20.0;
+}
+
+/// As duas famílias da marca.
+///
+/// A mesma dupla do produto web: Space Grotesk carrega título e número — tem
+/// personalidade e largura para isso —, e Inter carrega tudo que se lê em
+/// quantidade. Ambas empacotadas; declarar sem empacotar faz o iOS cair calado
+/// na fonte do sistema e o aplicativo deixa de parecer o produto.
+abstract final class OrbitFont {
+  static const display = 'SpaceGrotesk';
+  static const text = 'Inter';
 }
 
 /// A hierarquia tipográfica.
 ///
-/// Seis papéis, e cada um com um trabalho: título de tela, título de seção,
-/// corpo, apoio, rótulo e **número**. O número tem estilo próprio porque
-/// horário e contagem precisam ser lidos de relance, com dígitos de largura
-/// fixa para não dançarem entre uma linha e outra.
+/// Cada papel tem um trabalho. Os que precisam de presença — título de tela,
+/// número de métrica, destaque — usam a display; o resto usa Inter, que é
+/// desenhada para ser lida em corpo pequeno.
 abstract final class OrbitType {
-  static const screenTitle = TextStyle(
-    fontSize: 22,
+  /// O número de uma métrica. Grande, tabular, com a display.
+  static const metric = TextStyle(
+    fontFamily: OrbitFont.display,
+    fontSize: 27,
     fontWeight: FontWeight.w700,
-    height: 1.2,
-    letterSpacing: -0.2,
-  );
-  static const sectionTitle = TextStyle(
-    fontSize: 13,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.3,
-  );
-  static const itemTitle = TextStyle(
-    fontSize: 15,
-    fontWeight: FontWeight.w600,
-    height: 1.3,
-  );
-  static const body = TextStyle(fontSize: 14, height: 1.4);
-  static const caption = TextStyle(fontSize: 12.5, height: 1.35);
-  static const label = TextStyle(
-    fontSize: 11.5,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.2,
+    height: 1.05,
+    letterSpacing: -0.8,
+    fontFeatures: [FontFeature.tabularFigures()],
   );
 
-  /// Horário e contagem: tabular, para alinhar em coluna.
+  static const heroTitle = TextStyle(
+    fontFamily: OrbitFont.display,
+    fontSize: 24,
+    fontWeight: FontWeight.w700,
+    height: 1.18,
+    letterSpacing: -0.5,
+  );
+
+  static const screenTitle = TextStyle(
+    fontFamily: OrbitFont.display,
+    fontSize: 26,
+    fontWeight: FontWeight.w700,
+    height: 1.15,
+    letterSpacing: -0.6,
+  );
+
+  /// Rótulo de seção. Não é mais caixa alta espremida: é uma frase legível,
+  /// com peso, do tamanho de um subtítulo.
+  static const sectionTitle = TextStyle(
+    fontFamily: OrbitFont.display,
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    height: 1.25,
+    letterSpacing: -0.2,
+  );
+
+  static const itemTitle = TextStyle(
+    fontFamily: OrbitFont.text,
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    height: 1.3,
+    letterSpacing: -0.1,
+  );
+
+  static const body = TextStyle(
+    fontFamily: OrbitFont.text,
+    fontSize: 14.5,
+    height: 1.45,
+  );
+
+  static const caption = TextStyle(
+    fontFamily: OrbitFont.text,
+    fontSize: 13,
+    height: 1.4,
+  );
+
+  /// Sobrancelha: o rótulo pequeno em caixa alta acima de um bloco.
+  static const eyebrow = TextStyle(
+    fontFamily: OrbitFont.text,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
+    letterSpacing: 0.8,
+  );
+
+  static const label = TextStyle(
+    fontFamily: OrbitFont.text,
+    fontSize: 12.5,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.1,
+  );
+
+  /// Horário e contagem em linha: tabular, para alinhar em coluna.
   static const numeric = TextStyle(
-    fontSize: 14,
+    fontFamily: OrbitFont.text,
+    fontSize: 14.5,
     fontWeight: FontWeight.w600,
     fontFeatures: [FontFeature.tabularFigures()],
+    letterSpacing: -0.1,
   );
 }
 
@@ -328,22 +452,24 @@ abstract final class OrbitTheme {
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: palette.background,
-      fontFamily: 'Roboto',
+      scaffoldBackgroundColor: palette.surfaceMuted,
+      fontFamily: OrbitFont.text,
     );
 
     return base.copyWith(
       extensions: const [palette],
-      appBarTheme: const AppBarTheme(
-        backgroundColor: _Tokens.white,
+      /// Transparente: a barra assenta sobre o fundo da página em vez de
+      /// desenhar uma faixa branca que corta a tela em duas.
+      appBarTheme: AppBarTheme(
+        backgroundColor: palette.surfaceMuted,
         surfaceTintColor: Colors.transparent,
         foregroundColor: _Tokens.ink,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: TextStyle(
+        titleTextStyle: OrbitType.sectionTitle.copyWith(
           color: _Tokens.ink,
-          fontSize: 18,
+          fontSize: 19,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -374,14 +500,15 @@ abstract final class OrbitTheme {
           borderSide: BorderSide(color: _Tokens.brand, width: 1.6),
         ),
         labelStyle: TextStyle(color: _Tokens.inkMuted),
-        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        hintStyle: TextStyle(color: _Tokens.inkDisabled),
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       ),
       /// 52 e 48: alvos confortáveis para quem trabalha de luva.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size.fromHeight(52),
           shape: const RoundedRectangleBorder(borderRadius: OrbitRadius.field),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          textStyle: OrbitType.label.copyWith(fontSize: 15.5),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -390,14 +517,14 @@ abstract final class OrbitTheme {
           foregroundColor: _Tokens.ink,
           side: const BorderSide(color: _Tokens.borderStrong),
           shape: const RoundedRectangleBorder(borderRadius: OrbitRadius.field),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          textStyle: OrbitType.label.copyWith(fontSize: 14.5),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: _Tokens.brand,
           minimumSize: const Size(0, 44),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          textStyle: OrbitType.label.copyWith(fontSize: 14),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
@@ -408,7 +535,7 @@ abstract final class OrbitTheme {
         height: 64,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         labelTextStyle: WidgetStateProperty.resolveWith(
-          (states) => TextStyle(
+          (states) => OrbitType.label.copyWith(
             fontSize: 11.5,
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w600
@@ -432,12 +559,24 @@ abstract final class OrbitTheme {
         space: 1,
         thickness: 1,
       ),
-      chipTheme: const ChipThemeData(
-        backgroundColor: _Tokens.surfaceMuted,
-        side: BorderSide(color: _Tokens.border),
-        shape: RoundedRectangleBorder(borderRadius: OrbitRadius.pill),
-        labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      chipTheme: ChipThemeData(
+        backgroundColor: _Tokens.white,
+        selectedColor: _Tokens.brandSoft,
+        side: const BorderSide(color: _Tokens.border),
+        shape: const RoundedRectangleBorder(borderRadius: OrbitRadius.pill),
+        /// Cor explícita nos dois estados. Sem ela o rótulo do chip não
+        /// selecionado herda um tom que some contra o fundo branco — o chip
+        /// vira uma pílula vazia.
+        labelStyle: OrbitType.label.copyWith(
+          fontSize: 13,
+          color: _Tokens.inkMuted,
+        ),
+        secondaryLabelStyle: OrbitType.label.copyWith(
+          fontSize: 13,
+          color: _Tokens.brandHover,
+        ),
+        showCheckmark: false,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       ),
       listTileTheme: const ListTileThemeData(
         iconColor: _Tokens.inkSubtle,
@@ -447,7 +586,7 @@ abstract final class OrbitTheme {
         backgroundColor: _Tokens.white,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
       dialogTheme: const DialogThemeData(
@@ -458,7 +597,8 @@ abstract final class OrbitTheme {
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: _Tokens.ink,
-        contentTextStyle: TextStyle(color: _Tokens.white),
+        contentTextStyle: TextStyle(color: _Tokens.white, fontSize: 14.5),
+        shape: RoundedRectangleBorder(borderRadius: OrbitRadius.field),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: _Tokens.brand,

@@ -215,7 +215,7 @@ class _ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(OrbitSpacing.md),
+      padding: const EdgeInsets.all(OrbitSpacing.gutter),
       decoration: BoxDecoration(
         color: OrbitColors.danger.withValues(alpha: 0.12),
         borderRadius: OrbitRadius.field,

@@ -74,9 +74,15 @@ class WorkItemRow extends StatelessWidget {
       child: OrbitListRow(
         leading: scheduleColumn(item),
         title: item.customer?.name ?? item.title,
-        subtitle: _apoio(assignment),
-        detail: locationText(item),
+
+        /// O que é o serviço. Antes esta linha trazia só "Atendimento" — o
+        /// rótulo da natureza — e o título que o servidor manda era
+        /// descartado. Quem está indo para a rua precisa saber se é uma
+        /// preventiva de chiller ou um vazamento de gás antes de abrir.
+        subtitle: item.customer == null ? null : item.title,
+        detail: _apoio(assignment, locationText(item)),
         emphasis: emphasis,
+        tone: dueToneOf(item.dueState),
         trailing: selo.isEmpty
             ? null
             : OrbitStatusBadge(label: selo, tone: dueToneOf(item.dueState)),
@@ -85,12 +91,30 @@ class WorkItemRow extends StatelessWidget {
     );
   }
 
-  /// Natureza do trabalho, equipamento e função — nessa ordem, numa linha só.
-  String _apoio(FieldAssignment assignment) => [
-    workItemKindLabel(item.kind),
-    if (item.equipmentSummary.isNotEmpty) equipmentText(item.equipmentSummary),
-    if (assignment != FieldAssignment.none) assignmentLabel(assignment),
-  ].where((parte) => parte.isNotEmpty).join(' · ');
+  /// Natureza, equipamento, função e local — nessa ordem, numa linha só.
+  ///
+  /// É a terceira linha, a de contexto: quem lê já sabe o cliente e o serviço,
+  /// e desce até aqui só quando precisa do detalhe.
+  String? _apoio(FieldAssignment assignment, String? local) {
+    final partes = [
+      /// A natureza entra quando **diz** alguma coisa.
+      ///
+      /// Para PMOC e RVT o rótulo é o nome do produto — "Manutenção
+      /// preventiva", "Visita técnica" — e é informação que a pessoa procura.
+      /// Para `serviceOperation` ele é o genérico "Atendimento", que repetido
+      /// linha após linha era o ruído desta tela; aí ele só aparece quando não
+      /// há título de serviço para ocupar o lugar.
+      if (item.kind != MobileWorkItemKind.serviceOperation ||
+          item.customer == null)
+        workItemKindLabel(item.kind),
+      if (item.equipmentSummary.isNotEmpty)
+        equipmentText(item.equipmentSummary),
+      if (assignment != FieldAssignment.none) assignmentLabel(assignment),
+      if (local != null && local.isNotEmpty) local,
+      item.businessUnit.name,
+    ].where((parte) => parte.isNotEmpty).toList();
+    return partes.isEmpty ? null : partes.join(' · ');
+  }
 }
 
 /// Horário do item — instante, exibido no relógio de quem lê.

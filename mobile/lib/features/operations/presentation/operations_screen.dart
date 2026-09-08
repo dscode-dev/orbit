@@ -61,10 +61,10 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              OrbitSpacing.md,
+              OrbitSpacing.gutter,
               0,
-              OrbitSpacing.md,
-              OrbitSpacing.sm,
+              OrbitSpacing.gutter,
+              OrbitSpacing.ms,
             ),
             child: TextField(
               key: const Key('operations.search'),
@@ -88,10 +88,12 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
           ),
 
           SizedBox(
-            height: 44,
+            height: 52,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.md),
+              padding: const EdgeInsets.symmetric(
+                horizontal: OrbitSpacing.gutter,
+              ),
               children: [
                 _FilterChip(
                   label: 'Todas',
@@ -113,11 +115,11 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
               onRefresh: () async => ref.invalidate(operationsListProvider),
               child: list.when(
                 loading: () => const Padding(
-                  padding: EdgeInsets.all(OrbitSpacing.md),
+                  padding: EdgeInsets.all(OrbitSpacing.gutter),
                   child: SectionLoading(lines: 6),
                 ),
                 error: (error, _) => ListView(
-                  padding: const EdgeInsets.all(OrbitSpacing.md),
+                  padding: const EdgeInsets.all(OrbitSpacing.gutter),
                   children: [
                     SectionError(
                       error: error,
@@ -129,7 +131,7 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
                   final page = result.value;
                   if (page.isEmpty) {
                     return ListView(
-                      padding: const EdgeInsets.all(OrbitSpacing.md),
+                      padding: const EdgeInsets.all(OrbitSpacing.gutter),
                       children: const [
                         SectionEmpty(
                           message:
@@ -139,31 +141,48 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
                     );
                   }
                   return ListView(
-                    padding: const EdgeInsets.all(OrbitSpacing.md),
+                    padding: const EdgeInsets.fromLTRB(
+                      OrbitSpacing.gutter,
+                      OrbitSpacing.sm,
+                      OrbitSpacing.gutter,
+                      OrbitSpacing.xl,
+                    ),
                     children: [
                       if (result.cachedAt != null)
                         StaleDataBanner(cachedAt: result.cachedAt!),
                       Padding(
-                        padding: const EdgeInsets.only(bottom: OrbitSpacing.sm),
+                        padding: const EdgeInsets.only(
+                          left: OrbitSpacing.xs,
+                          bottom: OrbitSpacing.ms,
+                        ),
                         child: Text(
-                          '${page.total} operação(ões) · página ${page.page} de ${page.totalPages}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: OrbitColors.textSecondary,
+                          _resumo(page),
+                          style: OrbitType.caption.copyWith(
+                            color: context.orbit.inkSubtle,
                           ),
                         ),
                       ),
-                      /// Lista, não pilha de cartões: doze atendimentos em
-                      /// doze molduras é doze retângulos de mesma importância.
-                      for (final (indice, operation) in page.data.indexed) ...[
-                        if (indice > 0) const OrbitRowDivider(),
-                        OperationTile(
-                          operation: operation,
-                          onTap: () => context.push(
-                            OrbitRoutes.operationDetail(operation.id),
-                          ),
+
+                      /// As linhas moram dentro de um cartão. Soltas sobre o
+                      /// fundo da página elas não têm contenção nenhuma, e a
+                      /// tela lê como uma lista de ajustes do sistema.
+                      OrbitCard(
+                        padding: EdgeInsets.zero,
+                        child: Column(
+                          children: [
+                            for (final (indice, operation)
+                                in page.data.indexed) ...[
+                              if (indice > 0) const OrbitRowDivider(),
+                              OperationTile(
+                                operation: operation,
+                                onTap: () => context.push(
+                                  OrbitRoutes.operationDetail(operation.id),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      ],
+                      ),
                       if (page.totalPages > 1)
                         _Pagination(
                           page: page,
@@ -180,6 +199,19 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
       ),
     );
   }
+}
+
+/// Quantas operações, e em que página.
+///
+/// "4 operação(ões)" é o parêntese de plural do programador vazando para a
+/// tela. Quem lê quer a frase, não o gabarito.
+String _resumo(Paginated<Operation> page) {
+  final quantidade = page.total == 1
+      ? '1 operação'
+      : '${page.total} operações';
+  return page.totalPages > 1
+      ? '$quantidade · página ${page.page} de ${page.totalPages}'
+      : quantidade;
 }
 
 class _FilterChip extends StatelessWidget {
@@ -202,7 +234,6 @@ class _FilterChip extends StatelessWidget {
         selected: selected,
         onSelected: (_) => onSelected(),
         showCheckmark: false,
-        selectedColor: OrbitColors.brand.withValues(alpha: 0.24),
       ),
     );
   }

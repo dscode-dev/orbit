@@ -191,6 +191,38 @@ const operationalStatusLabels = <String, String>{
 String? operationalStatusLabel(String? status) =>
     status == null ? null : operationalStatusLabels[status];
 
+/// Natureza de um compromisso da agenda, em linguagem de produto.
+///
+/// Mesma regra do status: código sem tradução devolve `null` e some da tela.
+/// A agenda mostrava `SERVICE · SCHEDULED` cru para quem estava em campo.
+const agendaEventTypeLabels = <String, String>{
+  'SERVICE': 'Atendimento',
+  'MAINTENANCE': 'Manutenção',
+  'PMOC': 'Manutenção preventiva',
+  'RVT': 'Visita técnica',
+  'INSPECTION': 'Inspeção',
+  'INSTALLATION': 'Instalação',
+  'MEETING': 'Reunião',
+  'BLOCK': 'Bloqueio de agenda',
+  'UNAVAILABILITY': 'Indisponibilidade',
+};
+
+String? agendaEventTypeLabel(String? type) =>
+    type == null ? null : agendaEventTypeLabels[type];
+
+/// Prioridade de um compromisso, quando ela muda o que a pessoa faz.
+///
+/// `NORMAL` e `LOW` devolvem `null` de propósito: se toda linha carrega um
+/// selo de prioridade, nenhuma prioridade se destaca.
+const agendaPriorityLabels = <String, String>{
+  'HIGH': 'Alta',
+  'URGENT': 'Urgente',
+  'CRITICAL': 'Crítica',
+};
+
+String? agendaPriorityLabel(String? priority) =>
+    priority == null ? null : agendaPriorityLabels[priority];
+
 /* ------------------------------------------------------------------ */
 /* Execução de campo (MB-02)                                           */
 /* ------------------------------------------------------------------ */

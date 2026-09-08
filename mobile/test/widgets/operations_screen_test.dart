@@ -157,6 +157,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    /// A fileira de filtros rola na horizontal e os chips ficaram maiores:
+    /// "Concluída" pode estar fora da viewport, e tocar no que não está
+    /// visível não é o que um dedo faz.
+    await tester.ensureVisible(find.text('Concluída'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Concluída'));
     await tester.pumpAndSettle();
 

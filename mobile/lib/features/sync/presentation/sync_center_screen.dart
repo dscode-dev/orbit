@@ -39,7 +39,7 @@ class SyncCenterScreen extends ConsumerWidget {
               .process(manual: true);
         },
         child: ListView(
-          padding: const EdgeInsets.all(OrbitSpacing.md),
+          padding: const EdgeInsets.all(OrbitSpacing.gutter),
           children: [
             _Status(state: sync),
             const SizedBox(height: OrbitSpacing.md),

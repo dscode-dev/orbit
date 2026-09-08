@@ -101,7 +101,7 @@ Widget _corpo(
     /// A lista precisa rolar mesmo no erro: sem rolagem, o `RefreshIndicator`
     /// não tem gesto, e a única saída seria fechar o aplicativo.
     return ListView(
-      padding: const EdgeInsets.all(OrbitSpacing.md),
+      padding: const EdgeInsets.all(OrbitSpacing.gutter),
       children: [
         SectionError(
           error: home.error!,
@@ -112,7 +112,7 @@ Widget _corpo(
   }
 
   return const Padding(
-    padding: EdgeInsets.all(OrbitSpacing.md),
+    padding: EdgeInsets.all(OrbitSpacing.gutter),
     child: SectionLoading(lines: 6),
   );
 }
@@ -139,12 +139,7 @@ class _Home extends StatelessWidget {
   Widget build(BuildContext context) {
     final dashboard = home.dashboard;
 
-    /// O próximo só aparece se ainda não estiver em andamento — repeti-lo
-    /// ocuparia a tela com o mesmo atendimento duas vezes.
     final proximo = dashboard.next;
-    final proximoInedito =
-        proximo != null &&
-        !dashboard.inProgress.any((item) => item.id == proximo.id);
 
     /// "Não há nada" é diferente de "não há nada nesta seção". Só quando
     /// **todas** estão vazias a tela diz que o dia está livre.
@@ -156,36 +151,96 @@ class _Home extends StatelessWidget {
         home.recentDocuments.isEmpty &&
         home.recentAppointments.isEmpty;
 
+    /// O destaque: o atendimento que já começou. Um por tela.
+    final emAndamento = dashboard.inProgress.isEmpty
+        ? null
+        : dashboard.inProgress.first;
+
+    /// O próximo só aparece se não estiver em andamento **e** não estiver já
+    /// listado em Hoje. Antes só a primeira checagem existia, e a tela
+    /// mostrava o mesmo atendimento duas vezes, uma embaixo da outra.
+    final jaListado =
+        proximo != null &&
+        (dashboard.inProgress.any((item) => item.id == proximo.id) ||
+            dashboard.today.any((item) => item.id == proximo.id));
+    final proximoInedito = proximo != null && !jaListado;
+
+    final c = dashboard.counters;
+
     return ListView(
-      padding: const EdgeInsets.only(bottom: OrbitSpacing.xl),
+      padding: const EdgeInsets.fromLTRB(
+        OrbitSpacing.gutter,
+        0,
+        OrbitSpacing.gutter,
+        OrbitSpacing.xl2,
+      ),
       children: [
         _Header(userName: userName),
 
         if (cachedAt != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-              OrbitSpacing.md,
-              0,
-              OrbitSpacing.md,
-              OrbitSpacing.sm,
-            ),
+            padding: const EdgeInsets.only(bottom: OrbitSpacing.ms),
             child: StaleDataBanner(cachedAt: cachedAt!),
           ),
 
         /// Aviso discreto, não substituição.
         if (refreshFailed) const _RefreshFailedNotice(),
 
-        /// Em andamento primeiro, e em destaque: é o trabalho que já começou,
-        /// e é para ele que a pessoa volta ao abrir o aplicativo.
-        if (dashboard.inProgress.isNotEmpty)
-          _ItemSection(
-            title: 'Em andamento',
-            items: dashboard.inProgress,
-            currentUserId: currentUserId,
-            emphasisFirst: true,
+        /// O painel de números. Responde "como está meu dia" antes de
+        /// qualquer lista — que é a primeira pergunta de quem abre o app.
+        if (!vazio) ...[
+          OrbitMetricStrip(
+            metrics: [
+              OrbitMetricData(
+                value: '${c.today}',
+                label: 'Hoje',
+                onTap: () => context.go(OrbitRoutes.agenda),
+              ),
+              OrbitMetricData(
+                value: '${c.overdue}',
+                label: 'Atrasados',
+                tone: c.overdue > 0 ? OrbitTone.danger : OrbitTone.neutral,
+                onTap: () => context.go(OrbitRoutes.workQueue),
+              ),
+              OrbitMetricData(
+                value: '${c.inProgress}',
+                label: 'Em campo',
+                tone: c.inProgress > 0 ? OrbitTone.info : OrbitTone.neutral,
+              ),
+              OrbitMetricData(
+                value: '${c.upcoming}',
+                label: 'Próximos',
+                onTap: () => context.go(OrbitRoutes.workQueue),
+              ),
+            ],
           ),
+          const SizedBox(height: OrbitSpacing.lg),
+        ],
+
+        /// Em andamento vira o cartão de destaque: é o trabalho que já
+        /// começou, e é para ele que a pessoa volta ao abrir o aplicativo.
+        if (emAndamento != null) ...[
+          OrbitHeroCard(
+            eyebrow: 'Em andamento',
+            title: emAndamento.customer?.name ?? emAndamento.title,
+            subtitle: emAndamento.customer == null
+                ? null
+                : emAndamento.title,
+            meta: _metaDoDestaque(emAndamento),
+            onTap: () =>
+                context.push(OrbitRoutes.workItemDetail(emAndamento.id)),
+            action: OrbitHeroButton(
+              label: 'Retomar atendimento',
+              icon: Icons.play_arrow_rounded,
+              onPressed: () =>
+                  context.push(OrbitRoutes.workItemDetail(emAndamento.id)),
+            ),
+          ),
+          const SizedBox(height: OrbitSpacing.lg),
+        ],
 
         _QuickActions(dashboard: dashboard),
+        const SizedBox(height: OrbitSpacing.lg),
 
         if (vazio)
           const OrbitEmptyState(
@@ -195,7 +250,7 @@ class _Home extends StatelessWidget {
                 'Quando houver trabalho atribuído a você, ele aparece aqui.',
           ),
 
-        if (dashboard.overdue.isNotEmpty)
+        if (dashboard.overdue.isNotEmpty) ...[
           _ItemSection(
             title: 'Atrasados',
             count: dashboard.counters.overdue,
@@ -203,8 +258,10 @@ class _Home extends StatelessWidget {
             currentUserId: currentUserId,
             onSeeAll: () => context.go(OrbitRoutes.workQueue),
           ),
+          const SizedBox(height: OrbitSpacing.lg),
+        ],
 
-        if (dashboard.today.isNotEmpty)
+        if (dashboard.today.isNotEmpty) ...[
           _ItemSection(
             title: 'Hoje',
             count: dashboard.counters.today,
@@ -213,15 +270,19 @@ class _Home extends StatelessWidget {
             onSeeAll: () => context.go(OrbitRoutes.agenda),
             seeAllLabel: 'Ver agenda',
           ),
+          const SizedBox(height: OrbitSpacing.lg),
+        ],
 
-        if (proximoInedito)
+        if (proximoInedito) ...[
           _ItemSection(
             title: 'Próximo atendimento',
             items: [proximo],
             currentUserId: currentUserId,
           ),
+          const SizedBox(height: OrbitSpacing.lg),
+        ],
 
-        if (home.recentDocuments.isNotEmpty)
+        if (home.recentDocuments.isNotEmpty) ...[
           OrbitSection(
             title: 'Documentos recentes',
             actionLabel: 'Ver todos',
@@ -233,8 +294,10 @@ class _Home extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: OrbitSpacing.lg),
+        ],
 
-        if (home.recentAppointments.isNotEmpty)
+        if (home.recentAppointments.isNotEmpty) ...[
           OrbitSection(
             title: 'Agendamentos recentes',
             actionLabel: 'Ver agenda',
@@ -246,19 +309,28 @@ class _Home extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: OrbitSpacing.lg),
+        ],
 
-        const SizedBox(height: OrbitSpacing.lg),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.md),
-          child: OutlinedButton.icon(
-            onPressed: () => context.go(OrbitRoutes.workQueue),
-            icon: const Icon(Icons.checklist_rtl, size: 18),
-            label: const Text('Ver toda a fila'),
-            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
-          ),
+        OutlinedButton.icon(
+          onPressed: () => context.go(OrbitRoutes.workQueue),
+          icon: const Icon(Icons.checklist_rtl, size: 18),
+          label: const Text('Ver toda a fila'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 50)),
         ),
       ],
     );
+  }
+
+  /// A linha de contexto do destaque: horário, equipamento e unidade.
+  static String? _metaDoDestaque(MobileWorkItemContract item) {
+    final partes = [
+      scheduleText(item),
+      if (item.equipmentSummary.isNotEmpty)
+        equipmentText(item.equipmentSummary),
+      item.businessUnit.name,
+    ].where((parte) => parte.isNotEmpty).toList();
+    return partes.isEmpty ? null : partes.join(' · ');
   }
 }
 
@@ -277,12 +349,12 @@ class _Header extends StatelessWidget {
     final agora = DateTime.now();
     final primeiroNome = userName?.trim().split(' ').first;
 
+    /// Sem margem lateral própria: a lista já aplica o gutter, e um segundo
+    /// recuo aqui desalinharia o título da borda dos cartões.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        OrbitSpacing.md,
-        OrbitSpacing.lg,
-        OrbitSpacing.md,
-        OrbitSpacing.md,
+      padding: const EdgeInsets.only(
+        top: OrbitSpacing.lg,
+        bottom: OrbitSpacing.ml,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,7 +437,7 @@ class _QuickActions extends StatelessWidget {
 
     return OrbitSection(
       title: 'Ações rápidas',
-      dense: true,
+      boxed: false,
 
       /// Rola na horizontal em vez de quebrar linha: em 320 pixels o `Wrap`
       /// viraria duas fileiras e empurraria o trabalho para fora da tela.
@@ -375,7 +447,7 @@ class _QuickActions extends StatelessWidget {
       /// altura do que está dentro dela.
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.md),
+        padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
         /// `IntrinsicHeight` para que todos os blocos tenham a altura do mais
         /// alto — sem ele, "Sincronização" (duas linhas) e "Agenda" (uma)
         /// ficariam desalinhados. Dentro de uma rolagem horizontal, `stretch`
@@ -405,7 +477,6 @@ class _ItemSection extends StatelessWidget {
     this.count,
     this.onSeeAll,
     this.seeAllLabel,
-    this.emphasisFirst = false,
   });
 
   final String title;
@@ -414,29 +485,27 @@ class _ItemSection extends StatelessWidget {
   final String? currentUserId;
   final VoidCallback? onSeeAll;
   final String? seeAllLabel;
-  final bool emphasisFirst;
 
   @override
   Widget build(BuildContext context) {
     /// A contagem do servidor pode ser maior do que a lista: o painel entrega
-    /// no máximo cinco por recorte. Dizer "Hoje · 12" com cinco linhas é
-    /// honesto; inventar doze linhas não seria.
-    final rotulo = count == null || count == items.length
-        ? title
-        : '$title · $count';
+    /// no máximo cinco por recorte. Dizer "Hoje 12" com cinco linhas é
+    /// honesto; inventar doze linhas não seria. Ela vai como selo ao lado do
+    /// título, e não concatenada no texto.
+    final contagem = count == null || count == items.length ? null : count;
 
     return OrbitSection(
-      title: rotulo,
+      title: title,
+      count: contagem,
       action: onSeeAll,
       actionLabel: seeAllLabel,
       child: _Rows(
         children: [
-          for (final (indice, item) in items.indexed)
+          for (final item in items)
             WorkItemRow(
               key: ValueKey(item.id),
               item: item,
               currentUserId: currentUserId,
-              emphasis: emphasisFirst && indice == 0,
               onOpen: () => context.push(OrbitRoutes.workItemDetail(item.id)),
             ),
         ],

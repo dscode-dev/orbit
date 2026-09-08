@@ -44,7 +44,7 @@ class OperationDetailScreen extends ConsumerWidget {
       body: RefreshIndicator(
         onRefresh: () async => invalidateOperation(ref, operationId),
         child: ListView(
-          padding: const EdgeInsets.all(OrbitSpacing.md),
+          padding: const EdgeInsets.all(OrbitSpacing.gutter),
           children: [
             detail.when(
               loading: () => const SectionBlock(

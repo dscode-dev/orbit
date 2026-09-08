@@ -80,7 +80,7 @@ class HomeScreen extends ConsumerWidget {
             ..invalidate(alertsProvider);
         },
         child: ListView(
-          padding: const EdgeInsets.all(OrbitSpacing.md),
+          padding: const EdgeInsets.all(OrbitSpacing.gutter),
           children: [
             _Greeting(name: session.user.displayName),
             const SizedBox(height: OrbitSpacing.md),
@@ -261,7 +261,7 @@ class _CountChip extends StatelessWidget {
     final color = highlight ? OrbitColors.warning : OrbitColors.brand;
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: OrbitSpacing.md,
+        horizontal: OrbitSpacing.gutter,
         vertical: OrbitSpacing.sm,
       ),
       decoration: BoxDecoration(

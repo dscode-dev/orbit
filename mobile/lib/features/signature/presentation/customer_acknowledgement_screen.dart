@@ -198,11 +198,11 @@ class _CustomerAcknowledgementScreenState
       body: SafeArea(
         child: preparation.when(
           loading: () => const Padding(
-            padding: EdgeInsets.all(OrbitSpacing.md),
+            padding: EdgeInsets.all(OrbitSpacing.gutter),
             child: SectionLoading(lines: 5),
           ),
           error: (error, _) => ListView(
-            padding: const EdgeInsets.all(OrbitSpacing.md),
+            padding: const EdgeInsets.all(OrbitSpacing.gutter),
             children: [
               SectionError(
                 error: error,
@@ -449,7 +449,7 @@ class _Accepted extends StatelessWidget {
     final confirmed = state == _AcceptedState.confirmed;
 
     return ListView(
-      padding: const EdgeInsets.all(OrbitSpacing.md),
+      padding: const EdgeInsets.all(OrbitSpacing.gutter),
       children: [
         SectionBlock(
           title: confirmed

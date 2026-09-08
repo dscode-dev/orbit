@@ -101,7 +101,7 @@ class _MySignatureScreenState extends ConsumerState<MySignatureScreen> {
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(signatureStatusProvider),
         child: ListView(
-          padding: const EdgeInsets.all(OrbitSpacing.md),
+          padding: const EdgeInsets.all(OrbitSpacing.gutter),
           children: [
             status.when(
               loading: () => const SectionLoading(lines: 3),
