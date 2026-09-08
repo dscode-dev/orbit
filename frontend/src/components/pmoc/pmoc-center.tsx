@@ -13,7 +13,7 @@
 import { useState } from "react";
 
 import { PmocList } from "./pmoc-list";
-import { PmocPlanDialog } from "./pmoc-plan.dialog";
+import { PmocPlanWizard } from "./pmoc-plan-wizard";
 
 export function PmocCenter() {
   const [creating, setCreating] = useState(false);
@@ -21,7 +21,7 @@ export function PmocCenter() {
   return (
     <>
       <PmocList onCreate={() => setCreating(true)} />
-      <PmocPlanDialog open={creating} onOpenChange={setCreating} />
+      <PmocPlanWizard open={creating} onOpenChange={setCreating} />
     </>
   );
 }

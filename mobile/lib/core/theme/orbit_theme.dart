@@ -31,8 +31,8 @@ abstract final class _Tokens {
   /// matiz do navy. Cartão branco sobre fundo levemente frio é o que dá a
   /// sensação de camada — branco sobre branco não tem profundidade nenhuma.
   static const white = Color(0xFFFFFFFF);
-  static const surfaceMuted = Color(0xFFEDF1F7);
-  static const surfaceSunken = Color(0xFFE2E8F1);
+  static const surfaceMuted = Color(0xFFF7F8FA);
+  static const surfaceSunken = Color(0xFFEEF0F3);
   static const border = Color(0x1F171F30);
   static const borderStrong = Color(0x29171F30);
 
@@ -68,11 +68,7 @@ abstract final class _Tokens {
 /// de 2014.
 abstract final class OrbitShadow {
   static const List<BoxShadow> card = [
-    BoxShadow(
-      color: Color(0x0A171F30),
-      blurRadius: 2,
-      offset: Offset(0, 1),
-    ),
+    BoxShadow(color: Color(0x0A171F30), blurRadius: 2, offset: Offset(0, 1)),
     BoxShadow(
       color: Color(0x0F171F30),
       blurRadius: 16,
@@ -82,11 +78,7 @@ abstract final class OrbitShadow {
   ];
 
   static const List<BoxShadow> raised = [
-    BoxShadow(
-      color: Color(0x0D171F30),
-      blurRadius: 3,
-      offset: Offset(0, 1),
-    ),
+    BoxShadow(color: Color(0x0D171F30), blurRadius: 3, offset: Offset(0, 1)),
     BoxShadow(
       color: Color(0x1A171F30),
       blurRadius: 28,
@@ -304,9 +296,9 @@ extension OrbitPaletteAccess on BuildContext {
 /// Maiores que a versão anterior, de propósito: a direção é espaçosa, e canto
 /// suave é metade do que faz um cartão parecer objeto em vez de retângulo.
 abstract final class OrbitRadius {
-  static const hero = BorderRadius.all(Radius.circular(24));
-  static const card = BorderRadius.all(Radius.circular(20));
-  static const field = BorderRadius.all(Radius.circular(14));
+  static const hero = BorderRadius.all(Radius.circular(12));
+  static const card = BorderRadius.all(Radius.circular(12));
+  static const field = BorderRadius.all(Radius.circular(10));
   static const chip = BorderRadius.all(Radius.circular(10));
   static const pill = BorderRadius.all(Radius.circular(999));
 }
@@ -327,7 +319,8 @@ abstract final class OrbitSpacing {
   static const xl3 = 48.0;
 
   /// A margem lateral da tela. Um valor, em todo lugar.
-  static const gutter = 20.0;
+  static const screenHorizontalPadding = 16.0;
+  static const gutter = screenHorizontalPadding;
 }
 
 /// As duas famílias da marca.
@@ -350,7 +343,7 @@ abstract final class OrbitType {
   /// O número de uma métrica. Grande, tabular, com a display.
   static const metric = TextStyle(
     fontFamily: OrbitFont.display,
-    fontSize: 27,
+    fontSize: 24,
     fontWeight: FontWeight.w700,
     height: 1.05,
     letterSpacing: -0.8,
@@ -358,17 +351,17 @@ abstract final class OrbitType {
   );
 
   static const heroTitle = TextStyle(
-    fontFamily: OrbitFont.display,
-    fontSize: 24,
-    fontWeight: FontWeight.w700,
+    fontFamily: OrbitFont.text,
+    fontSize: 17,
+    fontWeight: FontWeight.w600,
     height: 1.18,
     letterSpacing: -0.5,
   );
 
   static const screenTitle = TextStyle(
-    fontFamily: OrbitFont.display,
-    fontSize: 26,
-    fontWeight: FontWeight.w700,
+    fontFamily: OrbitFont.text,
+    fontSize: 21,
+    fontWeight: FontWeight.w600,
     height: 1.15,
     letterSpacing: -0.6,
   );
@@ -376,7 +369,7 @@ abstract final class OrbitType {
   /// Rótulo de seção. Não é mais caixa alta espremida: é uma frase legível,
   /// com peso, do tamanho de um subtítulo.
   static const sectionTitle = TextStyle(
-    fontFamily: OrbitFont.display,
+    fontFamily: OrbitFont.text,
     fontSize: 16,
     fontWeight: FontWeight.w600,
     height: 1.25,
@@ -385,7 +378,7 @@ abstract final class OrbitType {
 
   static const itemTitle = TextStyle(
     fontFamily: OrbitFont.text,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: FontWeight.w600,
     height: 1.3,
     letterSpacing: -0.1,
@@ -437,6 +430,7 @@ abstract final class OrbitTheme {
     const scheme = ColorScheme.light(
       primary: _Tokens.brand,
       onPrimary: _Tokens.white,
+
       /// Secundária também azul: roxo é reservado à inteligência.
       secondary: _Tokens.brandHover,
       onSecondary: _Tokens.white,
@@ -452,16 +446,17 @@ abstract final class OrbitTheme {
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: palette.surfaceMuted,
+      scaffoldBackgroundColor: palette.background,
       fontFamily: OrbitFont.text,
     );
 
     return base.copyWith(
       extensions: const [palette],
+
       /// Transparente: a barra assenta sobre o fundo da página em vez de
       /// desenhar uma faixa branca que corta a tela em duas.
       appBarTheme: AppBarTheme(
-        backgroundColor: palette.surfaceMuted,
+        backgroundColor: palette.background,
         surfaceTintColor: Colors.transparent,
         foregroundColor: _Tokens.ink,
         elevation: 0,
@@ -469,10 +464,11 @@ abstract final class OrbitTheme {
         centerTitle: false,
         titleTextStyle: OrbitType.sectionTitle.copyWith(
           color: _Tokens.ink,
-          fontSize: 19,
-          fontWeight: FontWeight.w700,
+          fontSize: 21,
+          fontWeight: FontWeight.w600,
         ),
       ),
+
       /// Borda leve em vez de sombra: elevação empilhada vira ruído numa lista.
       cardTheme: const CardThemeData(
         color: _Tokens.white,
@@ -503,6 +499,7 @@ abstract final class OrbitTheme {
         hintStyle: TextStyle(color: _Tokens.inkDisabled),
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       ),
+
       /// 52 e 48: alvos confortáveis para quem trabalha de luva.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -564,6 +561,7 @@ abstract final class OrbitTheme {
         selectedColor: _Tokens.brandSoft,
         side: const BorderSide(color: _Tokens.border),
         shape: const RoundedRectangleBorder(borderRadius: OrbitRadius.pill),
+
         /// Cor explícita nos dois estados. Sem ela o rótulo do chip não
         /// selecionado herda um tom que some contra o fundo branco — o chip
         /// vira uma pílula vazia.

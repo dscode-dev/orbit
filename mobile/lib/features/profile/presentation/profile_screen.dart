@@ -14,6 +14,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/routing/orbit_router.dart';
 import '../../../core/design/orbit_primitives.dart';
+import '../../../core/design/orbit_operational.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../sync/application/sync_providers.dart';
 import '../../../core/widgets/section_states.dart';
@@ -37,48 +38,44 @@ class ProfileScreen extends ConsumerWidget {
         children: [
           /// A identidade é o caso em que a caixa se justifica: avatar, nome
           /// e e-mail só significam alguma coisa juntos.
-          OrbitPanel(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 26,
-                    backgroundColor: OrbitColors.brand.withValues(alpha: 0.22),
-                    child: Text(
-                      session.user.initials,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+              children: [
+                OrbitAvatar(
+                  initials: session.user.initials,
+                  url: session.user.avatarUrl,
+                  size: 56,
+                ),
+                const SizedBox(width: OrbitSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        session.user.displayName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: OrbitSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          session.user.displayName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      Text(
+                        session.user.email,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: OrbitColors.textSecondary,
                         ),
-                        Text(
-                          session.user.email,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: OrbitColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
+              ],
             ),
           ),
           const SizedBox(height: OrbitSpacing.md),
 
           SectionBlock(
+            inset: 0,
             title: 'Contexto',
             child: Column(
               children: [
@@ -116,6 +113,7 @@ class ProfileScreen extends ConsumerWidget {
           /// aqui, e não escondida dentro de um atendimento: quem precisa
           /// cadastrá-la costuma descobrir isso longe do campo.
           SectionBlock(
+            inset: 0,
             title: 'Assinatura profissional',
             subtitle: 'Usada nos documentos que você assina',
             child: ListTile(
@@ -134,6 +132,7 @@ class ProfileScreen extends ConsumerWidget {
           /// quando há pendência: quem quer conferir se o trabalho subiu
           /// precisa de um lugar para olhar, mesmo quando está tudo em ordem.
           SectionBlock(
+            inset: 0,
             title: 'Sincronização',
             subtitle: 'O que ainda não chegou ao servidor',
             child: ListTile(
@@ -168,6 +167,7 @@ class ProfileScreen extends ConsumerWidget {
 
           if (units.length > 1)
             SectionBlock(
+            inset: 0,
               title: 'Unidade ativa',
               subtitle: 'Filtra as consultas do aplicativo',
               child: Column(
@@ -202,6 +202,7 @@ class ProfileScreen extends ConsumerWidget {
             )
           else
             SectionBlock(
+            inset: 0,
               title: 'Unidade ativa',
               child: _Row(
                 label: 'Unidade',
@@ -211,25 +212,6 @@ class ProfileScreen extends ConsumerWidget {
 
           const SizedBox(height: OrbitSpacing.md),
 
-          SectionBlock(
-            title: 'Módulos do plano',
-            subtitle: 'Capabilities concedidas pelo backend',
-            child: session.capabilities.isEmpty
-                ? const SectionEmpty(
-                    message: 'Nenhuma capability informada pelo servidor.',
-                  )
-                : Wrap(
-                    spacing: OrbitSpacing.sm,
-                    runSpacing: OrbitSpacing.sm,
-                    children: [
-                      for (final capability in session.capabilities)
-                        Chip(
-                          label: Text(capability),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                    ],
-                  ),
-          ),
           const SizedBox(height: OrbitSpacing.lg),
 
           OutlinedButton.icon(

@@ -41,7 +41,7 @@ class WorkItemDetailScreen extends ConsumerWidget {
     final session = ref.watch(sessionProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Item de trabalho')),
+      appBar: AppBar(title: const Text('Atendimento')),
       body: RefreshIndicator(
         onRefresh: () async =>
             ref.invalidate(fieldWorkItemProvider(workItemId)),
@@ -96,6 +96,7 @@ class _Detail extends StatelessWidget {
         if (context$.requestDescription case final String description
             when description.trim().isNotEmpty)
           SectionBlock(
+            inset: 0,
             title: 'O que foi pedido',
             child: Text(
               description,
@@ -108,6 +109,7 @@ class _Detail extends StatelessWidget {
 
         if (item.customer case final MobileCustomerSummaryContract customer)
           SectionBlock(
+            inset: 0,
             title: 'Cliente',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,6 +150,7 @@ class _Detail extends StatelessWidget {
 
         if (item.equipmentSummary.isNotEmpty)
           SectionBlock(
+            inset: 0,
             title: 'Equipamento',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,6 +189,7 @@ class _Detail extends StatelessWidget {
 
         if (context$.procedures.isNotEmpty)
           SectionBlock(
+            inset: 0,
             title: 'Procedimentos',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,6 +211,7 @@ class _Detail extends StatelessWidget {
 
         if (context$.documentContext.isNotEmpty)
           SectionBlock(
+            inset: 0,
             title: 'Documentos',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,6 +248,7 @@ class _Header extends StatelessWidget {
     final status = operationalStatusLabel(item.operationalStatus);
 
     return SectionBlock(
+            inset: 0,
       title: workItemKindLabel(item.kind),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,6 +303,7 @@ class _Team extends StatelessWidget {
     }
 
     return SectionBlock(
+            inset: 0,
       title: 'Equipe',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,6 +357,7 @@ class _Actions extends ConsumerWidget {
     if (actions.isEmpty) return const SizedBox.shrink();
 
     return SectionBlock(
+            inset: 0,
       title: 'Ações',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

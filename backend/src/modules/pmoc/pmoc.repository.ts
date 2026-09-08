@@ -25,10 +25,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { RequestContextService } from '../../context';
+import { ConflictException } from '../../exceptions';
 import { PaginationHelper, RlsTransaction } from '../../database';
 import type { PrismaTransactionClient } from '../../database/prisma.types';
 import { generateUuidV7 } from '../../utils';
 import { DomainEventEmitter } from '../automations/domain-event.emitter';
+import { buildSuggestedCode } from './pmoc.domain';
 import type { FrequencyUnit } from './pmoc.domain';
 import type {
   PmocAnalyticsQueryDto,
@@ -164,7 +166,10 @@ export interface CreatePlanData {
   organizationId: string;
   businessUnitId: string;
   customerId: string;
-  code: string;
+  /** `null` quando o produto deve gerar — a alocação é atômica com o insert. */
+  code: string | null;
+  /** Só para montar o código gerado; identidade continua sendo o UUID. */
+  customerName: string;
   name: string;
   startsOn: string;
   endsOn: string | null;
@@ -181,6 +186,8 @@ export interface CreatePlanData {
   reviewRequired: boolean;
   notes: string | null;
   createdById: string;
+  /** Equipamentos que participam do plano desde a criação. */
+  assetIds?: readonly string[];
 }
 
 @Injectable()
@@ -207,12 +214,22 @@ export class PmocRepository {
 
   create(data: CreatePlanData, actorId: string) {
     return this.rls.run(async (tx) => {
+      /**
+       * O código nasce **aqui dentro**, quando não veio um customizado.
+       *
+       * Pedir a sugestão e depois criar com ela é uma corrida perdida: quatro
+       * telas abertas leem `002` e três falham ao salvar. A sugestão é só uma
+       * previsão; quem consome o número é esta transação, e o incremento
+       * acontece na mesma que insere o plano.
+       */
+      const code = data.code ?? (await this.nextCode(tx, data));
+
       const plan = await tx.pmocPlan.create({
         data: {
           organizationId: data.organizationId,
           businessUnitId: data.businessUnitId,
           customerId: data.customerId,
-          code: data.code,
+          code,
           name: data.name,
           startsOn: new Date(`${data.startsOn}T00:00:00.000Z`),
           endsOn: data.endsOn ? new Date(`${data.endsOn}T00:00:00.000Z`) : null,
@@ -232,6 +249,28 @@ export class PmocRepository {
         },
         select: planView,
       });
+
+      /**
+       * As coberturas nascem **dentro da mesma transação**.
+       *
+       * Antes o plano era criado num comando e os equipamentos em outro. Entre
+       * os dois existia um plano operacional sem equipamento nenhum — e, se o
+       * segundo comando falhasse, ele ficava assim. Um PMOC sem equipamento
+       * não projeta execução: é um plano que não manda ninguém a lugar nenhum.
+       */
+      if (data.assetIds?.length) {
+        await tx.pmocEquipmentCoverage.createMany({
+          data: data.assetIds.map((assetId) => ({
+            id: generateUuidV7(),
+            organizationId: data.organizationId,
+            planId: plan.id,
+            assetId,
+            startsOn: new Date(`${data.startsOn}T00:00:00.000Z`),
+            endsOn: null,
+          })),
+        });
+      }
+
       await this.audit(
         tx,
         plan.id,
@@ -239,12 +278,170 @@ export class PmocRepository {
         actorId,
         'PMOC_PLAN_CREATED',
         {
-          code: data.code,
+          code,
           name: data.name,
+          equipmentCount: data.assetIds?.length ?? 0,
         },
       );
       return plan;
     });
+  }
+
+  /**
+   * Aloca e devolve o próximo código livre, dentro da transação recebida.
+   *
+   * O `ON CONFLICT DO UPDATE` incrementa e devolve na mesma instrução: duas
+   * transações concorrentes serializam na linha do contador e recebem valores
+   * diferentes. Nenhuma precisa de retry no cliente.
+   */
+  private async nextCode(
+    tx: PrismaTransactionClient,
+    data: Pick<CreatePlanData, 'organizationId' | 'customerId' | 'customerName'>,
+  ): Promise<string> {
+    for (let tentativa = 0; tentativa < 50; tentativa += 1) {
+      const linhas = await tx.$queryRaw<{ last_value: number }[]>`
+        INSERT INTO pmoc_code_sequences (organization_id, customer_id, last_value, updated_at)
+        VALUES (${data.organizationId}::uuid, ${data.customerId}::uuid, 1, now())
+        ON CONFLICT (organization_id, customer_id) DO UPDATE
+          SET last_value = pmoc_code_sequences.last_value + 1,
+              updated_at = now()
+        RETURNING last_value
+      `;
+      const candidato = buildSuggestedCode(
+        data.customerName,
+        linhas[0]?.last_value ?? 1,
+      );
+
+      /**
+       * O número pode estar ocupado por um código digitado à mão. Avança —
+       * consumindo a sequência, para que o próximo create não tropece no
+       * mesmo — em vez de devolver um código que a constraint recusaria.
+       */
+      const ocupado = await tx.pmocPlan.findFirst({
+        where: {
+          organizationId: data.organizationId,
+          code: candidato,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (!ocupado) return candidato;
+    }
+    throw new ConflictException(
+      'Could not allocate a free PMOC code for this customer',
+    );
+  }
+
+  /**
+   * O próximo número da sequência do cliente — e o código que sai dele.
+   *
+   * ## Por que não é `COUNT(*) + 1`
+   *
+   * A unicidade do código é parcial: `pmoc_plans_code_unique_active` só vale
+   * onde `deleted_at IS NULL`. Contar planos devolveria um número já usado no
+   * instante em que alguém apagasse um, e o histórico ganharia dois
+   * `PMOC-CLIENTE-003` distintos.
+   *
+   * O `ON CONFLICT DO UPDATE` incrementa e devolve na mesma instrução: duas
+   * transações concorrentes serializam na linha e recebem valores diferentes.
+   * Nenhuma delas precisa de retry no cliente.
+   *
+   * [reserve] separa as duas necessidades do §22: a sugestão só **lê** o
+   * próximo número, e o create **consome** um. Uma tela aberta e abandonada
+   * não deve queimar `007` para sempre.
+   */
+  allocateCode(input: {
+    organizationId: string;
+    customerId: string;
+    customerName: string;
+    reserve: boolean;
+  }) {
+    return this.rls.run(async (tx) => {
+      let sequencia: number;
+
+      if (input.reserve) {
+        const linhas = await tx.$queryRaw<{ last_value: number }[]>`
+          INSERT INTO pmoc_code_sequences (organization_id, customer_id, last_value, updated_at)
+          VALUES (${input.organizationId}::uuid, ${input.customerId}::uuid, 1, now())
+          ON CONFLICT (organization_id, customer_id) DO UPDATE
+            SET last_value = pmoc_code_sequences.last_value + 1,
+                updated_at = now()
+          RETURNING last_value
+        `;
+        sequencia = linhas[0]?.last_value ?? 1;
+      } else {
+        const linhas = await tx.$queryRaw<{ last_value: number }[]>`
+          SELECT last_value FROM pmoc_code_sequences
+           WHERE organization_id = ${input.organizationId}::uuid
+             AND customer_id = ${input.customerId}::uuid
+        `;
+        sequencia = (linhas[0]?.last_value ?? 0) + 1;
+      }
+
+      /**
+       * O contador pode apontar para um número já ocupado por um código
+       * digitado à mão. Avança até achar livre, e leva o contador junto quando
+       * está reservando — senão a próxima chamada tropeçaria no mesmo.
+       */
+      for (let tentativa = 0; tentativa < 50; tentativa += 1) {
+        const candidato = buildSuggestedCode(input.customerName, sequencia);
+        const existente = await tx.pmocPlan.findFirst({
+          where: {
+            organizationId: input.organizationId,
+            code: candidato,
+            deletedAt: null,
+          },
+          select: { id: true },
+        });
+        if (!existente) {
+          if (input.reserve && tentativa > 0) {
+            await tx.$executeRaw`
+              UPDATE pmoc_code_sequences
+                 SET last_value = GREATEST(last_value, ${sequencia}), updated_at = now()
+               WHERE organization_id = ${input.organizationId}::uuid
+                 AND customer_id = ${input.customerId}::uuid
+            `;
+          }
+          return { code: candidato, sequence: sequencia };
+        }
+        sequencia += 1;
+      }
+
+      return { code: buildSuggestedCode(input.customerName, sequencia), sequence: sequencia };
+    });
+  }
+
+  /**
+   * Estes equipamentos são mesmo deste cliente?
+   *
+   * A pergunta é do backend, não da tela. O seletor já mostra só o que é do
+   * cliente, mas quem manda o corpo da requisição é quem quiser — e um
+   * `assetId` de outro cliente entraria como cobertura sem esta checagem.
+   */
+  findEligibleAssets(input: {
+    organizationId: string;
+    customerId: string;
+    assetIds: readonly string[];
+  }) {
+    return this.rls.run((tx) =>
+      tx.asset.findMany({
+        where: {
+          id: { in: [...input.assetIds] },
+          organizationId: input.organizationId,
+          customerId: input.customerId,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          model: true,
+          manufacturer: true,
+          location: true,
+          customerId: true,
+        },
+      }),
+    );
   }
 
   update(
@@ -1972,7 +2169,13 @@ export class PmocRepository {
     return this.rls.run((tx) =>
       tx.businessUnit.findFirst({
         where: { id, organizationId, deletedAt: null },
-        select: { id: true, legalName: true, tradeName: true },
+        select: {
+          id: true,
+          legalName: true,
+          tradeName: true,
+          /** O preview projeta datas civis: o fuso é da unidade. */
+          timezone: true,
+        },
       }),
     );
   }

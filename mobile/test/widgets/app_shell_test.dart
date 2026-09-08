@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit_operator/core/routing/app_shell.dart';
+import 'package:orbit_operator/core/design/orbit_operational.dart';
 import 'package:orbit_operator/core/routing/orbit_router.dart';
 import 'package:orbit_operator/core/theme/orbit_theme.dart';
 
@@ -17,10 +18,7 @@ Widget host(String location, {double textScale = 1.0, double width = 390}) =>
         ),
         child: MaterialApp(
           theme: OrbitTheme.light(),
-          home: AppShell(
-            location: location,
-            child: const SizedBox.shrink(),
-          ),
+          home: AppShell(location: location, child: const SizedBox.shrink()),
         ),
       ),
     );
@@ -43,7 +41,8 @@ void main() {
       'Documentos',
       'Perfil',
     ]) {
-      expect(find.text(rotulo), findsOneWidget);
+      expect(find.byTooltip(rotulo), findsOneWidget);
+      expect(find.text(rotulo), findsNothing);
     }
 
     /// "Trabalho" descrevia a estrutura de dados, não a coisa.
@@ -55,8 +54,8 @@ void main() {
   ) async {
     await tester.pumpWidget(host(OrbitRoutes.documents));
 
-    final barra = tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(barra.selectedIndex, 3);
+    final barra = tester.widget<OrbitBottomNav>(find.byType(OrbitBottomNav));
+    expect(barra.selected, 3);
   });
 
   testWidgets('a aba mais específica vence o prefixo', (tester) async {
@@ -64,8 +63,8 @@ void main() {
     /// acertaria por acaso enquanto os prefixos não colidissem.
     await tester.pumpWidget(host(OrbitRoutes.syncCenter));
 
-    final barra = tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(barra.selectedIndex, 4);
+    final barra = tester.widget<OrbitBottomNav>(find.byType(OrbitBottomNav));
+    expect(barra.selected, 4);
   });
 
   testWidgets('rota fora das abas não deixa a barra sem seleção', (
@@ -73,8 +72,8 @@ void main() {
   ) async {
     await tester.pumpWidget(host('/rota-que-nao-existe'));
 
-    final barra = tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(barra.selectedIndex, 0);
+    final barra = tester.widget<OrbitBottomNav>(find.byType(OrbitBottomNav));
+    expect(barra.selected, 0);
   });
 
   for (final (largura, escala) in [(320.0, 1.0), (375.0, 1.3), (430.0, 2.0)]) {

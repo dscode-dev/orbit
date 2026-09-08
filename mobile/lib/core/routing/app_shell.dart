@@ -27,6 +27,7 @@ import '../../app/providers.dart';
 import '../../features/authentication/domain/session.dart';
 import '../../features/sync/presentation/widgets/sync_status_bar.dart';
 import '../widgets/sync_indicator.dart';
+import '../design/orbit_operational.dart';
 import 'orbit_router.dart';
 
 class AppShell extends ConsumerWidget {
@@ -86,8 +87,7 @@ class AppShell extends ConsumerWidget {
     var index = -1;
     var casado = 0;
     for (final (posicao, destino) in destinations.indexed) {
-      if (location.startsWith(destino.route) &&
-          destino.route.length > casado) {
+      if (location.startsWith(destino.route) && destino.route.length > casado) {
         index = posicao;
         casado = destino.route.length;
       }
@@ -101,17 +101,12 @@ class AppShell extends ConsumerWidget {
           // Estado da fila de evidências, sempre visível durante o trabalho.
           const SyncStatusBar(),
           const SyncIndicator(),
-          NavigationBar(
-            selectedIndex: index < 0 ? 0 : index,
-            onDestinationSelected: (selected) =>
-                context.go(destinations[selected].route),
-            destinations: [
-              for (final destination in destinations)
-                NavigationDestination(
-                  icon: Icon(destination.icon),
-                  selectedIcon: Icon(destination.selectedIcon),
-                  label: destination.label,
-                ),
+          OrbitBottomNav(
+            selected: index < 0 ? 0 : index,
+            onSelect: (selected) => context.go(destinations[selected].route),
+            items: [
+              for (final d in destinations)
+                (label: d.label, icon: d.icon, selectedIcon: d.selectedIcon),
             ],
           ),
         ],

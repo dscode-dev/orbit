@@ -1,32 +1,10 @@
-/// Os primitivos da interface do Orbit Operator.
-///
-/// ## A regra, e por que ela mudou
-///
-/// A versão anterior deste arquivo defendia que *"caixa é para agrupamento
-/// semântico real; o resto é linha"*. A intenção era boa — evitar caixa dentro
-/// de caixa — mas o resultado foi uma tela em que tudo sangra até a borda, sem
-/// contenção nenhuma, com o peso visual de uma tela de ajustes do sistema.
-///
-/// A regra agora é outra:
-///
-/// > **Conteúdo mora dentro de um cartão. O fundo da página nunca encosta no
-/// > texto.**
-///
-/// O que evita o empilhamento não é proibir a caixa: é o cartão ser **um só
-/// nível**. Linhas vivem dentro do cartão e não ganham caixa própria; seções
-/// diferentes ganham cartões irmãos, nunca aninhados.
-///
-/// ## De onde vem a aparência
-///
-/// Cartão branco sobre fundo levemente frio, canto de 20, sombra em duas
-/// camadas — uma colada, que faz a borda, e uma larga e difusa, que faz a
-/// distância. Tipografia da marca: Space Grotesk no que precisa de presença,
-/// Inter no que se lê em quantidade.
+/// Operational primitives: compact rows, semantic groups and restrained color.
 library;
 
 import 'package:flutter/material.dart';
 
 import '../theme/orbit_theme.dart';
+import 'orbit_operational.dart';
 
 /// O tom semântico de um estado. Cor **significa**; não decora.
 enum OrbitTone { neutral, info, success, warning, danger, intelligence }
@@ -39,7 +17,10 @@ enum OrbitTone { neutral, info, success, warning, danger, intelligence }
       OrbitTone.success => (forte: p.success, suave: p.successSoft),
       OrbitTone.warning => (forte: p.warning, suave: p.warningSoft),
       OrbitTone.danger => (forte: p.danger, suave: p.dangerSoft),
-      OrbitTone.intelligence => (forte: p.intelligence, suave: p.intelligenceSoft),
+      OrbitTone.intelligence => (
+        forte: p.intelligence,
+        suave: p.intelligenceSoft,
+      ),
     };
 
 /// O contêiner. Tudo que é conteúdo mora dentro de um destes.
@@ -77,7 +58,7 @@ class OrbitCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: OrbitRadius.card,
-        boxShadow: raised ? OrbitShadow.raised : OrbitShadow.card,
+        border: Border.all(color: palette.border),
       ),
       child: ClipRRect(
         borderRadius: OrbitRadius.card,
@@ -189,27 +170,27 @@ class OrbitMetricStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (metrics.isEmpty) return const SizedBox.shrink();
-    final palette = context.orbit;
-
-    return OrbitCard(
-      padding: EdgeInsets.zero,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (final (i, m) in metrics.indexed) ...[
-              if (i > 0)
-                VerticalDivider(
-                  width: 1,
-                  thickness: 1,
-                  indent: OrbitSpacing.md,
-                  endIndent: OrbitSpacing.md,
-                  color: palette.border,
+    final p = context.orbit;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: p.surfaceMuted,
+        borderRadius: OrbitRadius.field,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = MediaQuery.textScalerOf(context).scale(1) > 1.2
+              ? 2
+              : metrics.length;
+          return Wrap(
+            children: [
+              for (final metric in metrics)
+                SizedBox(
+                  width: constraints.maxWidth / columns,
+                  child: _Coluna(metric),
                 ),
-              Expanded(child: _Coluna(m)),
             ],
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -259,10 +240,7 @@ class _Coluna extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  dados.value,
-                  style: OrbitType.metric.copyWith(color: cor),
-                ),
+                Text(dados.value, style: OrbitType.metric.copyWith(color: cor)),
                 const SizedBox(height: 2),
                 Text(
                   dados.label,
@@ -271,8 +249,6 @@ class _Coluna extends StatelessWidget {
                     color: palette.inkSubtle,
                     fontSize: 12,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -307,77 +283,45 @@ class OrbitHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.orbit;
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        borderRadius: OrbitRadius.hero,
-        boxShadow: OrbitShadow.brand,
-      ),
-      child: ClipRRect(
-        borderRadius: OrbitRadius.hero,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [palette.accent, palette.intelligence],
-            ),
+    final p = context.orbit;
+    return OrbitPanel(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.play_circle_outline, size: 16, color: p.accent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  eyebrow,
+                  style: OrbitType.label.copyWith(color: p.accent),
+                ),
+              ),
+            ],
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.all(OrbitSpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      eyebrow.toUpperCase(),
-                      style: OrbitType.eyebrow.copyWith(
-                        color: Colors.white.withValues(alpha: 0.85),
-                      ),
-                    ),
-                    const SizedBox(height: OrbitSpacing.ms),
-                    Text(
-                      title,
-                      style: OrbitType.heroTitle.copyWith(color: Colors.white),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: OrbitSpacing.xs),
-                      Text(
-                        subtitle!,
-                        style: OrbitType.body.copyWith(
-                          color: Colors.white.withValues(alpha: 0.92),
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                    if (meta != null) ...[
-                      const SizedBox(height: OrbitSpacing.ms),
-                      Text(
-                        meta!,
-                        style: OrbitType.caption.copyWith(
-                          color: Colors.white.withValues(alpha: 0.78),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                    if (action != null) ...[
-                      const SizedBox(height: OrbitSpacing.ml),
-                      SizedBox(width: double.infinity, child: action),
-                    ],
-                  ],
+          const SizedBox(height: 8),
+          Text(title, style: OrbitType.heroTitle.copyWith(color: p.ink)),
+          if (subtitle != null)
+            Text(
+              subtitle!,
+              style: OrbitType.caption.copyWith(color: p.inkMuted),
+            ),
+          if (meta != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                meta!,
+                style: OrbitType.label.copyWith(
+                  color: p.inkSubtle,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
             ),
-          ),
-        ),
+          if (action != null)
+            Align(alignment: Alignment.centerRight, child: action!),
+        ],
       ),
     );
   }
@@ -399,15 +343,16 @@ class OrbitHeroButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.orbit;
-    return FilledButton(
+    return TextButton(
       onPressed: onPressed,
       style: FilledButton.styleFrom(
-        backgroundColor: Colors.white,
+        backgroundColor: palette.surface,
         foregroundColor: palette.accentStrong,
-        minimumSize: const Size.fromHeight(50),
+        minimumSize: const Size(48, 48),
         shape: const RoundedRectangleBorder(borderRadius: OrbitRadius.field),
-        textStyle: OrbitType.label.copyWith(fontSize: 15.5),
+        textStyle: OrbitType.label,
       ),
+
       /// `Flexible` no rótulo: em escala de texto 2.0x, ou num aparelho
       /// estreito, "Retomar atendimento" passa da largura do cartão e o botão
       /// estoura. Reticência é feia; faixa listrada de overflow é pior.
@@ -444,7 +389,7 @@ class OrbitSection extends StatelessWidget {
     this.action,
     this.actionLabel,
     this.count,
-    this.boxed = true,
+    this.boxed = false,
     this.padding = EdgeInsets.zero,
   });
 
@@ -467,8 +412,8 @@ class OrbitSection extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(
-            left: OrbitSpacing.xs,
-            right: OrbitSpacing.xs,
+            left: 0,
+            right: 0,
             bottom: OrbitSpacing.ms,
           ),
           child: Row(
@@ -512,10 +457,7 @@ class OrbitSection extends StatelessWidget {
             ],
           ),
         ),
-        if (boxed)
-          OrbitCard(padding: padding, child: child)
-        else
-          child,
+        if (boxed) OrbitCard(padding: padding, child: child) else child,
       ],
     );
   }
@@ -575,98 +517,16 @@ class OrbitListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.orbit;
-    final corDoHorario = tone == null
-        ? (emphasis ? palette.accent : palette.ink)
-        : _cores(palette, tone!).forte;
-
-    return Material(
-      color: emphasis ? palette.accentSoft : Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: OrbitSpacing.ml,
-            vertical: OrbitSpacing.md,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (leading != null) ...[
-                SizedBox(
-                  width: 50,
-                  child: Text(
-                    leading!,
-                    style: OrbitType.numeric.copyWith(color: corDoHorario),
-                  ),
-                ),
-                const SizedBox(width: OrbitSpacing.ms),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: OrbitType.itemTitle.copyWith(color: palette.ink),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitle!,
-                        style: OrbitType.caption.copyWith(
-                          color: palette.inkMuted,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-
-                    /// O selo desce para cá em vez de ficar à direita do
-                    /// título. À direita ele comia oitenta pixels da linha
-                    /// mais importante da tela, e o nome do cliente quebrava
-                    /// em duas linhas para caber no que sobrava.
-                    if (detail != null || trailing != null) ...[
-                      const SizedBox(height: OrbitSpacing.sm),
-                      Row(
-                        children: [
-                          if (detail != null)
-                            Expanded(
-                              child: Text(
-                                detail!,
-                                style: OrbitType.caption.copyWith(
-                                  color: palette.inkSubtle,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            )
-                          else
-                            const Spacer(),
-                          if (trailing != null) ...[
-                            const SizedBox(width: OrbitSpacing.sm),
-                            trailing!,
-                          ],
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              if (onTap != null) ...[
-                const SizedBox(width: OrbitSpacing.sm),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: palette.inkDisabled,
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+    return OrbitServiceRow(
+      time: leading,
+      title: title,
+      subtitle: subtitle,
+      detail: detail,
+      status: trailing,
+      onTap: onTap,
+      emphasis: emphasis,
+      timeline: leading != null,
+      accent: tone == null ? null : _cores(context.orbit, tone!).forte,
     );
   }
 }
@@ -686,7 +546,7 @@ class OrbitStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = _cores(context.orbit, tone);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(color: c.suave, borderRadius: OrbitRadius.pill),
       child: Text(
         label,
@@ -713,45 +573,44 @@ class OrbitQuickAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.orbit;
-    final c = _cores(palette, tone);
+    final p = context.orbit;
     return Semantics(
       button: true,
       label: label,
-      child: OrbitCard(
-        onTap: onTap,
-        padding: const EdgeInsets.symmetric(
-          horizontal: OrbitSpacing.ms,
-          vertical: OrbitSpacing.md,
-        ),
-        child: SizedBox(
-          width: 80,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: c.suave,
-                  borderRadius: OrbitRadius.chip,
-                ),
-                child: Icon(icon, size: 20, color: c.forte),
+      excludeSemantics: true,
+      child: Tooltip(
+        message: label,
+        child: Material(
+          color: p.surface,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: OrbitRadius.field,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: p.surfaceMuted,
+                      borderRadius: OrbitRadius.field,
+                    ),
+                    child: Icon(icon, size: 24, color: p.inkMuted),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: OrbitType.label.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: p.inkMuted,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: OrbitSpacing.sm),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                /// Uma linha: "Documentos" quebrando em "Documento/s" é pior
-                /// que a reticência, e o ícone já carrega o significado.
-                style: OrbitType.caption.copyWith(
-                  color: palette.inkMuted,
-                  fontSize: 11.5,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            ),
           ),
         ),
       ),

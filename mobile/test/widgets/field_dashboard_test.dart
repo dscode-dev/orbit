@@ -66,10 +66,7 @@ Map<String, dynamic> home({
     'today': today,
     'overdue': overdue,
     'inProgress': inProgress,
-    'capabilities': {
-      'canScanEquipment': canScan,
-      'canCreateAdHocRvt': false,
-    },
+    'capabilities': {'canScanEquipment': canScan, 'canCreateAdHocRvt': false},
   },
   'recentDocuments': documents,
   'recentAppointments': appointments,
@@ -165,10 +162,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.textContaining(RegExp('Bom dia|Boa tarde|Boa noite')),
-      findsOneWidget,
-    );
+    expect(find.textContaining(RegExp('Olá')), findsOneWidget);
 
     /// Uma rodada anterior tinha **removido** os contadores, com o argumento
     /// de que "contador informa; ele não diz o que fazer". O produto pediu as
@@ -302,7 +296,7 @@ void main() {
     await tester.pumpWidget(host(home(today: [workItem()])));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ações rápidas'), findsOneWidget);
+    expect(find.byType(OrbitQuickAction), findsWidgets);
     for (final rotulo in ['Minha fila', 'Agenda', 'Documentos']) {
       expect(find.text(rotulo), findsOneWidget);
     }
@@ -313,10 +307,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Nenhum atendimento programado'), findsOneWidget);
-    expect(
-      find.textContaining('aparece aqui'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('aparece aqui'), findsOneWidget);
   });
 
   testWidgets('falha do servidor mostra erro com nova tentativa', (

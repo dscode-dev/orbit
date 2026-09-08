@@ -37,6 +37,7 @@ class SectionBlock extends StatelessWidget {
     this.subtitle,
     this.boxed = false,
     this.flush = false,
+    this.inset = OrbitSpacing.gutter,
   });
 
   final String title;
@@ -50,16 +51,17 @@ class SectionBlock extends StatelessWidget {
   /// Conteúdo colado às margens da tela — para listas de linhas, cujos
   /// separadores devem atravessar a largura toda.
   final bool flush;
+  final double inset;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.orbit;
 
     final cabecalho = Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
+        inset,
         OrbitSpacing.md,
-        OrbitSpacing.lg,
-        OrbitSpacing.md,
+        inset,
         OrbitSpacing.sm,
       ),
       child: Row(
@@ -70,7 +72,7 @@ class SectionBlock extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title.toUpperCase(),
+                  title,
                   style: OrbitType.sectionTitle.copyWith(
                     color: palette.inkSubtle,
                   ),
@@ -96,13 +98,13 @@ class SectionBlock extends StatelessWidget {
 
     final conteudo = boxed
         ? Padding(
-            padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.md),
+            padding: EdgeInsets.symmetric(horizontal: inset),
             child: OrbitPanel(child: child),
           )
         : flush
         ? child
         : Padding(
-            padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.md),
+            padding: EdgeInsets.symmetric(horizontal: inset),
             child: child,
           );
 

@@ -5,6 +5,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -71,6 +72,14 @@ class AgendaScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Agenda'),
         actions: [
+          IconButton(tooltip: 'Escolher data', icon: const Icon(Icons.calendar_month_outlined),
+            onPressed: agenda.valueOrNull?.value.civilDate == null ? null : () async {
+              final anchor = date ?? agenda.valueOrNull!.value.civilDate!;
+              final chosen = await showDatePicker(context: context,
+                initialDate: DateTime(anchor.year, anchor.month, anchor.day),
+                firstDate: DateTime(anchor.year - 5), lastDate: DateTime(anchor.year + 5, 12, 31));
+              if (chosen != null && context.mounted) ref.read(agendaDateProvider.notifier).state = CivilDate(chosen.year, chosen.month, chosen.day);
+            }),
           IconButton(
             tooltip: 'Hoje',
             icon: const Icon(Icons.today),
@@ -107,51 +116,24 @@ class AgendaScreen extends ConsumerWidget {
                 ),
                 data: (result) {
                   final events = result.value.events;
-                  return ListView(
+                  return ListView.builder(
                     padding: const EdgeInsets.all(OrbitSpacing.gutter),
-                    children: [
-                      if (result.cachedAt != null)
-                        StaleDataBanner(cachedAt: result.cachedAt!),
-                      if (events.isEmpty)
-                        const SectionEmpty(
-                          icon: Icons.event_available_outlined,
-                          message: 'Nenhum compromisso neste dia.',
-                        )
-                      else ...[
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            left: OrbitSpacing.xs,
-                            bottom: OrbitSpacing.ms,
-                          ),
-                          child: Text(
-                            result.value.total == 1
-                                ? '1 compromisso'
-                                : '${result.value.total} compromissos',
-                            style: OrbitType.caption.copyWith(
-                              color: context.orbit.inkSubtle,
-                            ),
-                          ),
-                        ),
-
-                        /// O dia inteiro dentro de um cartão: a agenda é uma
-                        /// sequência contínua, e o cartão é o que a separa do
-                        /// fundo da página sem quebrar a coluna de horários.
-                        OrbitCard(
-                          padding: EdgeInsets.zero,
-                          child: Column(
-                            children: [
-                              for (final (indice, event) in events.indexed) ...[
-                                if (indice > 0) const OrbitRowDivider(),
-                                _EventRow(
-                                  event: event,
-                                  workItemId: workItems[event.eventId],
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
+                    itemCount: events.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        if (result.cachedAt != null) StaleDataBanner(cachedAt: result.cachedAt!),
+                        if (events.isEmpty)
+                          const SectionEmpty(icon: Icons.event_available_outlined, message: 'Nenhum compromisso neste dia.')
+                        else Padding(padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(result.value.total == 1 ? '1 compromisso' : '${result.value.total} compromissos',
+                            style: OrbitType.caption.copyWith(color: context.orbit.inkSubtle))),
+                      ]);
+                      final event = events[index - 1];
+                      return Column(children: [
+                        if (index > 1) const OrbitRowDivider(indent: 0),
+                        _EventRow(event: event, workItemId: workItems[event.eventId]),
+                      ]);
+                    },
                   );
                 },
               ),
@@ -189,23 +171,43 @@ class _DayNavigator extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          IconButton(
-            onPressed: anchor == null ? null : () => shift(-1),
-            icon: const Icon(Icons.chevron_left),
-            tooltip: 'Dia anterior',
+          Row(
+            children: [
+              IconButton(
+                onPressed: anchor == null ? null : () => shift(-1),
+                icon: const Icon(Icons.chevron_left),
+                tooltip: 'Dia anterior',
+              ),
+              Expanded(
+                child: Text(
+              anchor == null ? 'Hoje' : DateFormat('MMM yyyy', 'pt_BR').format(DateTime.utc(anchor.year, anchor.month, anchor.day)),
+                  textAlign: TextAlign.center,
+                  style: OrbitType.caption,
+                ),
+              ),
+              IconButton(
+                onPressed: anchor == null ? null : () => shift(1),
+                icon: const Icon(Icons.chevron_right),
+                tooltip: 'Próximo dia',
+              ),
+            ],
           ),
-          Text(
-            anchor == null ? 'Hoje' : OrbitFormat.fullDate(anchor),
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-          ),
-          IconButton(
-            onPressed: anchor == null ? null : () => shift(1),
-            icon: const Icon(Icons.chevron_right),
-            tooltip: 'Próximo dia',
-          ),
+          if (anchor != null)
+            Row(
+              children: [
+                for (var offset = -2; offset <= 2; offset++)
+                  Expanded(
+                    child: _DayButton(
+                      day: anchor.addDays(offset),
+                      selected: offset == 0,
+                      onTap: () => ref.read(agendaDateProvider.notifier).state =
+                          anchor.addDays(offset),
+                    ),
+                  ),
+              ],
+            ),
         ],
       ),
     );
@@ -263,6 +265,59 @@ class _EventRow extends StatelessWidget {
                   ? OrbitTone.warning
                   : OrbitTone.danger,
             ),
+    );
+  }
+}
+
+class _DayButton extends StatelessWidget {
+  const _DayButton({
+    required this.day,
+    required this.selected,
+    required this.onTap,
+  });
+  final CivilDate day;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    final p = context.orbit;
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: OrbitFormat.fullDate(day),
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: OrbitRadius.field,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            children: [
+              Text(
+                DateFormat('EEE', 'pt_BR')
+                    .format(DateTime.utc(day.year, day.month, day.day))
+                    .replaceAll('.', '')
+                    .toUpperCase(),
+                style: OrbitType.eyebrow.copyWith(color: p.inkSubtle),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: selected ? p.accentSoft : p.surface,
+                  borderRadius: OrbitRadius.field,
+                ),
+                child: Text(
+                  '${day.day}',
+                  style: OrbitType.sectionTitle.copyWith(
+                    color: selected ? p.accent : p.ink,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

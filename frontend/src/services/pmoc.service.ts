@@ -30,6 +30,9 @@ import type {
   PmocPlan,
   PmocPlanQuery,
   PmocPlanSummary,
+  PmocPreview,
+  PmocPreviewInput,
+  PmocCodeSuggestion,
   PmocTimelineItem,
   PmocTimelineQuery,
   PmocUpcoming,
@@ -62,6 +65,30 @@ export const pmocService = {
 
   create: (input: CreatePmocPlanInput): Promise<PmocPlanSummary> =>
     apiClient.post<PmocPlanSummary>("/pmoc/plans", input),
+
+  /**
+   * O código sugerido para um cliente.
+   *
+   * Não reserva número: quem consome a sequência é o create. Duas telas
+   * abertas ao mesmo tempo veem o mesmo `003` e salvam como `003` e `004`.
+   */
+  codeSuggestion: (
+    customerId: string,
+    options?: RequestOptions,
+  ): Promise<PmocCodeSuggestion> =>
+    apiClient.get<PmocCodeSuggestion>("/pmoc/code-suggestion", {
+      ...options,
+      query: { customerId },
+    }),
+
+  /**
+   * A projeção da configuração — ciclos, equipamentos e a matriz.
+   *
+   * `POST` porque a lista de equipamentos não cabe numa query string. Não cria
+   * nada; a conta de `ciclos × equipamentos` é do backend, e não da tela.
+   */
+  preview: (input: PmocPreviewInput): Promise<PmocPreview> =>
+    apiClient.post<PmocPreview>("/pmoc/plans/preview", input),
 
   update: (id: string, input: UpdatePmocPlanInput): Promise<PmocPlanSummary> =>
     apiClient.patch<PmocPlanSummary>(plan(id), input),

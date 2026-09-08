@@ -24,6 +24,14 @@ import 'package:orbit_operator/features/scheduling/presentation/agenda_screen.da
 import '../support/fakes.dart';
 import '../support/scripted_adapter.dart';
 import 'harness.dart';
+import 'package:orbit_operator/features/documents/presentation/documents_screen.dart';
+import 'package:orbit_operator/features/profile/presentation/profile_screen.dart';
+import 'package:orbit_operator/core/design/orbit_operational.dart';
+import 'package:orbit_operator/features/field/presentation/operation_execution_screen.dart';
+import 'package:orbit_operator/features/sync/application/sync_providers.dart';
+import 'package:orbit_operator/features/sync/data/command_journal.dart';
+import 'package:orbit_operator/features/sync/data/journal_file.dart';
+import 'package:orbit_operator/features/sync/data/sync_projection.dart';
 
 Map<String, dynamic> item({
   required String id,
@@ -144,7 +152,7 @@ final payloadRico = {
   'recentAppointments': const [],
 };
 
-Widget host(Map<String, dynamic> payload, Widget tela) {
+Widget host(Map<String, dynamic> payload, Widget tela, {bool profile = false}) {
   Future<ResponseBody> handler(RequestOptions options) async =>
       jsonResponse({'success': true, 'data': payload});
 
@@ -162,17 +170,149 @@ Widget host(Map<String, dynamic> payload, Widget tela) {
     overrides: [
       apiClientProvider.overrideWithValue(client),
       readCacheProvider.overrideWithValue(InMemoryReadCache()),
+      if (profile) sessionProvider.overrideWithValue(sessionFrom()),
+      commandJournalProvider.overrideWithValue(
+        CommandJournal(file: MemoryJournalFile()),
+      ),
+      syncProjectionProvider.overrideWithValue(
+        SyncProjectionStore(file: MemoryJournalFile()),
+      ),
     ],
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: OrbitTheme.light(),
-      home: tela,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(captureScale)),
+        child: child!,
+      ),
+      home: Scaffold(
+        body: tela,
+        bottomNavigationBar: OrbitBottomNav(
+          selected: tela is DocumentsScreen
+              ? 3
+              : tela is ProfileScreen
+              ? 4
+              : tela is AgendaScreen
+              ? 2
+              : tela is WorkQueueScreen
+              ? 1
+              : 0,
+          onSelect: (_) {},
+          items: const [
+            (
+              label: 'Início',
+              icon: Icons.home_outlined,
+              selectedIcon: Icons.home,
+            ),
+            (
+              label: 'Atendimentos',
+              icon: Icons.checklist_rtl_outlined,
+              selectedIcon: Icons.checklist_rtl,
+            ),
+            (
+              label: 'Agenda',
+              icon: Icons.calendar_today_outlined,
+              selectedIcon: Icons.calendar_today,
+            ),
+            (
+              label: 'Documentos',
+              icon: Icons.description_outlined,
+              selectedIcon: Icons.description,
+            ),
+            (
+              label: 'Perfil',
+              icon: Icons.person_outline,
+              selectedIcon: Icons.person,
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }
 
 void main() {
+  for (final width in [320.0, 375.0, 390.0, 430.0]) {
+    for (final scale in [1.0, 1.3, 1.5, 2.0]) {
+      group('${width.toInt()}px ${scale}x', () {
+        setUp(() {
+          captureWidth = width;
+          captureScale = scale;
+        });
+        registerCaptures();
+      });
+    }
+  }
+}
+
+void registerCaptures() {
   setUpAll(() async => initializeDateFormatting('pt_BR'));
+
+  testWidgets('documentos', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+    await tester.pumpWidget(
+      host({
+        'data': payloadRico['recentDocuments'],
+        'meta': {'limit': 20, 'hasNextPage': false, 'nextCursor': null},
+      }, const DocumentsScreen()),
+    );
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_${captureScale}/05_documentos.png',
+      ),
+    );
+  });
+
+  testWidgets('perfil', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+    await tester.pumpWidget(host({}, const ProfileScreen(), profile: true));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_${captureScale}/06_perfil.png',
+      ),
+    );
+  });
+
+  testWidgets('wizard', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+    await tester.pumpWidget(
+      host({
+        'operation': {
+          'id': 'op-1',
+          'code': 'OS-024',
+          'title': 'Manutenção preventiva',
+          'status': 'SCHEDULED',
+          'priority': 'NORMAL',
+        },
+        'customer': {'id': 'customer-1', 'name': 'Clínica Santa Maria'},
+        'equipment': <Map<String, dynamic>>[],
+        'auxiliaryTechnicians': <Map<String, dynamic>>[],
+        'checklist': <Map<String, dynamic>>[],
+        'materialPolicy': {'enabled': true},
+        'allowedTransitions': ['IN_PROGRESS'],
+        'allowedActions': ['START'],
+        'primaryAction': 'START',
+        'version': '2026-09-08T12:00:00.000Z',
+        'executionEligibility': {'eligible': true, 'blockers': <String>[]},
+      }, const OperationExecutionScreen(operationId: 'op-1')),
+    );
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_${captureScale}/07_wizard.png',
+      ),
+    );
+  });
 
   testWidgets('dashboard de campo', (tester) async {
     await carregarFontes();
@@ -183,7 +323,9 @@ void main() {
 
     await expectLater(
       find.byType(MaterialApp),
-      matchesGoldenFile('out/01_field_dashboard.png'),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_${captureScale}/01_field_dashboard.png',
+      ),
     );
   });
 
@@ -211,14 +353,34 @@ void main() {
     };
 
     final dados = [
-      op('1', 'Manutencao preventiva - Chiller 40TR', 'IN_PROGRESS', 'HIGH',
-          '2026-09-08T12:30:00.000Z'),
-      op('2', 'Corretiva - Split nao gela', 'SCHEDULED', 'URGENT',
-          '2026-09-08T15:00:00.000Z'),
-      op('3', 'PMOC trimestral - Casa de maquinas', 'SCHEDULED', 'MEDIUM',
-          '2026-09-08T17:30:00.000Z'),
-      op('4', 'Instalacao - VRF 8 evaporadoras', 'COMPLETED', 'LOW',
-          '2026-09-06T11:00:00.000Z'),
+      op(
+        '1',
+        'Manutencao preventiva - Chiller 40TR',
+        'IN_PROGRESS',
+        'HIGH',
+        '2026-09-08T12:30:00.000Z',
+      ),
+      op(
+        '2',
+        'Corretiva - Split nao gela',
+        'SCHEDULED',
+        'URGENT',
+        '2026-09-08T15:00:00.000Z',
+      ),
+      op(
+        '3',
+        'PMOC trimestral - Casa de maquinas',
+        'SCHEDULED',
+        'MEDIUM',
+        '2026-09-08T17:30:00.000Z',
+      ),
+      op(
+        '4',
+        'Instalacao - VRF 8 evaporadoras',
+        'COMPLETED',
+        'LOW',
+        '2026-09-06T11:00:00.000Z',
+      ),
     ];
 
     Future<ResponseBody> handler(RequestOptions options) async => jsonResponse({
@@ -256,6 +418,12 @@ void main() {
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: OrbitTheme.light(),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(captureScale)),
+            child: child!,
+          ),
           home: const OperationsScreen(),
         ),
       ),
@@ -264,7 +432,9 @@ void main() {
 
     await expectLater(
       find.byType(MaterialApp),
-      matchesGoldenFile('out/02_servicos.png'),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_${captureScale}/02_servicos.png',
+      ),
     );
   });
 
@@ -303,7 +473,9 @@ void main() {
 
     await expectLater(
       find.byType(MaterialApp),
-      matchesGoldenFile('out/03_fila.png'),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_${captureScale}/03_fila.png',
+      ),
     );
   });
 
@@ -368,7 +540,9 @@ void main() {
 
     await expectLater(
       find.byType(MaterialApp),
-      matchesGoldenFile('out/04_agenda.png'),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_${captureScale}/04_agenda.png',
+      ),
     );
   });
 }

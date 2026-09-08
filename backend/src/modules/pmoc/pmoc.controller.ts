@@ -46,6 +46,8 @@ import {
   CompletePmocExecutionDto,
   CreatePmocOperationDto,
   CreatePmocPlanDto,
+  PmocCodeSuggestionQueryDto,
+  PreviewPmocPlanDto,
   LinkPmocEvidenceDto,
   PmocAnalyticsQueryDto,
   PmocCoveragePageQueryDto,
@@ -107,6 +109,35 @@ export class PmocController {
   @ApiOperation({ summary: 'Create a plan; it starts as DRAFT' })
   create(@Req() request: IdentityRequest, @Body() input: CreatePmocPlanDto) {
     return this.pmoc.create(this.actor(request), input);
+  }
+
+  @Get('code-suggestion')
+  @Capabilities('pmoc.manage')
+  @Permissions('pmoc.manage')
+  @ApiOperation({
+    summary: 'Next PMOC code for a customer; suggestion only, nothing reserved',
+  })
+  codeSuggestion(
+    @Req() request: IdentityRequest,
+    @Query() query: PmocCodeSuggestionQueryDto,
+  ) {
+    return this.pmoc.codeSuggestion(this.actor(request), query.customerId);
+  }
+
+  /**
+   * `POST` porque a entrada é um corpo — a lista de equipamentos não cabe numa
+   * query string. **Não cria nada**: valida a configuração e devolve a matriz
+   * projetada.
+   */
+  @Post('plans/preview')
+  @HttpCode(HttpStatus.OK)
+  @Capabilities('pmoc.manage')
+  @Permissions('pmoc.manage')
+  @ApiOperation({
+    summary: 'Project cycles and the equipment matrix without creating anything',
+  })
+  preview(@Req() request: IdentityRequest, @Body() input: PreviewPmocPlanDto) {
+    return this.pmoc.preview(this.actor(request), input);
   }
 
   @Get('plans/:id')

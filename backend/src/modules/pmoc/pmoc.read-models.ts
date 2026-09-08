@@ -203,3 +203,66 @@ export interface PmocUpcomingReadModel {
   customer: { id: string; name: string };
   coveredEquipment: number;
 }
+
+/* ------------------------------------------------------------------ */
+/* PR-FX-03 — configuração do plano                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O código que a tela preenche ao escolher o cliente.
+ *
+ * `reserved` é `false` de propósito: a sugestão não queima número. Quem
+ * consome a sequência é o create, atomicamente — duas telas abertas ao mesmo
+ * tempo veem o mesmo `003` e salvam como `003` e `004`, sem erro.
+ */
+export interface PmocCodeSuggestionReadModel {
+  readonly customerId: string;
+  readonly customerName: string;
+  readonly suggestedCode: string;
+  readonly sequence: number;
+  readonly reserved: boolean;
+}
+
+/** Um atendimento previsto do plano, antes de o plano existir. */
+export interface PmocPreviewCycleReadModel {
+  readonly sequence: number;
+  readonly dueOn: string;
+}
+
+/** A linha da matriz: um equipamento e as execuções que ele terá. */
+export interface PmocPreviewMatrixRowReadModel {
+  readonly equipment: {
+    readonly id: string;
+    readonly name: string;
+    readonly model: string | null;
+    readonly manufacturer: string | null;
+    readonly status: string;
+  };
+  readonly executions: readonly {
+    readonly executionNumber: number;
+    readonly dueOn: string;
+  }[];
+}
+
+/**
+ * O que o plano vai gerar — projeção, sem efeito colateral.
+ *
+ * `projectedExecutions` é `cycleCount × equipmentCount`, calculado aqui e não
+ * na tela: a aritmética de calendário que satura o fim do mês mora no domínio
+ * e no banco, e uma terceira cópia em JavaScript de formulário divergiria na
+ * primeira vigência que começa dia 31.
+ */
+export interface PmocPreviewReadModel {
+  readonly customer: { readonly id: string; readonly name: string };
+  readonly timezone: string;
+  readonly startsOn: string;
+  readonly endsOn: string | null;
+  readonly frequency: PmocFrequencyReadModel;
+  readonly cycles: readonly PmocPreviewCycleReadModel[];
+  readonly cycleCount: number;
+  /** `true` quando a vigência é aberta e a lista foi truncada pelo teto. */
+  readonly truncated: boolean;
+  readonly equipmentCount: number;
+  readonly matrix: readonly PmocPreviewMatrixRowReadModel[];
+  readonly projectedExecutions: number;
+}

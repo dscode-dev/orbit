@@ -2726,4 +2726,238 @@ describe('PMOC (e2e)', () => {
       `PR29_1_FINAL_CLOSURE=${JSON.stringify(gateResults)}\nPR29_1_SQL=${JSON.stringify(consolidated[0], (_key, value: unknown) => (typeof value === 'bigint' ? Number(value) : value))}\n`,
     );
   }, 300_000);
+
+  /* ---------------------------------------------------------------- */
+  /* PR-FX-03 — configuração e integridade por equipamento             */
+  /* ---------------------------------------------------------------- */
+
+  describe('PR-FX-03', () => {
+    it('sugere o código a partir do cliente, sem reservar o número', async () => {
+      const primeira = await http()
+        .get(`/api/v1/pmoc/code-suggestion?customerId=${customerId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(primeira.body.data.suggestedCode).toMatch(/^PMOC-[A-Z0-9-]+-\d{3,}$/);
+      expect(primeira.body.data.reserved).toBe(false);
+
+      /** Consultar duas vezes devolve o mesmo: sugerir não consome. */
+      const segunda = await http()
+        .get(`/api/v1/pmoc/code-suggestion?customerId=${customerId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(segunda.body.data.suggestedCode).toBe(
+        primeira.body.data.suggestedCode,
+      );
+    });
+
+    it('projeta seis ciclos e doze execuções para dois equipamentos', async () => {
+      const resposta = await http()
+        .post('/api/v1/pmoc/plans/preview')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          businessUnitId: unitA,
+          customerId,
+          startsOn: '2026-09-08',
+          coverageAmount: 6,
+          coverageUnit: 'MONTHS',
+          frequencyAmount: 1,
+          frequencyUnit: 'MONTHS',
+          assetIds: [assetA, assetB],
+        })
+        .expect(200);
+
+      const preview = resposta.body.data;
+      expect(preview.endsOn).toBe('2027-03-07');
+      expect(preview.cycleCount).toBe(6);
+      expect(preview.equipmentCount).toBe(2);
+      expect(preview.projectedExecutions).toBe(12);
+
+      /** Cada equipamento com a sua própria sequência 1..6, sem intercalar. */
+      expect(preview.matrix).toHaveLength(2);
+      for (const linha of preview.matrix) {
+        expect(
+          linha.executions.map((e: { executionNumber: number }) => e.executionNumber),
+        ).toEqual([1, 2, 3, 4, 5, 6]);
+      }
+    });
+
+    it('o preview não cria nada', async () => {
+      const antes = await prisma.pmocPlan.count({ where: { organizationId } });
+      await http()
+        .post('/api/v1/pmoc/plans/preview')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          businessUnitId: unitA,
+          customerId,
+          startsOn: '2026-09-08',
+          coverageAmount: 6,
+          coverageUnit: 'MONTHS',
+          frequencyAmount: 1,
+          frequencyUnit: 'MONTHS',
+          assetIds: [assetA, assetB],
+        })
+        .expect(200);
+      expect(await prisma.pmocPlan.count({ where: { organizationId } })).toBe(
+        antes,
+      );
+    });
+
+    it('recusa equipamento de outro cliente', async () => {
+      const outro = await http()
+        .post('/api/v1/customers')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ type: 'COMPANY', legalName: `Alheio ${randomUUID().slice(0, 8)}` })
+        .expect(201);
+
+      const alheio = await http()
+        .post('/api/v1/assets')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          businessUnitId: unitA,
+          customerId: outro.body.data.id,
+          category: 'EQUIPMENT',
+          name: `Alheio ${randomUUID().slice(0, 8)}`,
+        })
+        .expect(201);
+
+      await http()
+        .post('/api/v1/pmoc/plans/preview')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          businessUnitId: unitA,
+          customerId,
+          startsOn: '2026-09-08',
+          coverageAmount: 6,
+          coverageUnit: 'MONTHS',
+          frequencyAmount: 1,
+          frequencyUnit: 'MONTHS',
+          assetIds: [assetA, alheio.body.data.id],
+        })
+        .expect(400);
+
+      await http()
+        .post('/api/v1/pmoc/plans')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          businessUnitId: unitA,
+          customerId,
+          name: 'Injeção cross-customer',
+          startsOn: '2026-09-08',
+          endsOn: '2027-03-07',
+          frequencyAmount: 1,
+          frequencyUnit: 'MONTHS',
+          assetIds: [alheio.body.data.id],
+        })
+        .expect(400);
+    });
+
+    it('cria plano e coberturas na mesma transação', async () => {
+      const criado = await http()
+        .post('/api/v1/pmoc/plans')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          businessUnitId: unitA,
+          customerId,
+          name: `Transacional ${randomUUID().slice(0, 8)}`,
+          startsOn: '2026-09-08',
+          endsOn: '2027-03-07',
+          frequencyAmount: 1,
+          frequencyUnit: 'MONTHS',
+          assetIds: [assetA, assetB],
+        })
+        .expect(201);
+
+      const planId = criado.body.data.id;
+      expect(criado.body.data.code).toMatch(/^PMOC-[A-Z0-9-]+-\d{3,}$/);
+
+      const coberturas = await prisma.pmocEquipmentCoverage.count({
+        where: { planId, deletedAt: null },
+      });
+      expect(coberturas).toBe(2);
+    });
+
+    it('quatro criações simultâneas recebem quatro códigos distintos', async () => {
+      const resultados = await Promise.all(
+        Array.from({ length: 4 }, (_, indice) =>
+          http()
+            .post('/api/v1/pmoc/plans')
+            .set('Authorization', `Bearer ${token}`)
+            .send({
+              businessUnitId: unitA,
+              customerId,
+              name: `Concorrente ${indice} ${randomUUID().slice(0, 8)}`,
+              startsOn: '2026-09-08',
+              endsOn: '2027-03-07',
+              frequencyAmount: 1,
+              frequencyUnit: 'MONTHS',
+              assetIds: [assetA],
+            }),
+        ),
+      );
+
+      const codigos = resultados
+        .filter((resposta) => resposta.status === 201)
+        .map((resposta) => resposta.body.data.code as string);
+
+      /** Nenhuma falha, e nenhum código repetido. */
+      expect(codigos).toHaveLength(4);
+      expect(new Set(codigos).size).toBe(4);
+    });
+
+    it('código customizado duplicado vira conflito público, não erro técnico', async () => {
+      const code = `CONTRATO-${randomUUID().slice(0, 8).toUpperCase()}`;
+      const corpo = (nome: string) => ({
+        businessUnitId: unitA,
+        customerId,
+        code,
+        name: nome,
+        startsOn: '2026-09-08',
+        endsOn: '2027-03-07',
+        frequencyAmount: 1,
+        frequencyUnit: 'MONTHS',
+        assetIds: [assetA],
+      });
+
+      await http()
+        .post('/api/v1/pmoc/plans')
+        .set('Authorization', `Bearer ${token}`)
+        .send(corpo('Original'))
+        .expect(201);
+
+      const conflito = await http()
+        .post('/api/v1/pmoc/plans')
+        .set('Authorization', `Bearer ${token}`)
+        .send(corpo('Duplicado'))
+        .expect(409);
+
+      expect(conflito.body.error.code).toBe('CONFLICT');
+      /** Sem nome de constraint, sem SQL, sem tabela. */
+      expect(conflito.body.error.message).not.toMatch(
+        /pmoc_plans|unique|constraint|index/i,
+      );
+    });
+
+    it('mantém a criação legada sem equipamentos', async () => {
+      const legado = await http()
+        .post('/api/v1/pmoc/plans')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          businessUnitId: unitA,
+          customerId,
+          code: `LEGADO-${randomUUID().slice(0, 8).toUpperCase()}`,
+          name: 'Sem equipamentos, como antes',
+          startsOn: '2026-09-08',
+          frequencyAmount: 1,
+          frequencyUnit: 'MONTHS',
+        })
+        .expect(201);
+
+      expect(
+        await prisma.pmocEquipmentCoverage.count({
+          where: { planId: legado.body.data.id },
+        }),
+      ).toBe(0);
+    });
+  });
 });

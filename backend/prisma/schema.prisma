@@ -313,6 +313,8 @@ model Organization {
   customerServiceRequests       CustomerServiceRequest[]
   customerServiceRequestEvents  CustomerServiceRequestEvent[]
 
+  pmocCodeSequences PmocCodeSequence[]
+
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
   @@map("organizations")
@@ -850,6 +852,8 @@ model Customer {
 
   quotes    Quote[]
   pmocPlans PmocPlan[]
+
+  pmocCodeSequences PmocCodeSequence[]
 
   @@index([organizationId, status, deletedAt])
   @@index([organizationId, documentNumber])
@@ -3367,6 +3371,26 @@ model PmocPlan {
   @@index([organizationId, businessUnitId, status])
   @@index([organizationId, customerId])
   @@map("pmoc_plans")
+}
+
+/// O contador do código sugerido, por cliente.
+///
+/// Não é `COUNT(*) + 1`: a unicidade do código é parcial (só vale onde
+/// `deletedAt IS NULL`), então contar planos devolveria um número já usado
+/// assim que alguém apagasse um. Também não é uma SEQUENCE por cliente, que
+/// seria DDL criado em runtime. É um contador persistido, incrementado dentro
+/// da transação do create — atômico sob concorrência e sem reuso.
+model PmocCodeSequence {
+  organizationId String   @map("organization_id") @db.Uuid
+  customerId     String   @map("customer_id") @db.Uuid
+  lastValue      Int      @default(0) @map("last_value")
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, customerId])
+  @@map("pmoc_code_sequences")
 }
 
 /// Um equipamento coberto por um plano.

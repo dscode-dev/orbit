@@ -121,6 +121,13 @@ class OrbitWizardState extends State<OrbitWizard> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _Trilho(steps: widget.steps, current: _atual, onSelect: _ir),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
+          child: LinearProgressIndicator(
+            value: (_atual + 1) / widget.steps.length,
+            minHeight: 3,
+          ),
+        ),
 
         Padding(
           padding: const EdgeInsets.fromLTRB(
@@ -139,7 +146,7 @@ class OrbitWizardState extends State<OrbitWizard> {
               const SizedBox(height: 2),
               Text(
                 etapa.title,
-                style: OrbitType.screenTitle.copyWith(color: palette.ink),
+                style: OrbitType.sectionTitle.copyWith(color: palette.ink),
               ),
               if (etapa.hint case final String dica) ...[
                 const SizedBox(height: 4),
@@ -181,7 +188,7 @@ class OrbitWizardState extends State<OrbitWizard> {
                 const SizedBox(width: OrbitSpacing.sm),
               if (proxima != null)
                 Expanded(
-                  child: FilledButton(
+                  child: OutlinedButton(
                     onPressed: () => _ir(proxima),
                     style: FilledButton.styleFrom(
                       minimumSize: const Size(0, 48),
@@ -285,7 +292,10 @@ class _Marca extends StatelessWidget {
             horizontal: OrbitSpacing.ms,
             vertical: 6,
           ),
-          decoration: BoxDecoration(color: fundo, borderRadius: OrbitRadius.pill),
+          decoration: BoxDecoration(
+            color: fundo,
+            borderRadius: OrbitRadius.pill,
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

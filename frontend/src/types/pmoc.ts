@@ -17,6 +17,9 @@
  * garantiria a confusão que este domínio existe para evitar.
  */
 import type {
+  PmocCodeSuggestionReadModel,
+  PmocPreviewReadModel,
+  PmocPreviewMatrixRowReadModel,
   PmocComplianceSummaryReadModel,
   PmocCoverageReadModel,
   PmocCursorPageReadModel,
@@ -29,6 +32,9 @@ import type {
 } from "./contracts/modules/pmoc/pmoc.read-models";
 
 export type PmocPlanSummary = PmocPlanSummaryReadModel;
+export type PmocCodeSuggestion = PmocCodeSuggestionReadModel;
+export type PmocPreview = PmocPreviewReadModel;
+export type PmocPreviewMatrixRow = PmocPreviewMatrixRowReadModel;
 export type PmocPlan = PmocPlanReadModel;
 export type PmocCoverage = PmocCoverageReadModel;
 export type PmocCycle = PmocExecutionReadModel;
@@ -108,7 +114,12 @@ export interface PmocTimelineQuery {
 export interface CreatePmocPlanInput {
   businessUnitId: string;
   customerId: string;
-  code: string;
+  /**
+   * Omitir é o caminho canônico: o backend aloca o próximo da sequência do
+   * cliente dentro da transação, e criações simultâneas não colidem. Enviar
+   * significa "este código é meu, não gere".
+   */
+  code?: string;
   name: string;
   startsOn: string;
   endsOn?: string;
@@ -124,6 +135,21 @@ export interface CreatePmocPlanInput {
   schedulingPaused?: boolean;
   reviewRequired?: boolean;
   notes?: string;
+  /** Equipamentos que participam; plano e coberturas nascem juntos. */
+  assetIds?: string[];
+}
+
+/** Entrada do preview: vigência como duração, que é como a tela pergunta. */
+export interface PmocPreviewInput {
+  businessUnitId: string;
+  customerId: string;
+  startsOn: string;
+  endsOn?: string;
+  coverageAmount?: number;
+  coverageUnit?: string;
+  frequencyAmount: number;
+  frequencyUnit: string;
+  assetIds?: string[];
 }
 
 export type UpdatePmocPlanInput = Partial<

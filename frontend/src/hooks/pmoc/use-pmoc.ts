@@ -14,6 +14,7 @@ import { useApiQuery } from "@/hooks/api/use-api-query";
 import { useActiveScope } from "@/providers/use-active-scope";
 import { pmocService } from "@/services/pmoc.service";
 import type {
+  PmocPreviewInput,
   CreatePmocPlanInput,
   PmocCoveragePageQuery,
   PmocPlanQuery,
@@ -198,5 +199,32 @@ export function useRemovePmocCoverage(id: string) {
   return useApiMutation(
     (coverageId: string) => pmocService.removeCoverage(id, coverageId),
     { invalidate: coverageKeys(id) },
+  );
+}
+
+/**
+ * O código sugerido para o cliente escolhido.
+ *
+ * `enabled` amarrado ao cliente: sem cliente não há sequência, e pedir a
+ * sugestão antes seria uma requisição que o servidor recusa com 400.
+ */
+export function usePmocCodeSuggestion(customerId: string | null) {
+  return useApiQuery(
+    ["pmoc", "code-suggestion", customerId ?? ""],
+    ({ signal }) => pmocService.codeSuggestion(customerId!, { signal }),
+    { enabled: Boolean(customerId), staleTime: 0, gcTime: 0 },
+  );
+}
+
+/**
+ * A projeção da configuração — ciclos, equipamentos e matriz.
+ *
+ * Roda por mutação, e não por query, porque a entrada é um corpo e porque a
+ * tela decide **quando** projetar: a cada tecla digitada na data seria uma
+ * requisição por caractere.
+ */
+export function usePmocPreview() {
+  return useApiMutation((input: PmocPreviewInput) =>
+    pmocService.preview(input),
   );
 }

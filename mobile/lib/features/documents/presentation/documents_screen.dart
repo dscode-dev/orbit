@@ -19,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/contracts/mobile_field_contracts.dart';
 import '../../../core/design/orbit_primitives.dart';
+import '../../../core/design/orbit_operational.dart';
 import '../../../core/presentation/orbit_format.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
@@ -158,6 +159,7 @@ class _List extends StatelessWidget {
     }
 
     return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
       controller: scroll,
       itemCount: state.items.length + (state.hasNextPage ? 1 : 0),
       separatorBuilder: (_, __) => const OrbitRowDivider(),
@@ -173,7 +175,6 @@ class _List extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-
                 /// A falha de uma página não apaga o que já está na tela.
                 : SectionError(error: state.error!),
           );
@@ -212,11 +213,12 @@ class DocumentRow extends StatelessWidget {
   final MobileRecentDocumentContract document;
 
   @override
-  Widget build(BuildContext context) => OrbitListRow(
-    title: document.customerName ?? document.label,
-    subtitle: document.customerName == null ? null : document.label,
+  Widget build(BuildContext context) => OrbitServiceRow(
+    icon: Icons.picture_as_pdf_outlined,
+    title: document.label,
+    subtitle: document.customerName,
     detail: OrbitFormat.dateHourOf(document.createdAt),
-    trailing: documentStateBadge(document),
+    status: documentStateBadge(document),
 
     /// Só o que está pronto abre. Um toque que leva a "ainda não está pronto"
     /// gasta a atenção de quem está de pé numa casa de máquinas.

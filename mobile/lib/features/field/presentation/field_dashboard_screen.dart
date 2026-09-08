@@ -35,13 +35,16 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/contracts/mobile_field_contracts.dart';
 import '../../../core/design/orbit_primitives.dart';
+import '../../../core/design/orbit_operational.dart';
+import 'package:intl/intl.dart';
 import '../../../core/errors/orbit_public_copy.dart';
 import '../../../core/presentation/orbit_format.dart';
 import '../../../core/routing/orbit_router.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../authentication/domain/session.dart';
-import '../../documents/presentation/documents_screen.dart' show documentStateBadge;
+import '../../documents/presentation/documents_screen.dart'
+    show documentStateBadge;
 import '../../operations/data/operations_repository.dart' show CachedResult;
 import '../application/field_providers.dart';
 import 'widgets/work_item_row.dart';
@@ -92,6 +95,8 @@ Widget _corpo(
       home: dados.value,
       cachedAt: dados.cachedAt,
       userName: session?.user.displayName,
+      avatarUrl: session?.user.avatarUrl,
+      unitName: session?.businessUnit?.name,
       currentUserId: session?.user.id,
       refreshFailed: home.hasError,
     );
@@ -122,6 +127,8 @@ class _Home extends StatelessWidget {
     required this.home,
     required this.cachedAt,
     required this.userName,
+    this.avatarUrl,
+    this.unitName,
     required this.currentUserId,
     this.refreshFailed = false,
   });
@@ -129,6 +136,8 @@ class _Home extends StatelessWidget {
   final MobileFieldHomeContract home;
   final DateTime? cachedAt;
   final String? userName;
+  final String? avatarUrl;
+  final String? unitName;
   final String? currentUserId;
 
   /// A última atualização não veio. Os dados abaixo continuam sendo os
@@ -175,7 +184,7 @@ class _Home extends StatelessWidget {
         OrbitSpacing.xl2,
       ),
       children: [
-        _Header(userName: userName),
+        _Header(userName: userName, avatarUrl: avatarUrl, unitName: unitName),
 
         if (cachedAt != null)
           Padding(
@@ -217,20 +226,21 @@ class _Home extends StatelessWidget {
           const SizedBox(height: OrbitSpacing.lg),
         ],
 
+        _QuickActions(dashboard: dashboard),
+        const SizedBox(height: OrbitSpacing.lg),
+
         /// Em andamento vira o cartão de destaque: é o trabalho que já
         /// começou, e é para ele que a pessoa volta ao abrir o aplicativo.
         if (emAndamento != null) ...[
           OrbitHeroCard(
             eyebrow: 'Em andamento',
             title: emAndamento.customer?.name ?? emAndamento.title,
-            subtitle: emAndamento.customer == null
-                ? null
-                : emAndamento.title,
+            subtitle: emAndamento.customer == null ? null : emAndamento.title,
             meta: _metaDoDestaque(emAndamento),
             onTap: () =>
                 context.push(OrbitRoutes.workItemDetail(emAndamento.id)),
             action: OrbitHeroButton(
-              label: 'Retomar atendimento',
+              label: 'Continuar',
               icon: Icons.play_arrow_rounded,
               onPressed: () =>
                   context.push(OrbitRoutes.workItemDetail(emAndamento.id)),
@@ -238,9 +248,6 @@ class _Home extends StatelessWidget {
           ),
           const SizedBox(height: OrbitSpacing.lg),
         ],
-
-        _QuickActions(dashboard: dashboard),
-        const SizedBox(height: OrbitSpacing.lg),
 
         if (vazio)
           const OrbitEmptyState(
@@ -265,7 +272,7 @@ class _Home extends StatelessWidget {
           _ItemSection(
             title: 'Hoje',
             count: dashboard.counters.today,
-            items: dashboard.today,
+            items: dashboard.today.take(5).toList(),
             currentUserId: currentUserId,
             onSeeAll: () => context.go(OrbitRoutes.agenda),
             seeAllLabel: 'Ver agenda',
@@ -289,7 +296,7 @@ class _Home extends StatelessWidget {
             action: () => context.go(OrbitRoutes.documents),
             child: _Rows(
               children: [
-                for (final documento in home.recentDocuments)
+                for (final documento in home.recentDocuments.take(5))
                   _DocumentRow(document: documento),
               ],
             ),
@@ -297,7 +304,7 @@ class _Home extends StatelessWidget {
           const SizedBox(height: OrbitSpacing.lg),
         ],
 
-        if (home.recentAppointments.isNotEmpty) ...[
+        if (home.recentAppointments.isNotEmpty && dashboard.today.isEmpty) ...[
           OrbitSection(
             title: 'Agendamentos recentes',
             actionLabel: 'Ver agenda',
@@ -339,9 +346,11 @@ class _Home extends StatelessWidget {
 /// O primeiro nome basta: a pessoa sabe o próprio sobrenome, e "Bom dia,
 /// Ricardo" cabe em 320 pixels onde o nome completo não caberia.
 class _Header extends StatelessWidget {
-  const _Header({required this.userName});
+  const _Header({required this.userName, this.avatarUrl, this.unitName});
 
   final String? userName;
+  final String? avatarUrl;
+  final String? unitName;
 
   @override
   Widget build(BuildContext context) {
@@ -349,24 +358,35 @@ class _Header extends StatelessWidget {
     final agora = DateTime.now();
     final primeiroNome = userName?.trim().split(' ').first;
 
-    /// Sem margem lateral própria: a lista já aplica o gutter, e um segundo
-    /// recuo aqui desalinharia o título da borda dos cartões.
     return Padding(
-      padding: const EdgeInsets.only(
-        top: OrbitSpacing.lg,
-        bottom: OrbitSpacing.ml,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
         children: [
-          Text(
-            greetingFor(agora.hour, primeiroNome),
-            style: OrbitType.screenTitle.copyWith(color: palette.ink),
+          OrbitAvatar(
+            initials: primeiroNome?.isNotEmpty == true ? primeiroNome![0] : 'O',
+            url: avatarUrl,
           ),
-          const SizedBox(height: 2),
-          Text(
-            todayLabel(agora),
-            style: OrbitType.body.copyWith(color: palette.inkMuted),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  primeiroNome == null ? 'Olá' : 'Olá, $primeiroNome',
+                  style: OrbitType.sectionTitle.copyWith(color: palette.ink),
+                ),
+                Text(
+                  [
+                    DateFormat('EEE, dd MMM', 'pt_BR').format(agora),
+                    if (unitName != null) unitName!,
+                  ].join(' · '),
+                  style: OrbitType.label.copyWith(
+                    color: palette.inkSubtle,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -428,43 +448,13 @@ class _QuickActions extends StatelessWidget {
           label: 'Ler etiqueta',
           onTap: () => context.push(OrbitRoutes.scanner),
         ),
-      OrbitQuickAction(
-        icon: Icons.sync_outlined,
-        label: 'Sincronização',
-        onTap: () => context.push(OrbitRoutes.syncCenter),
-      ),
     ];
 
-    return OrbitSection(
-      title: 'Ações rápidas',
-      boxed: false,
-
-      /// Rola na horizontal em vez de quebrar linha: em 320 pixels o `Wrap`
-      /// viraria duas fileiras e empurraria o trabalho para fora da tela.
-      ///
-      /// Sem altura fixa, de propósito. Com o texto do sistema ampliado o
-      /// rótulo cresce, e uma caixa de 84 pixels o cortava — a fileira tem a
-      /// altura do que está dentro dela.
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
-        /// `IntrinsicHeight` para que todos os blocos tenham a altura do mais
-        /// alto — sem ele, "Sincronização" (duas linhas) e "Agenda" (uma)
-        /// ficariam desalinhados. Dentro de uma rolagem horizontal, `stretch`
-        /// sozinho pediria altura infinita.
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final (indice, acao) in acoes.indexed) ...[
-                if (indice > 0) const SizedBox(width: OrbitSpacing.sm),
-                acao,
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
+    return LayoutBuilder(builder: (context, constraints) {
+      final columns = MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 2 : acoes.length;
+      return Wrap(children: [for (final action in acoes)
+        SizedBox(width: constraints.maxWidth / columns, child: action)]);
+    });
   }
 }
 
@@ -538,11 +528,12 @@ class _DocumentRow extends StatelessWidget {
   final MobileRecentDocumentContract document;
 
   @override
-  Widget build(BuildContext context) => OrbitListRow(
-    title: document.customerName ?? document.label,
-    subtitle: document.customerName == null ? null : document.label,
+  Widget build(BuildContext context) => OrbitServiceRow(
+    icon: Icons.picture_as_pdf_outlined,
+    title: document.label,
+    subtitle: document.customerName,
     detail: OrbitFormat.dateHourOf(document.createdAt),
-    trailing: documentStateBadge(document),
+    status: documentStateBadge(document),
     onTap: () => context.go(OrbitRoutes.documents),
   );
 }
@@ -561,7 +552,6 @@ class _AppointmentRow extends StatelessWidget {
     onTap: () => context.go(OrbitRoutes.agenda),
   );
 }
-
 
 /// A atualização que não veio.
 ///

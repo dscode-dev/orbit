@@ -30,12 +30,18 @@ import {
 } from '../../exceptions';
 import { BackgroundJobQueue } from '../jobs/background-job.queue';
 import { JOB_QUEUES } from '../jobs/background-job.types';
+import { Prisma } from '@prisma/client';
 import { generateUuidV7 } from '../../utils';
 import {
   canTransition,
+  coverageEndFromDuration,
+  isValidPlanCode,
+  normalizeCustomCode,
   EDITABLE_STATUSES,
   evaluateCompliance,
   executionEligibility,
+  frequencyLabel,
+  previewSchedule,
   toDateOnly,
   type FrequencyUnit,
   type PlanStatus,
@@ -48,6 +54,7 @@ import type {
   CompletePmocExecutionDto,
   CreatePmocOperationDto,
   CreatePmocPlanDto,
+  PreviewPmocPlanDto,
   LinkPmocEvidenceDto,
   PmocAnalyticsQueryDto,
   PmocPlanQueryDto,
@@ -133,18 +140,71 @@ export class PmocService {
 
     this.assertValidity(input.startsOn, input.endsOn ?? null);
 
-    if (await this.repository.planCodeTaken(actor.organizationId, input.code)) {
-      throw new ConflictException(
-        `A PMOC plan with code "${input.code}" already exists`,
-      );
+    /**
+     * Código customizado é validado; código ausente é gerado.
+     *
+     * A checagem antes do insert é cortesia — quem decide é a constraint
+     * parcial `pmoc_plans_code_unique_active`, e o `catch` abaixo transforma a
+     * violação em conflito público. Confiar só no `planCodeTaken` seria
+     * verificar-e-agir, que duas requisições simultâneas atravessam juntas.
+     */
+    const code = input.code ? normalizeCustomCode(input.code) : null;
+    if (code) {
+      if (!isValidPlanCode(code)) {
+        throw new ValidationException(
+          'The plan code accepts letters, digits and . _ / - only',
+        );
+      }
+      if (await this.repository.planCodeTaken(actor.organizationId, code)) {
+        throw new ConflictException(
+          `A PMOC plan with code "${code}" already exists`,
+        );
+      }
     }
 
-    const plan = await this.repository.create(
+    /**
+     * Os equipamentos são revalidados aqui, não na tela.
+     *
+     * O seletor já mostra só o que é do cliente, mas quem monta o corpo da
+     * requisição é quem quiser. Um `assetId` de outro cliente entraria como
+     * cobertura, e a partir daí o PMOC de um cliente mandaria o técnico ao
+     * equipamento de outro.
+     */
+    const assetIds: string[] = [...new Set(input.assetIds ?? [])];
+    if (assetIds.length) {
+      const elegiveis = await this.repository.findEligibleAssets({
+        organizationId: actor.organizationId,
+        customerId: input.customerId,
+        assetIds,
+      });
+      if (elegiveis.length !== assetIds.length) {
+        throw new ValidationException(
+          'Every equipment must belong to the selected customer',
+        );
+      }
+    }
+
+    const plan = await this.createPlan(actor, input, code, assetIds, customer);
+    return this.mapper.summary(plan);
+  }
+
+  /** O insert em si, com a violação de unicidade virando conflito público. */
+  private async createPlan(
+    actor: PmocActor,
+    input: CreatePmocPlanDto,
+    code: string | null,
+    assetIds: string[],
+    customer: { legalName: string },
+  ) {
+    try {
+      return await this.repository.create(
       {
+        assetIds,
         organizationId: actor.organizationId,
         businessUnitId: input.businessUnitId,
         customerId: input.customerId,
-        code: input.code,
+        code,
+        customerName: customer.legalName,
         name: input.name,
         startsOn: input.startsOn,
         endsOn: input.endsOn ?? null,
@@ -163,9 +223,165 @@ export class PmocService {
         createdById: actor.actorId,
       },
       actor.actorId,
-    );
+      );
+    } catch (error) {
+      /**
+       * P2002 é a constraint de código, e ela existe justamente para o caso
+       * que a checagem anterior não pega: duas requisições simultâneas com o
+       * mesmo código customizado. Deixar subir daria 500 — um erro técnico
+       * numa situação que o produto sabe explicar.
+       */
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          `A PMOC plan with code "${code ?? input.code}" already exists`,
+        );
+      }
+      throw error;
+    }
+  }
 
-    return this.mapper.summary(plan);
+  /**
+   * O código que a tela preenche sozinha ao escolher o cliente.
+   *
+   * Só **lê** o próximo número: uma tela aberta e abandonada não pode queimar
+   * `007` para sempre. Quem consome de verdade é o create, e é lá que a
+   * reserva acontece de forma atômica. O efeito é que dois usuários abrindo o
+   * formulário ao mesmo tempo veem o mesmo `003` — e o segundo a salvar
+   * recebe `004` sem erro nenhum, porque o create realoca.
+   */
+  async codeSuggestion(actor: PmocActor, customerId: string) {
+    const customer = await this.repository.findCustomer(
+      customerId,
+      actor.organizationId,
+    );
+    if (!customer) throw new EntityNotFoundException('Customer', customerId);
+
+    const { code, sequence } = await this.repository.allocateCode({
+      organizationId: actor.organizationId,
+      customerId,
+      customerName: customer.legalName,
+      reserve: false,
+    });
+
+    return {
+      customerId,
+      customerName: customer.legalName,
+      suggestedCode: code,
+      sequence,
+      reserved: false,
+    };
+  }
+
+  /**
+   * O que este plano vai gerar, antes de existir.
+   *
+   * ## Por que o backend responde isto
+   *
+   * Os ciclos do PMOC são rolantes: ativar cria o primeiro, e cada conclusão
+   * cria o seguinte a partir da data real do serviço. É o desenho certo — a
+   * próxima manutenção conta a partir da última que aconteceu, não de um
+   * calendário que ninguém cumpriu.
+   *
+   * O preço é que nada respondia *"quantas visitas este contrato terá"* antes
+   * da primeira. Esta projeção responde, sem escrever nada: é o calendário
+   * ideal, e a matriz equipamento × execução que sai dele.
+   *
+   * Deixar a tela multiplicar `ciclos × equipamentos` seria mais barato e
+   * estaria errado na primeira regra de calendário — a saturação de fim de mês
+   * mora aqui e no banco, não em JavaScript de formulário.
+   */
+  async preview(actor: PmocActor, input: PreviewPmocPlanDto) {
+    const unit = await this.repository.findBusinessUnit(
+      input.businessUnitId,
+      actor.organizationId,
+    );
+    if (!unit) {
+      throw new EntityNotFoundException('BusinessUnit', input.businessUnitId);
+    }
+    this.assertUnitInScope(actor, input.businessUnitId);
+
+    const customer = await this.repository.findCustomer(
+      input.customerId,
+      actor.organizationId,
+    );
+    if (!customer) {
+      throw new EntityNotFoundException('Customer', input.customerId);
+    }
+
+    /** A vigência chega como duração ou como data — nunca como as duas. */
+    const endsOn =
+      input.coverageAmount != null
+        ? coverageEndFromDuration(
+            input.startsOn,
+            input.coverageAmount,
+            input.coverageUnit ?? 'MONTHS',
+          )
+        : (input.endsOn ?? null);
+
+    this.assertValidity(input.startsOn, endsOn);
+
+    const assetIds: string[] = [...new Set(input.assetIds ?? [])];
+    const equipamentos = assetIds.length
+      ? await this.repository.findEligibleAssets({
+          organizationId: actor.organizationId,
+          customerId: input.customerId,
+          assetIds,
+        })
+      : [];
+    if (equipamentos.length !== assetIds.length) {
+      throw new ValidationException(
+        'Every equipment must belong to the selected customer',
+      );
+    }
+
+    const schedule = previewSchedule({
+      startsOn: input.startsOn,
+      endsOn,
+      frequencyAmount: input.frequencyAmount,
+      frequencyUnit: input.frequencyUnit,
+    });
+
+    return {
+      customer: { id: customer.id, name: customer.legalName },
+      timezone: unit.timezone,
+      startsOn: input.startsOn,
+      endsOn,
+      frequency: {
+        amount: input.frequencyAmount,
+        unit: input.frequencyUnit,
+        label: frequencyLabel({
+          amount: input.frequencyAmount,
+          unit: input.frequencyUnit,
+        }),
+      },
+      cycles: schedule.cycles,
+      cycleCount: schedule.cycles.length,
+      truncated: schedule.truncated,
+      equipmentCount: equipamentos.length,
+
+      /**
+       * A matriz. Cada equipamento recebe a mesma sequência `1..N`, porque
+       * cada equipamento participa de cada ciclo — não é uma numeração global
+       * intercalada entre eles.
+       */
+      matrix: equipamentos.map((asset) => ({
+        equipment: {
+          id: asset.id,
+          name: asset.name,
+          model: asset.model,
+          manufacturer: asset.manufacturer,
+          status: asset.status,
+        },
+        executions: schedule.cycles.map((cycle) => ({
+          executionNumber: cycle.sequence,
+          dueOn: cycle.dueOn,
+        })),
+      })),
+      projectedExecutions: schedule.cycles.length * equipamentos.length,
+    };
   }
 
   async update(id: string, actor: PmocActor, input: UpdatePmocPlanDto) {

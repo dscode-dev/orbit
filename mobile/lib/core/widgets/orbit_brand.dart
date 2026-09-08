@@ -90,18 +90,6 @@ class OrbitBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          center: const Alignment(-0.7, -0.9),
-          radius: 1.2,
-          colors: [
-            context.orbit.accentSoft,
-            context.orbit.background,
-          ],
-        ),
-      ),
-      child: child,
-    );
+    return ColoredBox(color: context.orbit.background, child: child);
   }
 }

@@ -72,7 +72,7 @@ class _WorkQueueScreenState extends ConsumerState<WorkQueueScreen> {
     final session = ref.watch(sessionProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Trabalho')),
+      appBar: AppBar(title: const Text('Atendimentos')),
       body: Column(
         children: [
           _ViewSelector(active: filter.view),
@@ -180,11 +180,7 @@ class _Queue extends StatelessWidget {
 
         final item = state.items[index];
         final previous = index == 0 ? null : state.items[index - 1];
-        final proximo = index + 1 >= state.items.length
-            ? null
-            : state.items[index + 1];
         final abreGrupo = previous?.dueState != item.dueState;
-        final fechaGrupo = proximo?.dueState != item.dueState;
 
         /// Cada faixa é um cartão, e as linhas dela moram dentro dele.
         ///
@@ -193,10 +189,6 @@ class _Queue extends StatelessWidget {
         /// desenhado por linha: a primeira arredonda em cima, a última
         /// embaixo, e o miolo fica reto. Visualmente é um cartão só.
         final palette = context.orbit;
-        final raio = BorderRadius.vertical(
-          top: abreGrupo ? const Radius.circular(20) : Radius.zero,
-          bottom: fechaGrupo ? const Radius.circular(20) : Radius.zero,
-        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,7 +199,7 @@ class _Queue extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.only(
                   top: index == 0 ? 0 : OrbitSpacing.lg,
-                  left: OrbitSpacing.xs,
+                  left: 0,
                   bottom: OrbitSpacing.ms,
                 ),
                 child: Text(
@@ -215,27 +207,12 @@ class _Queue extends StatelessWidget {
                   style: OrbitType.sectionTitle.copyWith(color: palette.ink),
                 ),
               ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: palette.surface,
-                borderRadius: raio,
-                boxShadow: fechaGrupo ? OrbitShadow.card : null,
-              ),
-              child: ClipRRect(
-                borderRadius: raio,
-                child: Column(
-                  children: [
-                    if (!abreGrupo) const OrbitRowDivider(),
-                    WorkItemRow(
-                      key: ValueKey(item.id),
-                      item: item,
-                      currentUserId: currentUserId,
-                      onOpen: () =>
-                          context.push(OrbitRoutes.workItemDetail(item.id)),
-                    ),
-                  ],
-                ),
-              ),
+            if (!abreGrupo) const OrbitRowDivider(indent: 0),
+            WorkItemRow(
+              key: ValueKey(item.id),
+              item: item,
+              currentUserId: currentUserId,
+              onOpen: () => context.push(OrbitRoutes.workItemDetail(item.id)),
             ),
           ],
         );

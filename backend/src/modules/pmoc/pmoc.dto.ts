@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsDate,
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsIn,
@@ -48,6 +49,71 @@ export class PmocCoveragePageQueryDto extends CursorDto {
 
 export class PmocTimelineQueryDto extends CursorDto {}
 
+/**
+ * O que o preview recebe.
+ *
+ * A vigência chega de duas formas, e só uma por vez: `coverageAmount` +
+ * `coverageUnit` quando a tela pergunta *"vigência"* (que é duração), ou
+ * `endsOn` quando quem chama já tem a data. A duração é a forma canônica do
+ * wizard — deixar o usuário somar seis meses à mão é como nasce o sétimo
+ * ciclo que ninguém contratou.
+ */
+export class PreviewPmocPlanDto {
+  @ApiProperty()
+  @IsUUIDv7()
+  businessUnitId!: string;
+
+  @ApiProperty()
+  @IsUUIDv7()
+  customerId!: string;
+
+  @ApiProperty({ example: '2026-01-01' })
+  @Matches(DATE_ONLY, { message: 'startsOn must be YYYY-MM-DD' })
+  startsOn!: string;
+
+  @ApiPropertyOptional({ example: '2026-06-30' })
+  @IsOptional()
+  @Matches(DATE_ONLY, { message: 'endsOn must be YYYY-MM-DD' })
+  endsOn?: string;
+
+  @ApiPropertyOptional({ example: 6, description: 'Vigência, como duração.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  coverageAmount?: number;
+
+  @ApiPropertyOptional({ enum: FREQUENCY_UNITS, default: 'MONTHS' })
+  @IsOptional()
+  @IsIn(FREQUENCY_UNITS)
+  coverageUnit?: FrequencyUnit;
+
+  @ApiProperty({ example: 1, description: 'Frequência de atendimento.' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  frequencyAmount!: number;
+
+  @ApiProperty({ enum: FREQUENCY_UNITS })
+  @IsIn(FREQUENCY_UNITS)
+  frequencyUnit!: FrequencyUnit;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsUUIDv7({ each: true })
+  assetIds?: string[];
+}
+
+export class PmocCodeSuggestionQueryDto {
+  @ApiProperty()
+  @IsUUIDv7()
+  customerId!: string;
+}
+
 export class CreatePmocPlanDto {
   @ApiProperty()
   @IsUUIDv7()
@@ -57,12 +123,24 @@ export class CreatePmocPlanDto {
   @IsUUIDv7()
   customerId!: string;
 
-  @ApiProperty({ example: 'PMOC-2026-001' })
+  /**
+   * O código do plano.
+   *
+   * **Omitir é o caminho canônico**: o backend aloca o próximo da sequência do
+   * cliente dentro da transação do create, e nenhuma corrida colide. Enviar um
+   * código significa *"este é meu, não gere"* — e aí ele é validado como
+   * customizado, respeitando a unicidade da organização.
+   *
+   * Continua aceito por retrocompatibilidade com quem já chamava este endpoint
+   * mandando o código à mão.
+   */
+  @ApiPropertyOptional({ example: 'PMOC-CLINICA-SANTA-MARIA-001' })
+  @IsOptional()
   @Transform(trim)
   @IsString()
   @MinLength(3)
   @MaxLength(60)
-  code!: string;
+  code?: string;
 
   @ApiProperty()
   @Transform(trim)
@@ -99,6 +177,21 @@ export class CreatePmocPlanDto {
   @Min(1)
   @Max(365)
   dueSoonDays?: number;
+
+  /**
+   * Equipamentos que participam do plano.
+   *
+   * Opcional no contrato por retrocompatibilidade — quem já chamava este
+   * endpoint sem equipamento continua funcionando, e adiciona depois por
+   * `POST /pmoc/plans/:id/equipment`. O fluxo novo do produto sempre manda a
+   * lista, e aí plano e coberturas nascem na mesma transação.
+   */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsUUIDv7({ each: true })
+  assetIds?: string[];
 
   /**
    * Responsável técnico — **referência operacional**.

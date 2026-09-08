@@ -55,11 +55,14 @@ Future<void> carregarFontes() async {
 }
 
 /// Tamanho de um iPhone 15 em pixels lógicos.
-const tamanhoTelefone = Size(393, 852);
+const tamanhoTelefone = Size(390, 852);
+double captureWidth = 390;
+double captureScale = 1;
 
 /// Prepara o `tester` para uma captura de tela inteira.
-void prepararTela(WidgetTester tester, {Size tamanho = tamanhoTelefone}) {
-  tester.view.physicalSize = Size(tamanho.width * 3, tamanho.height * 3);
-  tester.view.devicePixelRatio = 3.0;
+void prepararTela(WidgetTester tester, {Size? tamanho}) {
+  final size = tamanho ?? Size(captureWidth, 852);
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 }
