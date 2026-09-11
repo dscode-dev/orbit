@@ -75,9 +75,28 @@ class OrbitScreenHeading extends StatelessWidget {
             ],
           );
         }
+
+        /// Último recurso: o título sozinho já não cabe na linha.
+        ///
+        /// Acontece em 320 px com texto 2.0×, e aí a escolha é entre
+        /// encolher e quebrar a palavra. "Documento/s" é pior que um título
+        /// um pouco menor — uma palavra partida se lê errado antes de se
+        /// ler certo.
+        final coube = larguraTitulo <= constraints.maxWidth;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [titulo, const SizedBox(height: 2), contagem],
+          children: [
+            if (coube)
+              titulo
+            else
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: titulo,
+              ),
+            const SizedBox(height: 2),
+            contagem,
+          ],
         );
       },
     );
@@ -165,7 +184,13 @@ class _OrbitChipStripState extends State<OrbitChipStrip> {
     );
 
     return SizedBox(
-      height: widget.height,
+      /// A altura acompanha a ampliação do texto.
+      ///
+      /// Fixa em 38, o chip era cortado ao meio em 2.0× — "Todos" aparecia
+      /// pela metade, o que parece defeito de renderização.
+      height:
+          widget.height *
+          MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8),
       child: Row(
         children: [
           Expanded(

@@ -36,6 +36,7 @@ import 'package:orbit_operator/features/documents/presentation/documents_screen.
 import 'package:orbit_operator/features/profile/presentation/profile_screen.dart';
 import 'package:orbit_operator/core/design/orbit_operational.dart';
 import 'package:orbit_operator/core/routing/app_shell.dart';
+import 'package:orbit_operator/core/routing/orbit_router.dart';
 import 'package:orbit_operator/features/field/presentation/operation_execution_screen.dart';
 import 'package:orbit_operator/features/sync/application/sync_providers.dart';
 import 'package:orbit_operator/features/sync/data/command_journal.dart';
@@ -451,11 +452,17 @@ Widget host(
         /// navegação que já não existia — uma aba trocada no shell não
         /// aparecia na imagem, e a imagem é justamente o que se olha.
         bottomNavigationBar: OrbitBottomNav(
+          /// A posição sai da rota, não de um número escrito à mão.
+          ///
+          /// Escrito à mão, o perfil ficou marcado na casa 3 no dia em que
+          /// Documentos entrou como quarta aba — a captura passaria a
+          /// iluminar a aba errada sem nenhum teste reclamar.
           selected: switch (tela) {
-            ProfileScreen() => 3,
-            CustomersScreen() => 2,
-            WorkQueueScreen() => 1,
-            _ => 0,
+            ProfileScreen() => _aba(OrbitRoutes.profile),
+            DocumentsScreen() => _aba(OrbitRoutes.documents),
+            CustomersScreen() => _aba(OrbitRoutes.customers),
+            WorkQueueScreen() => _aba(OrbitRoutes.workQueue),
+            _ => _aba(OrbitRoutes.home),
           },
           onSelect: (_) {},
           items: [
@@ -472,6 +479,9 @@ Widget host(
     ),
   );
 }
+
+int _aba(String rota) =>
+    orbitShellDestinations.indexWhere((destino) => destino.route == rota);
 
 void main() {
   setUpAll(() async {
@@ -600,7 +610,10 @@ void registerCaptures() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Clínica Vida'));
+    /// A primeira linha, e não uma escolhida pelo nome: com o texto
+    /// ampliado a lista fica mais alta, a quarta linha sai da tela e o
+    /// `ListView.builder` nem a constrói — o finder falhava em 1.5× e 2.0×.
+    await tester.tap(find.byType(DocumentRow).first);
     await tester.pumpAndSettle();
 
     await expectLater(

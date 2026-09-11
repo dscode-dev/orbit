@@ -690,6 +690,10 @@ class _DocumentRowState extends ConsumerState<DocumentRow> {
     final palette = context.orbit;
     final documento = widget.document;
     final marca = _marcaDoTipo(documento.documentType);
+
+    /// Acima de 1.3× a linha deixa de ser horizontal: não sobra largura para
+    /// nome e hora dividirem a mesma faixa.
+    final empilhado = MediaQuery.textScalerOf(context).scale(1) > 1.3;
     final cor = switch (marca.tom) {
       OrbitTone.info => palette.accent,
       OrbitTone.success => palette.success,
@@ -728,39 +732,65 @@ class _DocumentRowState extends ConsumerState<DocumentRow> {
                     /// rótulo: junto, ela era a primeira coisa a ser cortada
                     /// por reticências — "Ordem de serviço 2026-0148 · 0…" —,
                     /// e uma hora pela metade não informa nada.
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            documento.customerName ?? documento.label,
-                            style: OrbitType.itemTitle.copyWith(
-                              color: palette.ink,
+                    ///
+                    /// Com o texto ampliado ela desce de linha. Lado a lado,
+                    /// sobravam 60 pixels para o nome do cliente e
+                    /// "Shopping Recife" virava "Sh…" — o dado mais
+                    /// importante da linha, apagado para caber um horário.
+                    /// Texto grande pede mais altura, não menos conteúdo.
+                    if (empilhado)
+                      Text(
+                        documento.customerName ?? documento.label,
+                        style: OrbitType.itemTitle.copyWith(color: palette.ink),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    else
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              documento.customerName ?? documento.label,
+                              style: OrbitType.itemTitle.copyWith(
+                                color: palette.ink,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        const SizedBox(width: OrbitSpacing.sm),
-                        Text(
-                          OrbitFormat.hourOf(documento.createdAt),
-                          style: OrbitType.numeric.copyWith(
-                            fontSize: 12.5,
-                            color: palette.inkSubtle,
+                          const SizedBox(width: OrbitSpacing.sm),
+                          Text(
+                            OrbitFormat.hourOf(documento.createdAt),
+                            style: OrbitType.numeric.copyWith(
+                              fontSize: 12.5,
+                              color: palette.inkSubtle,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
                     const SizedBox(height: 3),
                     Text(
                       documento.label,
                       style: OrbitType.caption.copyWith(
                         color: palette.inkMuted,
                       ),
-                      maxLines: 1,
+                      maxLines: empilhado ? 2 : 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+
+                    /// Em linha própria, e não colada no rótulo: junto, a
+                    /// hora voltava a ser o pedaço cortado. O rótulo pode
+                    /// perder o fim — o ícone à esquerda já diz o tipo.
+                    if (empilhado)
+                      Text(
+                        OrbitFormat.hourOf(documento.createdAt),
+                        style: OrbitType.numeric.copyWith(
+                          fontSize: 12.5,
+                          color: palette.inkSubtle,
+                        ),
+                      ),
 
                     /// O selo só aparece quando **não** é o caso comum. Um
                     /// "Disponível" verde em toda linha vira ruído e some

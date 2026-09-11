@@ -207,6 +207,13 @@ class OrbitBottomNav extends StatelessWidget {
                         borderRadius: OrbitRadius.field,
                         onTap: () => onSelect(i),
                         child: SizedBox(
+                          /// Altura fixa, em qualquer escala de texto.
+                          ///
+                          /// O ícone não acompanha o `textScaler` e o rótulo
+                          /// para de crescer em 1.2×, então 56 pixels sempre
+                          /// bastam — e uma barra que muda de altura conforme
+                          /// a preferência de texto empurra o conteúdo da
+                          /// tela para cima sem motivo.
                           height: 56,
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -227,15 +234,31 @@ class OrbitBottomNav extends StatelessWidget {
                               /// sem saber para onde ia. O nome resolve as
                               /// duas coisas, e a cor continua marcando a
                               /// seleção.
-                              Text(
-                                items[i].label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: OrbitType.label.copyWith(
-                                  fontSize: 11,
-                                  color: selected == i
-                                      ? p.accent
-                                      : p.inkSubtle,
+                              ///
+                              /// ## Por que a ampliação para em 1.2×
+                              ///
+                              /// Em 320 pixels com texto 2.0×, cinco rótulos
+                              /// viravam "Início Ate… Cli… Docs Perfil"
+                              /// encostados uns nos outros — ilegíveis
+                              /// justamente para quem ampliou o texto para
+                              /// conseguir ler. O limite é o que barra de
+                              /// abas faz em toda parte, e **não** apaga
+                              /// acessibilidade: o ícone cresce, o toque tem
+                              /// 56 pixels de altura, e o leitor de tela
+                              /// continua recebendo o nome inteiro.
+                              MediaQuery.withClampedTextScaling(
+                                maxScaleFactor: 1.2,
+                                child: Text(
+                                  items[i].label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: OrbitType.label.copyWith(
+                                    fontSize: 11,
+                                    color: selected == i
+                                        ? p.accent
+                                        : p.inkSubtle,
+                                  ),
                                 ),
                               ),
                             ],

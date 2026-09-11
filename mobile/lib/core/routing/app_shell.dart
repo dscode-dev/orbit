@@ -3,12 +3,18 @@
 /// ## Cinco destinos, na ordem do dia
 ///
 /// ```text
-/// Início · Atendimentos · Agenda · Documentos · Perfil
+/// Início · Atendimentos · Clientes · Documentos · Perfil
 /// ```
 ///
-/// Eram quatro, e faltava o quinto: documento emitido só existia por dentro do
-/// atendimento que o gerou, e "cadê a OS de ontem?" custava quatro toques e
-/// uma memória. Agora é destino.
+/// Documentos é o mais novo. A tela existia e a rota também, mas só se
+/// chegava nela pelo atalho da tela inicial — e um destino que depende de
+/// voltar para o início não é destino. "Cadê a OS de ontem?" é pergunta de
+/// todo dia.
+///
+/// Agenda **não** está aqui: ela é alcançada pelo atalho da tela inicial, e
+/// competir com Documentos por um dos cinco lugares custaria mais do que
+/// rende — compromisso se olha uma vez pela manhã, documento se procura a
+/// qualquer hora.
 ///
 /// A aba de trabalho passou a se chamar **Atendimentos** — o que a pessoa
 /// chama do que faz. "Trabalho" descrevia a estrutura de dados (a fila de itens
@@ -126,6 +132,15 @@ const orbitShellDestinations = <ShellDestination>[
     label: 'Clientes',
     icon: Icons.groups_outlined,
     selectedIcon: Icons.groups_rounded,
+  ),
+  ShellDestination(
+    route: OrbitRoutes.documents,
+    label: 'Documentos',
+
+    /// "Docs" é palavra que se lê; "Documen…" é corte.
+    shortLabel: 'Docs',
+    icon: Icons.folder_outlined,
+    selectedIcon: Icons.folder_rounded,
   ),
   ShellDestination(
     route: OrbitRoutes.profile,

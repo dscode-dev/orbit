@@ -48,12 +48,32 @@ import 'documents_screen.dart' show documentStateBadge;
 /// A tabela é a do português mais o que aparece em razão social; um pacote de
 /// transliteração inteiro resolveria o alfabeto grego, que não é o problema.
 const _semAcento = <String, String>{
-  'á': 'a', 'à': 'a', 'ã': 'a', 'â': 'a', 'ä': 'a', 'å': 'a',
-  'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-  'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
-  'ó': 'o', 'ò': 'o', 'õ': 'o', 'ô': 'o', 'ö': 'o',
-  'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
-  'ç': 'c', 'ñ': 'n', 'ý': 'y',
+  'á': 'a',
+  'à': 'a',
+  'ã': 'a',
+  'â': 'a',
+  'ä': 'a',
+  'å': 'a',
+  'é': 'e',
+  'è': 'e',
+  'ê': 'e',
+  'ë': 'e',
+  'í': 'i',
+  'ì': 'i',
+  'î': 'i',
+  'ï': 'i',
+  'ó': 'o',
+  'ò': 'o',
+  'õ': 'o',
+  'ô': 'o',
+  'ö': 'o',
+  'ú': 'u',
+  'ù': 'u',
+  'û': 'u',
+  'ü': 'u',
+  'ç': 'c',
+  'ñ': 'n',
+  'ý': 'y',
 };
 
 /// O nome do arquivo que chega ao destino.
@@ -183,6 +203,11 @@ class _DocumentOpenSheetState extends ConsumerState<DocumentOpenSheet> {
     final documento = widget.document;
     final rotuloDoDownload = documentDownloadLabels[_download.phase.name];
 
+    /// Acima de 1.3× nada divide linha com nada: o selo desce para baixo do
+    /// título, e o par rótulo–valor deixa de ser duas colunas. Lado a lado,
+    /// "Shopping Recife" quebrava em "Shoppi/ng Recife".
+    final empilhado = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+
     return SafeArea(
       top: false,
       child: Padding(
@@ -196,108 +221,150 @@ class _DocumentOpenSheetState extends ConsumerState<DocumentOpenSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
+            Builder(
+              builder: (context) {
+                final identificacao = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      documento.customerName ?? documento.label,
+                      style: OrbitType.sectionTitle.copyWith(
+                        color: palette.ink,
+                        fontSize: 19,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      documento.label,
+                      style: OrbitType.caption.copyWith(
+                        color: palette.inkMuted,
+                      ),
+                    ),
+                  ],
+                );
+                if (empilhado) {
+                  return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        documento.customerName ?? documento.label,
-                        style: OrbitType.sectionTitle.copyWith(
-                          color: palette.ink,
-                          fontSize: 19,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        documento.label,
-                        style: OrbitType.caption.copyWith(
-                          color: palette.inkMuted,
-                        ),
+                      identificacao,
+                      const SizedBox(height: OrbitSpacing.sm),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: documentStateBadge(documento),
                       ),
                     ],
-                  ),
-                ),
-                documentStateBadge(documento),
-              ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: identificacao),
+                    const SizedBox(width: OrbitSpacing.sm),
+                    documentStateBadge(documento),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: OrbitSpacing.ml),
 
-            OrbitCard(
-              padding: const EdgeInsets.symmetric(
-                horizontal: OrbitSpacing.ml,
-                vertical: OrbitSpacing.sm,
-              ),
-              child: Column(
-                children: [
-                  if (documento.customerName case final String cliente)
-                    _Dado(rotulo: 'Cliente', valor: cliente),
-                  _Dado(
-                    rotulo: 'Emitido em',
-                    valor: OrbitFormat.dateHourOf(documento.createdAt),
-                  ),
+            /// O conteúdo rola; a ação não.
+            ///
+            /// Em 320 px com texto 2.0× a folha inteira passava 169 pixels
+            /// da tela, e o que ficava de fora era justamente os dois
+            /// botões — quem ampliou o texto abria a folha e não tinha como
+            /// compartilhar nada.
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    OrbitCard(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: OrbitSpacing.ml,
+                        vertical: OrbitSpacing.sm,
+                      ),
+                      child: Column(
+                        /// Sem `stretch`, cada par ocupa só a largura do seu
+                        /// conteúdo e a coluna centraliza os mais curtos —
+                        /// "Emitido em" aparecia no meio enquanto "Cliente"
+                        /// e "Arquivo" ficavam na margem.
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (documento.customerName case final String cliente)
+                            _Dado(rotulo: 'Cliente', valor: cliente),
+                          _Dado(
+                            rotulo: 'Emitido em',
+                            valor: OrbitFormat.dateHourOf(documento.createdAt),
+                          ),
 
-                  /// O nome do arquivo é o que o cliente vê chegar no
-                  /// WhatsApp antes de abrir qualquer coisa. Mostrá-lo aqui
-                  /// evita a surpresa de mandar algo chamado "documento.pdf".
-                  _Dado(
-                    rotulo: 'Arquivo',
-                    valor: documentFileName(documento),
-                  ),
-                ],
+                          /// O nome do arquivo é o que o cliente vê chegar no
+                          /// WhatsApp antes de abrir qualquer coisa. Mostrá-lo aqui
+                          /// evita a surpresa de mandar algo chamado "documento.pdf".
+                          _Dado(
+                            rotulo: 'Arquivo',
+                            valor: documentFileName(documento),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: OrbitSpacing.ml),
+
+                    /// O andamento do download, quando há um.
+                    if (_download.phase == DownloadPhase.availableLocally)
+                      OrbitPanel(
+                        tone: OrbitTone.info,
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 18,
+                              color: palette.success,
+                            ),
+                            const SizedBox(width: OrbitSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'Documento salvo neste aparelho.',
+                                style: OrbitType.body.copyWith(
+                                  color: palette.ink,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (_download.phase == DownloadPhase.error)
+                      SectionError(error: _download.error!, onRetry: _baixar)
+                    else if (rotuloDoDownload != null)
+                      Semantics(
+                        liveRegion: true,
+                        child: Row(
+                          children: [
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(width: OrbitSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                rotuloDoDownload,
+                                style: OrbitType.body.copyWith(
+                                  color: palette.inkMuted,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    if (rotuloDoDownload != null ||
+                        _download.phase == DownloadPhase.error)
+                      const SizedBox(height: OrbitSpacing.md),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: OrbitSpacing.ml),
-
-            /// O andamento do download, quando há um.
-            if (_download.phase == DownloadPhase.availableLocally)
-              OrbitPanel(
-                tone: OrbitTone.info,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.check_circle_outline,
-                      size: 18,
-                      color: palette.success,
-                    ),
-                    const SizedBox(width: OrbitSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        'Documento salvo neste aparelho.',
-                        style: OrbitType.body.copyWith(color: palette.ink),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else if (_download.phase == DownloadPhase.error)
-              SectionError(error: _download.error!, onRetry: _baixar)
-            else if (rotuloDoDownload != null)
-              Semantics(
-                liveRegion: true,
-                child: Row(
-                  children: [
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: OrbitSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        rotuloDoDownload,
-                        style: OrbitType.body.copyWith(color: palette.inkMuted),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            if (rotuloDoDownload != null ||
-                _download.phase == DownloadPhase.error)
-              const SizedBox(height: OrbitSpacing.md),
 
             /// Um documento em preparo não oferece ação. Oferecer e recusar é
             /// pior do que não oferecer.
@@ -362,24 +429,34 @@ class _Dado extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.orbit;
+    final estiloRotulo = OrbitType.caption.copyWith(color: palette.inkSubtle);
+    final estiloValor = OrbitType.body.copyWith(color: palette.ink);
+
+    /// Com o texto ampliado, o rótulo sai de cima do valor em vez de dividir
+    /// a linha com ele: a coluna fixa de 104 pixels deixava o valor com um
+    /// terço da largura, e um nome de arquivo quebrava a cada três letras.
+    if (MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: OrbitSpacing.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(rotulo, style: estiloRotulo),
+            const SizedBox(height: 2),
+            Text(valor, style: estiloValor),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: OrbitSpacing.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 104,
-            child: Text(
-              rotulo,
-              style: OrbitType.caption.copyWith(color: palette.inkSubtle),
-            ),
-          ),
+          SizedBox(width: 104, child: Text(rotulo, style: estiloRotulo)),
           Expanded(
-            child: Text(
-              valor,
-              style: OrbitType.body.copyWith(color: palette.ink),
-              textAlign: TextAlign.right,
-            ),
+            child: Text(valor, style: estiloValor, textAlign: TextAlign.right),
           ),
         ],
       ),

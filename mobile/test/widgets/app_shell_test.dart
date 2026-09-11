@@ -23,6 +23,15 @@ Widget host(String location, {double textScale = 1.0, double width = 390}) =>
       ),
     );
 
+/// A posição de uma aba, pela rota.
+///
+/// O número escrito à mão era o que quebrava a cada aba nova: o perfil
+/// estava fixado na casa 3 e virou a 4 no dia em que Documentos entrou. O
+/// teste passa a checar a **regra** — o prefixo mais específico vence —, não
+/// a ordem em que as abas foram declaradas.
+int aba(String rota) =>
+    orbitShellDestinations.indexWhere((destino) => destino.route == rota);
+
 void main() {
   Object? layoutError;
   setUp(() {
@@ -31,16 +40,24 @@ void main() {
   });
   tearDown(() => FlutterError.onError = FlutterError.presentError);
 
-  testWidgets('quatro destinos, com o rótulo visível', (tester) async {
-    /// Agenda e Documentos saíram da barra e viraram acesso rápido na tela
-    /// inicial; Clientes entrou. Cinco abas em 390 pixels dão 78 pixels cada,
-    /// e nenhum rótulo inteiro cabe — o produto pediu quatro.
+  testWidgets('cinco destinos, com o rótulo visível', (tester) async {
+    /// Documentos voltou para a barra. Era acesso rápido da tela inicial, e
+    /// um destino que exige voltar ao início não é destino — "cadê a OS de
+    /// ontem?" é pergunta de todo dia.
+    ///
+    /// Agenda continua fora: compromisso se olha uma vez pela manhã,
+    /// documento se procura a qualquer hora, e só um dos dois cabia.
+    ///
+    /// Cinco abas em 320 pixels dão 64 cada, o que obriga a abreviar — daí
+    /// "Atend." e "Docs". Os testes de layout abaixo são o que garante que a
+    /// conta fecha até 2.0× de texto.
     await tester.pumpWidget(host(OrbitRoutes.home));
 
     for (final (rotulo, curto) in [
       ('Início', 'Início'),
       ('Atendimentos', 'Atend.'),
       ('Clientes', 'Clientes'),
+      ('Documentos', 'Docs'),
       ('Perfil', 'Perfil'),
     ]) {
       /// O nome inteiro fica no tooltip e na semântica; o curto, na tela.
@@ -55,13 +72,22 @@ void main() {
 
     /// Abreviação escrita à mão, não reticência: "Atendim…" é um corte.
     expect(find.text('Atendimentos'), findsNothing);
+    expect(find.text('Documentos'), findsNothing);
   });
 
   testWidgets('clientes é destino próprio', (tester) async {
     await tester.pumpWidget(host(OrbitRoutes.customers));
 
     final barra = tester.widget<OrbitBottomNav>(find.byType(OrbitBottomNav));
-    expect(barra.selected, 2);
+    expect(barra.selected, aba(OrbitRoutes.customers));
+  });
+
+  testWidgets('documentos é destino próprio', (tester) async {
+    await tester.pumpWidget(host(OrbitRoutes.documents));
+
+    final barra = tester.widget<OrbitBottomNav>(find.byType(OrbitBottomNav));
+    expect(barra.selected, aba(OrbitRoutes.documents));
+    expect(barra.selected, isNonNegative);
   });
 
   testWidgets('a aba mais específica vence o prefixo', (tester) async {
@@ -70,7 +96,7 @@ void main() {
     await tester.pumpWidget(host(OrbitRoutes.syncCenter));
 
     final barra = tester.widget<OrbitBottomNav>(find.byType(OrbitBottomNav));
-    expect(barra.selected, 3);
+    expect(barra.selected, aba(OrbitRoutes.profile));
   });
 
   testWidgets('rota fora das abas não deixa a barra sem seleção', (
@@ -107,6 +133,7 @@ void main() {
         'Início',
         'Atendimentos',
         'Clientes',
+        'Documentos',
         'Perfil',
       ]) {
         final target = find.byTooltip(label);
