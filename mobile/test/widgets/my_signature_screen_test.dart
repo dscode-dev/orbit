@@ -194,12 +194,23 @@ Future<void> voltarAoTopo(WidgetTester tester) async {
 }
 
 /// Traz o alvo para a árvore, sem tocar nele.
+///
+/// Passo de 400, e não de 200: a lista ficou mais alta quando cada seção
+/// ganhou moldura, e com o passo curto a varredura terminava antes de
+/// construir a última seção — o teste falhava com "No element" apontando
+/// para o rolável, que é uma pista enganosa.
 Future<void> rolarAte(WidgetTester tester, Finder alvo) async {
-  await tester.scrollUntilVisible(
-    alvo,
-    200,
-    scrollable: find.byType(Scrollable).first,
-  );
+  /// Arrasto explícito, e não `scrollUntilVisible`.
+  ///
+  /// Com a lista mais alta — cada seção ganhou moldura —, o passo curto do
+  /// `scrollUntilVisible` terminava a varredura antes de a última seção ser
+  /// construída, e o erro apontava para o rolável ("No element"), que é uma
+  /// pista enganosa. O laço abaixo diz exatamente o que faz.
+  for (var tentativa = 0; tentativa < 12; tentativa++) {
+    if (alvo.evaluate().isNotEmpty) break;
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
+    await tester.pumpAndSettle();
+  }
   await tester.pumpAndSettle();
 }
 
@@ -257,10 +268,21 @@ void main() {
 
     /// A seção de envio ficou abaixo da de desenho: rolar é o que uma pessoa
     /// faria para chegar nela.
-    await rolarAte(tester, find.text('Substituir assinatura'));
+    ///
+    /// O título da seção é desenhado em versalete — o `find.text` casa com o
+    /// que o `Text` recebe, e é isso que a tela mostra. A voz continua
+    /// ouvindo "Substituir assinatura", pelo `semanticsLabel`.
+    await rolarAte(tester, find.text('SUBSTITUIR ASSINATURA'));
 
-    /// Sentence case follows the shared compact section typography.
-    expect(find.text('Substituir assinatura'), findsOneWidget);
+    expect(find.text('SUBSTITUIR ASSINATURA'), findsOneWidget);
+
+    /// A voz não ouve o versalete: o `Text` carrega o rótulo escrito como
+    /// gente escreve. Verificado no próprio widget, que é onde a promessa
+    /// é feita.
+    expect(
+      tester.widget<Text>(find.text('SUBSTITUIR ASSINATURA')).semanticsLabel,
+      'Substituir assinatura',
+    );
 
     /// A ação é de substituição, e o texto diz o próximo passo concreto —
     /// "nova" é o que separa este caso do primeiro cadastro.

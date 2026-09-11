@@ -422,8 +422,11 @@ class _ActionButton extends StatelessWidget {
     final deferred =
         destination == FieldActionDestination.deferred && onExecute == null;
 
+    /// `stretch`, e não `start`: com `start` o botão encolhia até o tamanho
+    /// do texto e a seção virava dois retângulos pequenos encostados na
+    /// margem esquerda, com o resto do cartão vazio.
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Semantics(
           button: true,
@@ -449,10 +452,7 @@ class _ActionButton extends StatelessWidget {
             deferred
                 ? 'Disponível no aplicativo de campo, na execução da visita.'
                 : (label.description ?? ''),
-            style: const TextStyle(
-              fontSize: 11,
-              color: OrbitColors.textSecondary,
-            ),
+            style: OrbitType.caption.copyWith(color: context.orbit.inkSubtle),
           ),
         ),
       ],

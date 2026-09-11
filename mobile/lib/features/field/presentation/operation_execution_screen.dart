@@ -272,85 +272,85 @@ class _Summary extends StatelessWidget {
     final operation = preparation.operation;
     final status = operationalStatusLabel(operation.status);
 
-    return SectionBlock(
-      title: operation.code,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            operation.title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: OrbitColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: OrbitSpacing.sm),
+    final palette = context.orbit;
 
-          /// Situação em português. Código sem tradução simplesmente não vira
-          /// texto — decifrar o sistema não é tarefa de quem está em campo.
-          if (status != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: OrbitColors.brand.withValues(alpha: 0.15),
-                borderRadius: OrbitRadius.pill,
-              ),
-              child: Text(
-                status,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: OrbitColors.brand,
-                ),
-              ),
+    /// Cartão, e não bloco solto: é a ficha do atendimento — código, título,
+    /// situação, cliente, equipamento e quem é responsável — e tudo isso se
+    /// lê junto ou não se lê.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
+      child: OrbitCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              operation.code,
+              style: OrbitType.eyebrow.copyWith(color: palette.inkSubtle),
             ),
-
-          if (preparation.customer case final customer?) ...[
+            const SizedBox(height: 4),
+            Text(
+              operation.title,
+              style: OrbitType.sectionTitle.copyWith(color: palette.ink),
+            ),
             const SizedBox(height: OrbitSpacing.sm),
-            _Line(label: 'Cliente', value: customer.name),
+
+            /// Situação em português. Código sem tradução simplesmente não
+            /// vira texto — decifrar o sistema não é tarefa de quem está em
+            /// campo.
+            if (status != null)
+              OrbitStatusBadge(label: status, tone: OrbitTone.info),
+
+            if (preparation.customer case final customer?) ...[
+              const SizedBox(height: OrbitSpacing.sm),
+              _Line(label: 'Cliente', value: customer.name),
+            ],
+
+            for (final equipment in preparation.equipment)
+              _Line(label: 'Equipamento', value: equipment.name),
+
+            if (operation.scheduledFor != null)
+              _Line(
+                label: 'Programado',
+                value: OrbitFormat.dateHourOf(operation.scheduledFor),
+              ),
+
+            if (preparation.responsibleFieldTechnician != null ||
+                preparation.auxiliaryTechnicians.isNotEmpty ||
+                operation.startedBy != null ||
+                operation.completedBy != null) ...[
+              const SizedBox(height: OrbitSpacing.ms),
+              Divider(height: 1, color: palette.border),
+              const SizedBox(height: OrbitSpacing.xs),
+            ],
+
+            if (preparation.responsibleFieldTechnician case final responsible?)
+              _Line(label: 'Técnico em Campo', value: responsible.name),
+            if (preparation.auxiliaryTechnicians.isNotEmpty)
+              _Line(
+                label: auxiliaryTechniciansLabel,
+                value: preparation.auxiliaryTechnicians
+                    .map((person) => person.name)
+                    .join(', '),
+              ),
+
+            /// Quem executou é **histórico** e nunca substitui a escala: pode
+            /// ser outra pessoa, e trocar um pelo outro apagaria o fato.
+            if (operation.startedBy case final startedBy?)
+              _Line(
+                label: 'Iniciado por',
+                value:
+                    '${startedBy.name}'
+                    '${operation.startedAt == null ? '' : ' · ${OrbitFormat.dateHourOf(operation.startedAt)}'}',
+              ),
+            if (operation.completedBy case final completedBy?)
+              _Line(
+                label: 'Concluído por',
+                value:
+                    '${completedBy.name}'
+                    '${operation.completedAt == null ? '' : ' · ${OrbitFormat.dateHourOf(operation.completedAt)}'}',
+              ),
           ],
-
-          for (final equipment in preparation.equipment)
-            _Line(label: 'Equipamento', value: equipment.name),
-
-          if (operation.scheduledFor != null)
-            _Line(
-              label: 'Programado',
-              value: OrbitFormat.dateHourOf(operation.scheduledFor),
-            ),
-
-          const SizedBox(height: OrbitSpacing.sm),
-          const Divider(height: 1, color: OrbitColors.border),
-          const SizedBox(height: OrbitSpacing.sm),
-
-          if (preparation.responsibleFieldTechnician case final responsible?)
-            _Line(label: 'Técnico em Campo', value: responsible.name),
-          if (preparation.auxiliaryTechnicians.isNotEmpty)
-            _Line(
-              label: auxiliaryTechniciansLabel,
-              value: preparation.auxiliaryTechnicians
-                  .map((person) => person.name)
-                  .join(', '),
-            ),
-
-          /// Quem executou é **histórico** e nunca substitui a escala: pode ser
-          /// outra pessoa, e trocar um pelo outro apagaria o fato.
-          if (operation.startedBy case final startedBy?)
-            _Line(
-              label: 'Iniciado por',
-              value:
-                  '${startedBy.name}'
-                  '${operation.startedAt == null ? '' : ' · ${OrbitFormat.dateHourOf(operation.startedAt)}'}',
-            ),
-          if (operation.completedBy case final completedBy?)
-            _Line(
-              label: 'Concluído por',
-              value:
-                  '${completedBy.name}'
-                  '${operation.completedAt == null ? '' : ' · ${OrbitFormat.dateHourOf(operation.completedAt)}'}',
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -370,15 +370,9 @@ class _Line extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: OrbitColors.textSecondary,
-          ),
+          style: OrbitType.caption.copyWith(color: context.orbit.inkSubtle),
         ),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 14, color: OrbitColors.textPrimary),
-        ),
+        Text(value, style: OrbitType.body.copyWith(color: context.orbit.ink)),
       ],
     ),
   );

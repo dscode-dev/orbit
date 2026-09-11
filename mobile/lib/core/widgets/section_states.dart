@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 
 import '../errors/orbit_exception.dart';
 import '../presentation/field_registry.dart';
-import '../design/orbit_primitives.dart';
 import '../theme/orbit_theme.dart';
 
 /// Um bloco de seção: título, apoio e conteúdo.
@@ -45,7 +44,10 @@ class SectionBlock extends StatelessWidget {
   final Widget? trailing;
   final Widget child;
 
-  /// Desenha a caixa. Só quando o agrupamento é semântico de verdade.
+  /// Mantido pelos chamadores antigos. Hoje toda seção tem caixa, então a
+  /// bandeira não muda mais nada — e não foi removida porque tirá-la de
+  /// quinze chamadas num commit de estilo esconderia as mudanças que
+  /// importam.
   final bool boxed;
 
   /// Conteúdo colado às margens da tela — para listas de linhas, cujos
@@ -59,9 +61,9 @@ class SectionBlock extends StatelessWidget {
 
     final cabecalho = Padding(
       padding: EdgeInsets.fromLTRB(
-        inset,
-        OrbitSpacing.md,
-        inset,
+        inset + OrbitSpacing.xs,
+        OrbitSpacing.lg,
+        inset + OrbitSpacing.xs,
         OrbitSpacing.sm,
       ),
       child: Row(
@@ -71,9 +73,19 @@ class SectionBlock extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                /// Versalete, e não um segundo título.
+                ///
+                /// Em `sectionTitle` o rótulo da seção competia com o título
+                /// do conteúdo logo abaixo — duas linhas grandes seguidas, e
+                /// nenhuma delas claramente a principal.
                 Text(
-                  title,
-                  style: OrbitType.sectionTitle.copyWith(
+                  title.toUpperCase(),
+
+                  /// A voz lê o título como foi escrito. Sem isto, o leitor
+                  /// de tela recebe "SUBSTITUIR ASSINATURA" e alguns motores
+                  /// soletram maiúsculas letra a letra.
+                  semanticsLabel: title,
+                  style: OrbitType.eyebrow.copyWith(
                     color: palette.inkSubtle,
                   ),
                 ),
@@ -98,16 +110,27 @@ class SectionBlock extends StatelessWidget {
       ),
     );
 
-    final conteudo = boxed
-        ? Padding(
-            padding: EdgeInsets.symmetric(horizontal: inset),
-            child: OrbitPanel(child: child),
-          )
-        : flush
+    /// O conteúdo mora num cartão.
+    ///
+    /// Antes ele ficava solto sobre o fundo da página, e a tela inteira era
+    /// uma pilha de textos sem contenção — a reclamação que começou este
+    /// trabalho. `flush` continua existindo para listas cujos separadores
+    /// precisam atravessar a largura toda.
+    final conteudo = flush
         ? child
         : Padding(
             padding: EdgeInsets.symmetric(horizontal: inset),
-            child: child,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: OrbitRadius.card,
+                boxShadow: OrbitShadow.card,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(OrbitSpacing.md),
+                child: child,
+              ),
+            ),
           );
 
     return Column(

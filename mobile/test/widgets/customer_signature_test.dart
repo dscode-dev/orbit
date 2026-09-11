@@ -253,6 +253,12 @@ Future<void> tocarEm(WidgetTester tester, String texto) async {
     scrollable: find.byType(Scrollable).first,
   );
   await tester.pumpAndSettle();
+
+  /// `scrollUntilVisible` para assim que o alvo entra no viewport do
+  /// rolável — que pode ser abaixo da borda da tela. `ensureVisible` traz o
+  /// alvo para dentro do que de fato recebe toque.
+  await tester.ensureVisible(alvo);
+  await tester.pumpAndSettle();
   await tester.tap(alvo);
   await tester.pumpAndSettle();
 }
@@ -324,6 +330,15 @@ void main() {
       },
     );
     await tester.pumpWidget(wrap(segunda, operationId: 'op-2'));
+    await tester.pumpAndSettle();
+
+    /// Rola até o pad antes de lê-lo: a lista o constrói sob demanda, e com
+    /// o aceite anterior no topo ele nasce abaixo da dobra.
+    await tester.scrollUntilVisible(
+      find.byType(OrbitSignaturePad),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
 
     final padB = tester.widget<OrbitSignaturePad>(
@@ -442,6 +457,8 @@ void main() {
       200,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(alvo);
     await tester.pumpAndSettle();
 
     /// Dois toques no mesmo instante — o que um dedo nervoso produz.

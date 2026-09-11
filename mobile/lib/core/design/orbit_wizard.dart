@@ -120,45 +120,72 @@ class OrbitWizardState extends State<OrbitWizard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Trilho(steps: widget.steps, current: _atual, onSelect: _ir),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
-          child: LinearProgressIndicator(
-            value: (_atual + 1) / widget.steps.length,
-            minHeight: 3,
-          ),
-        ),
-
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            OrbitSpacing.md,
-            OrbitSpacing.md,
-            OrbitSpacing.md,
-            OrbitSpacing.sm,
+        /// Trilho, barra de progresso e cabeçalho da etapa numa superfície
+        /// elevada só.
+        ///
+        /// Os três descreviam a mesma coisa — onde estou — e estavam soltos
+        /// sobre o fundo, em três alturas diferentes. Juntos e com sombra,
+        /// lê-se um bloco de orientação, e o que rola por baixo é o trabalho.
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: palette.surface,
+            boxShadow: OrbitShadow.card,
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Etapa ${_atual + 1} de ${widget.steps.length}',
-                style: OrbitType.label.copyWith(color: palette.inkSubtle),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                etapa.title,
-                style: OrbitType.sectionTitle.copyWith(color: palette.ink),
-              ),
-              if (etapa.hint case final String dica) ...[
-                const SizedBox(height: 4),
-                Text(
-                  dica,
-                  style: OrbitType.body.copyWith(color: palette.inkMuted),
+              _Trilho(steps: widget.steps, current: _atual, onSelect: _ir),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: OrbitSpacing.gutter,
                 ),
-              ],
+                child: ClipRRect(
+                  borderRadius: OrbitRadius.pill,
+                  child: LinearProgressIndicator(
+                    value: (_atual + 1) / widget.steps.length,
+                    minHeight: 4,
+                    backgroundColor: palette.surfaceMuted,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  OrbitSpacing.gutter,
+                  OrbitSpacing.ms,
+                  OrbitSpacing.gutter,
+                  OrbitSpacing.md,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Etapa ${_atual + 1} de ${widget.steps.length}',
+                      style: OrbitType.eyebrow.copyWith(
+                        color: palette.inkSubtle,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      etapa.title,
+                      style: OrbitType.sectionTitle.copyWith(
+                        color: palette.ink,
+                      ),
+                    ),
+                    if (etapa.hint case final String dica) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        dica,
+                        style: OrbitType.body.copyWith(color: palette.inkMuted),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ],
           ),
         ),
 
+        const SizedBox(height: OrbitSpacing.md),
         etapa.child,
 
         if (widget.footer case final Widget rodape) ...[
@@ -188,15 +215,40 @@ class OrbitWizardState extends State<OrbitWizard> {
                 const SizedBox(width: OrbitSpacing.sm),
               if (proxima != null)
                 Expanded(
-                  child: OutlinedButton(
+                  /// Tonal, e não `OutlinedButton` com o estilo de
+                  /// `FilledButton`: era o que estava aqui, e como o estilo
+                  /// de um tipo de botão não se aplica a outro, o resultado
+                  /// era uma caixa vazia com texto no meio, indistinguível
+                  /// de um campo desabilitado.
+                  ///
+                  /// Tonal também é o peso certo: a ação primária do
+                  /// atendimento mora na barra fixa embaixo, e avançar de
+                  /// etapa não pode competir com ela.
+                  child: FilledButton(
                     onPressed: () => _ir(proxima),
+
+                    /// As cores vão **explícitas**.
+                    ///
+                    /// `FilledButton.tonal` pega o tom da variante nos
+                    /// defaults do Material, e o tema do Orbit define
+                    /// `filledButtonTheme` — que vence a variante e devolve o
+                    /// azul cheio da ação primária. Duas ações primárias na
+                    /// mesma tela é uma a mais: a do atendimento mora na
+                    /// barra fixa embaixo.
                     style: FilledButton.styleFrom(
                       minimumSize: const Size(0, 48),
+                      backgroundColor: palette.accentSoft,
+                      foregroundColor: palette.accentStrong,
+                      elevation: 0,
                     ),
 
                     /// "Avançar", nunca "Salvar": mudar de etapa não envia
                     /// comando nenhum, e prometer gravação seria mentir.
-                    child: Text('Avançar · ${widget.steps[proxima].title}'),
+                    child: Text(
+                      'Avançar · ${widget.steps[proxima].title}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
             ],

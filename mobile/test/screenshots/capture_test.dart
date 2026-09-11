@@ -25,6 +25,7 @@ import 'package:orbit_operator/features/authentication/domain/session.dart';
 import 'package:orbit_operator/features/operations/data/operations_repository.dart';
 import 'package:orbit_operator/features/operations/presentation/operations_screen.dart';
 import 'package:orbit_operator/features/customers/presentation/customers_screen.dart';
+import 'package:orbit_operator/features/field/presentation/work_item_detail_screen.dart';
 import 'package:orbit_operator/features/field/presentation/work_queue_screen.dart';
 import 'package:orbit_operator/features/scheduling/presentation/agenda_screen.dart';
 import 'package:orbit_operator/features/signature/presentation/my_signature_screen.dart';
@@ -33,6 +34,7 @@ import '../support/fakes.dart';
 import '../support/scripted_adapter.dart';
 import 'harness.dart';
 import 'package:orbit_operator/features/documents/presentation/documents_screen.dart';
+import 'package:orbit_operator/features/authentication/presentation/login_screen.dart';
 import 'package:orbit_operator/features/notifications/presentation/notifications_screen.dart';
 import 'package:orbit_operator/features/profile/presentation/profile_screen.dart';
 import 'package:orbit_operator/features/sync/presentation/sync_center_screen.dart';
@@ -697,6 +699,52 @@ void registerCaptures() {
       find.byType(MaterialApp),
       matchesGoldenFile(
         'out/${captureWidth.toInt()}_$captureScale/06_perfil.png',
+      ),
+    );
+  });
+
+  testWidgets('entrar', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+    await tester.pumpWidget(host(const {}, const LoginScreen()));
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_$captureScale/00_entrar.png',
+      ),
+    );
+  });
+
+  testWidgets('detalhe do atendimento', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+    await tester.pumpWidget(
+      host({
+        'workItem': item(
+          id: 'OPERATION:op-1',
+          titulo: 'Manutenção preventiva — Chiller 40TR',
+          cliente: 'Shopping Recife',
+          unidade: 'Matriz',
+          quando: '2026-09-08T12:30:00.000Z',
+        ),
+        'request': {
+          'description':
+              'Cliente relata ruído no compressor desde segunda-feira, '
+              'com queda de rendimento no período da tarde.',
+        },
+        'procedures': <Map<String, dynamic>>[],
+        'documentContext': <Map<String, dynamic>>[],
+        'snapshotVersion': 3,
+      }, const WorkItemDetailScreen(workItemId: 'OPERATION:op-1')),
+    );
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_$captureScale/03c_detalhe.png',
       ),
     );
   });
