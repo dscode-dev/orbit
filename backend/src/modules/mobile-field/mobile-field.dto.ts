@@ -99,4 +99,48 @@ export class MobileDocumentsQueryDto {
   @IsOptional()
   @IsString()
   cursor?: string;
+
+  /// Busca por cliente ou título do documento.
+  @ApiPropertyOptional({ example: 'Shopping' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUIDv7()
+  customerId?: string;
+
+  @ApiPropertyOptional({ example: '2026-09-01' })
+  @IsOptional()
+  @Matches(DATE_ONLY, { message: 'from must be YYYY-MM-DD' })
+  from?: string;
+
+  @ApiPropertyOptional({ example: '2026-09-30' })
+  @IsOptional()
+  @Matches(DATE_ONLY, { message: 'to must be YYYY-MM-DD' })
+  to?: string;
+}
+
+/// Recortes da base de clientes.
+export class MobileFieldCustomersQueryDto {
+  @ApiPropertyOptional({ example: 'Shopping' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 30 })
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cursor?: string;
 }

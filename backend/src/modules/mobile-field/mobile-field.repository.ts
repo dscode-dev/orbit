@@ -137,8 +137,71 @@ export class MobileFieldRepository {
           title: true,
           kind: true,
           completedAt: true,
-          customer: { select: { legalName: true, tradeName: true } },
+          customer: {
+            select: { id: true, legalName: true, tradeName: true },
+          },
           asset: { select: { name: true } },
+        },
+      }),
+    );
+  }
+
+  /**
+   * Uma página da base de clientes da organização.
+   *
+   * ## Por que não é só quem tem trabalho
+   *
+   * A primeira versão da tela de Clientes derivava a lista da projeção de
+   * trabalho, e 433 dos 498 clientes cadastrados não apareciam — um cliente
+   * recém-criado, que por definição ainda não tem atendimento, nunca
+   * apareceria. "Clientes" é a base; ter trabalho é um **atributo** dela.
+   *
+   * Paginado porque a base cresce: mandar quinhentos registros para caber uma
+   * busca local funciona no ambiente de teste e trava no aparelho de quem tem
+   * dois mil.
+   */
+  customersPage(
+    organizationId: string,
+    input: { search?: string; limit: number; cursor?: string },
+  ) {
+    const termo = input.search?.trim();
+    return this.rls.run((tx) =>
+      tx.customer.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          ...(termo
+            ? {
+                OR: [
+                  {
+                    legalName: {
+                      contains: termo,
+                      mode: 'insensitive' as const,
+                    },
+                  },
+                  {
+                    tradeName: {
+                      contains: termo,
+                      mode: 'insensitive' as const,
+                    },
+                  },
+                  { documentNumber: { contains: termo } },
+                ],
+              }
+            : {}),
+        },
+
+        /// Ordem estável por nome, desempatada pelo id: o cursor depende de a
+        /// ordem não mudar entre páginas.
+        orderBy: [{ legalName: 'asc' as const }, { id: 'asc' as const }],
+        take: input.limit + 1,
+        ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+        select: {
+          id: true,
+          legalName: true,
+          tradeName: true,
+          documentNumber: true,
+          status: true,
         },
       }),
     );
@@ -165,7 +228,10 @@ export class MobileFieldRepository {
           artifactExecution: {
             select: {
               renderStatus: true,
-              customer: { select: { legalName: true, tradeName: true } },
+              title: true,
+              customer: {
+                select: { id: true, legalName: true, tradeName: true },
+              },
             },
           },
         },
@@ -184,15 +250,75 @@ export class MobileFieldRepository {
   documentsPage(
     organizationId: string,
     businessUnitIds: readonly string[],
-    options: { type?: string; take: number; cursorId?: string },
+    options: {
+      type?: string;
+      search?: string;
+      customerId?: string;
+      from?: Date;
+      to?: Date;
+      take: number;
+      cursorId?: string;
+    },
   ) {
     if (businessUnitIds.length === 0) return Promise.resolve([]);
+    const termo = options.search?.trim();
     return this.rls.run((tx) =>
       tx.fieldArtifact.findMany({
         where: {
           organizationId,
           businessUnitId: { in: [...businessUnitIds] },
           ...(options.type ? { documentType: options.type } : {}),
+
+          /// A janela é sobre a **emissão** do documento, que é a data que
+          /// quem procura tem na cabeça — "o relatório da semana passada".
+          ...(options.from || options.to
+            ? {
+                createdAt: {
+                  ...(options.from ? { gte: options.from } : {}),
+                  ...(options.to ? { lte: options.to } : {}),
+                },
+              }
+            : {}),
+
+          /// Cliente e busca moram na execução do artefato: o documento é o
+          /// arquivo, e o contexto é dela.
+          ...(options.customerId || termo
+            ? {
+                artifactExecution: {
+                  ...(options.customerId
+                    ? { customerId: options.customerId }
+                    : {}),
+                  ...(termo
+                    ? {
+                        OR: [
+                          {
+                            customer: {
+                              legalName: {
+                                contains: termo,
+                                mode: 'insensitive' as const,
+                              },
+                            },
+                          },
+                          {
+                            customer: {
+                              tradeName: {
+                                contains: termo,
+                                mode: 'insensitive' as const,
+                              },
+                            },
+                          },
+                          {
+                            title: {
+                              contains: termo,
+                              mode: 'insensitive' as const,
+                            },
+                          },
+                        ],
+                      }
+                    : {}),
+                },
+              }
+            : {}),
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: options.take,

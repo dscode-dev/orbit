@@ -5,6 +5,7 @@ import type { IdentityRequest } from '../identity/infrastructure/jwt-authenticat
 import { RequiresActivePlan } from '../subscription-plans/plan-access';
 import {
   MobileDocumentsQueryDto,
+  MobileFieldCustomersQueryDto,
   MobileWorkQueueQueryDto,
 } from './mobile-field.dto';
 import {
@@ -44,6 +45,17 @@ export class MobileFieldController {
     @Query() query: MobileWorkQueueQueryDto,
   ) {
     return this.service.workQueue(this.actor(request), query);
+  }
+
+  @Get('customers')
+  @ApiOperation({
+    summary: 'Carteira de clientes desta pessoa, com trabalho e histórico',
+  })
+  fieldCustomers(
+    @Req() request: IdentityRequest,
+    @Query() query: MobileFieldCustomersQueryDto,
+  ) {
+    return this.service.fieldCustomers(this.actor(request), query);
   }
 
   @Get('queue-customers')

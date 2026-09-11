@@ -199,3 +199,33 @@ export interface MobileQueueCustomerReadModel {
   name: string;
   workCount: number;
 }
+
+/// Um cliente da carteira desta pessoa.
+///
+/// Não é o cadastro completo do CRM — é o que a tela de Clientes precisa para
+/// listar e decidir: quanto trabalho há, quando foi a última vez e quando é a
+/// próxima. O cadastro completo exige `customers.read`, que a role de campo
+/// não tem.
+export interface MobileFieldCustomerReadModel {
+  id: string;
+  /// O nome comercial quando existe; a razão social quando não.
+  name: string;
+  legalName: string;
+  documentNumber: string | null;
+  status: string;
+
+  /// Quantos atendimentos **desta pessoa** com este cliente.
+  openCount: number;
+  completedCount: number;
+  lastServiceAt: string | null;
+  nextServiceAt: string | null;
+}
+
+export interface MobileFieldCustomerPageReadModel {
+  data: readonly MobileFieldCustomerReadModel[];
+  meta: {
+    limit: number;
+    hasNextPage: boolean;
+    nextCursor: string | null;
+  };
+}

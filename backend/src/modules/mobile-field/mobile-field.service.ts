@@ -4,6 +4,7 @@ import { EntityNotFoundException, ForbiddenException } from '../../exceptions';
 import { civilDateKey } from '../scheduling/scheduling-time';
 import type {
   MobileDocumentsQueryDto,
+  MobileFieldCustomersQueryDto,
   MobileWorkQueueQueryDto,
 } from './mobile-field.dto';
 import {
@@ -25,6 +26,7 @@ import type {
   MobileFieldHomeReadModel,
   MobileDocumentsPageReadModel,
   MobileRecentDocumentReadModel,
+  MobileFieldCustomerPageReadModel,
   MobileQueueCustomerReadModel,
 } from './mobile-field.read-models';
 
@@ -161,6 +163,12 @@ export class MobileFieldService {
       actor.businessUnitIds,
       {
         ...(query.type ? { type: query.type } : {}),
+        ...(query.search ? { search: query.search } : {}),
+        ...(query.customerId ? { customerId: query.customerId } : {}),
+        ...(query.from
+          ? { from: new Date(`${query.from}T00:00:00.000Z`) }
+          : {}),
+        ...(query.to ? { to: new Date(`${query.to}T23:59:59.999Z`) } : {}),
         take: limit + 1,
         ...(cursor ? { cursorId: cursor.id } : {}),
       },
@@ -285,6 +293,93 @@ export class MobileFieldService {
     return [...porId.values()].sort(
       (a, b) => b.workCount - a.workCount || a.name.localeCompare(b.name),
     );
+  }
+
+  /**
+   * A base de clientes, com o trabalho desta pessoa anotado em cada um.
+   *
+   * ## O que mudou, e por quê
+   *
+   * A primeira versão derivava a lista da projeção de trabalho. O efeito foi
+   * que 433 dos 498 clientes cadastrados não apareciam, e um cliente criado
+   * naquela mesma tela — que por definição ainda não tem atendimento — também
+   * não. "Clientes" é a base; ter trabalho é um atributo dela.
+   *
+   * A contagem continua sendo **pessoal**: quantos atendimentos em aberto e
+   * concluídos esta pessoa tem com aquele cliente. É o que faz a lista ser
+   * útil em campo sem virar um relatório da organização.
+   */
+  async fieldCustomers(
+    actor: MobileFieldActor,
+    query: MobileFieldCustomersQueryDto,
+  ): Promise<MobileFieldCustomerPageReadModel> {
+    const limit = query.limit ?? 30;
+
+    const [pagina, itens, concluidos] = await Promise.all([
+      this.repository.customersPage(actor.organizationId, {
+        search: query.search,
+        limit,
+        cursor: query.cursor,
+      }),
+      this.items(actor).then((lista) =>
+        lista.filter((item) => this.matchesPermission(item)),
+      ),
+      this.repository.recentlyCompleted(
+        actor.organizationId,
+        actor.businessUnitIds,
+        actor.id,
+        200,
+      ),
+    ]);
+
+    /// As contagens são montadas uma vez, num mapa, e não por cliente da
+    /// página: varrer a projeção dentro do laço seria trinta varreduras.
+    const abertos = new Map<string, number>();
+    const proximos = new Map<string, string>();
+    for (const item of itens) {
+      const id = item.customer?.id;
+      if (!id) continue;
+      abertos.set(id, (abertos.get(id) ?? 0) + 1);
+      if (item.scheduledFor != null) {
+        const atual = proximos.get(id);
+        if (atual == null || item.scheduledFor < atual) {
+          proximos.set(id, item.scheduledFor);
+        }
+      }
+    }
+
+    const feitos = new Map<string, number>();
+    const ultimos = new Map<string, string>();
+    for (const operacao of concluidos) {
+      const id = operacao.customer?.id;
+      if (!id || operacao.completedAt == null) continue;
+      feitos.set(id, (feitos.get(id) ?? 0) + 1);
+      const quando = operacao.completedAt.toISOString();
+      const atual = ultimos.get(id);
+      if (atual == null || quando > atual) ultimos.set(id, quando);
+    }
+
+    const temProxima = pagina.length > limit;
+    const linhas = pagina.slice(0, limit);
+
+    return {
+      data: linhas.map((cliente) => ({
+        id: cliente.id,
+        name: cliente.tradeName ?? cliente.legalName,
+        legalName: cliente.legalName,
+        documentNumber: cliente.documentNumber,
+        status: cliente.status,
+        openCount: abertos.get(cliente.id) ?? 0,
+        completedCount: feitos.get(cliente.id) ?? 0,
+        lastServiceAt: ultimos.get(cliente.id) ?? null,
+        nextServiceAt: proximos.get(cliente.id) ?? null,
+      })),
+      meta: {
+        limit,
+        hasNextPage: temProxima,
+        nextCursor: temProxima ? (linhas.at(-1)?.id ?? null) : null,
+      },
+    };
   }
 
   async workQueue(

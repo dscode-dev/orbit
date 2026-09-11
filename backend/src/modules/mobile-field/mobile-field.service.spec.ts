@@ -178,6 +178,86 @@ describe('MobileFieldService', () => {
       new Set([...first.data, ...second.data].map((item) => item.id)).size,
     ).toBe(55);
   });
+  it('lista a base de clientes, mesmo quem não tem trabalho', async () => {
+    /// O defeito que este teste tranca: a primeira versão derivava a lista
+    /// da projeção de trabalho, e 433 dos 498 clientes cadastrados não
+    /// apareciam — inclusive um recém-criado, que por definição ainda não
+    /// tem atendimento nenhum.
+    const repository = {
+      project: jest.fn().mockResolvedValue(emptySource()),
+      recentDocuments: jest.fn().mockResolvedValue([]),
+      recentAppointments: jest.fn().mockResolvedValue([]),
+      recentlyCompleted: jest.fn().mockResolvedValue([]),
+      customersPage: jest.fn().mockResolvedValue([
+        {
+          id: 'c-sem-trabalho',
+          legalName: 'Cliente Recém-Cadastrado LTDA',
+          tradeName: null,
+          documentNumber: null,
+          status: 'ACTIVE',
+        },
+      ]),
+    };
+    const service = new MobileFieldService(repository as never);
+
+    const pagina = await service.fieldCustomers(actor, {});
+
+    expect(pagina.data).toHaveLength(1);
+    expect(pagina.data[0]!.id).toBe('c-sem-trabalho');
+
+    /// Aparece com zero, e zero é a resposta certa — não é motivo para sumir.
+    expect(pagina.data[0]!.openCount).toBe(0);
+    expect(pagina.data[0]!.completedCount).toBe(0);
+
+    /// Sem nome fantasia, o nome exibido é a razão social.
+    expect(pagina.data[0]!.name).toBe('Cliente Recém-Cadastrado LTDA');
+  });
+
+  it('a contagem de trabalho é pessoal, e casada por id', async () => {
+    const cliente = { id: 'c1', name: 'Shopping Recife' };
+    const repository = {
+      project: jest.fn().mockResolvedValue(emptySource()),
+      recentDocuments: jest.fn().mockResolvedValue([]),
+      recentAppointments: jest.fn().mockResolvedValue([]),
+      recentlyCompleted: jest.fn().mockResolvedValue([
+        {
+          id: 'op1',
+          code: 'OP-1',
+          title: 'Corretiva',
+          kind: 'SERVICE_OPERATION',
+          completedAt: new Date('2026-09-05T14:00:00.000Z'),
+          customer: { id: 'c1', legalName: 'Shopping Recife S.A.' },
+          asset: null,
+        },
+      ]),
+      customersPage: jest.fn().mockResolvedValue([
+        {
+          id: 'c1',
+          legalName: 'Shopping Recife S.A.',
+          tradeName: 'Shopping Recife',
+          documentNumber: null,
+          status: 'ACTIVE',
+        },
+        {
+          id: 'c2',
+          legalName: 'Outro Cliente com Nome Igual',
+          tradeName: 'Shopping Recife',
+          documentNumber: null,
+          status: 'ACTIVE',
+        },
+      ]),
+    };
+    const service = new MobileFieldService(repository as never);
+
+    const pagina = await service.fieldCustomers(actor, {});
+
+    /// Dois clientes com o **mesmo nome fantasia**. O histórico tem de cair
+    /// no dono certo: casar por texto juntaria os dois num só número.
+    const [primeiro, segundo] = pagina.data;
+    expect(primeiro!.completedCount).toBe(1);
+    expect(segundo!.completedCount).toBe(0);
+    expect(cliente.id).toBe('c1');
+  });
 });
 
 function emptySource() {
