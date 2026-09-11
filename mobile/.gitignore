@@ -46,3 +46,5 @@ app.*.map.json
 
 # Configuração local: a URL da API depende da máquina de quem desenvolve.
 /config/local.json
+/config/staging.json
+/config/production.json

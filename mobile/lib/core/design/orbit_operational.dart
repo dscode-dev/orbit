@@ -169,7 +169,13 @@ class OrbitBottomNav extends StatelessWidget {
     required this.selected,
     required this.onSelect,
   });
-  final List<({String label, IconData icon, IconData selectedIcon})> items;
+  /// `label` é o que a barra desenha; `fullLabel`, o que o leitor de tela
+  /// anuncia e o tooltip mostra. São diferentes de propósito: "Atend." cabe
+  /// em 78 pixels, e quem ouve a tela precisa de "Atendimentos".
+  final List<
+    ({String label, String fullLabel, IconData icon, IconData selectedIcon})
+  >
+  items;
   final int selected;
   final ValueChanged<int> onSelect;
 
@@ -190,18 +196,18 @@ class OrbitBottomNav extends StatelessWidget {
               for (var i = 0; i < items.length; i++)
                 Expanded(
                   child: Semantics(
-                    label: items[i].label,
+                    label: items[i].fullLabel,
                     selected: selected == i,
                     button: true,
                     onTap: () => onSelect(i),
                     excludeSemantics: true,
                     child: Tooltip(
-                      message: items[i].label,
+                      message: items[i].fullLabel,
                       child: InkWell(
                         borderRadius: OrbitRadius.field,
                         onTap: () => onSelect(i),
                         child: SizedBox(
-                          height: 52,
+                          height: 56,
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -209,18 +215,27 @@ class OrbitBottomNav extends StatelessWidget {
                                 selected == i
                                     ? items[i].selectedIcon
                                     : items[i].icon,
-                                size: 24,
+                                size: 22,
                                 color: selected == i ? p.accent : p.inkSubtle,
                               ),
-                              const SizedBox(height: 5),
-                              Container(
-                                width: 4,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
+                              const SizedBox(height: 3),
+
+                              /// O rótulo, não um ponto.
+                              ///
+                              /// O ponto dizia qual aba estava ativa e nada
+                              /// mais — quem não reconhece o ícone continuava
+                              /// sem saber para onde ia. O nome resolve as
+                              /// duas coisas, e a cor continua marcando a
+                              /// seleção.
+                              Text(
+                                items[i].label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: OrbitType.label.copyWith(
+                                  fontSize: 11,
                                   color: selected == i
                                       ? p.accent
-                                      : Colors.transparent,
+                                      : p.inkSubtle,
                                 ),
                               ),
                             ],

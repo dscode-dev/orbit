@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/contracts/mobile_signature_contracts.dart';
+import '../../../core/network/orbit_api_client.dart';
 import '../data/signature_file.dart';
 import '../data/signature_repository.dart';
 
@@ -19,6 +20,37 @@ final signatureStatusProvider =
     FutureProvider.autoDispose<MobileSignatureStatus>(
       (ref) => ref.watch(signatureRepositoryProvider).status(),
     );
+
+/// Bytes efêmeros da própria assinatura ativa.
+///
+/// O grant expirado é renovado uma única vez. Uma falha de leitura também
+/// força uma única releitura do status, cobrindo a expiração ocorrida entre o
+/// GET autenticado e o download, sem criar loop de retry.
+final signaturePreviewProvider = FutureProvider.autoDispose<Uint8List?>((
+  ref,
+) async {
+  final cancellation = OrbitRequestCancellation();
+  ref.onDispose(cancellation.cancel);
+  final repository = ref.watch(signatureRepositoryProvider);
+  var status = await ref.watch(signatureStatusProvider.future);
+  if (!status.signatureAvailable || status.preview == null) return null;
+
+  for (var attempt = 0; attempt < 2; attempt += 1) {
+    final preview = status.preview;
+    if (preview == null) return null;
+    if (preview.isExpired) {
+      status = await repository.status();
+      continue;
+    }
+    try {
+      return await repository.preview(preview, cancellation: cancellation);
+    } on Object {
+      if (attempt == 1 || cancellation.isCancelled) rethrow;
+      status = await repository.status();
+    }
+  }
+  return null;
+});
 
 /// O resumo congelado do aceite de um atendimento.
 final acknowledgementPreparationProvider = FutureProvider.autoDispose

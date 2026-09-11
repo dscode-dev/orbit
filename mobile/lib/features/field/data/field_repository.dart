@@ -146,6 +146,33 @@ class FieldRepository {
       '${valor.month.toString().padLeft(2, '0')}-'
       '${valor.day.toString().padLeft(2, '0')}';
 
+  /// A carteira de clientes desta pessoa.
+  Future<CachedResult<List<MobileFieldCustomerContract>>> customers({
+    required String scopeKey,
+  }) async {
+    final key = 'field.customers.$scopeKey';
+    try {
+      final data = await _client.get<List<dynamic>>(
+        '/mobile/field/customers',
+      );
+      await _cache.write(key, {'data': data});
+      return CachedResult(value: _clientes(data), cachedAt: null);
+    } on OrbitException catch (error) {
+      if (!error.isOffline && !error.isServer) rethrow;
+      final cached = await _cache.read(key);
+      if (cached == null) rethrow;
+      return CachedResult(
+        value: _clientes(cached.value['data'] as List<dynamic>? ?? const []),
+        cachedAt: cached.cachedAt,
+      );
+    }
+  }
+
+  static List<MobileFieldCustomerContract> _clientes(List<dynamic> data) => data
+      .whereType<Map<String, dynamic>>()
+      .map(MobileFieldCustomerContract.fromJson)
+      .toList(growable: false);
+
   /// Os clientes com trabalho desta pessoa, para o filtro.
   Future<List<MobileQueueCustomerContract>> queueCustomers() async {
     final data = await _client.get<List<dynamic>>(

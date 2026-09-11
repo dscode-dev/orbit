@@ -131,8 +131,8 @@ não carregar deveria ser decisão discutida, não uma linha silenciosa.
 ## Navegação
 
 `GoRouter` com redirect por estado de sessão: restaurando → splash; sem sessão →
-login; autenticado → shell. O shell tem quatro entradas — Início/Visão Geral,
-Operações, Agenda, Perfil — e o indicador de fila acima da barra, visível
+login; autenticado → shell. O shell tem cinco entradas — Início,
+Atendimentos, Agenda, Documentos e Perfil — e o indicador de fila acima da barra, visível
 durante o trabalho.
 
 Fluxos específicos entram por item de trabalho, deep link ou etiqueta. Rotas

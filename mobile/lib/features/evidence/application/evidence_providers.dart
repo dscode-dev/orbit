@@ -2,10 +2,12 @@
 library;
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
+import '../../../core/network/orbit_api_client.dart';
 import '../../../core/contracts/mobile_evidence_contracts.dart';
 import '../../sync/application/sync_providers.dart';
 import '../../sync/data/command_journal.dart' show CommandScope;
@@ -31,6 +33,16 @@ final mediaQueueProvider = Provider<MediaQueue>(
 final evidenceRepositoryProvider = Provider<EvidenceRepository>(
   (ref) => EvidenceRepository(client: ref.watch(apiClientProvider)),
 );
+
+/// Preview lifecycle belongs to the application layer, never to a widget.
+final evidenceThumbnailProvider = FutureProvider.autoDispose
+    .family<Uint8List?, FieldEvidence>((ref, evidence) {
+      final token = OrbitRequestCancellation();
+      ref.onDispose(() => token.cancel());
+      return ref
+          .watch(evidenceRepositoryProvider)
+          .thumbnail(evidence, cancellation: token);
+    });
 
 final mediaCaptureSourceProvider = Provider<MediaCaptureSource>(
   (ref) => const PlatformMediaCaptureSource(),

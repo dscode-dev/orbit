@@ -29,6 +29,7 @@ import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/scheduling/presentation/agenda_screen.dart';
 import '../../features/documents/presentation/documents_screen.dart';
 import '../../features/equipment/presentation/equipment_scanner_screen.dart';
+import '../../features/customers/presentation/customers_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import 'app_shell.dart';
 
@@ -47,6 +48,7 @@ abstract final class OrbitRoutes {
   /// agora é destino próprio, porque "cadê a OS de ontem?" é pergunta de todo
   /// dia e não tinha resposta a menos de quatro toques.
   static const documents = '/documentos';
+  static const customers = '/clientes';
 
   /// A leitura de etiqueta. Fora do shell: a câmera ocupa a tela inteira.
   static const scanner = '/etiqueta';
@@ -208,6 +210,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: OrbitRoutes.documents,
             builder: (context, state) => const DocumentsScreen(),
+          ),
+          GoRoute(
+            path: OrbitRoutes.customers,
+            builder: (context, state) => const CustomersScreen(),
           ),
           GoRoute(
             path: OrbitRoutes.profile,

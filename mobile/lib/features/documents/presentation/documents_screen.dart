@@ -192,9 +192,9 @@ class _List extends StatelessWidget {
 /// preparando deixaria a pessoa esperando um documento que nunca chega.
 Widget documentStateBadge(MobileRecentDocumentContract document) =>
     switch (document.state) {
-      MobileDocumentState.available => const Icon(
-        Icons.picture_as_pdf_outlined,
-        size: 20,
+      MobileDocumentState.available => const OrbitStatusBadge(
+        label: 'Disponível',
+        tone: OrbitTone.success,
       ),
       MobileDocumentState.preparing => const OrbitStatusBadge(
         label: 'Preparando',

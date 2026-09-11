@@ -1,12 +1,11 @@
 /// Configuração de ambiente.
 ///
-/// Os valores chegam por `--dart-define`, nunca por arquivo versionado — a URL
-/// da API muda entre local, homologação e produção e não deve virar constante
-/// de código.
+/// Os valores chegam por `--dart-define-from-file`; presets não secretos vivem
+/// em `config/`, enquanto arquivos específicos da máquina ficam ignorados.
 ///
 /// ```sh
-/// flutter run --dart-define=ORBIT_API_URL=http://10.0.2.2:6001/api/v1
-/// flutter build apk --dart-define=ORBIT_API_URL=https://api.orbit.app/api/v1
+/// flutter run --dart-define-from-file=config/development.android.json
+/// flutter build appbundle --release --dart-define-from-file=config/production.json
 /// ```
 library;
 
@@ -115,7 +114,7 @@ class OrbitEnvironment {
   /// não depende de mostrar para onde se apontou.
   static const unsafeEndpointReason =
       'A configuração aponta para um endereço de desenvolvimento. '
-      'Informe ORBIT_API_URL com o endereço do ambiente ao compilar.';
+      'Defina ORBIT_API_URL no arquivo de configuração do ambiente de destino.';
 
   /// O destino, como `host:porta`.
   ///
@@ -139,7 +138,6 @@ class OrbitEnvironment {
   /// Cliente informado ao backend em `LoginDto.client`.
   static const String client = 'MOBILE';
 }
-
 
 /* ------------------------------------------------------------------ */
 /* A barreira que impede o artefato de existir                         */
@@ -180,7 +178,8 @@ const _ehBancadaConhecida =
     _urlInformada == 'http://localhost:5001/api/v1' ||
     _urlInformada == 'http://127.0.0.1:6001/api/v1' ||
     _urlInformada == 'http://127.0.0.1:6001' ||
-    _urlInformada == 'http://0.0.0.0:6001/api/v1';
+    _urlInformada == 'http://0.0.0.0:6001/api/v1' ||
+    _urlInformada == 'https://api.production.invalid/api/v1';
 
 /// Um build de distribuição precisa de endereço informado e não-local.
 ///
@@ -206,9 +205,7 @@ const _distribuicaoSegura =
 /// ## O que fazer quando isto disparar
 ///
 /// ```sh
-/// flutter build apk --release \\
-///   --dart-define=ORBIT_API_URL=https://api.orbit.app/api/v1 \\
-///   --dart-define=ORBIT_FLAVOR=production
+/// make build-android-prod
 /// ```
 class _GuardaDeDistribuicao {
   const _GuardaDeDistribuicao(bool seguro)
@@ -217,7 +214,7 @@ class _GuardaDeDistribuicao {
         'Build de release com endereço de desenvolvimento. O ORBIT_API_URL '
         'informado é um endereço de bancada, ou não foi informado e o padrão '
         'do repositório aponta para a máquina de desenvolvimento. Informe '
-        '--dart-define=ORBIT_API_URL com o endereço do ambiente de destino.',
+        '--dart-define-from-file com o preset do ambiente de destino.',
       );
 }
 

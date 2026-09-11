@@ -13,7 +13,7 @@ O backend entrega o item de trabalho já classificado, ordenado e autorizado.
 Três endpoints do MB-01 sustentam tudo:
 
 ```text
-GET /mobile/field/dashboard        → o dia, consolidado
+GET /mobile/field/home             → o dia e superfícies recentes, consolidados
 GET /mobile/field/work-queue       → a fila, ordenada e paginada por cursor
 GET /mobile/field/work-items/:id   → o contexto de um item
 ```
@@ -34,9 +34,10 @@ O próximo atendimento é escolha do servidor (`next`), não do app. Ele só é
 exibido quando ainda não apareceu em "Em andamento": repeti-lo seria gastar a
 tela com o mesmo cartão.
 
-A home é escolhida pelo perfil — quem executa em campo vê **Meu dia**; quem
-administra continua vendo os indicadores. É a mesma distinção que o shell já
-fazia entre "Início" e "Visão Geral", agora valendo também para o conteúdo.
+A Home é canônica para todos os perfis móveis autorizados. Owner, Técnico em
+Campo e Responsável Técnico veem a mesma árvore de componentes e a mesma
+identidade visual; o backend limita a projeção e `allowedActions` conforme o
+escopo real de cada ator.
 
 ## Ordenação
 

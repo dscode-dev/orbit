@@ -725,3 +725,42 @@ class MobileQueueCustomerContract {
   final String name;
   final int workCount;
 }
+
+/// Um cliente da carteira desta pessoa.
+///
+/// Vem de `/mobile/field/customers`, e não do CRM: a role "Técnico de Campo"
+/// não tem `customers.read`, e a aba de Clientes fica sempre visível. A lista
+/// sai do próprio trabalho — se atende o cliente, pode vê-lo.
+class MobileFieldCustomerContract {
+  const MobileFieldCustomerContract({
+    required this.id,
+    required this.name,
+    required this.openCount,
+    required this.completedCount,
+    this.lastServiceAt,
+    this.nextServiceAt,
+  });
+
+  factory MobileFieldCustomerContract.fromJson(Map<String, dynamic> json) =>
+      MobileFieldCustomerContract(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        openCount: (json['openCount'] as num?)?.toInt() ?? 0,
+        completedCount: (json['completedCount'] as num?)?.toInt() ?? 0,
+        lastServiceAt: DateTime.tryParse(
+          json['lastServiceAt'] as String? ?? '',
+        ),
+        nextServiceAt: DateTime.tryParse(
+          json['nextServiceAt'] as String? ?? '',
+        ),
+      );
+
+  final String id;
+  final String name;
+  final int openCount;
+  final int completedCount;
+  final DateTime? lastServiceAt;
+  final DateTime? nextServiceAt;
+
+  int get totalCount => openCount + completedCount;
+}

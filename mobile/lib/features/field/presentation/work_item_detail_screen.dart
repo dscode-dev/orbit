@@ -248,7 +248,7 @@ class _Header extends StatelessWidget {
     final status = operationalStatusLabel(item.operationalStatus);
 
     return SectionBlock(
-            inset: 0,
+      inset: 0,
       title: workItemKindLabel(item.kind),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,7 +303,7 @@ class _Team extends StatelessWidget {
     }
 
     return SectionBlock(
-            inset: 0,
+      inset: 0,
       title: 'Equipe',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,7 +357,7 @@ class _Actions extends ConsumerWidget {
     if (actions.isEmpty) return const SizedBox.shrink();
 
     return SectionBlock(
-            inset: 0,
+      inset: 0,
       title: 'Ações',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

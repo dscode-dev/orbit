@@ -1,9 +1,4 @@
 {
-  "//": "Copie para config/local.json e ajuste o IP da máquina que roda a API.",
-  "//porta": "6001 é a porta publicada pelo compose (API_PORT); dentro do container a API escuta 5001.",
-  "//emulador-android": "http://10.0.2.2:6001/api/v1",
-  "//simulador-ios": "http://localhost:6001/api/v1",
-  "//aparelho-fisico": "http://<ip-da-maquina-na-lan>:6001/api/v1",
-  "ORBIT_API_URL": "http://10.0.2.2:6001/api/v1",
+  "ORBIT_API_URL": "http://192.168.1.100:6001/api/v1",
   "ORBIT_FLAVOR": "development"
 }

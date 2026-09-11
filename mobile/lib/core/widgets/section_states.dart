@@ -82,7 +82,9 @@ class SectionBlock extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       subtitle!,
-                      style: OrbitType.caption.copyWith(color: palette.inkMuted),
+                      style: OrbitType.caption.copyWith(
+                        color: palette.inkMuted,
+                      ),
                     ),
                   ),
               ],

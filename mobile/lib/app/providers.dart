@@ -23,7 +23,6 @@ import '../core/uploads/upload_task.dart';
 import '../features/authentication/application/auth_controller.dart';
 import '../features/authentication/data/auth_repository.dart';
 import '../features/authentication/domain/session.dart';
-import '../features/home/data/home_repository.dart';
 import '../features/operations/data/operations_repository.dart';
 import '../features/scheduling/data/agenda_repository.dart';
 
@@ -140,8 +139,4 @@ final agendaRepositoryProvider = Provider<AgendaRepository>(
     client: ref.watch(apiClientProvider),
     cache: ref.watch(readCacheProvider),
   ),
-);
-
-final homeRepositoryProvider = Provider<HomeRepository>(
-  (ref) => HomeRepository(client: ref.watch(apiClientProvider)),
 );

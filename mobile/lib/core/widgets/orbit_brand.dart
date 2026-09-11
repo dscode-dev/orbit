@@ -47,6 +47,7 @@ class OrbitWordmark extends StatelessWidget {
       children: [
         OrbitSymbol(size: symbolSize),
         const SizedBox(height: OrbitSpacing.sm),
+
         /// O nome, em tinta.
         ///
         /// Antes era um gradiente azul–roxo aplicado por `ShaderMask`. Sobre

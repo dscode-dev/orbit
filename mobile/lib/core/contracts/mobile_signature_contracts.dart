@@ -13,11 +13,13 @@ final class MobileSignatureStatus {
     required this.version,
     required this.updatedAt,
     required this.roles,
+    required this.preview,
   });
   final bool signatureAvailable;
   final int? version;
   final DateTime? updatedAt;
   final List<MobileProfessionalRole> roles;
+  final MobileSignaturePreview? preview;
 
   factory MobileSignatureStatus.fromJson(Map<String, Object?> json) =>
       MobileSignatureStatus(
@@ -29,7 +31,59 @@ final class MobileSignatureStatus {
         roles: (json['roles']! as List<Object?>)
             .map((value) => mobileProfessionalRoleFromWire(value! as String))
             .toList(growable: false),
+        preview: json['preview'] == null
+            ? null
+            : MobileSignaturePreview.fromJson(
+                json['preview']! as Map<String, Object?>,
+              ),
       );
+}
+
+/// Acesso efêmero à imagem da própria assinatura.
+///
+/// A URL assinada é uma capability de curta duração, não a identidade do
+/// arquivo. O backend não publica bucket, chave, caminho ou StorageFile ID.
+final class MobileSignaturePreview {
+  const MobileSignaturePreview({
+    required this.url,
+    required this.expiresAt,
+    required this.requiredHeaders,
+    required this.mimeType,
+    required this.sizeBytes,
+    required this.sha256,
+  });
+
+  factory MobileSignaturePreview.fromJson(Map<String, Object?> json) {
+    final rawHeaders =
+        json['requiredHeaders'] as Map<String, Object?>? ?? const {};
+    final rawSize = json['sizeBytes'];
+    final sizeBytes = switch (rawSize) {
+      final int value => value,
+      final String value => int.parse(value),
+      _ => throw const FormatException('Invalid signature preview size'),
+    };
+    return MobileSignaturePreview(
+      url: Uri.parse(json['url']! as String),
+      expiresAt: DateTime.parse(json['expiresAt']! as String),
+      requiredHeaders: rawHeaders.map(
+        (key, value) => MapEntry(key, value! as String),
+      ),
+      mimeType: json['mimeType']! as String,
+      sizeBytes: sizeBytes,
+      sha256: json['sha256']! as String,
+    );
+  }
+
+  final Uri url;
+  final DateTime expiresAt;
+  final Map<String, String> requiredHeaders;
+  final String mimeType;
+  final int sizeBytes;
+  final String sha256;
+
+  bool get isExpired => !expiresAt.toUtc().isAfter(
+    DateTime.now().toUtc().add(const Duration(seconds: 5)),
+  );
 }
 
 final class MobileSignatureUploadInput {

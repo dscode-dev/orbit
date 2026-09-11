@@ -179,6 +179,15 @@ final workQueueFilterProvider = StateProvider.autoDispose<WorkQueueFilter>(
   (ref) => const WorkQueueFilter(),
 );
 
+/// A carteira de clientes — a aba de Clientes.
+final fieldCustomersProvider =
+    FutureProvider.autoDispose<CachedResult<List<MobileFieldCustomerContract>>>(
+      (ref) {
+        final scope = fieldScopeKey(ref);
+        return ref.watch(fieldRepositoryProvider).customers(scopeKey: scope);
+      },
+    );
+
 /// Os clientes que aparecem na fila desta pessoa.
 ///
 /// Carregado sob demanda, quando a folha de filtros abre: é uma leitura que

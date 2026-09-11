@@ -13,11 +13,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/routing/orbit_router.dart';
-import '../../../core/design/orbit_primitives.dart';
 import '../../../core/design/orbit_operational.dart';
 import '../../../core/theme/orbit_theme.dart';
-import '../../sync/application/sync_providers.dart';
 import '../../../core/widgets/section_states.dart';
+import '../../signature/application/signature_providers.dart';
+import '../../signature/presentation/widgets/professional_signature_preview.dart';
+import '../../sync/application/sync_providers.dart';
 import '../../authentication/domain/session.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -30,46 +31,53 @@ class ProfileScreen extends ConsumerWidget {
 
     final units = session.organization?.businessUnits ?? const [];
     final sync = ref.watch(syncControllerProvider);
+    final signature = ref.watch(signatureStatusProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Perfil')),
       body: ListView(
         padding: const EdgeInsets.all(OrbitSpacing.gutter),
         children: [
-          /// A identidade é o caso em que a caixa se justifica: avatar, nome
-          /// e e-mail só significam alguma coisa juntos.
+          /// Identity remains compact and aligned with the shared gutter.
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                OrbitAvatar(
-                  initials: session.user.initials,
-                  url: session.user.avatarUrl,
-                  size: 56,
-                ),
-                const SizedBox(width: OrbitSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        session.user.displayName,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        session.user.email,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: OrbitColors.textSecondary,
-                        ),
-                      ),
-                    ],
+            child: LayoutBuilder(
+              builder: (context, constraints) => Wrap(
+                spacing: OrbitSpacing.md,
+                runSpacing: OrbitSpacing.sm,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  OrbitAvatar(
+                    initials: session.user.initials,
+                    url: session.user.avatarUrl,
+                    size: 56,
                   ),
-                ),
-              ],
+                  SizedBox(
+                    width: MediaQuery.textScalerOf(context).scale(1) > 1.3
+                        ? constraints.maxWidth
+                        : constraints.maxWidth - 56 - OrbitSpacing.md,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          session.user.displayName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          session.user.email,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: OrbitColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: OrbitSpacing.md),
@@ -78,6 +86,7 @@ class ProfileScreen extends ConsumerWidget {
             inset: 0,
             title: 'Contexto',
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _Row(
                   label: 'Perfil no app',
@@ -89,21 +98,6 @@ class ProfileScreen extends ConsumerWidget {
                   label: 'Organização',
                   value: session.organization?.displayName ?? '—',
                 ),
-                _Row(
-                  label: 'Plano',
-                  value:
-                      session.entitlements?.planKey ??
-                      session.organization?.plan?.key ??
-                      '—',
-                ),
-                _Row(
-                  label: 'Assinatura',
-                  value: session.hasActiveSubscription ? 'Ativa' : 'Inativa',
-                ),
-                _Row(
-                  label: 'Papéis',
-                  value: session.roles.isEmpty ? '—' : session.roles.join(', '),
-                ),
               ],
             ),
           ),
@@ -114,17 +108,52 @@ class ProfileScreen extends ConsumerWidget {
           /// cadastrá-la costuma descobrir isso longe do campo.
           SectionBlock(
             inset: 0,
-            title: 'Assinatura profissional',
+            title: 'Minha assinatura',
             subtitle: 'Usada nos documentos que você assina',
-            child: ListTile(
-              onTap: () => context.push(OrbitRoutes.mySignature),
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.draw_outlined),
-              title: const Text(
-                'Minha assinatura',
-                style: TextStyle(fontSize: 14),
+            child: signature.when(
+              loading: () => const SectionLoading(lines: 2),
+              error: (error, _) => SectionError(
+                error: error,
+                onRetry: () => ref.invalidate(signatureStatusProvider),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              data: (status) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (status.signatureAvailable) ...[
+                    const ProfessionalSignaturePreview(height: 104),
+                    if (status.updatedAt != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: OrbitSpacing.sm),
+                        child: Text(
+                          'Atualizada em ${_signatureDate(status.updatedAt!)}',
+                          style: OrbitType.caption.copyWith(
+                            color: context.orbit.inkMuted,
+                          ),
+                        ),
+                      ),
+                  ] else
+                    const SectionEmpty(
+                      icon: Icons.draw_outlined,
+                      message:
+                          'Cadastre sua assinatura para usá-la nos documentos.',
+                    ),
+                  const SizedBox(height: OrbitSpacing.sm),
+                  OutlinedButton.icon(
+                    key: const Key('profile.signature.action'),
+                    onPressed: () => context.push(OrbitRoutes.mySignature),
+                    icon: Icon(
+                      status.signatureAvailable
+                          ? Icons.edit_outlined
+                          : Icons.add,
+                    ),
+                    label: Text(
+                      status.signatureAvailable
+                          ? 'Alterar assinatura'
+                          : 'Cadastrar assinatura',
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -167,7 +196,7 @@ class ProfileScreen extends ConsumerWidget {
 
           if (units.length > 1)
             SectionBlock(
-            inset: 0,
+              inset: 0,
               title: 'Unidade ativa',
               subtitle: 'Filtra as consultas do aplicativo',
               child: Column(
@@ -202,7 +231,7 @@ class ProfileScreen extends ConsumerWidget {
             )
           else
             SectionBlock(
-            inset: 0,
+              inset: 0,
               title: 'Unidade ativa',
               child: _Row(
                 label: 'Unidade',
@@ -230,6 +259,13 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
+String _signatureDate(DateTime value) {
+  final local = value.toLocal();
+  String two(int number) => number.toString().padLeft(2, '0');
+  return '${two(local.day)}/${two(local.month)}/${local.year} às '
+      '${two(local.hour)}:${two(local.minute)}';
+}
+
 class _Row extends StatelessWidget {
   const _Row({required this.label, required this.value});
 
@@ -238,24 +274,28 @@ class _Row extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final labelText = Text(
+      label,
+      style: OrbitType.label.copyWith(
+        fontWeight: FontWeight.w400,
+        color: context.orbit.inkMuted,
+      ),
+    );
+    final valueText = Text(value, style: OrbitType.caption);
     return Padding(
       padding: const EdgeInsets.only(bottom: OrbitSpacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: OrbitColors.textSecondary,
-              ),
+      child: MediaQuery.textScalerOf(context).scale(1) > 1.3
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [labelText, const SizedBox(height: 2), valueText],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: 120, child: labelText),
+                Expanded(child: valueText),
+              ],
             ),
-          ),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
-        ],
-      ),
     );
   }
 }

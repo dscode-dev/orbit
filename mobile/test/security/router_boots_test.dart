@@ -14,6 +14,8 @@
 /// declaradas. É barato, e teria custado horas de depuração.
 library;
 
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -60,6 +62,16 @@ void main() {
         reason: 'A rota $caminho sumiu da configuração.',
       );
     }
+  });
+
+  test('a Home canônica não bifurca a árvore visual por perfil', () {
+    final source = File(
+      'lib/core/routing/orbit_router.dart',
+    ).readAsStringSync();
+    expect(source, isNot(contains('HomeScreen')));
+    expect(source, isNot(contains('profile == OrbitProfile.owner')));
+    expect(source, contains('const FieldDashboardScreen()'));
+    expect(Directory('lib/features/home').existsSync(), isFalse);
   });
 }
 

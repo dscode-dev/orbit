@@ -14,69 +14,26 @@
 /// chama do que faz. "Trabalho" descrevia a estrutura de dados (a fila de itens
 /// de campo), não a coisa.
 ///
-/// O rótulo da primeira aba ainda segue o perfil derivado das permissões: o
-/// operador vê "Início", o gestor vê "Visão Geral". As demais são as mesmas —
-/// o conteúdo é que muda.
+/// Every authorized mobile profile gets the same information architecture.
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../app/providers.dart';
-import '../../features/authentication/domain/session.dart';
 import '../../features/sync/presentation/widgets/sync_status_bar.dart';
 import '../widgets/sync_indicator.dart';
 import '../design/orbit_operational.dart';
 import 'orbit_router.dart';
 
-class AppShell extends ConsumerWidget {
+class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.location, required this.child});
 
   final String location;
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(sessionProvider);
-    final isOwner = session?.profile == OrbitProfile.owner;
-
-    final destinations = <_ShellDestination>[
-      _ShellDestination(
-        route: OrbitRoutes.home,
-        label: isOwner ? 'Visão Geral' : 'Início',
-        icon: isOwner ? Icons.insights_outlined : Icons.home_outlined,
-        selectedIcon: isOwner ? Icons.insights : Icons.home,
-      ),
-
-      /// A entrada operacional é a **fila de campo**, não a lista
-      /// administrativa de atendimentos: PMOC e visitas técnicas também são
-      /// trabalho, e apareciam fora dali.
-      const _ShellDestination(
-        route: OrbitRoutes.workQueue,
-        label: 'Atendimentos',
-        icon: Icons.checklist_rtl_outlined,
-        selectedIcon: Icons.checklist_rtl,
-      ),
-      const _ShellDestination(
-        route: OrbitRoutes.agenda,
-        label: 'Agenda',
-        icon: Icons.calendar_today_outlined,
-        selectedIcon: Icons.calendar_today,
-      ),
-      const _ShellDestination(
-        route: OrbitRoutes.documents,
-        label: 'Documentos',
-        icon: Icons.description_outlined,
-        selectedIcon: Icons.description,
-      ),
-      const _ShellDestination(
-        route: OrbitRoutes.profile,
-        label: 'Perfil',
-        icon: Icons.person_outline,
-        selectedIcon: Icons.person,
-      ),
-    ];
+  Widget build(BuildContext context) {
+    const destinations = orbitShellDestinations;
 
     /// O destino mais específico vence.
     ///
@@ -106,7 +63,12 @@ class AppShell extends ConsumerWidget {
             onSelect: (selected) => context.go(destinations[selected].route),
             items: [
               for (final d in destinations)
-                (label: d.label, icon: d.icon, selectedIcon: d.selectedIcon),
+                (
+                  label: d.navLabel,
+                  fullLabel: d.label,
+                  icon: d.icon,
+                  selectedIcon: d.selectedIcon,
+                ),
             ],
           ),
         ],
@@ -115,16 +77,60 @@ class AppShell extends ConsumerWidget {
   }
 }
 
-class _ShellDestination {
-  const _ShellDestination({
+/// Um destino da barra inferior.
+///
+/// Público porque a captura de tela precisa das **mesmas** abas que o produto
+/// usa. Enquanto elas viviam copiadas no teste, a imagem mostrava uma
+/// navegação que já não existia — e foi assim que uma aba trocada passou
+/// despercebida.
+class ShellDestination {
+  const ShellDestination({
     required this.route,
     required this.label,
     required this.icon,
     required this.selectedIcon,
-  });
+    String? shortLabel,
+  }) : _shortLabel = shortLabel;
 
   final String route;
   final String label;
   final IconData icon;
   final IconData selectedIcon;
+  final String? _shortLabel;
+
+  /// O rótulo que cabe na barra.
+  ///
+  /// Abreviação escrita à mão, e não reticência: "Atend." é uma palavra que
+  /// se lê, "Atendim…" é um corte. Cinco abas em 390 pixels dão 78 pixels
+  /// cada, e nenhum rótulo inteiro cabe.
+  String get navLabel => _shortLabel ?? label;
 }
+
+/// As abas do produto. Uma fonte só, usada pelo shell e pela captura.
+const orbitShellDestinations = <ShellDestination>[
+  ShellDestination(
+    route: OrbitRoutes.home,
+    label: 'Início',
+    icon: Icons.home_outlined,
+    selectedIcon: Icons.home_rounded,
+  ),
+  ShellDestination(
+    route: OrbitRoutes.workQueue,
+    label: 'Atendimentos',
+    shortLabel: 'Atend.',
+    icon: Icons.assignment_outlined,
+    selectedIcon: Icons.assignment_rounded,
+  ),
+  ShellDestination(
+    route: OrbitRoutes.customers,
+    label: 'Clientes',
+    icon: Icons.groups_outlined,
+    selectedIcon: Icons.groups_rounded,
+  ),
+  ShellDestination(
+    route: OrbitRoutes.profile,
+    label: 'Perfil',
+    icon: Icons.person_outline_rounded,
+    selectedIcon: Icons.person_rounded,
+  ),
+];

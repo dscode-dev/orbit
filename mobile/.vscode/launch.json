@@ -2,11 +2,25 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Orbit Operator (API local)",
+      "name": "Orbit — aparelho físico/local",
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
       "toolArgs": ["--dart-define-from-file=config/local.json"]
+    },
+    {
+      "name": "Orbit — Android Emulator",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": ["--dart-define-from-file=config/development.android.json"]
+    },
+    {
+      "name": "Orbit — iOS Simulator",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": ["--dart-define-from-file=config/development.ios.json"]
     }
   ]
 }

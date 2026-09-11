@@ -11,15 +11,15 @@ import 'package:orbit_operator/core/theme/orbit_theme.dart';
 
 Widget host(String location, {double textScale = 1.0, double width = 390}) =>
     ProviderScope(
-      child: MediaQuery(
-        data: MediaQueryData(
-          textScaler: TextScaler.linear(textScale),
-          size: Size(width, 800),
+      child: MaterialApp(
+        theme: OrbitTheme.light(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
         ),
-        child: MaterialApp(
-          theme: OrbitTheme.light(),
-          home: AppShell(location: location, child: const SizedBox.shrink()),
-        ),
+        home: AppShell(location: location, child: const SizedBox.shrink()),
       ),
     );
 
@@ -31,31 +31,37 @@ void main() {
   });
   tearDown(() => FlutterError.onError = FlutterError.presentError);
 
-  testWidgets('cinco destinos, com o nome do que a pessoa faz', (tester) async {
+  testWidgets('quatro destinos, com o rótulo visível', (tester) async {
+    /// Agenda e Documentos saíram da barra e viraram acesso rápido na tela
+    /// inicial; Clientes entrou. Cinco abas em 390 pixels dão 78 pixels cada,
+    /// e nenhum rótulo inteiro cabe — o produto pediu quatro.
     await tester.pumpWidget(host(OrbitRoutes.home));
 
-    for (final rotulo in [
-      'Início',
-      'Atendimentos',
-      'Agenda',
-      'Documentos',
-      'Perfil',
+    for (final (rotulo, curto) in [
+      ('Início', 'Início'),
+      ('Atendimentos', 'Atend.'),
+      ('Clientes', 'Clientes'),
+      ('Perfil', 'Perfil'),
     ]) {
-      expect(find.byTooltip(rotulo), findsOneWidget);
-      expect(find.text(rotulo), findsNothing);
+      /// O nome inteiro fica no tooltip e na semântica; o curto, na tela.
+      /// Um leitor de tela que anunciasse "Atend." seria pior que o ícone
+      /// sozinho.
+      expect(find.byTooltip(rotulo), findsOneWidget, reason: rotulo);
+      expect(find.text(curto), findsOneWidget, reason: rotulo);
     }
 
     /// "Trabalho" descrevia a estrutura de dados, não a coisa.
     expect(find.text('Trabalho'), findsNothing);
+
+    /// Abreviação escrita à mão, não reticência: "Atendim…" é um corte.
+    expect(find.text('Atendimentos'), findsNothing);
   });
 
-  testWidgets('documentos é destino, não caminho por dentro do atendimento', (
-    tester,
-  ) async {
-    await tester.pumpWidget(host(OrbitRoutes.documents));
+  testWidgets('clientes é destino próprio', (tester) async {
+    await tester.pumpWidget(host(OrbitRoutes.customers));
 
     final barra = tester.widget<OrbitBottomNav>(find.byType(OrbitBottomNav));
-    expect(barra.selected, 3);
+    expect(barra.selected, 2);
   });
 
   testWidgets('a aba mais específica vence o prefixo', (tester) async {
@@ -64,7 +70,7 @@ void main() {
     await tester.pumpWidget(host(OrbitRoutes.syncCenter));
 
     final barra = tester.widget<OrbitBottomNav>(find.byType(OrbitBottomNav));
-    expect(barra.selected, 4);
+    expect(barra.selected, 3);
   });
 
   testWidgets('rota fora das abas não deixa a barra sem seleção', (
@@ -76,15 +82,48 @@ void main() {
     expect(barra.selected, 0);
   });
 
-  for (final (largura, escala) in [(320.0, 1.0), (375.0, 1.3), (430.0, 2.0)]) {
+  for (final (largura, escala) in [
+    for (final width in [320.0, 375.0, 390.0, 430.0])
+      for (final scale in [1.0, 1.3, 1.5, 2.0]) (width, scale),
+  ]) {
     testWidgets('cabe em ${largura.toInt()}px com texto ${escala}x', (
       tester,
     ) async {
+      tester.view.physicalSize = Size(largura, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final semantics = tester.ensureSemantics();
       await tester.pumpWidget(
         host(OrbitRoutes.home, width: largura, textScale: escala),
       );
       await tester.pumpAndSettle();
       expect(layoutError, isNull);
+      // 52px target + 8px padding + 1px divider; independent of text scale.
+      /// A barra cresceu ao ganhar o rótulo sob o ícone. O número é medido,
+      /// não escolhido: o que importa é caber sem estourar nas escalas de
+      /// texto testadas acima.
+      expect(tester.getSize(find.byType(OrbitBottomNav)).height, 65);
+      for (final label in [
+        'Início',
+        'Atendimentos',
+        'Clientes',
+        'Perfil',
+      ]) {
+        final target = find.byTooltip(label);
+        expect(tester.getSize(target).width, greaterThanOrEqualTo(48));
+        expect(tester.getSize(target).height, greaterThanOrEqualTo(48));
+        expect(
+          tester.getSemantics(find.bySemanticsLabel(label)),
+          matchesSemantics(
+            label: label,
+            isButton: true,
+            hasSelectedState: true,
+            isSelected: label == 'Início',
+            hasTapAction: true,
+          ),
+        );
+      }
+      semantics.dispose();
     });
   }
 }

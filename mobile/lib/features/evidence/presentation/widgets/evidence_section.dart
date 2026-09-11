@@ -18,6 +18,7 @@ import '../../../sync/presentation/widgets/pending_badge.dart';
 import '../../application/evidence_providers.dart';
 import '../../data/local_media.dart';
 import '../capture_sheet.dart';
+import 'evidence_preview.dart';
 
 class EvidenceSection extends ConsumerWidget {
   const EvidenceSection({
@@ -61,7 +62,37 @@ class EvidenceSection extends ConsumerWidget {
 
           ...confirmed.maybeWhen(
             data: (items) => [
-              for (final evidence in items) _ConfirmedTile(evidence: evidence),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns =
+                      MediaQuery.textScalerOf(context).scale(1) > 1.3 ? 1 : 2;
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 12,
+                    children: [
+                      for (final evidence in items.take(6))
+                        SizedBox(
+                          width:
+                              (constraints.maxWidth - 8 * (columns - 1)) /
+                              columns,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (evidence.previewAvailable &&
+                                  evidence.mimeType.startsWith('image/')) ...[
+                                EvidencePreview(evidence: evidence),
+                                const SizedBox(height: 8),
+                              ],
+                              _ConfirmedTile(evidence: evidence),
+                            ],
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              for (final evidence in items.skip(6))
+                _ConfirmedTile(evidence: evidence),
             ],
             orElse: () => const <Widget>[],
           ),

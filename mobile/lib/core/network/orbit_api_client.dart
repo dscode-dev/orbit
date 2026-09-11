@@ -19,6 +19,13 @@ import '../storage/token_storage.dart';
 import 'orbit_interceptors.dart';
 import 'session_authenticator.dart';
 
+/// Transport-neutral cancellation handle for application lifecycles.
+class OrbitRequestCancellation {
+  final _token = CancelToken();
+  bool get isCancelled => _token.isCancelled;
+  void cancel() => _token.cancel();
+}
+
 class OrbitApiClient {
   OrbitApiClient._({required Dio dio, required this.authenticator})
     : _dio = dio;
@@ -217,6 +224,7 @@ class OrbitApiClient {
     } on DioException catch (error) {
       final mapped = error.error;
       if (mapped is OrbitException) throw mapped;
+
       /// A mensagem do Dio carrega URI, host e porta. Ela nunca vira texto
       /// público — o que sobe é a frase do aplicativo, e o endereço vai para o
       /// diagnóstico.
@@ -239,13 +247,20 @@ class OrbitApiClient {
     required Uri url,
     Map<String, String> headers = const {},
     CancelToken? cancelToken,
+    OrbitRequestCancellation? cancellation,
+    int? maxBytes,
+    bool isPublic = true,
     void Function(double progress)? onProgress,
   }) async {
+    final boundedToken = cancellation?._token ?? cancelToken ?? CancelToken();
     try {
       final response = await _dio.getUri<List<int>>(
         url,
-        cancelToken: cancelToken,
+        cancelToken: boundedToken,
         onReceiveProgress: (received, total) {
+          if (maxBytes != null && (received > maxBytes || total > maxBytes)) {
+            boundedToken.cancel();
+          }
           if (total > 0) onProgress?.call(received / total);
         },
         options: Options(
@@ -253,9 +268,16 @@ class OrbitApiClient {
           responseType: ResponseType.bytes,
 
           /// Sem interceptor de sessão: a URL assinada é a credencial.
-          extra: {publicRequestKey: true},
+          extra: isPublic ? {publicRequestKey: true} : null,
         ),
       );
+      if (maxBytes != null && (response.data?.length ?? 0) > maxBytes) {
+        throw const OrbitException(
+          kind: OrbitErrorKind.parse,
+          publicMessage: OrbitPublicCopy.unknown,
+          code: 'RESULT_TOO_LARGE',
+        );
+      }
       return (
         bytes: response.data ?? const <int>[],
         contentType: response.headers.value(Headers.contentTypeHeader),

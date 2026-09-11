@@ -72,14 +72,32 @@ class AgendaScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Agenda'),
         actions: [
-          IconButton(tooltip: 'Escolher data', icon: const Icon(Icons.calendar_month_outlined),
-            onPressed: agenda.valueOrNull?.value.civilDate == null ? null : () async {
-              final anchor = date ?? agenda.valueOrNull!.value.civilDate!;
-              final chosen = await showDatePicker(context: context,
-                initialDate: DateTime(anchor.year, anchor.month, anchor.day),
-                firstDate: DateTime(anchor.year - 5), lastDate: DateTime(anchor.year + 5, 12, 31));
-              if (chosen != null && context.mounted) ref.read(agendaDateProvider.notifier).state = CivilDate(chosen.year, chosen.month, chosen.day);
-            }),
+          IconButton(
+            tooltip: 'Escolher data',
+            icon: const Icon(Icons.calendar_month_outlined),
+            onPressed: agenda.valueOrNull?.value.civilDate == null
+                ? null
+                : () async {
+                    final anchor = date ?? agenda.valueOrNull!.value.civilDate!;
+                    final chosen = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime(
+                        anchor.year,
+                        anchor.month,
+                        anchor.day,
+                      ),
+                      firstDate: DateTime(anchor.year - 5),
+                      lastDate: DateTime(anchor.year + 5, 12, 31),
+                    );
+                    if (chosen != null && context.mounted) {
+                      ref.read(agendaDateProvider.notifier).state = CivilDate(
+                        chosen.year,
+                        chosen.month,
+                        chosen.day,
+                      );
+                    }
+                  },
+          ),
           IconButton(
             tooltip: 'Hoje',
             icon: const Icon(Icons.today),
@@ -120,19 +138,42 @@ class AgendaScreen extends ConsumerWidget {
                     padding: const EdgeInsets.all(OrbitSpacing.gutter),
                     itemCount: events.length + 1,
                     itemBuilder: (context, index) {
-                      if (index == 0) return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        if (result.cachedAt != null) StaleDataBanner(cachedAt: result.cachedAt!),
-                        if (events.isEmpty)
-                          const SectionEmpty(icon: Icons.event_available_outlined, message: 'Nenhum compromisso neste dia.')
-                        else Padding(padding: const EdgeInsets.only(bottom: 12),
-                          child: Text(result.value.total == 1 ? '1 compromisso' : '${result.value.total} compromissos',
-                            style: OrbitType.caption.copyWith(color: context.orbit.inkSubtle))),
-                      ]);
+                      if (index == 0) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (result.cachedAt != null)
+                              StaleDataBanner(cachedAt: result.cachedAt!),
+                            if (events.isEmpty)
+                              const SectionEmpty(
+                                icon: Icons.event_available_outlined,
+                                message: 'Nenhum compromisso neste dia.',
+                              )
+                            else
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Text(
+                                  result.value.total == 1
+                                      ? '1 compromisso'
+                                      : '${result.value.total} compromissos',
+                                  style: OrbitType.caption.copyWith(
+                                    color: context.orbit.inkSubtle,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      }
                       final event = events[index - 1];
-                      return Column(children: [
-                        if (index > 1) const OrbitRowDivider(indent: 0),
-                        _EventRow(event: event, workItemId: workItems[event.eventId]),
-                      ]);
+                      return Column(
+                        children: [
+                          if (index > 1) const OrbitRowDivider(indent: 0),
+                          _EventRow(
+                            event: event,
+                            workItemId: workItems[event.eventId],
+                          ),
+                        ],
+                      );
                     },
                   );
                 },
@@ -182,7 +223,11 @@ class _DayNavigator extends ConsumerWidget {
               ),
               Expanded(
                 child: Text(
-              anchor == null ? 'Hoje' : DateFormat('MMM yyyy', 'pt_BR').format(DateTime.utc(anchor.year, anchor.month, anchor.day)),
+                  anchor == null
+                      ? 'Hoje'
+                      : DateFormat('MMM yyyy', 'pt_BR').format(
+                          DateTime.utc(anchor.year, anchor.month, anchor.day),
+                        ),
                   textAlign: TextAlign.center,
                   style: OrbitType.caption,
                 ),

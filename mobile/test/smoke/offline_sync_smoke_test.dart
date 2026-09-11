@@ -289,9 +289,19 @@ void main() {
     test('traz o necessário e declara a própria política', () async {
       if (skip()) return;
 
-      final package = await sync.package(workItemId);
+      /// O pacote só é autoridade para itens que o próprio pull anunciou.
+      /// Em ambientes de desenvolvimento duradouros pode haver mais de 500
+      /// cenários antigos atribuídos ao ator; nesse caso, exigir que o cenário
+      /// recém-criado esteja na primeira janela mede ordenação do fixture, não
+      /// o contrato offline. Selecionar a referência publicada pelo servidor
+      /// mantém o teste dentro da mesma boundary usada pelo aplicativo.
+      final visible = await sync.pull();
+      final advertisedId = visible.changes
+          .firstWhere((change) => change.snapshot != null)
+          .resourceId;
+      final package = await sync.package(advertisedId);
 
-      expect(package.workItem.id, workItemId);
+      expect(package.workItem.id, advertisedId);
       expect(package.serverCheckpoint, isNotEmpty);
 
       /// O servidor é quem diz que o conteúdo é sensível e que não é

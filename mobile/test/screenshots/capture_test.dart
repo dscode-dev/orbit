@@ -24,6 +24,7 @@ import 'package:orbit_operator/features/field/presentation/field_dashboard_scree
 import 'package:orbit_operator/features/authentication/domain/session.dart';
 import 'package:orbit_operator/features/operations/data/operations_repository.dart';
 import 'package:orbit_operator/features/operations/presentation/operations_screen.dart';
+import 'package:orbit_operator/features/customers/presentation/customers_screen.dart';
 import 'package:orbit_operator/features/field/presentation/work_queue_screen.dart';
 import 'package:orbit_operator/features/scheduling/presentation/agenda_screen.dart';
 import 'package:orbit_operator/features/signature/presentation/my_signature_screen.dart';
@@ -34,6 +35,7 @@ import 'harness.dart';
 import 'package:orbit_operator/features/documents/presentation/documents_screen.dart';
 import 'package:orbit_operator/features/profile/presentation/profile_screen.dart';
 import 'package:orbit_operator/core/design/orbit_operational.dart';
+import 'package:orbit_operator/core/routing/app_shell.dart';
 import 'package:orbit_operator/features/field/presentation/operation_execution_screen.dart';
 import 'package:orbit_operator/features/sync/application/sync_providers.dart';
 import 'package:orbit_operator/features/sync/data/command_journal.dart';
@@ -214,6 +216,46 @@ Widget host(
     /// aqui o carrossel simplesmente não aparece na captura.
     /// Clientes do filtro: sem esta resposta a folha mostra um erro na
     /// captura, e o erro é do fixture, não da tela.
+    if (options.uri.path.endsWith('/mobile/field/customers')) {
+      return jsonResponse({
+        'success': true,
+        'data': [
+          {
+            'id': 'c1',
+            'name': 'Shopping Recife',
+            'openCount': 4,
+            'completedCount': 18,
+            'lastServiceAt': '2026-09-05T14:00:00.000Z',
+            'nextServiceAt': '2026-09-08T12:30:00.000Z',
+          },
+          {
+            'id': 'c2',
+            'name': 'Hospital Santa Joana',
+            'openCount': 2,
+            'completedCount': 31,
+            'lastServiceAt': '2026-09-06T09:00:00.000Z',
+            'nextServiceAt': '2026-09-08T15:00:00.000Z',
+          },
+          {
+            'id': 'c3',
+            'name': 'Frigorífico Boa Carne',
+            'openCount': 1,
+            'completedCount': 7,
+            'lastServiceAt': '2026-08-28T11:00:00.000Z',
+            'nextServiceAt': null,
+          },
+          {
+            'id': 'c4',
+            'name': 'Edifício Empresarial Norte',
+            'openCount': 0,
+            'completedCount': 12,
+            'lastServiceAt': '2026-08-20T16:00:00.000Z',
+            'nextServiceAt': null,
+          },
+        ],
+      });
+    }
+
     if (options.uri.path.endsWith('/mobile/field/queue-customers')) {
       return jsonResponse({
         'success': true,
@@ -347,43 +389,27 @@ Widget host(
       ),
       home: Scaffold(
         body: tela,
+        /// As abas vêm do produto, não de uma cópia.
+        ///
+        /// Enquanto a lista vivia duplicada aqui, a captura mostrava uma
+        /// navegação que já não existia — uma aba trocada no shell não
+        /// aparecia na imagem, e a imagem é justamente o que se olha.
         bottomNavigationBar: OrbitBottomNav(
-          selected: tela is DocumentsScreen
-              ? 3
-              : tela is ProfileScreen
-              ? 4
-              : tela is AgendaScreen
-              ? 2
-              : tela is WorkQueueScreen
-              ? 1
-              : 0,
+          selected: switch (tela) {
+            ProfileScreen() => 3,
+            CustomersScreen() => 2,
+            WorkQueueScreen() => 1,
+            _ => 0,
+          },
           onSelect: (_) {},
-          items: const [
-            (
-              label: 'Início',
-              icon: Icons.home_outlined,
-              selectedIcon: Icons.home,
-            ),
-            (
-              label: 'Atendimentos',
-              icon: Icons.checklist_rtl_outlined,
-              selectedIcon: Icons.checklist_rtl,
-            ),
-            (
-              label: 'Agenda',
-              icon: Icons.calendar_today_outlined,
-              selectedIcon: Icons.calendar_today,
-            ),
-            (
-              label: 'Documentos',
-              icon: Icons.description_outlined,
-              selectedIcon: Icons.description,
-            ),
-            (
-              label: 'Perfil',
-              icon: Icons.person_outline,
-              selectedIcon: Icons.person,
-            ),
+          items: [
+            for (final d in orbitShellDestinations)
+              (
+                label: d.navLabel,
+                fullLabel: d.label,
+                icon: d.icon,
+                selectedIcon: d.selectedIcon,
+              ),
           ],
         ),
       ),
@@ -691,6 +717,39 @@ void registerCaptures() {
       find.byType(MaterialApp),
       matchesGoldenFile(
         'out/${captureWidth.toInt()}_$captureScale/02_servicos.png',
+      ),
+    );
+  });
+
+  testWidgets('clientes', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+
+    await tester.pumpWidget(host(const {}, const CustomersScreen()));
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_$captureScale/05_clientes.png',
+      ),
+    );
+  });
+
+  testWidgets('folha do cliente', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+
+    await tester.pumpWidget(host(const {}, const CustomersScreen()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Shopping Recife'));
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_$captureScale/05b_cliente.png',
       ),
     );
   });

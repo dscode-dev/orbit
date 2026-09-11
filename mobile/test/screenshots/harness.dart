@@ -4,7 +4,7 @@
 ///
 /// Golden padrão do `flutter_test` desenha texto como bloco: serve para provar
 /// que um pixel não mudou, não para julgar se a tela está bonita. Este harness
-/// carrega Roboto de verdade e devolve uma captura que se pode olhar.
+/// carrega Inter/Space Grotesk empacotadas e devolve uma captura que se pode olhar.
 library;
 
 import 'dart:io';

@@ -4,6 +4,9 @@
 /// acesso. Quem orquestra é o controlador.
 library;
 
+import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
+
 import '../../../core/contracts/mobile_evidence_contracts.dart';
 import '../../../core/network/orbit_api_client.dart';
 
@@ -11,6 +14,43 @@ class EvidenceRepository {
   const EvidenceRepository({required OrbitApiClient client}) : _client = client;
 
   final OrbitApiClient _client;
+
+  /// Bounded visual preview through the existing signed-access authority.
+  /// Large artifacts remain metadata rows; they are never downloaded for a thumbnail.
+  Future<Uint8List?> thumbnail(
+    FieldEvidence evidence, {
+    OrbitRequestCancellation? cancellation,
+  }) async {
+    if (cancellation?.isCancelled == true ||
+        !evidence.previewAvailable ||
+        !const [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+        ].contains(evidence.mimeType) ||
+        evidence.sizeBytes <= 0 ||
+        evidence.sizeBytes > 4 * 1024 * 1024) {
+      return null;
+    }
+    final grant = await access(evidence.id);
+    if (grant.evidenceId != evidence.id ||
+        grant.operation != 'preview' ||
+        grant.isExpired) {
+      return null;
+    }
+    if (cancellation?.isCancelled == true) return null;
+    final content = await _client.getBytes(
+      url: grant.url,
+      headers: grant.requiredHeaders,
+      cancellation: cancellation,
+      maxBytes: evidence.sizeBytes,
+    );
+    if (content.bytes.length != evidence.sizeBytes ||
+        sha256.convert(content.bytes).toString() != evidence.sha256) {
+      return null;
+    }
+    return Uint8List.fromList(content.bytes);
+  }
 
   /// Cria a intenção e recebe a URL assinada.
   ///

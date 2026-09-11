@@ -19,7 +19,13 @@
 /// distinção que o domínio mantém de propósito.
 library;
 
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
+
 import '../../../core/contracts/mobile_signature_contracts.dart';
+import '../../../core/errors/orbit_exception.dart';
+import '../../../core/errors/orbit_public_copy.dart';
 import '../../../core/network/orbit_api_client.dart';
 
 class SignatureRepository {
@@ -38,6 +44,74 @@ class SignatureRepository {
     );
     return MobileSignatureStatus.fromJson(data);
   }
+
+  /// Baixa uma imagem da própria assinatura e confere o contrato inteiro.
+  ///
+  /// O Bearer permanece no endpoint autenticado e same-origin do Orbit; nunca
+  /// é enviado ao storage. Tamanho, tipo e hash precisam coincidir antes que
+  /// qualquer byte chegue à apresentação.
+  Future<Uint8List> preview(
+    MobileSignaturePreview grant, {
+    OrbitRequestCancellation? cancellation,
+  }) async {
+    const allowedMimeTypes = {'image/png', 'image/jpeg', 'image/webp'};
+    final queryExpires = int.tryParse(
+      grant.url.queryParameters['expires'] ?? '',
+    );
+    final querySignature = grant.url.queryParameters['signature'] ?? '';
+    if (cancellation?.isCancelled == true ||
+        grant.isExpired ||
+        grant.url.hasScheme ||
+        grant.url.hasAuthority ||
+        grant.url.path != '/api/v1/mobile/field/me/signature/preview' ||
+        grant.url.queryParameters.keys.toSet().difference(const {
+          'expires',
+          'signature',
+        }).isNotEmpty ||
+        grant.url.queryParametersAll.length != 2 ||
+        grant.url.queryParametersAll.values.any(
+          (values) => values.length != 1,
+        ) ||
+        queryExpires == null ||
+        queryExpires > 4_102_444_800 ||
+        DateTime.fromMillisecondsSinceEpoch(
+              queryExpires * 1000,
+              isUtc: true,
+            ).difference(grant.expiresAt.toUtc()).abs() >
+            const Duration(seconds: 1) ||
+        grant.expiresAt.toUtc().difference(DateTime.now().toUtc()) >
+            const Duration(hours: 1, seconds: 5) ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(querySignature) ||
+        grant.requiredHeaders.isNotEmpty ||
+        grant.sizeBytes <= 0 ||
+        grant.sizeBytes > 2 * 1000 * 1000 ||
+        !allowedMimeTypes.contains(grant.mimeType) ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(grant.sha256)) {
+      throw _invalidPreview;
+    }
+
+    final response = await _client.getBytes(
+      url: grant.url,
+      headers: grant.requiredHeaders,
+      cancellation: cancellation,
+      maxBytes: grant.sizeBytes,
+      isPublic: false,
+    );
+    final responseMime = response.contentType?.split(';').first.trim();
+    if (cancellation?.isCancelled == true ||
+        response.bytes.length != grant.sizeBytes ||
+        (responseMime != null && responseMime != grant.mimeType) ||
+        sha256.convert(response.bytes).toString() != grant.sha256) {
+      throw _invalidPreview;
+    }
+    return Uint8List.fromList(response.bytes);
+  }
+
+  static const _invalidPreview = OrbitException(
+    kind: OrbitErrorKind.parse,
+    publicMessage: OrbitPublicCopy.loadFailed,
+    code: 'SIGNATURE_PREVIEW_INVALID',
+  );
 
   /// Cadastra ou substitui a assinatura, em três passos.
   ///

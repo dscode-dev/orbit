@@ -4,6 +4,7 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,21 +27,55 @@ final validPng = base64Decode(
   'IQAAAABJRU5ErkJggg==',
 );
 
-Map<String, dynamic> status({bool available = false}) => {
-  'signatureAvailable': available,
-  'version': available ? 2 : null,
-  'updatedAt': available ? '2026-08-20T10:00:00.000Z' : null,
-  'roles': ['FIELD_TECHNICIAN', 'TECHNICAL_RESPONSIBLE'],
-};
+Map<String, dynamic> status({
+  bool available = false,
+  bool preview = true,
+  bool expired = false,
+  bool externalPreview = false,
+}) {
+  final expiresAt = DateTime.now().toUtc().add(
+    Duration(minutes: expired ? -1 : 5),
+  );
+  final expires = expiresAt.millisecondsSinceEpoch ~/ 1000;
+  return {
+    'signatureAvailable': available,
+    'version': available ? 2 : null,
+    'updatedAt': available ? '2026-08-20T10:00:00.000Z' : null,
+    'roles': ['FIELD_TECHNICIAN', 'TECHNICAL_RESPONSIBLE'],
+    'preview': available && preview
+        ? {
+            'url':
+                '${externalPreview ? 'https://untrusted.example' : ''}'
+                '/api/v1/mobile/field/me/signature/preview'
+                '?expires=$expires&signature=${'a' * 64}',
+            'expiresAt': expiresAt.toIso8601String(),
+            'requiredHeaders': <String, String>{},
+            'mimeType': 'image/png',
+            'sizeBytes': validPng.length.toString(),
+            'sha256': sha256.convert(validPng).toString(),
+          }
+        : null,
+  };
+}
 
 /// Reproduz a conversa do backend: status, reserva, PUT assinado, confirmação.
 class Backend {
-  Backend({this.available = false, this.failSignedPut = false});
+  Backend({
+    this.available = false,
+    this.failSignedPut = false,
+    this.failPreview = false,
+    this.expiredFirstPreview = false,
+    this.externalPreview = false,
+  });
 
   final bool available;
   final bool failSignedPut;
+  final bool failPreview;
+  final bool expiredFirstPreview;
+  final bool externalPreview;
   final paths = <String>[];
   bool confirmed = false;
+  int statusCalls = 0;
 
   Future<ResponseBody> call(RequestOptions options) async {
     /// O caminho sem o prefixo da API: o teste fala do endpoint, não da
@@ -51,9 +86,14 @@ class Backend {
     paths.add(path);
 
     if (path == 'GET /mobile/field/me/signature') {
+      statusCalls += 1;
       return jsonResponse({
         'success': true,
-        'data': status(available: available || confirmed),
+        'data': status(
+          available: available || confirmed,
+          expired: expiredFirstPreview && statusCalls == 1,
+          externalPreview: externalPreview,
+        ),
       });
     }
     if (path == 'POST /mobile/field/me/signature/uploads') {
@@ -69,7 +109,19 @@ class Backend {
         },
       });
     }
-    if (options.uri.host == 'storage.example') {
+    if (path == 'GET /mobile/field/me/signature/preview') {
+      if (failPreview) {
+        return ResponseBody.fromString('', 503);
+      }
+      return ResponseBody.fromBytes(
+        validPng,
+        200,
+        headers: {
+          Headers.contentTypeHeader: ['image/png'],
+        },
+      );
+    }
+    if (options.uri.host == 'storage.example' && options.method == 'PUT') {
       if (failSignedPut) {
         return ResponseBody.fromString('', 503);
       }
@@ -131,7 +183,6 @@ Widget wrap(
   );
 }
 
-
 /// Volta ao topo da lista.
 ///
 /// A `ListView` constrói sob demanda: depois de rolar até o botão de envio, a
@@ -158,7 +209,11 @@ Future<void> rolarAte(WidgetTester tester, Finder alvo) async {
 /// passou a nascer fora da viewport de teste. Rolar é o que uma pessoa faria.
 Future<void> tocarEm(WidgetTester tester, String texto) async {
   final alvo = find.text(texto);
-  await tester.scrollUntilVisible(alvo, 200, scrollable: find.byType(Scrollable).first);
+  await tester.scrollUntilVisible(
+    alvo,
+    200,
+    scrollable: find.byType(Scrollable).first,
+  );
   await tester.pumpAndSettle();
   await tester.tap(alvo);
   await tester.pumpAndSettle();
@@ -198,13 +253,14 @@ void main() {
     await tester.pumpWidget(wrap(Backend(available: true)));
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const Key('signature.preview.image')), findsOneWidget);
+
     /// A seção de envio ficou abaixo da de desenho: rolar é o que uma pessoa
     /// faria para chegar nela.
-    await rolarAte(tester, find.text('SUBSTITUIR ASSINATURA'));
+    await rolarAte(tester, find.text('Substituir assinatura'));
 
-    /// O rótulo de seção é caixa alta por desenho — a seção separa por
-    /// tipografia, não por caixa.
-    expect(find.text('SUBSTITUIR ASSINATURA'), findsOneWidget);
+    /// Sentence case follows the shared compact section typography.
+    expect(find.text('Substituir assinatura'), findsOneWidget);
 
     /// A ação é de substituição, e o texto diz o próximo passo concreto —
     /// "nova" é o que separa este caso do primeiro cadastro.
@@ -243,7 +299,7 @@ void main() {
     await tocarEm(tester, 'Escolher imagem');
     await tocarEm(tester, 'Confirmar assinatura');
 
-    expect(backend.paths, [
+    expect(backend.paths.take(5), [
       'GET /mobile/field/me/signature',
       'POST /mobile/field/me/signature/uploads',
       'PUT /put/file-1',
@@ -252,6 +308,60 @@ void main() {
     ]);
     await voltarAoTopo(tester);
     expect(find.text('Assinatura cadastrada'), findsOneWidget);
+  });
+
+  testWidgets('grant expirado é renovado uma vez antes do preview', (
+    tester,
+  ) async {
+    final backend = Backend(available: true, expiredFirstPreview: true);
+    await tester.pumpWidget(wrap(backend));
+    await tester.pumpAndSettle();
+
+    expect(backend.statusCalls, 2);
+    expect(find.byKey(const Key('signature.preview.image')), findsOneWidget);
+    expect(
+      backend.paths
+          .where((path) => path == 'GET /mobile/field/me/signature/preview')
+          .length,
+      1,
+    );
+  });
+
+  testWidgets(
+    'falha de preview fica segura, limitada e permite tentar de novo',
+    (tester) async {
+      final backend = Backend(available: true, failPreview: true);
+      await tester.pumpWidget(wrap(backend));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('signature.preview.error')), findsOneWidget);
+      expect(find.textContaining('storage.example'), findsNothing);
+      expect(backend.statusCalls, 2);
+      expect(
+        backend.paths
+            .where((path) => path == 'GET /mobile/field/me/signature/preview')
+            .length,
+        2,
+      );
+      expect(find.text('Tentar novamente'), findsOneWidget);
+    },
+  );
+
+  testWidgets('preview absoluto é recusado antes de expor a sessão', (
+    tester,
+  ) async {
+    final backend = Backend(available: true, externalPreview: true);
+    await tester.pumpWidget(wrap(backend));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('signature.preview.error')), findsOneWidget);
+    expect(backend.statusCalls, 2);
+    expect(
+      backend.paths.where(
+        (path) => path == 'GET /mobile/field/me/signature/preview',
+      ),
+      isEmpty,
+    );
   });
 
   testWidgets('arquivo fora do contrato é recusado sem gastar rede', (

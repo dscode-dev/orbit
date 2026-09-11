@@ -26,9 +26,10 @@
 library;
 
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/orbit_theme.dart';
@@ -96,13 +97,13 @@ class OrbitSignaturePad extends StatefulWidget {
     super.key,
     required this.controller,
     this.hint = 'Assine neste espaço',
-    this.height = 200,
+    this.height,
     this.enabled = true,
   });
 
   final OrbitSignatureController controller;
   final String hint;
-  final double height;
+  final double? height;
   final bool enabled;
 
   @override
@@ -110,9 +111,14 @@ class OrbitSignaturePad extends StatefulWidget {
 }
 
 class _OrbitSignaturePadState extends State<OrbitSignaturePad> {
+  int? _activePointer;
+
   @override
   Widget build(BuildContext context) {
     final palette = context.orbit;
+    final height =
+        widget.height ??
+        (MediaQuery.sizeOf(context).height * 0.28).clamp(200.0, 280.0);
 
     return Semantics(
       label: widget.hint,
@@ -124,45 +130,66 @@ class _OrbitSignaturePadState extends State<OrbitSignaturePad> {
       child: ListenableBuilder(
         listenable: widget.controller,
         builder: (context, _) => SizedBox(
-          height: widget.height,
-          child: Listener(
-            /// `Listener`, não `GestureDetector`: o gesto de assinar é um
-            /// arrasto contínuo, e o reconhecedor de arrasto só o entrega
-            /// depois de decidir que não é rolagem — o começo do traço se
-            /// perde nessa decisão.
-            onPointerDown: widget.enabled
-                ? (evento) => widget.controller.iniciar(_local(context, evento))
-                : null,
-            onPointerMove: widget.enabled
-                ? (evento) =>
-                      widget.controller.estender(_local(context, evento))
-                : null,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                /// Branco e borda discreta: a assinatura vai para um documento
-                /// de fundo branco, e uma área colorida faria o traço parecer
-                /// uma coisa na tela e outra no PDF.
-                color: Colors.white,
-                border: Border.all(color: palette.border),
-                borderRadius: OrbitRadius.card,
-              ),
-              child: Stack(
-                children: [
-                  if (!widget.controller.temTraco)
-                    Center(
-                      child: Text(
-                        widget.hint,
-                        style: OrbitType.body.copyWith(
-                          color: palette.inkDisabled,
+          height: height,
+          child: RawGestureDetector(
+            behavior: HitTestBehavior.opaque,
+            gestures: <Type, GestureRecognizerFactory>{
+              /// Claims the pointer immediately. The parent Scrollable never
+              /// receives a drag that started inside the signing canvas.
+              EagerGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
+                    EagerGestureRecognizer.new,
+                    (_) {},
+                  ),
+            },
+            child: Listener(
+              onPointerDown: widget.enabled
+                  ? (event) {
+                      if (_activePointer != null) return;
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      _activePointer = event.pointer;
+                      widget.controller.iniciar(_local(context, event));
+                    }
+                  : null,
+              onPointerMove: widget.enabled
+                  ? (event) {
+                      if (_activePointer != event.pointer) return;
+                      widget.controller.estender(_local(context, event));
+                    }
+                  : null,
+              onPointerUp: (event) {
+                if (_activePointer == event.pointer) _activePointer = null;
+              },
+              onPointerCancel: (event) {
+                if (_activePointer == event.pointer) _activePointer = null;
+              },
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  /// Branco e borda discreta: a assinatura vai para um documento
+                  /// de fundo branco, e uma área colorida faria o traço parecer
+                  /// uma coisa na tela e outra no PDF.
+                  color: Colors.white,
+                  border: Border.all(color: palette.border),
+                  borderRadius: OrbitRadius.card,
+                ),
+                child: Stack(
+                  children: [
+                    if (!widget.controller.temTraco)
+                      Center(
+                        child: Text(
+                          widget.hint,
+                          style: OrbitType.body.copyWith(
+                            color: palette.inkDisabled,
+                          ),
                         ),
                       ),
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _AssinaturaPainter(widget.controller.tracos),
+                      ),
                     ),
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _AssinaturaPainter(widget.controller.tracos),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -252,12 +279,14 @@ Future<Uint8List?> exportarAssinaturaPng(List<List<Offset>> tracos) async {
   final minY = pontos.map((p) => p.dy).reduce(math.min);
   final maxY = pontos.map((p) => p.dy).reduce(math.max);
 
-  final largura = ((maxX - minX) * _escalaDeSaida + _margem * 2)
-      .ceil()
-      .clamp(1, 4000);
-  final altura = ((maxY - minY) * _escalaDeSaida + _margem * 2)
-      .ceil()
-      .clamp(1, 4000);
+  final largura = ((maxX - minX) * _escalaDeSaida + _margem * 2).ceil().clamp(
+    1,
+    4000,
+  );
+  final altura = ((maxY - minY) * _escalaDeSaida + _margem * 2).ceil().clamp(
+    1,
+    4000,
+  );
 
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
@@ -277,7 +306,11 @@ Future<Uint8List?> exportarAssinaturaPng(List<List<Offset>> tracos) async {
     if (traco.isEmpty) continue;
     final inicio = projetar(traco.first);
     if (traco.length == 1) {
-      canvas.drawCircle(inicio, 1.2 * _escalaDeSaida, tinta..style = PaintingStyle.fill);
+      canvas.drawCircle(
+        inicio,
+        1.2 * _escalaDeSaida,
+        tinta..style = PaintingStyle.fill,
+      );
       tinta.style = PaintingStyle.stroke;
       continue;
     }

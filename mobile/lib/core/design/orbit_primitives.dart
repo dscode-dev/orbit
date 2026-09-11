@@ -327,7 +327,7 @@ class OrbitHeroCard extends StatelessWidget {
   }
 }
 
-/// O botão que vive dentro do cartão de destaque — branco sobre a marca.
+/// Secondary continuation action inside the neutral active-service panel.
 class OrbitHeroButton extends StatelessWidget {
   const OrbitHeroButton({
     super.key,
@@ -353,9 +353,7 @@ class OrbitHeroButton extends StatelessWidget {
         textStyle: OrbitType.label,
       ),
 
-      /// `Flexible` no rótulo: em escala de texto 2.0x, ou num aparelho
-      /// estreito, "Retomar atendimento" passa da largura do cartão e o botão
-      /// estoura. Reticência é feia; faixa listrada de overflow é pior.
+      /// Large text wraps without dropping the action label.
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -363,14 +361,7 @@ class OrbitHeroButton extends StatelessWidget {
             Icon(icon, size: 19),
             const SizedBox(width: OrbitSpacing.sm),
           ],
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ),
+          Flexible(child: Text(label, textAlign: TextAlign.center)),
         ],
       ),
     );
@@ -379,8 +370,7 @@ class OrbitHeroButton extends StatelessWidget {
 
 /// Um título de seção com o conteúdo logo abaixo.
 ///
-/// Por padrão o conteúdo vem dentro de um cartão: é o que dá a contenção que a
-/// tela precisa. Quem já traz o próprio contêiner passa `boxed: false`.
+/// Unboxed by default; optional grouping does not change the shared gutter.
 class OrbitSection extends StatelessWidget {
   const OrbitSection({
     super.key,
@@ -406,7 +396,32 @@ class OrbitSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.orbit;
-
+    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    final heading = Row(
+      children: [
+        Flexible(
+          child: Text(
+            title,
+            key: const Key('orbit.section.title'),
+            style: OrbitType.sectionTitle.copyWith(color: palette.ink),
+          ),
+        ),
+        if (count != null) ...[
+          const SizedBox(width: OrbitSpacing.sm),
+          _Contagem(count!),
+        ],
+      ],
+    );
+    final link = action == null
+        ? null
+        : TextButton(
+            onPressed: action,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.sm),
+              minimumSize: const Size(48, 48),
+            ),
+            child: Text(actionLabel ?? 'Ver tudo'),
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -416,46 +431,21 @@ class OrbitSection extends StatelessWidget {
             right: 0,
             bottom: OrbitSpacing.ms,
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Row(
+          child: largeText
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Flexible(
-                      /// A chave existe para o teste conseguir distinguir o
-                      /// título da seção de um texto igual dentro dela — o
-                      /// selo de prazo também diz "Hoje".
-                      child: Text(
-                        title,
-                        key: const Key('orbit.section.title'),
-                        style: OrbitType.sectionTitle.copyWith(
-                          color: palette.ink,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (count != null) ...[
-                      const SizedBox(width: OrbitSpacing.sm),
-                      _Contagem(count!),
-                    ],
+                    heading,
+                    if (link != null)
+                      Align(alignment: Alignment.centerRight, child: link),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: heading),
+                    if (link != null) link,
                   ],
                 ),
-              ),
-              if (action != null)
-                TextButton(
-                  onPressed: action,
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: OrbitSpacing.sm,
-                    ),
-                    minimumSize: const Size(0, 36),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(actionLabel ?? 'Ver tudo'),
-                ),
-            ],
-          ),
         ),
         if (boxed) OrbitCard(padding: padding, child: child) else child,
       ],
@@ -481,7 +471,7 @@ class _Contagem extends StatelessWidget {
       child: Text(
         '$valor',
         style: OrbitType.numeric.copyWith(
-          fontSize: 12.5,
+          fontSize: 12,
           color: palette.inkSubtle,
         ),
       ),
@@ -556,7 +546,7 @@ class OrbitStatusBadge extends StatelessWidget {
   }
 }
 
-/// Um acesso rápido: ícone em medalhão sobre cartão branco.
+/// Compact shortcut; large accessibility text uses a horizontal layout.
 class OrbitQuickAction extends StatelessWidget {
   const OrbitQuickAction({
     super.key,
@@ -574,9 +564,28 @@ class OrbitQuickAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.orbit;
+    final horizontal = MediaQuery.textScalerOf(context).scale(1) > 1.7;
+    final symbol = Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: p.surfaceMuted,
+        borderRadius: OrbitRadius.field,
+      ),
+      child: Icon(icon, size: 24, color: p.inkMuted),
+    );
+    final caption = Text(
+      label,
+      textAlign: horizontal ? TextAlign.start : TextAlign.center,
+      style: OrbitType.label.copyWith(
+        fontWeight: FontWeight.w500,
+        color: p.inkMuted,
+      ),
+    );
     return Semantics(
       button: true,
       label: label,
+      onTap: onTap,
       excludeSemantics: true,
       child: Tooltip(
         message: label,
@@ -587,29 +596,18 @@ class OrbitQuickAction extends StatelessWidget {
             borderRadius: OrbitRadius.field,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: p.surfaceMuted,
-                      borderRadius: OrbitRadius.field,
+              child: horizontal
+                  ? Row(
+                      children: [
+                        symbol,
+                        const SizedBox(width: 12),
+                        Expanded(child: caption),
+                      ],
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [symbol, const SizedBox(height: 6), caption],
                     ),
-                    child: Icon(icon, size: 24, color: p.inkMuted),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: OrbitType.label.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: p.inkMuted,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
         ),

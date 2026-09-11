@@ -22,6 +22,7 @@ import '../../../core/design/orbit_signature_pad.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../application/signature_providers.dart';
+import 'widgets/professional_signature_preview.dart';
 
 /// De onde vem a imagem da assinatura.
 ///
@@ -234,6 +235,11 @@ class _Status extends StatelessWidget {
               ),
             ),
 
+          if (status.signatureAvailable) ...[
+            const SizedBox(height: OrbitSpacing.md),
+            const ProfessionalSignaturePreview(),
+          ],
+
           /// A mesma assinatura vale nos dois papéis: o contexto é do
           /// documento, não do arquivo.
           if (status.roles.isNotEmpty)
@@ -401,7 +407,6 @@ class _UploadSection extends StatelessWidget {
   }
 }
 
-
 /// Desenhar a assinatura — o caminho principal no celular.
 class _DrawSection extends StatelessWidget {
   const _DrawSection({
@@ -455,9 +460,7 @@ class _DrawSection extends StatelessWidget {
                   onPressed: busy || !controller.temTraco
                       ? null
                       : () => onConfirm(),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 48),
-                  ),
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
                   child: Text(hasSignature ? 'Substituir' : 'Confirmar'),
                 ),
               ),
