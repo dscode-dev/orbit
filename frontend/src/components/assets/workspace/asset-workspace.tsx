@@ -26,6 +26,7 @@
  */
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 
 import { ContentContainer } from "@/components/layout/page-primitives";
@@ -35,7 +36,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAction } from "@/actions";
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { EntityBadge, entityHref, useEntityAccess } from "@/entities";
-import { useUpdateAsset } from "@/hooks/assets/use-assets";
+import { ConfirmDialog } from "@/components/financial/confirm.dialog";
+import { useRemoveAsset, useUpdateAsset } from "@/hooks/assets/use-assets";
 import { AssetStatus } from "@/types/contracts";
 import { AssetFormDialog } from "../asset-form.dialog";
 import { useAsset } from "@/hooks/assets/use-assets";
@@ -101,9 +103,14 @@ function WorkspaceBody({
   const edit = useAction("asset.update");
   const activate = useAction("asset.activate");
   const deactivate = useAction("asset.deactivate");
+  const excluir = useAction("asset.delete");
+
+  const router = useRouter();
 
   const [formOpen, setFormOpen] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const update = useUpdateAsset(asset.id);
+  const remove = useRemoveAsset();
 
   const inactive = asset.status === AssetStatus.INACTIVE;
   const toggle = inactive ? activate : deactivate;
@@ -185,6 +192,22 @@ function WorkspaceBody({
             <RefreshCw className="size-4" />
             Atualizar
           </Button>
+
+          {/* A exclusão estava declarada no Action Registry — com texto de
+              confirmação e tudo — e nenhuma tela a oferecia. Inativar e
+              excluir são coisas diferentes: a primeira tira de circulação,
+              a segunda tira da listagem. */}
+          {excluir.allowed ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive"
+              onClick={() => setExcluindo(true)}
+            >
+              <excluir.definition.icon className="size-4" />
+              {excluir.label}
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -211,6 +234,24 @@ function WorkspaceBody({
         open={formOpen}
         onOpenChange={setFormOpen}
         editing={asset}
+      />
+
+      <ConfirmDialog
+        open={excluindo}
+        onOpenChange={setExcluindo}
+        title={excluir.confirm?.title ?? "Excluir este equipamento?"}
+        body={excluir.confirm?.body ?? ""}
+        confirmLabel={excluir.confirm?.confirmLabel ?? "Excluir"}
+        isPending={remove.isPending}
+        error={remove.error}
+        onConfirm={() =>
+          remove.mutate(asset.id, {
+            /// Volta para a lista: ficar numa tela de detalhe cujo registro
+            /// não existe mais rende um erro de carregamento no lugar de
+            /// uma confirmação de que deu certo.
+            onSuccess: () => router.replace(ROUTES.assets),
+          })
+        }
       />
     </ContentContainer>
   );

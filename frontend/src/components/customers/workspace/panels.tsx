@@ -11,6 +11,7 @@ import {
   Lightbulb,
   Mail,
   MapPin,
+  Pencil,
   Phone,
   Star,
   Trash2,
@@ -26,6 +27,7 @@ import { RelatedRecordsPanel } from "@/entities";
 import { lifecycleLabel } from "@/registry";
 import {
   useCreateContact,
+  useUpdateContact,
   useCustomerIntelligence,
   useCustomerSchedule,
   useRemoveContact,
@@ -139,8 +141,15 @@ export function ContactsSection({
   canManage: boolean;
 }) {
   const create = useCreateContact(customer.id);
+  const update = useUpdateContact(customer.id);
   const remove = useRemoveContact(customer.id);
-  const [open, setOpen] = useState(false);
+
+  /** `null` fechado; `"new"` criando; um contato editando. */
+  const [editando, setEditando] = useState<CustomerContact | "new" | null>(
+    null,
+  );
+  const alvo = editando === "new" ? null : editando;
+  const mutation = alvo ? update : create;
 
   return (
     <PanelFrame
@@ -152,24 +161,35 @@ export function ContactsSection({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setOpen((current) => !current)}
+            onClick={() =>
+              setEditando((atual) => (atual === null ? "new" : null))
+            }
           >
-            {open ? "Cancelar" : "Novo contato"}
+            {editando !== null ? "Cancelar" : "Novo contato"}
           </Button>
         ) : null
       }
     >
       <div className="space-y-4">
-        {open ? (
+        {editando !== null ? (
           <ContactForm
-            pending={create.isPending}
+            /* `key` remonta o formulário ao trocar de contato: sem isso os
+               campos do anterior sobreviveriam à troca. */
+            key={alvo?.id ?? "new"}
+            contact={alvo}
+            pending={mutation.isPending}
             onSubmit={(input) => {
-              create.mutate(input, { onSuccess: () => setOpen(false) });
+              const fechar = { onSuccess: () => setEditando(null) };
+              if (alvo) {
+                update.mutate({ contactId: alvo.id, input }, fechar);
+              } else {
+                create.mutate(input, fechar);
+              }
             }}
           />
         ) : null}
 
-        <MutationError error={create.error ?? remove.error} />
+        <MutationError error={mutation.error ?? remove.error} />
 
         {customer.contacts.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
@@ -183,6 +203,7 @@ export function ContactsSection({
                 contact={contact}
                 canManage={canManage}
                 removing={remove.isPending}
+                onEdit={() => setEditando(contact)}
                 onRemove={() => remove.mutate(contact.id)}
               />
             ))}
@@ -197,11 +218,13 @@ function ContactRow({
   contact,
   canManage,
   removing,
+  onEdit,
   onRemove,
 }: {
   contact: CustomerContact;
   canManage: boolean;
   removing: boolean;
+  onEdit: () => void;
   onRemove: () => void;
 }) {
   return (
@@ -238,25 +261,39 @@ function ContactRow({
       </div>
 
       {canManage ? (
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-8 text-destructive"
-          disabled={removing}
-          onClick={onRemove}
-          aria-label={`Remover ${contact.name}`}
-        >
-          <Trash2 className="size-4" />
-        </Button>
+        <>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-8"
+            onClick={onEdit}
+            aria-label={`Editar ${contact.name}`}
+          >
+            <Pencil className="size-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-8 text-destructive"
+            disabled={removing}
+            onClick={onRemove}
+            aria-label={`Remover ${contact.name}`}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </>
       ) : null}
     </li>
   );
 }
 
 function ContactForm({
+  contact,
   pending,
   onSubmit,
 }: {
+  /** `null` cria; preenchido edita. */
+  contact: CustomerContact | null;
   pending: boolean;
   onSubmit: (input: {
     name: string;
@@ -265,10 +302,10 @@ function ContactForm({
     phone?: string;
   }) => void;
 }) {
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(contact?.name ?? "");
+  const [role, setRole] = useState(contact?.role ?? "");
+  const [email, setEmail] = useState(contact?.email ?? "");
+  const [phone, setPhone] = useState(contact?.phone ?? "");
 
   return (
     <div className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
@@ -320,7 +357,11 @@ function ContactForm({
           })
         }
       >
-        {pending ? "Salvando…" : "Adicionar contato"}
+        {pending
+          ? "Salvando…"
+          : contact
+            ? "Salvar contato"
+            : "Adicionar contato"}
       </Button>
     </div>
   );

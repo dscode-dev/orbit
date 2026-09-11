@@ -27,7 +27,8 @@
  * que o aceitam — e é assim que ele é apresentado aqui: seleção de contexto de
  * trabalho, não mudança de sessão.
  */
-import { Building2, Check, MapPin, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Building2, Check, MapPin, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { PanelFrame, PanelState, toPanelQuery } from "@/components/panels";
@@ -37,6 +38,7 @@ import {
   useBusinessUnits,
   useRemoveBusinessUnit,
 } from "@/hooks/organization/use-organization";
+import { BusinessUnitFormDialog } from "./business-unit-form.dialog";
 import { useActiveScope } from "@/providers/use-active-scope";
 import { lifecycleLabel } from "@/registry";
 import { cn } from "@/lib/utils";
@@ -47,11 +49,22 @@ export function BusinessUnitsSection({ canManage }: { canManage: boolean }) {
   const remove = useRemoveBusinessUnit();
   const { businessUnitId, switchBusinessUnit } = useActiveScope();
 
+  /** `null` fechado; `"new"` criando; uma unidade editando. */
+  const [editando, setEditando] = useState<BusinessUnit | "new" | null>(null);
+
   return (
     <PanelFrame
       panelId="organization-business-units"
       title="Unidades de negócio"
       description="Filiais, sedes e departamentos da organização"
+      actions={
+        canManage ? (
+          <Button size="sm" onClick={() => setEditando("new")}>
+            <Plus className="size-3.5" />
+            Nova unidade
+          </Button>
+        ) : undefined
+      }
     >
       <div className="space-y-4">
         <PanelState
@@ -70,6 +83,7 @@ export function BusinessUnitsSection({ canManage }: { canManage: boolean }) {
                   canManage={canManage}
                   removing={remove.isPending}
                   onSelect={() => switchBusinessUnit(unit.id)}
+                  onEdit={() => setEditando(unit)}
                   onRemove={() => remove.mutate(unit.id)}
                 />
               ))}
@@ -91,6 +105,14 @@ export function BusinessUnitsSection({ canManage }: { canManage: boolean }) {
           </p>
         </div>
       </div>
+
+      <BusinessUnitFormDialog
+        unit={editando === "new" ? null : editando}
+        open={editando !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditando(null);
+        }}
+      />
     </PanelFrame>
   );
 }
@@ -101,6 +123,7 @@ function UnitRow({
   canManage,
   removing,
   onSelect,
+  onEdit,
   onRemove,
 }: {
   unit: BusinessUnit;
@@ -108,6 +131,7 @@ function UnitRow({
   canManage: boolean;
   removing: boolean;
   onSelect: () => void;
+  onEdit: () => void;
   onRemove: () => void;
 }) {
   return (
@@ -156,6 +180,20 @@ function UnitRow({
         {active ? "Contexto atual" : "Trabalhar nesta"}
       </Button>
 
+      {canManage ? (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-8"
+          onClick={onEdit}
+          aria-label={`Editar ${unit.tradeName ?? unit.legalName}`}
+        >
+          <Pencil className="size-4" />
+        </Button>
+      ) : null}
+
+      {/* A principal não some: sem ela a organização fica sem unidade de
+          referência, e o servidor recusaria de qualquer forma. */}
       {canManage && !unit.isPrimary ? (
         <Button
           size="icon"

@@ -11,7 +11,7 @@
  * o gera.
  */
 import { useState } from "react";
-import { Award, Plus, Trash2 } from "lucide-react";
+import { Award, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { Badge } from "@/components/ui/badge";
@@ -23,33 +23,48 @@ import {
   useCreateSpecialty,
   useRemoveSpecialty,
   useSpecialties,
+  useUpdateSpecialty,
 } from "@/hooks/workforce/use-workforce";
+import type { Specialty } from "@/types/workforce";
 import { ListState } from "@/workspace";
 
 export function SpecialtiesTab() {
   const query = useSpecialties();
   const manage = useAction("team-member.update");
 
-  const create = useCreateSpecialty();
-  const remove = useRemoveSpecialty();
+  /** `null` fechado; `"new"` criando; uma especialidade editando. */
+  const [editando, setEditando] = useState<Specialty | "new" | null>(null);
+  const alvo = editando === "new" ? null : editando;
 
-  const [adding, setAdding] = useState(false);
+  const create = useCreateSpecialty();
+  const update = useUpdateSpecialty(alvo?.id ?? "");
+  const remove = useRemoveSpecialty();
+  const mutation = alvo ? update : create;
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
   const items = query.data ?? [];
 
+  const abrir = (especialidade: Specialty | "new") => {
+    setEditando(especialidade);
+    setName(especialidade === "new" ? "" : especialidade.name);
+    setDescription(
+      especialidade === "new" ? "" : (especialidade.description ?? ""),
+    );
+  };
+
+  const fechar = () => {
+    setEditando(null);
+    setName("");
+    setDescription("");
+  };
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    create.mutate(
+    mutation.mutate(
       { name: name.trim(), description: description.trim() || undefined },
-      {
-        onSuccess: () => {
-          setName("");
-          setDescription("");
-          setAdding(false);
-        },
-      },
+      { onSuccess: fechar },
     );
   };
 
@@ -60,19 +75,22 @@ export function SpecialtiesTab() {
           Especialidades são compartilhadas por toda a organização e vinculadas
           às pessoas com um nível declarado.
         </p>
-        {manage.allowed && !adding ? (
-          <Button size="sm" onClick={() => setAdding(true)}>
+        {manage.allowed && editando === null ? (
+          <Button size="sm" onClick={() => abrir("new")}>
             <Plus className="size-4" />
             Nova especialidade
           </Button>
         ) : null}
       </div>
 
-      {adding ? (
+      {editando !== null ? (
         <form
           onSubmit={submit}
           className="glass-panel space-y-3 rounded-xl p-4"
         >
+          <p className="text-sm font-medium">
+            {alvo ? `Editar ${alvo.name}` : "Nova especialidade"}
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="specialty-name">Nome</Label>
@@ -94,23 +112,22 @@ export function SpecialtiesTab() {
             </div>
           </div>
 
-          <MutationError error={create.error} />
+          <MutationError error={mutation.error} />
 
           <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setAdding(false)}
-            >
+            <Button type="button" variant="ghost" size="sm" onClick={fechar}>
               Cancelar
             </Button>
             <Button
               type="submit"
               size="sm"
-              disabled={!name.trim() || create.isPending}
+              disabled={!name.trim() || mutation.isPending}
             >
-              {create.isPending ? "Criando…" : "Criar"}
+              {mutation.isPending
+                ? "Salvando…"
+                : alvo
+                  ? "Salvar"
+                  : "Criar"}
             </Button>
           </div>
         </form>
@@ -130,7 +147,7 @@ export function SpecialtiesTab() {
           description:
             "Especialidades permitem encontrar quem sabe fazer o quê na hora de escalar trabalho.",
           action: manage.allowed ? (
-            <Button size="sm" onClick={() => setAdding(true)}>
+            <Button size="sm" onClick={() => abrir("new")}>
               <Plus className="size-4" />
               Nova especialidade
             </Button>
@@ -166,15 +183,25 @@ export function SpecialtiesTab() {
                 </Badge>
 
                 {manage.allowed ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Remover ${specialty.name}`}
-                    disabled={remove.isPending}
-                    onClick={() => remove.mutate(specialty.id)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Editar ${specialty.name}`}
+                      onClick={() => abrir(specialty)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Remover ${specialty.name}`}
+                      disabled={remove.isPending}
+                      onClick={() => remove.mutate(specialty.id)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </>
                 ) : null}
               </li>
             ))}

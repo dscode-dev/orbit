@@ -14,13 +14,11 @@
  * recompõe a lista por conta própria.
  */
 import { useState } from "react";
-import { Plus, Trash2, Users, UserPlus, X } from "lucide-react";
+import { Pencil, Plus, Trash2, Users, UserPlus, X } from "lucide-react";
 
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -31,24 +29,23 @@ import {
 import { useAction } from "@/actions";
 import {
   useAddTeamMember,
-  useCreateTeam,
   useRemoveTeam,
   useRemoveTeamMember,
   useTeamMembers,
   useTeams,
 } from "@/hooks/workforce/use-workforce";
 import type { Team } from "@/types/workforce";
+import { TeamFormDialog } from "../team-form.dialog";
 import { ListState } from "@/workspace";
 
 export function TeamsTab() {
   const query = useTeams();
   const manage = useAction("team-member.update");
 
-  const create = useCreateTeam();
   const remove = useRemoveTeam();
 
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState("");
+  /** `null` fechado; `"new"` criando; uma equipe editando. */
+  const [editando, setEditando] = useState<Team | "new" | null>(null);
 
   const teams = query.data ?? [];
 
@@ -58,62 +55,13 @@ export function TeamsTab() {
         <p className="text-sm text-muted-foreground">
           Equipes agrupam pessoas para escala e atribuição de trabalho.
         </p>
-        {manage.allowed && !adding ? (
-          <Button size="sm" onClick={() => setAdding(true)}>
+        {manage.allowed ? (
+          <Button size="sm" onClick={() => setEditando("new")}>
             <Plus className="size-4" />
             Nova equipe
           </Button>
         ) : null}
       </div>
-
-      {adding ? (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            create.mutate(
-              { name: name.trim() },
-              {
-                onSuccess: () => {
-                  setName("");
-                  setAdding(false);
-                },
-              },
-            );
-          }}
-          className="glass-panel space-y-3 rounded-xl p-4"
-        >
-          <div className="space-y-1.5">
-            <Label htmlFor="team-name">Nome da equipe</Label>
-            <Input
-              id="team-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Ex.: Equipe Norte"
-              required
-            />
-          </div>
-
-          <MutationError error={create.error} />
-
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setAdding(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={!name.trim() || create.isPending}
-            >
-              {create.isPending ? "Criando…" : "Criar"}
-            </Button>
-          </div>
-        </form>
-      ) : null}
 
       <MutationError error={remove.error} />
 
@@ -129,7 +77,7 @@ export function TeamsTab() {
           description:
             "Equipes agrupam quem trabalha junto — útil para escalar e atribuir em bloco.",
           action: manage.allowed ? (
-            <Button size="sm" onClick={() => setAdding(true)}>
+            <Button size="sm" onClick={() => setEditando("new")}>
               <Plus className="size-4" />
               Nova equipe
             </Button>
@@ -142,6 +90,7 @@ export function TeamsTab() {
               <TeamCard
                 key={team.id}
                 team={team}
+                onEdit={() => setEditando(team)}
                 onRemove={() => remove.mutate(team.id)}
                 removing={remove.isPending && remove.variables === team.id}
               />
@@ -149,16 +98,26 @@ export function TeamsTab() {
           </div>
         )}
       </ListState>
+
+      <TeamFormDialog
+        team={editando === "new" ? null : editando}
+        open={editando !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditando(null);
+        }}
+      />
     </div>
   );
 }
 
 function TeamCard({
   team,
+  onEdit,
   onRemove,
   removing,
 }: {
   team: Team;
+  onEdit: () => void;
   onRemove: () => void;
   removing: boolean;
 }) {
@@ -198,15 +157,25 @@ function TeamCard({
         </div>
 
         {manage.allowed ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Remover ${team.name}`}
-            disabled={removing}
-            onClick={onRemove}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          <div className="flex shrink-0 items-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Editar ${team.name}`}
+              onClick={onEdit}
+            >
+              <Pencil className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Remover ${team.name}`}
+              disabled={removing}
+              onClick={onRemove}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
         ) : null}
       </header>
 

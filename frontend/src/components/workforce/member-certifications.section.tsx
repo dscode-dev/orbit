@@ -12,7 +12,7 @@
  * tipo de coisa que não pode depender do relógio de quem olha.
  */
 import { useState } from "react";
-import { BadgeCheck, Plus, Trash2 } from "lucide-react";
+import { BadgeCheck, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,9 @@ import {
   useCertifications,
   useCreateCertification,
   useRemoveCertification,
+  useUpdateCertification,
 } from "@/hooks/workforce/use-workforce";
+import type { MemberCertification } from "@/types/workforce";
 import { formatDateTime } from "@/lib/formatters";
 import { CertificationBadge } from "./certification-badge";
 
@@ -32,31 +34,51 @@ export function MemberCertificationsSection({ userId }: { userId: string }) {
   const query = useCertifications({ userId });
   const manage = useAction("team-member.update");
 
-  const create = useCreateCertification(userId);
-  const remove = useRemoveCertification();
+  /** `null` fechado; `"new"` criando; uma certificação editando. */
+  const [editando, setEditando] = useState<MemberCertification | "new" | null>(null);
+  const alvo = editando === "new" ? null : editando;
 
-  const [adding, setAdding] = useState(false);
+  const create = useCreateCertification(userId);
+  const update = useUpdateCertification(alvo?.id ?? "");
+  const remove = useRemoveCertification();
+  const mutation = alvo ? update : create;
+
   const [name, setName] = useState("");
   const [issuer, setIssuer] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
 
   const items = query.data ?? [];
 
+  /** `<input type="date">` só aceita `aaaa-mm-dd`; o servidor manda ISO. */
+  const paraCampoDeData = (iso: string | null | undefined) =>
+    iso ? iso.slice(0, 10) : "";
+
+  const abrir = (certificacao: MemberCertification | "new") => {
+    setEditando(certificacao);
+    setName(certificacao === "new" ? "" : certificacao.name);
+    setIssuer(certificacao === "new" ? "" : (certificacao.issuer ?? ""));
+    setExpiresAt(
+      certificacao === "new" ? "" : paraCampoDeData(certificacao.expiresAt),
+    );
+  };
+
+  const fechar = () => {
+    setEditando(null);
+    setName("");
+    setIssuer("");
+    setExpiresAt("");
+  };
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    create.mutate(
+    mutation.mutate(
       {
         name: name.trim(),
         issuer: issuer.trim() || undefined,
         expiresAt: expiresAt || undefined,
       },
       {
-        onSuccess: () => {
-          setName("");
-          setIssuer("");
-          setExpiresAt("");
-          setAdding(false);
-        },
+        onSuccess: fechar,
       },
     );
   };
@@ -68,8 +90,8 @@ export function MemberCertificationsSection({ userId }: { userId: string }) {
           <BadgeCheck className="size-4 text-muted-foreground" aria-hidden />
           Certificações
         </h3>
-        {manage.allowed && !adding ? (
-          <Button variant="ghost" size="sm" onClick={() => setAdding(true)}>
+        {manage.allowed && editando === null ? (
+          <Button variant="ghost" size="sm" onClick={() => abrir("new")}>
             <Plus className="size-4" />
             Adicionar
           </Button>
@@ -108,26 +130,39 @@ export function MemberCertificationsSection({ userId }: { userId: string }) {
                 />
 
                 {manage.allowed ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Remover ${certification.name}`}
-                    disabled={remove.isPending}
-                    onClick={() => remove.mutate(certification.id)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Editar ${certification.name}`}
+                      onClick={() => abrir(certification)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Remover ${certification.name}`}
+                      disabled={remove.isPending}
+                      onClick={() => remove.mutate(certification.id)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </>
                 ) : null}
               </li>
             ))}
           </ul>
         )}
 
-        {adding ? (
+        {editando !== null ? (
           <form
             onSubmit={submit}
             className="space-y-3 border-t border-border pt-3"
           >
+            <p className="text-sm font-medium">
+              {alvo ? `Editar ${alvo.name}` : "Nova certificação"}
+            </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="certification-name">Certificação</Label>
@@ -159,23 +194,18 @@ export function MemberCertificationsSection({ userId }: { userId: string }) {
               </div>
             </div>
 
-            <MutationError error={create.error} />
+            <MutationError error={mutation.error} />
 
             <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setAdding(false)}
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={fechar}>
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 size="sm"
-                disabled={!name.trim() || create.isPending}
+                disabled={!name.trim() || mutation.isPending}
               >
-                {create.isPending ? "Salvando…" : "Salvar"}
+                {mutation.isPending ? "Salvando…" : "Salvar"}
               </Button>
             </div>
           </form>
