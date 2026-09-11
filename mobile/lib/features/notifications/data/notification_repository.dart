@@ -51,4 +51,12 @@ class NotificationRepository {
   /// Marca uma notificação como lida.
   Future<void> markRead(String id) =>
       _client.patch<Map<String, dynamic>>('/notifications/$id/read', body: {});
+
+  /// Marca todas como lidas.
+  ///
+  /// Existe porque a alternativa é tocar em quinze avisos um a um — e tocar
+  /// num aviso **navega** para o que ele é sobre, então limpar a caixa a
+  /// toques significa entrar e voltar quinze vezes.
+  Future<void> markAllRead() =>
+      _client.patch<Map<String, dynamic>>('/notifications/read-all', body: {});
 }

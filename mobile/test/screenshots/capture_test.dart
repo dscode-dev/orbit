@@ -33,7 +33,9 @@ import '../support/fakes.dart';
 import '../support/scripted_adapter.dart';
 import 'harness.dart';
 import 'package:orbit_operator/features/documents/presentation/documents_screen.dart';
+import 'package:orbit_operator/features/notifications/presentation/notifications_screen.dart';
 import 'package:orbit_operator/features/profile/presentation/profile_screen.dart';
+import 'package:orbit_operator/features/sync/presentation/sync_center_screen.dart';
 import 'package:orbit_operator/features/profile/presentation/settings_screen.dart';
 import 'package:orbit_operator/core/design/orbit_operational.dart';
 import 'package:orbit_operator/core/routing/app_shell.dart';
@@ -41,6 +43,8 @@ import 'package:orbit_operator/core/routing/orbit_router.dart';
 import 'package:orbit_operator/features/field/presentation/operation_execution_screen.dart';
 import 'package:orbit_operator/features/sync/application/sync_providers.dart';
 import 'package:orbit_operator/features/sync/data/command_journal.dart';
+import 'package:orbit_operator/features/evidence/application/evidence_providers.dart';
+import 'package:orbit_operator/features/evidence/data/media_store.dart';
 import 'package:orbit_operator/features/sync/data/journal_file.dart';
 import 'package:orbit_operator/features/sync/data/sync_projection.dart';
 
@@ -370,11 +374,23 @@ Widget host(
               'createdAt': '2026-09-08T09:00:00.000Z',
               'payload': <String, dynamic>{},
             },
+
+            /// Um já lido: sem ele a captura não mostraria o segundo grupo
+            /// nem a diferença entre lido e não lido.
+            {
+              'id': 'n3',
+              'type': 'ARTIFACT_AVAILABLE',
+              'title': 'Documento disponível',
+              'body': 'Ordem de serviço 2026-0141 — Shopping Recife.',
+              'readAt': '2026-09-07T18:10:00.000Z',
+              'createdAt': '2026-09-07T17:45:00.000Z',
+              'payload': <String, dynamic>{},
+            },
           ],
           'meta': {
             'page': 1,
             'limit': 10,
-            'total': 2,
+            'total': 3,
             'totalPages': 1,
             'hasNextPage': false,
             'hasPreviousPage': false,
@@ -464,6 +480,12 @@ Widget host(
       ),
       syncProjectionProvider.overrideWithValue(
         SyncProjectionStore(file: MemoryJournalFile()),
+      ),
+
+      /// A fila de mídia também sai da memória: sem isto, qualquer tela que
+      /// a leia cai em `path_provider`, que não existe no ambiente de teste.
+      mediaQueueProvider.overrideWithValue(
+        MediaQueue(file: MemoryJournalFile(), files: MemoryMediaFileStore()),
       ),
     ],
     child: MaterialApp(
@@ -675,6 +697,42 @@ void registerCaptures() {
       find.byType(MaterialApp),
       matchesGoldenFile(
         'out/${captureWidth.toInt()}_$captureScale/06_perfil.png',
+      ),
+    );
+  });
+
+  testWidgets('avisos', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+    await tester.pumpWidget(
+      host(const {}, const NotificationsScreen(), profile: true),
+    );
+    await tester.pumpAndSettle();
+
+    /// Dois grupos: o não lido em cima, o lido embaixo.
+    expect(find.text('2 NÃO LIDOS'), findsOneWidget);
+    expect(find.text('ANTERIORES'), findsOneWidget);
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_$captureScale/08_avisos.png',
+      ),
+    );
+  });
+
+  testWidgets('sincronizacao', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+    await tester.pumpWidget(
+      host(const {}, const SyncCenterScreen(), profile: true),
+    );
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_$captureScale/09_sincronizacao.png',
       ),
     );
   });

@@ -30,6 +30,7 @@ class SyncCenterScreen extends ConsumerWidget {
     final commands = ref.watch(pendingCommandsProvider);
 
     return Scaffold(
+      backgroundColor: context.orbit.background,
       appBar: AppBar(title: const Text('Sincronização')),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -39,17 +40,22 @@ class SyncCenterScreen extends ConsumerWidget {
               .process(manual: true);
         },
         child: ListView(
-          padding: const EdgeInsets.all(OrbitSpacing.gutter),
+          padding: const EdgeInsets.fromLTRB(
+            OrbitSpacing.gutter,
+            OrbitSpacing.md,
+            OrbitSpacing.gutter,
+            OrbitSpacing.xl2,
+          ),
           children: [
             _Status(state: sync),
-            const SizedBox(height: OrbitSpacing.md),
+            const SizedBox(height: OrbitSpacing.lg),
             commands.when(
               loading: () => const SectionLoading(lines: 3),
               error: (error, _) => SectionError(error: error),
               data: (value) => _Queue(commands: value),
             ),
 
-            const SizedBox(height: OrbitSpacing.md),
+            const SizedBox(height: OrbitSpacing.lg),
 
             /// Evidências têm seção própria: são outra fila, com outra
             /// política. Uma frase só ("3 itens pendentes") faria o técnico
@@ -70,16 +76,18 @@ class _MediaQueueSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final media = ref.watch(allPendingMediaProvider);
 
-    return SectionBlock(
-      title: 'Evidências',
+    /// Cartão, como o resto da tela. Solto sobre o fundo, este bloco era o
+    /// único texto sem contenção — parecia rodapé, não seção.
+    return _Secao(
+      titulo: 'Evidências',
       child: media.when(
         loading: () => const SectionLoading(lines: 2),
         error: (error, _) => SectionError(error: error),
         data: (items) {
           if (items.isEmpty) {
-            return const Text(
+            return Text(
               'Nenhuma evidência aguardando envio.',
-              style: TextStyle(fontSize: 13, color: OrbitColors.textSecondary),
+              style: OrbitType.body.copyWith(color: context.orbit.inkMuted),
             );
           }
           return Column(
@@ -95,7 +103,9 @@ class _MediaQueueSection extends ConsumerWidget {
                     children: [
                       Text(
                         value.filename,
-                        style: const TextStyle(fontSize: 13),
+                        style: OrbitType.body.copyWith(
+                          color: context.orbit.ink,
+                        ),
                       ),
                       if (value.isBlocked)
                         BlockedBadge(
@@ -116,6 +126,45 @@ class _MediaQueueSection extends ConsumerWidget {
   }
 }
 
+/// Um bloco com título em versalete e conteúdo num cartão.
+class _Secao extends StatelessWidget {
+  const _Secao({required this.titulo, required this.child});
+
+  final String titulo;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.orbit;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(
+            left: OrbitSpacing.xs,
+            bottom: OrbitSpacing.sm,
+          ),
+          child: Text(
+            titulo.toUpperCase(),
+            style: OrbitType.eyebrow.copyWith(color: palette.inkSubtle),
+          ),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: OrbitRadius.card,
+            boxShadow: OrbitShadow.card,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(OrbitSpacing.md),
+            child: child,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _Status extends ConsumerWidget {
   const _Status({required this.state});
 
@@ -123,56 +172,108 @@ class _Status extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return SectionBlock(
-      title: 'Situação',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            syncPhaseLabels[state.phase.name] ?? 'Sincronização',
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            switch (state) {
-              _ when state.needsAttention =>
-                'Algumas ações precisam da sua atenção antes de serem enviadas.',
-              _ when state.pending > 0 =>
-                '${state.pending} ação(ões) aguardando envio.',
-              _ => 'Nenhuma ação pendente neste aparelho.',
-            },
-            style: const TextStyle(
-              fontSize: 13,
-              color: OrbitColors.textSecondary,
-            ),
-          ),
+    final palette = context.orbit;
 
-          if (state.lastSyncedAt case final at?)
-            Padding(
-              padding: const EdgeInsets.only(top: OrbitSpacing.sm),
-              child: Text(
-                'Última sincronização em ${OrbitFormat.dateHourOf(at)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: OrbitColors.textSecondary,
+    /// A cor diz o que fazer antes de a frase ser lida: vermelho pede
+    /// alguém, âmbar pede paciência, verde não pede nada.
+    final (cor, icone, frase) = state.needsAttention
+        ? (
+            palette.danger,
+            Icons.error_outline_rounded,
+            'Algumas ações precisam da sua atenção antes de serem enviadas.',
+          )
+        : state.pending > 0
+        ? (
+            palette.warning,
+            Icons.cloud_queue_rounded,
+            state.pending == 1
+                ? '1 ação aguardando envio.'
+                : '${state.pending} ações aguardando envio.',
+          )
+        : (
+            palette.success,
+            Icons.cloud_done_outlined,
+            'Nenhuma ação pendente neste aparelho.',
+          );
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: OrbitRadius.card,
+        boxShadow: OrbitShadow.card,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(OrbitSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: cor.withValues(alpha: 0.12),
+                    borderRadius: OrbitRadius.field,
+                  ),
+                  child: Icon(icone, size: 21, color: cor),
                 ),
+                const SizedBox(width: OrbitSpacing.ms),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        syncPhaseLabels[state.phase.name] ?? 'Sincronização',
+                        style: OrbitType.itemTitle.copyWith(color: palette.ink),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        frase,
+                        style: OrbitType.caption.copyWith(
+                          color: state.needsAttention ? cor : palette.inkMuted,
+                        ),
+                      ),
+                      if (state.lastSyncedAt case final at?) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'Última sincronização em '
+                          '${OrbitFormat.dateHourOf(at)}',
+                          style: OrbitType.caption.copyWith(
+                            color: palette.inkSubtle,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: OrbitSpacing.md),
+            FilledButton.icon(
+              onPressed: state.isSyncing
+                  ? null
+                  : () => ref
+                        .read(syncControllerProvider.notifier)
+                        .sync(manual: true),
+              icon: state.isSyncing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.sync, size: 18),
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+              label: Text(
+                state.isSyncing ? 'Sincronizando…' : 'Sincronizar agora',
               ),
             ),
-
-          const SizedBox(height: OrbitSpacing.md),
-          FilledButton.icon(
-            onPressed: state.isSyncing
-                ? null
-                : () => ref
-                      .read(syncControllerProvider.notifier)
-                      .sync(manual: true),
-            icon: const Icon(Icons.sync),
-            style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
-            label: Text(
-              state.isSyncing ? 'Sincronizando…' : 'Sincronizar agora',
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -186,9 +287,10 @@ class _Queue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (commands.isEmpty) {
-      return const SectionEmpty(
+      return const OrbitEmptyState(
         icon: Icons.cloud_done_outlined,
-        message: 'Tudo o que você registrou já chegou ao servidor.',
+        title: 'Nada na fila',
+        description: 'Tudo o que você registrou já chegou ao servidor.',
       );
     }
 
@@ -199,7 +301,20 @@ class _Queue extends StatelessWidget {
     ];
 
     return Column(
-      children: [for (final command in ordered) _CommandTile(command: command)],
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(
+            left: OrbitSpacing.xs,
+            bottom: OrbitSpacing.sm,
+          ),
+          child: Text(
+            'NA FILA',
+            style: OrbitType.eyebrow.copyWith(color: context.orbit.inkSubtle),
+          ),
+        ),
+        for (final command in ordered) _CommandTile(command: command),
+      ],
     );
   }
 }
@@ -231,15 +346,14 @@ class _CommandTile extends ConsumerWidget {
                 Icon(
                   blocked ? Icons.error_outline : Icons.schedule_outlined,
                   size: 18,
-                  color: blocked ? OrbitColors.danger : OrbitColors.warning,
+                  color: blocked ? context.orbit.danger : context.orbit.warning,
                 ),
                 const SizedBox(width: OrbitSpacing.sm),
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                    style: OrbitType.itemTitle.copyWith(
+                      color: context.orbit.ink,
                     ),
                   ),
                 ),
@@ -257,10 +371,7 @@ class _CommandTile extends ConsumerWidget {
                     )
                   : 'Registrado em ${OrbitFormat.dateHourOf(command.enqueuedAt)}. '
                         'Será enviado quando houver conexão.',
-              style: const TextStyle(
-                fontSize: 13,
-                color: OrbitColors.textSecondary,
-              ),
+              style: OrbitType.caption.copyWith(color: context.orbit.inkMuted),
             ),
 
             /// Descartar só aparece para o que o servidor **não** aplicou.

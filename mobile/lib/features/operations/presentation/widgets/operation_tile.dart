@@ -69,24 +69,18 @@ class OperationTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  /// O selo fica na linha do título, não na de contexto: a
-                  /// linha de contexto carrega quatro campos e, dividida com
-                  /// o selo, truncava todos eles.
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          cliente ?? operation.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: OrbitType.itemTitle.copyWith(
-                            color: palette.ink,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: OrbitSpacing.sm),
-                      StatusBadge(status: operation.status),
-                    ],
+                  /// O título ocupa a linha **inteira**.
+                  ///
+                  /// O selo morava aqui ao lado, e comia metade da largura:
+                  /// "Manutenção preventiva — Chiller 40TR" chegava à tela
+                  /// como "Manutencao preventiva…". O que a pessoa procura
+                  /// numa fila é o nome, não o estado — o estado ela lê
+                  /// depois, na linha de baixo, onde cabe.
+                  Text(
+                    cliente ?? operation.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: OrbitType.itemTitle.copyWith(color: palette.ink),
                   ),
                   if (cliente != null) ...[
                     const SizedBox(height: 3),
@@ -100,13 +94,22 @@ class OperationTile extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: OrbitSpacing.sm),
-                  Text(
-                    contexto,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: OrbitType.caption.copyWith(
-                      color: palette.inkSubtle,
-                    ),
+
+                  /// Selo e contexto num `Wrap`: quando não cabem juntos, o
+                  /// contexto desce de linha inteiro em vez de ser cortado.
+                  Wrap(
+                    spacing: OrbitSpacing.sm,
+                    runSpacing: OrbitSpacing.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      StatusBadge(status: operation.status),
+                      Text(
+                        contexto,
+                        style: OrbitType.caption.copyWith(
+                          color: palette.inkSubtle,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

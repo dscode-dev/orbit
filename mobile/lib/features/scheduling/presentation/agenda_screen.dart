@@ -15,6 +15,7 @@ import '../../../core/time/civil_time.dart';
 import '../../../core/presentation/field_registry.dart';
 import '../../../core/presentation/orbit_format.dart';
 import '../../../core/design/orbit_primitives.dart';
+import '../../../core/design/orbit_screen_header.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../../core/routing/orbit_router.dart';
@@ -68,52 +69,97 @@ class AgendaScreen extends ConsumerWidget {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agenda'),
-        actions: [
-          IconButton(
-            tooltip: 'Escolher data',
-            icon: const Icon(Icons.calendar_month_outlined),
-            onPressed: agenda.valueOrNull?.value.civilDate == null
-                ? null
-                : () async {
-                    final anchor = date ?? agenda.valueOrNull!.value.civilDate!;
-                    final chosen = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime(
-                        anchor.year,
-                        anchor.month,
-                        anchor.day,
-                      ),
-                      firstDate: DateTime(anchor.year - 5),
-                      lastDate: DateTime(anchor.year + 5, 12, 31),
-                    );
-                    if (chosen != null && context.mounted) {
-                      ref.read(agendaDateProvider.notifier).state = CivilDate(
-                        chosen.year,
-                        chosen.month,
-                        chosen.day,
-                      );
-                    }
-                  },
-          ),
-          IconButton(
-            tooltip: 'Hoje',
-            icon: const Icon(Icons.today),
+    final total = agenda.valueOrNull?.value.total;
 
-            /// Voltar para "hoje" é **esquecer** a data escolhida, não
-            /// calcular uma nova: quem sabe que dia é hoje na unidade é o
-            /// servidor.
-            onPressed: () => ref.read(agendaDateProvider.notifier).state = null,
-          ),
-        ],
-      ),
+    return Scaffold(
+      backgroundColor: context.orbit.background,
       body: Column(
         children: [
-          _DayNavigator(
-            selected: date,
-            shown: agenda.valueOrNull?.value.civilDate,
+          /// Cabeçalho e navegação de dia numa superfície elevada só, como
+          /// nas outras listas. O `AppBar` separado deixava o seletor de dia
+          /// solto entre duas faixas brancas, sem dizer a qual dos dois
+          /// blocos ele pertencia.
+          Container(
+            decoration: BoxDecoration(
+              color: context.orbit.surface,
+              boxShadow: OrbitShadow.card,
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      OrbitSpacing.gutter,
+                      OrbitSpacing.sm,
+                      OrbitSpacing.sm,
+                      OrbitSpacing.sm,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OrbitScreenHeading(
+                            title: 'Agenda',
+                            count: total == null
+                                ? null
+                                : total == 1
+                                ? '1 compromisso'
+                                : '$total compromissos',
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Escolher data',
+                          icon: const Icon(Icons.calendar_month_outlined),
+                          onPressed: agenda.valueOrNull?.value.civilDate == null
+                              ? null
+                              : () async {
+                                  final anchor =
+                                      date ??
+                                      agenda.valueOrNull!.value.civilDate!;
+                                  final chosen = await showDatePicker(
+                                    context: context,
+                                    initialDate: DateTime(
+                                      anchor.year,
+                                      anchor.month,
+                                      anchor.day,
+                                    ),
+                                    firstDate: DateTime(anchor.year - 5),
+                                    lastDate: DateTime(anchor.year + 5, 12, 31),
+                                  );
+                                  if (chosen != null && context.mounted) {
+                                    ref
+                                        .read(agendaDateProvider.notifier)
+                                        .state = CivilDate(
+                                      chosen.year,
+                                      chosen.month,
+                                      chosen.day,
+                                    );
+                                  }
+                                },
+                        ),
+                        IconButton(
+                          tooltip: 'Hoje',
+                          icon: const Icon(Icons.today),
+
+                          /// Voltar para "hoje" é **esquecer** a data
+                          /// escolhida, não calcular uma nova: quem sabe que
+                          /// dia é hoje na unidade é o servidor.
+                          onPressed: () =>
+                              ref.read(agendaDateProvider.notifier).state =
+                                  null,
+                        ),
+                      ],
+                    ),
+                  ),
+                  _DayNavigator(
+                    selected: date,
+                    shown: agenda.valueOrNull?.value.civilDate,
+                  ),
+                  const SizedBox(height: OrbitSpacing.sm),
+                ],
+              ),
+            ),
           ),
           Expanded(
             child: RefreshIndicator(
@@ -134,8 +180,15 @@ class AgendaScreen extends ConsumerWidget {
                 ),
                 data: (result) {
                   final events = result.value.events;
+                  final palette = context.orbit;
+
                   return ListView.builder(
-                    padding: const EdgeInsets.all(OrbitSpacing.gutter),
+                    padding: const EdgeInsets.fromLTRB(
+                      OrbitSpacing.gutter,
+                      OrbitSpacing.md,
+                      OrbitSpacing.gutter,
+                      OrbitSpacing.xl,
+                    ),
                     itemCount: events.length + 1,
                     itemBuilder: (context, index) {
                       if (index == 0) {
@@ -145,34 +198,55 @@ class AgendaScreen extends ConsumerWidget {
                             if (result.cachedAt != null)
                               StaleDataBanner(cachedAt: result.cachedAt!),
                             if (events.isEmpty)
-                              const SectionEmpty(
-                                icon: Icons.event_available_outlined,
-                                message: 'Nenhum compromisso neste dia.',
-                              )
-                            else
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: Text(
-                                  result.value.total == 1
-                                      ? '1 compromisso'
-                                      : '${result.value.total} compromissos',
-                                  style: OrbitType.caption.copyWith(
-                                    color: context.orbit.inkSubtle,
-                                  ),
+                              const Padding(
+                                padding: EdgeInsets.only(top: OrbitSpacing.xl),
+                                child: OrbitEmptyState(
+                                  icon: Icons.event_available_outlined,
+                                  title: 'Nenhum compromisso neste dia',
+                                  description:
+                                      'Use as setas ou o calendário para ver '
+                                      'outro dia.',
                                 ),
                               ),
                           ],
                         );
                       }
+
                       final event = events[index - 1];
-                      return Column(
-                        children: [
-                          if (index > 1) const OrbitRowDivider(indent: 0),
-                          _EventRow(
-                            event: event,
-                            workItemId: workItems[event.eventId],
+                      final primeiro = index == 1;
+                      final ultimo = index == events.length;
+
+                      /// O dia inteiro num cartão, e as linhas dentro dele.
+                      ///
+                      /// Soltas sobre o fundo elas flutuavam — a mesma
+                      /// reclamação da tela de Atendimentos. A coluna de
+                      /// horários continua alinhada de cima a baixo, que é o
+                      /// que torna uma agenda legível.
+                      final raio = BorderRadius.vertical(
+                        top: primeiro ? const Radius.circular(16) : Radius.zero,
+                        bottom: ultimo
+                            ? const Radius.circular(16)
+                            : Radius.zero,
+                      );
+
+                      return DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: palette.surface,
+                          borderRadius: raio,
+                          boxShadow: ultimo ? OrbitShadow.card : null,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: raio,
+                          child: Column(
+                            children: [
+                              if (!primeiro) const OrbitRowDivider(),
+                              _EventRow(
+                                event: event,
+                                workItemId: workItems[event.eventId],
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       );
                     },
                   );
@@ -211,7 +285,7 @@ class _DayNavigator extends ConsumerWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
+      padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.sm),
       child: Column(
         children: [
           Row(
@@ -225,11 +299,13 @@ class _DayNavigator extends ConsumerWidget {
                 child: Text(
                   anchor == null
                       ? 'Hoje'
-                      : DateFormat('MMM yyyy', 'pt_BR').format(
+                      : DateFormat('MMMM yyyy', 'pt_BR').format(
                           DateTime.utc(anchor.year, anchor.month, anchor.day),
                         ),
                   textAlign: TextAlign.center,
-                  style: OrbitType.caption,
+                  style: OrbitType.label.copyWith(
+                    color: context.orbit.inkMuted,
+                  ),
                 ),
               ),
               IconButton(
