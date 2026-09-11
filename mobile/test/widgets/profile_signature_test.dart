@@ -11,7 +11,6 @@ import 'package:orbit_operator/core/config/environment.dart';
 import 'package:orbit_operator/core/network/orbit_api_client.dart';
 import 'package:orbit_operator/core/observability/orbit_logger.dart';
 import 'package:orbit_operator/core/theme/orbit_theme.dart';
-import 'package:orbit_operator/core/widgets/section_states.dart';
 import 'package:orbit_operator/features/profile/presentation/profile_screen.dart';
 import 'package:orbit_operator/features/sync/application/sync_providers.dart';
 import 'package:orbit_operator/features/sync/data/command_journal.dart';

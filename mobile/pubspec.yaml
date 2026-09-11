@@ -37,6 +37,10 @@ dependencies:
   # Hash de evidências (SHA-256 sobre os bytes exatos enviados)
   crypto: ^3.0.6
 
+  # Versão real do build — o servidor guarda para saber qual app o aparelho
+  # está rodando quando um push falha.
+  package_info_plus: ^8.1.1
+
   # Utilidades
   intl: ^0.19.0
   mobile_scanner: ^7.4.0
