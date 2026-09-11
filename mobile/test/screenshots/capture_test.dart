@@ -76,12 +76,13 @@ Map<String, dynamic> doc({
   required String rotulo,
   required String cliente,
   String estado = 'AVAILABLE',
+  String quando = '2026-09-08T14:00:00.000Z',
 }) => {
   'artifactId': id,
   'documentType': tipo,
   'label': rotulo,
   'customerName': cliente,
-  'createdAt': '2026-09-07T14:00:00.000Z',
+  'createdAt': quando,
   'state': estado,
 };
 
@@ -152,12 +153,44 @@ final payloadRico = {
       tipo: 'SERVICE_ORDER',
       rotulo: 'Ordem de serviço 2026-0148',
       cliente: 'Shopping Recife',
+      quando: '2026-09-08T11:20:00.000Z',
     ),
     doc(
       id: 'a2',
       tipo: 'RVT',
       rotulo: 'Relatório de visita técnica',
       cliente: 'Hospital Santa Joana',
+      quando: '2026-09-08T08:05:00.000Z',
+    ),
+    doc(
+      id: 'a3',
+      tipo: 'PMOC',
+      rotulo: 'PMOC — ciclo mensal',
+      cliente: 'Frigorífico Boa Carne',
+      estado: 'PREPARING',
+      quando: '2026-09-07T16:40:00.000Z',
+    ),
+    doc(
+      id: 'a4',
+      tipo: 'SERVICE_ORDER',
+      rotulo: 'Ordem de serviço 2026-0147',
+      cliente: 'Clínica Vida',
+      quando: '2026-09-07T10:15:00.000Z',
+    ),
+    doc(
+      id: 'a5',
+      tipo: 'RVT',
+      rotulo: 'Relatório de visita técnica',
+      cliente: 'Supermercado Nordeste — Loja Boa Viagem',
+      quando: '2026-09-04T15:30:00.000Z',
+    ),
+    doc(
+      id: 'a6',
+      tipo: 'SERVICE_ORDER',
+      rotulo: 'Ordem de serviço 2026-0141',
+      cliente: 'Shopping Recife',
+      estado: 'FAILED',
+      quando: '2026-09-04T09:00:00.000Z',
     ),
   ],
   'recentAppointments': const [],
@@ -219,40 +252,55 @@ Widget host(
     if (options.uri.path.endsWith('/mobile/field/customers')) {
       return jsonResponse({
         'success': true,
-        'data': [
-          {
-            'id': 'c1',
-            'name': 'Shopping Recife',
-            'openCount': 4,
-            'completedCount': 18,
-            'lastServiceAt': '2026-09-05T14:00:00.000Z',
-            'nextServiceAt': '2026-09-08T12:30:00.000Z',
-          },
-          {
-            'id': 'c2',
-            'name': 'Hospital Santa Joana',
-            'openCount': 2,
-            'completedCount': 31,
-            'lastServiceAt': '2026-09-06T09:00:00.000Z',
-            'nextServiceAt': '2026-09-08T15:00:00.000Z',
-          },
-          {
-            'id': 'c3',
-            'name': 'Frigorífico Boa Carne',
-            'openCount': 1,
-            'completedCount': 7,
-            'lastServiceAt': '2026-08-28T11:00:00.000Z',
-            'nextServiceAt': null,
-          },
-          {
-            'id': 'c4',
-            'name': 'Edifício Empresarial Norte',
-            'openCount': 0,
-            'completedCount': 12,
-            'lastServiceAt': '2026-08-20T16:00:00.000Z',
-            'nextServiceAt': null,
-          },
-        ],
+        'data': {
+          'data': [
+            {
+              'id': 'c1',
+              'name': 'Shopping Recife',
+              'legalName': 'Shopping Recife S.A.',
+              'documentNumber': '12345678000190',
+              'status': 'ACTIVE',
+              'openCount': 4,
+              'completedCount': 18,
+              'lastServiceAt': '2026-09-05T14:00:00.000Z',
+              'nextServiceAt': '2026-09-08T12:30:00.000Z',
+            },
+            {
+              'id': 'c2',
+              'name': 'Hospital Santa Joana',
+              'legalName': 'Hospital Santa Joana LTDA',
+              'documentNumber': null,
+              'status': 'ACTIVE',
+              'openCount': 2,
+              'completedCount': 31,
+              'lastServiceAt': '2026-09-06T09:00:00.000Z',
+              'nextServiceAt': '2026-09-08T15:00:00.000Z',
+            },
+            {
+              'id': 'c3',
+              'name': 'Frigorífico Boa Carne',
+              'legalName': 'Frigorífico Boa Carne ME',
+              'documentNumber': null,
+              'status': 'ACTIVE',
+              'openCount': 1,
+              'completedCount': 7,
+              'lastServiceAt': '2026-08-28T11:00:00.000Z',
+              'nextServiceAt': null,
+            },
+            {
+              'id': 'c4',
+              'name': 'Condomínio Parque das Águas',
+              'legalName': 'Condomínio Parque das Águas',
+              'documentNumber': null,
+              'status': 'ACTIVE',
+              'openCount': 0,
+              'completedCount': 0,
+              'lastServiceAt': null,
+              'nextServiceAt': null,
+            },
+          ],
+          'meta': {'limit': 30, 'hasNextPage': false, 'nextCursor': null},
+        },
       });
     }
 
@@ -353,7 +401,15 @@ Widget host(
     overrides: [
       apiClientProvider.overrideWithValue(client),
       readCacheProvider.overrideWithValue(InMemoryReadCache()),
-      if (profile || tela is FieldDashboardScreen)
+      /// A sessão é sobreposta sempre que a tela depende dela.
+      ///
+      /// A condição antiga listava duas telas pelo nome, e qualquer tela nova
+      /// que lesse permissão nascia sem sessão — o botão sumia da captura e a
+      /// imagem mentia sobre o que o produto mostra.
+      if (profile ||
+          session != null ||
+          tela is FieldDashboardScreen ||
+          tela is CustomersScreen)
         sessionProvider.overrideWithValue(
           (session ??
                   sessionFrom(
@@ -522,13 +578,35 @@ void registerCaptures() {
       host({
         'data': payloadRico['recentDocuments'],
         'meta': {'limit': 20, 'hasNextPage': false, 'nextCursor': null},
-      }, const DocumentsScreen()),
+      }, DocumentsScreen(now: _captureNow)),
     );
     await tester.pumpAndSettle();
     await expectLater(
       find.byType(MaterialApp),
       matchesGoldenFile(
         'out/${captureWidth.toInt()}_$captureScale/05_documentos.png',
+      ),
+    );
+  });
+
+  testWidgets('folha de documento', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+    await tester.pumpWidget(
+      host({
+        'data': payloadRico['recentDocuments'],
+        'meta': {'limit': 20, 'hasNextPage': false, 'nextCursor': null},
+      }, DocumentsScreen(now: _captureNow)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Clínica Vida'));
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_$captureScale/05d_documento.png',
       ),
     );
   });
@@ -732,6 +810,44 @@ void registerCaptures() {
       find.byType(MaterialApp),
       matchesGoldenFile(
         'out/${captureWidth.toInt()}_$captureScale/05_clientes.png',
+      ),
+    );
+  });
+
+  testWidgets('novo orcamento', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+
+    await tester.pumpWidget(
+      host(
+        const {},
+        const CustomersScreen(),
+        session: sessionFrom(
+          permissions: const ['operations.read', 'quotes.manage'],
+          roles: const ['OWNER'],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Shopping Recife'));
+    await tester.pumpAndSettle();
+
+    /// A folha abre em 58% da altura e a seção Comercial fica abaixo. Rolar
+    /// é o que a pessoa faria.
+    await tester.dragUntilVisible(
+      find.text('Abrir orçamento'),
+      find.byType(ListView).last,
+      const Offset(0, -80),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Abrir orçamento'));
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_$captureScale/05c_orcamento.png',
       ),
     );
   });

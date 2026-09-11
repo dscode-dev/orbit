@@ -10,6 +10,7 @@ import 'package:orbit_operator/app/providers.dart';
 import 'package:orbit_operator/core/config/environment.dart';
 import 'package:orbit_operator/core/network/orbit_api_client.dart';
 import 'package:orbit_operator/core/observability/orbit_logger.dart';
+import 'package:orbit_operator/core/design/orbit_screen_header.dart';
 import 'package:orbit_operator/core/theme/orbit_theme.dart';
 import 'package:orbit_operator/features/documents/presentation/documents_screen.dart';
 
@@ -118,10 +119,16 @@ void main() {
     /// documento. O alvo é o filtro.
     await tester.tap(
       find.descendant(
-        of: find.byType(ChoiceChip),
+        of: find.byType(OrbitChipStrip),
         matching: find.text('PMOC'),
       ),
     );
+    await tester.pumpAndSettle();
+
+    /// Um ciclo a mais: o `pumpAndSettle` acima volta assim que a tela para
+    /// de agendar quadros, e nesse instante a segunda requisição ainda está
+    /// em voo. Sem isto o teste lê a lista antes da resposta chegar.
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
 
     expect(backend.pedidos.last['type'], 'PMOC');
@@ -133,12 +140,18 @@ void main() {
 
     expect(find.text('Preparando'), findsOneWidget);
 
-    /// Tocar no que ainda está sendo gerado não abre folha nenhuma: um toque
-    /// que leva a "ainda não está pronto" gasta a atenção de quem está de pé
-    /// numa casa de máquinas.
+    /// A linha não traz o atalho de compartilhar: um botão que existe e
+    /// recusa é pior do que um botão que não existe.
+    expect(find.byIcon(Icons.ios_share_rounded), findsOneWidget);
+
+    /// A folha abre e **explica**, em vez de não responder ao toque. O que
+    /// ela não faz é oferecer ação sobre um arquivo que ainda não existe.
     await tester.tap(find.text('Preparando'));
     await tester.pumpAndSettle();
-    expect(find.text('Abrir documento'), findsNothing);
+
+    expect(find.textContaining('ainda está sendo preparado'), findsOneWidget);
+    expect(find.text('Compartilhar documento'), findsNothing);
+    expect(find.text('Baixar neste aparelho'), findsNothing);
   });
 
   testWidgets('o que falhou diz que falhou, e não "preparando"', (
@@ -153,17 +166,39 @@ void main() {
 
     await tester.tap(find.text('Falhou'));
     await tester.pumpAndSettle();
-    expect(find.text('Abrir documento'), findsNothing);
+
+    /// A folha diz o que fazer a respeito — refazer a emissão —, porque
+    /// esperar não resolve este caso.
+    expect(find.textContaining('não pôde ser gerado'), findsOneWidget);
+    expect(find.text('Compartilhar documento'), findsNothing);
+    expect(find.text('Baixar neste aparelho'), findsNothing);
   });
 
-  testWidgets('o disponível abre a folha com a ação', (tester) async {
+  testWidgets('o disponível abre a folha com as duas ações', (tester) async {
     await tester.pumpWidget(host(Backend()));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Ordem de serviço'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Abrir documento'), findsOneWidget);
+    /// Compartilhar primeiro: um relatório existe para chegar ao cliente.
+    expect(find.text('Compartilhar documento'), findsOneWidget);
+    expect(find.text('Baixar neste aparelho'), findsOneWidget);
+  });
+
+  testWidgets('o nome do arquivo chega legível ao cliente', (tester) async {
+    await tester.pumpWidget(host(Backend()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ordem de serviço'));
+    await tester.pumpAndSettle();
+
+    /// Sem acento virando hífen: "serviço" não pode chegar como "servi-o" no
+    /// WhatsApp de quem contratou o trabalho.
+    expect(
+      find.text('ordem-de-servico-cliente-do-documento.pdf'),
+      findsOneWidget,
+    );
   });
 
   for (final (largura, escala) in [

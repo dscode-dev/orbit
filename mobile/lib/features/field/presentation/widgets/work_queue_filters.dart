@@ -21,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/contracts/mobile_field_contracts.dart';
 import '../../../../core/design/orbit_primitives.dart';
+import '../../../../core/design/orbit_screen_header.dart';
 import '../../../../core/presentation/field_registry.dart';
 import '../../../../core/theme/orbit_theme.dart';
 import '../../../../core/widgets/section_states.dart';
@@ -116,26 +117,11 @@ class _WorkQueueFilterBarState extends ConsumerState<WorkQueueFilterBar> {
                 OrbitSpacing.gutter,
                 OrbitSpacing.ms,
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Atendimentos',
-                      style: OrbitType.screenTitle.copyWith(
-                        color: palette.ink,
-                        fontSize: 24,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    widget.resultCount == 1
-                        ? '1 resultado'
-                        : '${widget.resultCount} resultados',
-                    style: OrbitType.caption.copyWith(
-                      color: palette.inkSubtle,
-                    ),
-                  ),
-                ],
+              child: OrbitScreenHeading(
+                title: 'Atendimentos',
+                count: widget.resultCount == 1
+                    ? '1 resultado'
+                    : '${widget.resultCount} resultados',
               ),
             ),
 
@@ -176,46 +162,24 @@ class _WorkQueueFilterBarState extends ConsumerState<WorkQueueFilterBar> {
               ),
             ),
 
-            SizedBox(
-              height: 38,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.only(
-                        left: OrbitSpacing.gutter,
-                        right: OrbitSpacing.sm,
-                      ),
-                      children: [
-                        for (final recorte in _rotulosDeRecorte.keys)
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              right: OrbitSpacing.sm,
-                            ),
-                            child: _Chip(
-                              rotulo: _rotulosDeRecorte[recorte]!,
-                              ativo: recorte == filter.view,
-                              onTap: () =>
-                                  ref
-                                          .read(workQueueFilterProvider.notifier)
-                                          .state =
-                                      filter.copyWith(view: recorte),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: OrbitSpacing.gutter),
-                    child: _BotaoDeFiltros(
-                      ativos: filter.activeCount,
-                      onTap: () =>
-                          showWorkQueueFilterSheet(context, ref, filter),
-                    ),
-                  ),
-                ],
+            OrbitChipStrip(
+              trailing: _BotaoDeFiltros(
+                ativos: filter.activeCount,
+                onTap: () => showWorkQueueFilterSheet(context, ref, filter),
               ),
+              children: [
+                for (final recorte in _rotulosDeRecorte.keys)
+                  Padding(
+                    padding: const EdgeInsets.only(right: OrbitSpacing.sm),
+                    child: _Chip(
+                      rotulo: _rotulosDeRecorte[recorte]!,
+                      ativo: recorte == filter.view,
+                      onTap: () =>
+                          ref.read(workQueueFilterProvider.notifier).state =
+                              filter.copyWith(view: recorte),
+                    ),
+                  ),
+              ],
             ),
 
             /// Os recortes ativos ficam visíveis e removíveis um a um. Guardá-los

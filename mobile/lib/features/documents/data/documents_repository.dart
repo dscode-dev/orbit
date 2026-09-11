@@ -63,6 +63,9 @@ class DocumentsRepository {
 
   Future<DocumentsPage> list({
     DocumentFilter filter = DocumentFilter.todos,
+    String? search,
+    DateTime? from,
+    DateTime? to,
     int limit = 20,
     String? cursor,
   }) async {
@@ -70,10 +73,20 @@ class DocumentsRepository {
       '/mobile/field/documents',
       query: {
         if (_filterCodes[filter] case final String type) 'type': type,
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+
+        /// Data civil: o servidor resolve a janela no fuso da unidade.
+        if (from != null) 'from': _dataCivil(from),
+        if (to != null) 'to': _dataCivil(to),
         'limit': limit,
         if (cursor != null) 'cursor': cursor,
       },
     );
     return DocumentsPage.fromJson(data);
   }
+
+  static String _dataCivil(DateTime valor) =>
+      '${valor.year.toString().padLeft(4, '0')}-'
+      '${valor.month.toString().padLeft(2, '0')}-'
+      '${valor.day.toString().padLeft(2, '0')}';
 }

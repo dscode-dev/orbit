@@ -1,13 +1,25 @@
-/// Abrir um documento a partir da lista.
+/// A folha de um documento: o que é, e o que fazer com ele.
 ///
-/// A sequência é a do [DocumentDownloader] — pedir acesso, baixar, conferir os
-/// bytes, gravar — e cada etapa vira texto. "Pedindo acesso" e "baixando" são
-/// situações diferentes, e um indicador genérico esconderia qual delas travou
-/// no elevador do prédio.
+/// ## Duas ações, e a diferença entre elas
+///
+/// ```text
+/// Compartilhar   baixa e entrega à folha do sistema  → WhatsApp, e-mail, Arquivos
+/// Baixar         baixa e guarda neste aparelho       → fica disponível offline
+/// ```
+///
+/// Compartilhar é a primária porque é o que se faz com um relatório: ele
+/// existe para chegar ao cliente. Baixar serve a quem vai precisar do arquivo
+/// onde não há sinal.
 ///
 /// O arquivo é **temporário**: o documento é do servidor, e uma cópia
 /// permanente no aparelho envelheceria sozinha e sobreviveria à revogação do
 /// acesso de quem a baixou.
+///
+/// ## Nenhuma mensagem de erro é montada aqui
+///
+/// O texto de falha vem de [OrbitException.publicCopyForAny]. Interpolar o
+/// objeto de erro publicaria `SocketException` — e, com ele, o endereço do
+/// servidor — na tela de quem está numa casa de máquinas.
 library;
 
 import 'package:flutter/material.dart';
@@ -15,12 +27,101 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/contracts/mobile_field_contracts.dart';
 import '../../../core/design/orbit_primitives.dart';
+import '../../../core/errors/orbit_exception.dart';
 import '../../../core/presentation/field_registry.dart';
 import '../../../core/presentation/orbit_format.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../artifact/application/artifact_providers.dart';
 import '../../artifact/application/document_downloader.dart';
+import '../application/document_sharing.dart';
+import '../application/documents_providers.dart';
+import 'documents_screen.dart' show documentStateBadge;
+
+/// Acentos viram a letra sem acento, e não hífen.
+///
+/// A primeira versão só apagava o que não fosse ASCII, e "Ordem de serviço —
+/// Clínica Vida" virava `ordem-de-servi-o-cl-nica-vida.pdf`. Um nome assim
+/// chega no WhatsApp do cliente com a palavra quebrada no meio — o Orbit
+/// parece um sistema que não sabe escrever em português.
+///
+/// A tabela é a do português mais o que aparece em razão social; um pacote de
+/// transliteração inteiro resolveria o alfabeto grego, que não é o problema.
+const _semAcento = <String, String>{
+  'á': 'a', 'à': 'a', 'ã': 'a', 'â': 'a', 'ä': 'a', 'å': 'a',
+  'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+  'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
+  'ó': 'o', 'ò': 'o', 'õ': 'o', 'ô': 'o', 'ö': 'o',
+  'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
+  'ç': 'c', 'ñ': 'n', 'ý': 'y',
+};
+
+/// O nome do arquivo que chega ao destino.
+///
+/// Vem do rótulo e do cliente — nunca do `artifactId`, que é opaco. Quem
+/// recebe o PDF no WhatsApp lê o nome antes de abrir, e
+/// `a1f3c9e2-...pdf` não diz nada a ninguém.
+String documentFileName(MobileRecentDocumentContract document) {
+  final partes = [
+    document.label,
+    if (document.customerName case final String cliente) cliente,
+  ].join('-').toLowerCase();
+
+  final ascii = partes.split('').map((c) => _semAcento[c] ?? c).join();
+
+  final limpo = ascii
+      .replaceAll(RegExp(r'[^a-z0-9._-]+'), '-')
+      .replaceAll(RegExp(r'-+'), '-')
+      .replaceAll(RegExp(r'^[-.]+|[-.]+$'), '');
+  return '${limpo.isEmpty ? 'documento' : limpo}.pdf';
+}
+
+/// Baixa o documento e abre a folha de compartilhamento do sistema.
+///
+/// Devolve quando a folha foi aberta (ou a preparação falhou) — não quando o
+/// cliente recebeu: para onde o arquivo vai depois é assunto do sistema, e o
+/// aplicativo não fica sabendo.
+Future<void> compartilharDocumento(
+  BuildContext context,
+  WidgetRef ref,
+  MobileRecentDocumentContract document,
+) async {
+  final sharing = ref.read(documentSharingProvider);
+  final mensageiro = ScaffoldMessenger.maybeOf(context);
+
+  await for (final estado in sharing.share(
+    artifactId: document.artifactId,
+    fileName: documentFileName(document),
+    origin: _origemDaFolha(context),
+    subject: [
+      document.label,
+      if (document.customerName case final String cliente) cliente,
+    ].join(' · '),
+  )) {
+    if (estado.phase != SharePhase.error) continue;
+    mensageiro?.showSnackBar(
+      SnackBar(
+        content: Text(
+          OrbitException.publicCopyForAny(
+            estado.error,
+            prefixo: 'Não foi possível preparar o documento.',
+          ),
+        ),
+      ),
+    );
+    return;
+  }
+}
+
+/// De onde a folha do sistema sai, em coordenadas de tela.
+///
+/// Só o iPad usa — e é lá que a ausência quebra. Devolve `null` quando o
+/// widget já saiu da árvore, que é o que [SharePlus] espera nesse caso.
+Rect? _origemDaFolha(BuildContext context) {
+  final caixa = context.findRenderObject();
+  if (caixa is! RenderBox || !caixa.hasSize) return null;
+  return caixa.localToGlobal(Offset.zero) & caixa.size;
+}
 
 Future<void> showDocumentOpenSheet(
   BuildContext context,
@@ -28,6 +129,8 @@ Future<void> showDocumentOpenSheet(
 ) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
+  showDragHandle: true,
+  backgroundColor: context.orbit.surface,
   builder: (_) => DocumentOpenSheet(document: document),
 );
 
@@ -41,17 +144,18 @@ class DocumentOpenSheet extends ConsumerStatefulWidget {
 }
 
 class _DocumentOpenSheetState extends ConsumerState<DocumentOpenSheet> {
-  DownloadState _state = const DownloadState();
+  DownloadState _download = const DownloadState();
+  bool _compartilhando = false;
 
   Future<void> _baixar() async {
-    if (_state.isBusy) return;
+    if (_download.isBusy) return;
     final downloader = DocumentDownloader(
       repository: ref.read(artifactRepositoryProvider),
       files: ref.read(documentFileStoreProvider),
     );
     final stream = downloader.fetch(
       artifactId: widget.document.artifactId,
-      fileName: _nomeDeArquivo(),
+      fileName: documentFileName(widget.document),
 
       /// Visualização, não download: é o que a lista oferece, e o servidor
       /// distingue as duas na assinatura da URL.
@@ -59,51 +163,96 @@ class _DocumentOpenSheetState extends ConsumerState<DocumentOpenSheet> {
     );
     await for (final etapa in stream) {
       if (!mounted) return;
-      setState(() => _state = etapa);
+      setState(() => _download = etapa);
     }
   }
 
-  /// O nome vem do rótulo e do cliente — nunca do `artifactId`, que é opaco e
-  /// inútil para quem for abrir o arquivo depois.
-  String _nomeDeArquivo() {
-    final partes = [
-      widget.document.label,
-      if (widget.document.customerName case final String cliente) cliente,
-    ].join('-');
-    final limpo = partes
-        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
-        .replaceAll(RegExp(r'-+'), '-')
-        .replaceAll(RegExp(r'^[-.]+|[-.]+$'), '')
-        .toLowerCase();
-    return '${limpo.isEmpty ? 'documento' : limpo}.pdf';
+  Future<void> _compartilhar() async {
+    if (_compartilhando) return;
+    setState(() => _compartilhando = true);
+    try {
+      await compartilharDocumento(context, ref, widget.document);
+    } finally {
+      if (mounted) setState(() => _compartilhando = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = context.orbit;
     final documento = widget.document;
-    final rotulo = documentDownloadLabels[_state.phase.name];
+    final rotuloDoDownload = documentDownloadLabels[_download.phase.name];
 
     return SafeArea(
+      top: false,
       child: Padding(
-        padding: const EdgeInsets.all(OrbitSpacing.md),
+        padding: const EdgeInsets.fromLTRB(
+          OrbitSpacing.ml,
+          0,
+          OrbitSpacing.ml,
+          OrbitSpacing.ml,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              documento.customerName ?? documento.label,
-              style: OrbitType.sectionTitle.copyWith(color: palette.ink),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        documento.customerName ?? documento.label,
+                        style: OrbitType.sectionTitle.copyWith(
+                          color: palette.ink,
+                          fontSize: 19,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        documento.label,
+                        style: OrbitType.caption.copyWith(
+                          color: palette.inkMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                documentStateBadge(documento),
+              ],
             ),
-            const SizedBox(height: 2),
-            Text(
-              '${documento.label} · '
-              '${OrbitFormat.dateHourOf(documento.createdAt)}',
-              style: OrbitType.caption.copyWith(color: palette.inkMuted),
-            ),
-            const SizedBox(height: OrbitSpacing.md),
+            const SizedBox(height: OrbitSpacing.ml),
 
-            if (_state.phase == DownloadPhase.availableLocally)
+            OrbitCard(
+              padding: const EdgeInsets.symmetric(
+                horizontal: OrbitSpacing.ml,
+                vertical: OrbitSpacing.sm,
+              ),
+              child: Column(
+                children: [
+                  if (documento.customerName case final String cliente)
+                    _Dado(rotulo: 'Cliente', valor: cliente),
+                  _Dado(
+                    rotulo: 'Emitido em',
+                    valor: OrbitFormat.dateHourOf(documento.createdAt),
+                  ),
+
+                  /// O nome do arquivo é o que o cliente vê chegar no
+                  /// WhatsApp antes de abrir qualquer coisa. Mostrá-lo aqui
+                  /// evita a surpresa de mandar algo chamado "documento.pdf".
+                  _Dado(
+                    rotulo: 'Arquivo',
+                    valor: documentFileName(documento),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: OrbitSpacing.ml),
+
+            /// O andamento do download, quando há um.
+            if (_download.phase == DownloadPhase.availableLocally)
               OrbitPanel(
                 tone: OrbitTone.info,
                 child: Row(
@@ -116,16 +265,16 @@ class _DocumentOpenSheetState extends ConsumerState<DocumentOpenSheet> {
                     const SizedBox(width: OrbitSpacing.sm),
                     Expanded(
                       child: Text(
-                        'Documento disponível neste aparelho.',
+                        'Documento salvo neste aparelho.',
                         style: OrbitType.body.copyWith(color: palette.ink),
                       ),
                     ),
                   ],
                 ),
               )
-            else if (_state.phase == DownloadPhase.error)
-              SectionError(error: _state.error!, onRetry: _baixar)
-            else if (rotulo != null)
+            else if (_download.phase == DownloadPhase.error)
+              SectionError(error: _download.error!, onRetry: _baixar)
+            else if (rotuloDoDownload != null)
               Semantics(
                 liveRegion: true,
                 child: Row(
@@ -138,7 +287,7 @@ class _DocumentOpenSheetState extends ConsumerState<DocumentOpenSheet> {
                     const SizedBox(width: OrbitSpacing.sm),
                     Expanded(
                       child: Text(
-                        rotulo,
+                        rotuloDoDownload,
                         style: OrbitType.body.copyWith(color: palette.inkMuted),
                       ),
                     ),
@@ -146,16 +295,93 @@ class _DocumentOpenSheetState extends ConsumerState<DocumentOpenSheet> {
                 ),
               ),
 
-            if (_state.phase == DownloadPhase.idle) ...[
+            if (rotuloDoDownload != null ||
+                _download.phase == DownloadPhase.error)
+              const SizedBox(height: OrbitSpacing.md),
+
+            /// Um documento em preparo não oferece ação. Oferecer e recusar é
+            /// pior do que não oferecer.
+            if (!documento.isAvailable)
+              OrbitPanel(
+                tone: documento.hasFailed
+                    ? OrbitTone.danger
+                    : OrbitTone.warning,
+                child: Text(
+                  documento.hasFailed
+                      ? 'Este documento não pôde ser gerado. Refaça a emissão '
+                            'pelo atendimento que o originou.'
+                      : 'Este documento ainda está sendo preparado. '
+                            'Atualize a lista em alguns instantes.',
+                  style: OrbitType.body.copyWith(color: palette.ink),
+                ),
+              )
+            else ...[
               FilledButton.icon(
-                onPressed: _baixar,
-                icon: const Icon(Icons.visibility_outlined, size: 18),
-                label: const Text('Abrir documento'),
-                style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+                onPressed: _compartilhando ? null : _compartilhar,
+                icon: _compartilhando
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.ios_share_rounded, size: 18),
+                label: Text(
+                  _compartilhando ? 'Preparando…' : 'Compartilhar documento',
+                ),
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 50)),
+              ),
+              const SizedBox(height: OrbitSpacing.sm),
+              OutlinedButton.icon(
+                onPressed:
+                    _download.isBusy ||
+                        _download.phase == DownloadPhase.availableLocally
+                    ? null
+                    : _baixar,
+                icon: const Icon(Icons.download_outlined, size: 18),
+                label: const Text('Baixar neste aparelho'),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 50)),
               ),
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Um par rótulo–valor. O rótulo à esquerda, apagado; o valor à direita.
+class _Dado extends StatelessWidget {
+  const _Dado({required this.rotulo, required this.valor});
+
+  final String rotulo;
+  final String valor;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.orbit;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: OrbitSpacing.sm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 104,
+            child: Text(
+              rotulo,
+              style: OrbitType.caption.copyWith(color: palette.inkSubtle),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              valor,
+              style: OrbitType.body.copyWith(color: palette.ink),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
       ),
     );
   }

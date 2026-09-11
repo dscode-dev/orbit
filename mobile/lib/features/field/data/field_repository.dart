@@ -146,32 +146,48 @@ class FieldRepository {
       '${valor.month.toString().padLeft(2, '0')}-'
       '${valor.day.toString().padLeft(2, '0')}';
 
-  /// A carteira de clientes desta pessoa.
-  Future<CachedResult<List<MobileFieldCustomerContract>>> customers({
+  /// Uma página da base de clientes, com o trabalho desta pessoa anotado.
+  ///
+  /// A busca vai ao servidor porque a base pode ter milhares: filtrar no
+  /// aparelho exigiria trazer todos, e a primeira versão desta tela mostrava
+  /// apenas 65 de 498 justamente por tentar derivar a lista localmente.
+  Future<CachedResult<MobileFieldCustomerPageContract>> customers({
     required String scopeKey,
+    String? search,
+    String? cursor,
+    int limit = 30,
   }) async {
     final key = 'field.customers.$scopeKey';
+    final buscando = search != null && search.trim().isNotEmpty;
     try {
-      final data = await _client.get<List<dynamic>>(
+      final data = await _client.get<Map<String, dynamic>>(
         '/mobile/field/customers',
+        query: {
+          'limit': limit,
+          if (buscando) 'search': search.trim(),
+          if (cursor != null) 'cursor': cursor,
+        },
       );
-      await _cache.write(key, {'data': data});
-      return CachedResult(value: _clientes(data), cachedAt: null);
+
+      /// Só a primeira página sem busca vira cache: é a que abre a tela
+      /// offline. Guardar o resultado de uma busca faria a próxima abertura
+      /// mostrar um recorte que ninguém pediu.
+      if (!buscando && cursor == null) await _cache.write(key, data);
+      return CachedResult(
+        value: MobileFieldCustomerPageContract.fromJson(data),
+        cachedAt: null,
+      );
     } on OrbitException catch (error) {
       if (!error.isOffline && !error.isServer) rethrow;
+      if (buscando || cursor != null) rethrow;
       final cached = await _cache.read(key);
       if (cached == null) rethrow;
       return CachedResult(
-        value: _clientes(cached.value['data'] as List<dynamic>? ?? const []),
+        value: MobileFieldCustomerPageContract.fromJson(cached.value),
         cachedAt: cached.cachedAt,
       );
     }
   }
-
-  static List<MobileFieldCustomerContract> _clientes(List<dynamic> data) => data
-      .whereType<Map<String, dynamic>>()
-      .map(MobileFieldCustomerContract.fromJson)
-      .toList(growable: false);
 
   /// Os clientes com trabalho desta pessoa, para o filtro.
   Future<List<MobileQueueCustomerContract>> queueCustomers() async {

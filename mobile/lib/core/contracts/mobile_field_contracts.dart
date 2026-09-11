@@ -735,8 +735,11 @@ class MobileFieldCustomerContract {
   const MobileFieldCustomerContract({
     required this.id,
     required this.name,
+    required this.legalName,
     required this.openCount,
     required this.completedCount,
+    this.documentNumber,
+    this.status = 'ACTIVE',
     this.lastServiceAt,
     this.nextServiceAt,
   });
@@ -745,6 +748,9 @@ class MobileFieldCustomerContract {
       MobileFieldCustomerContract(
         id: json['id'] as String? ?? '',
         name: json['name'] as String? ?? '',
+        legalName: json['legalName'] as String? ?? json['name'] as String? ?? '',
+        documentNumber: json['documentNumber'] as String?,
+        status: json['status'] as String? ?? 'ACTIVE',
         openCount: (json['openCount'] as num?)?.toInt() ?? 0,
         completedCount: (json['completedCount'] as num?)?.toInt() ?? 0,
         lastServiceAt: DateTime.tryParse(
@@ -756,11 +762,44 @@ class MobileFieldCustomerContract {
       );
 
   final String id;
+
+  /// O nome comercial quando existe; a razão social quando não.
   final String name;
+  final String legalName;
+  final String? documentNumber;
+  final String status;
+
+  /// Atendimentos **desta pessoa** com este cliente. Zero é comum e correto:
+  /// a lista é a base de clientes, não a carteira pessoal.
   final int openCount;
   final int completedCount;
   final DateTime? lastServiceAt;
   final DateTime? nextServiceAt;
 
   int get totalCount => openCount + completedCount;
+}
+
+/// Uma página da base de clientes.
+class MobileFieldCustomerPageContract {
+  const MobileFieldCustomerPageContract({
+    required this.data,
+    required this.hasNextPage,
+    this.nextCursor,
+  });
+
+  factory MobileFieldCustomerPageContract.fromJson(Map<String, dynamic> json) {
+    final meta = json['meta'] as Map<String, dynamic>? ?? const {};
+    return MobileFieldCustomerPageContract(
+      data: (json['data'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(MobileFieldCustomerContract.fromJson)
+          .toList(growable: false),
+      hasNextPage: meta['hasNextPage'] as bool? ?? false,
+      nextCursor: meta['nextCursor'] as String?,
+    );
+  }
+
+  final List<MobileFieldCustomerContract> data;
+  final bool hasNextPage;
+  final String? nextCursor;
 }

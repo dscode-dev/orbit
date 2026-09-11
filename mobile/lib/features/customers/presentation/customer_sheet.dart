@@ -24,6 +24,7 @@ import '../../../core/presentation/orbit_format.dart';
 import '../../../core/routing/orbit_router.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../field/application/field_providers.dart';
+import 'new_quote_sheet.dart';
 
 /// Os tipos de documento que cada papel enxerga.
 ///
@@ -141,6 +142,26 @@ class _Folha extends ConsumerWidget {
                 icon: const Icon(Icons.folder_outlined, size: 18),
                 label: const Text('Ver documentos'),
               ),
+
+              /// Orçamento é ação de gestão: só aparece com `quotes.manage`.
+              if (session?.hasPermission('quotes.manage') ?? false) ...[
+                const SizedBox(height: OrbitSpacing.lg),
+                Text(
+                  'Comercial',
+                  style: OrbitType.sectionTitle.copyWith(color: palette.ink),
+                ),
+                const SizedBox(height: OrbitSpacing.ms),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final criado = await showNewQuoteSheet(context, cliente);
+                    if (criado && context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  icon: const Icon(Icons.request_quote_outlined, size: 18),
+                  label: const Text('Abrir orçamento'),
+                ),
+              ],
             ],
           ),
         ),

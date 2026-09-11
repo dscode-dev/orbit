@@ -18,10 +18,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/contracts/mobile_field_contracts.dart';
 import '../../../core/design/orbit_primitives.dart';
+import '../../../core/design/orbit_screen_header.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../field/application/field_providers.dart';
+import '../../../app/providers.dart';
 import 'customer_sheet.dart';
+import 'new_customer_sheet.dart';
 
 class CustomersScreen extends ConsumerStatefulWidget {
   const CustomersScreen({super.key});
@@ -42,13 +45,19 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     super.dispose();
   }
 
-  /// A busca é **local**: a carteira já veio inteira numa requisição, e
-  /// filtrar no aparelho responde a cada tecla sem ida ao servidor. O debounce
-  /// existe só para não reconstruir a lista a cada caractere.
+  /// A busca vai ao **servidor**.
+  ///
+  /// A primeira versão filtrava no aparelho, o que exigia trazer a base
+  /// inteira — e, como ela vinha derivada do trabalho da pessoa, mostrava 65
+  /// de 498 clientes. Com a base paginada, procurar localmente encontraria
+  /// só o que já tinha sido rolado.
   void _aoDigitar(String valor) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 180), () {
-      if (mounted) setState(() => _termo = valor.trim().toLowerCase());
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) {
+        ref.read(customerSearchProvider.notifier).state = valor.trim();
+        setState(() => _termo = valor.trim());
+      }
     });
   }
 
@@ -56,18 +65,32 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   Widget build(BuildContext context) {
     final palette = context.orbit;
     final carteira = ref.watch(fieldCustomersProvider);
-    final dados = carteira.valueOrNull?.value;
+    final pagina = carteira.valueOrNull?.value;
+    final visiveis = pagina?.data ?? const <MobileFieldCustomerContract>[];
+    final dados = pagina?.data;
 
-    final visiveis = dados == null
-        ? const <MobileFieldCustomerContract>[]
-        : _termo.isEmpty
-        ? dados
-        : dados
-              .where((c) => c.name.toLowerCase().contains(_termo))
-              .toList(growable: false);
+    /// O botão só existe para quem pode. Esconder não protege nada — o
+    /// servidor recusa de qualquer jeito —, mas oferecer uma ação que sempre
+    /// falha é pior que não oferecer.
+    final podeCadastrar =
+        ref.watch(sessionProvider)?.hasPermission('customers.create') ?? false;
 
     return Scaffold(
       backgroundColor: palette.background,
+      floatingActionButton: podeCadastrar
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final criado = await showNewCustomerSheet(context);
+                if (criado && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Cliente cadastrado.')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+              label: const Text('Novo cliente'),
+            )
+          : null,
       body: Column(
         children: [
           _Cabecalho(
@@ -169,24 +192,9 @@ class _Cabecalho extends StatelessWidget {
                 OrbitSpacing.gutter,
                 OrbitSpacing.ms,
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Clientes',
-                      style: OrbitType.screenTitle.copyWith(
-                        color: palette.ink,
-                        fontSize: 24,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    total == 1 ? '1 cliente' : '$total clientes',
-                    style: OrbitType.caption.copyWith(
-                      color: palette.inkSubtle,
-                    ),
-                  ),
-                ],
+              child: OrbitScreenHeading(
+                title: 'Clientes',
+                count: total == 1 ? '1 cliente' : '$total clientes',
               ),
             ),
             Padding(

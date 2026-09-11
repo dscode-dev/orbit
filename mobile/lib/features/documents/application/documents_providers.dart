@@ -9,14 +9,76 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/contracts/mobile_field_contracts.dart';
+import '../../artifact/application/artifact_providers.dart';
+import '../../artifact/application/document_downloader.dart';
 import '../data/documents_repository.dart';
+import 'document_sharing.dart';
 
 final documentsRepositoryProvider = Provider<DocumentsRepository>(
   (ref) => DocumentsRepository(client: ref.watch(apiClientProvider)),
 );
 
-final documentFilterProvider = StateProvider.autoDispose<DocumentFilter>(
-  (ref) => DocumentFilter.todos,
+/// O recorte completo da tela: tipo, busca e janela de datas.
+///
+/// Um objeto só porque ele é a **chave de recarga** do controlador: espalhado
+/// em três provedores, mudar dois de uma vez dispararia duas cargas e a
+/// segunda resposta poderia chegar antes da primeira.
+class DocumentQuery {
+  const DocumentQuery({
+    this.filter = DocumentFilter.todos,
+    this.search,
+    this.from,
+    this.to,
+  });
+
+  final DocumentFilter filter;
+  final String? search;
+  final DateTime? from;
+  final DateTime? to;
+
+  /// A busca não conta: ela tem campo próprio e visível.
+  int get activeCount => [filter != DocumentFilter.todos, from != null || to != null]
+      .where((ativo) => ativo)
+      .length;
+
+  DocumentQuery copyWith({
+    DocumentFilter? filter,
+    String? search,
+    DateTime? from,
+    DateTime? to,
+    bool clearSearch = false,
+    bool clearDates = false,
+  }) => DocumentQuery(
+    filter: filter ?? this.filter,
+    search: clearSearch ? null : (search ?? this.search),
+    from: clearDates ? null : (from ?? this.from),
+    to: clearDates ? null : (to ?? this.to),
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is DocumentQuery &&
+      other.filter == filter &&
+      other.search == search &&
+      other.from == from &&
+      other.to == to;
+
+  @override
+  int get hashCode => Object.hash(filter, search, from, to);
+}
+
+/// Baixar e entregar um documento pela folha do sistema.
+final documentSharingProvider = Provider<DocumentSharing>(
+  (ref) => DocumentSharing(
+    downloader: DocumentDownloader(
+      repository: ref.watch(artifactRepositoryProvider),
+      files: ref.watch(documentFileStoreProvider),
+    ),
+  ),
+);
+
+final documentQueryProvider = StateProvider.autoDispose<DocumentQuery>(
+  (ref) => const DocumentQuery(),
 );
 
 class DocumentsState {
@@ -53,15 +115,15 @@ class DocumentsState {
 class DocumentsController extends StateNotifier<AsyncValue<DocumentsState>> {
   DocumentsController({
     required DocumentsRepository repository,
-    required DocumentFilter filter,
+    required DocumentQuery query,
   }) : _repository = repository,
-       _filter = filter,
+       _query = query,
        super(const AsyncValue.loading()) {
     load();
   }
 
   final DocumentsRepository _repository;
-  final DocumentFilter _filter;
+  final DocumentQuery _query;
 
   /// Guarda contra corrida de rolagem: com duas páginas no ar, a mesma volta
   /// duas vezes e a lista ganha repetidas.
@@ -71,7 +133,12 @@ class DocumentsController extends StateNotifier<AsyncValue<DocumentsState>> {
     _inFlight = true;
     state = const AsyncValue.loading();
     try {
-      final page = await _repository.list(filter: _filter);
+      final page = await _repository.list(
+        filter: _query.filter,
+        search: _query.search,
+        from: _query.from,
+        to: _query.to,
+      );
       state = AsyncValue.data(
         DocumentsState(
           items: page.data,
@@ -96,7 +163,10 @@ class DocumentsController extends StateNotifier<AsyncValue<DocumentsState>> {
     );
     try {
       final page = await _repository.list(
-        filter: _filter,
+        filter: _query.filter,
+        search: _query.search,
+        from: _query.from,
+        to: _query.to,
         cursor: current.cursor,
       );
       state = AsyncValue.data(
@@ -138,6 +208,6 @@ final documentsControllerProvider =
     >(
       (ref) => DocumentsController(
         repository: ref.watch(documentsRepositoryProvider),
-        filter: ref.watch(documentFilterProvider),
+        query: ref.watch(documentQueryProvider),
       ),
     );
