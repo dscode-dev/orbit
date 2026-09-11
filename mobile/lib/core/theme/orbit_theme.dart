@@ -27,9 +27,7 @@ import 'package:flutter/material.dart';
 abstract final class _Tokens {
   /// Superfícies.
   ///
-  /// O fundo da página não é branco puro: é o `muted` da marca, com o viés de
-  /// matiz do navy. Cartão branco sobre fundo levemente frio é o que dá a
-  /// sensação de camada — branco sobre branco não tem profundidade nenhuma.
+  /// White pages; neutral surfaces only group information when necessary.
   static const white = Color(0xFFFFFFFF);
   static const surfaceMuted = Color(0xFFF7F8FA);
   static const surfaceSunken = Color(0xFFEEF0F3);
@@ -48,11 +46,11 @@ abstract final class _Tokens {
   static const brandSoft = Color(0xFFEAF1FD);
 
   /// Status. Os mesmos tons do produto web.
-  static const success = Color(0xFF009966);
+  static const success = Color(0xFF08784F);
   static const successSoft = Color(0xFFE6F6F0);
-  static const warning = Color(0xFFD79700);
+  static const warning = Color(0xFF8A5D00);
   static const warningSoft = Color(0xFFFDF4E3);
-  static const danger = Color(0xFFD73240);
+  static const danger = Color(0xFFC32635);
   static const dangerSoft = Color(0xFFFCEBEC);
 
   /// Violeta da marca — reservado à camada de inteligência.
@@ -152,7 +150,13 @@ class OrbitPalette extends ThemeExtension<OrbitPalette> {
   final Color intelligenceSoft;
 
   static const light = OrbitPalette(
-    background: _Tokens.white,
+    /// O fundo da página **não** é branco.
+    ///
+    /// Cartão branco sobre página branca não é cartão: a única coisa que os
+    /// separa é a sombra, e ela é fraca de propósito. Um fundo levemente frio
+    /// é o que faz a camada existir — e é o que faltava para a lista deixar de
+    /// parecer colada na barra de filtros.
+    background: _Tokens.surfaceMuted,
     surface: _Tokens.white,
     surfaceMuted: _Tokens.surfaceMuted,
     surfaceSunken: _Tokens.surfaceSunken,
@@ -386,7 +390,7 @@ abstract final class OrbitType {
 
   static const body = TextStyle(
     fontFamily: OrbitFont.text,
-    fontSize: 14.5,
+    fontSize: 14,
     height: 1.45,
   );
 
@@ -407,7 +411,7 @@ abstract final class OrbitType {
 
   static const label = TextStyle(
     fontFamily: OrbitFont.text,
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.1,
   );
@@ -415,7 +419,7 @@ abstract final class OrbitType {
   /// Horário e contagem em linha: tabular, para alinhar em coluna.
   static const numeric = TextStyle(
     fontFamily: OrbitFont.text,
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: FontWeight.w600,
     fontFeatures: [FontFeature.tabularFigures()],
     letterSpacing: -0.1,
@@ -505,7 +509,7 @@ abstract final class OrbitTheme {
         style: FilledButton.styleFrom(
           minimumSize: const Size.fromHeight(52),
           shape: const RoundedRectangleBorder(borderRadius: OrbitRadius.field),
-          textStyle: OrbitType.label.copyWith(fontSize: 15.5),
+          textStyle: OrbitType.label.copyWith(fontSize: 14),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -514,7 +518,7 @@ abstract final class OrbitTheme {
           foregroundColor: _Tokens.ink,
           side: const BorderSide(color: _Tokens.borderStrong),
           shape: const RoundedRectangleBorder(borderRadius: OrbitRadius.field),
-          textStyle: OrbitType.label.copyWith(fontSize: 14.5),
+          textStyle: OrbitType.label.copyWith(fontSize: 14),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -533,7 +537,7 @@ abstract final class OrbitTheme {
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => OrbitType.label.copyWith(
-            fontSize: 11.5,
+            fontSize: 11,
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w600
                 : FontWeight.w500,
@@ -595,7 +599,7 @@ abstract final class OrbitTheme {
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: _Tokens.ink,
-        contentTextStyle: TextStyle(color: _Tokens.white, fontSize: 14.5),
+        contentTextStyle: TextStyle(color: _Tokens.white, fontSize: 14),
         shape: RoundedRectangleBorder(borderRadius: OrbitRadius.field),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(

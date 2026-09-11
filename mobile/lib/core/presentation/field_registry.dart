@@ -582,3 +582,19 @@ const equipmentFieldActionLabels = <EquipmentFieldAction, FieldLabel>{
 
 String equipmentFieldActionLabel(EquipmentFieldAction action) =>
     equipmentFieldActionLabels[action]?.label ?? '';
+
+
+/// O nome público de um tipo de documento.
+///
+/// Mesma regra do status e da natureza: código sem tradução devolve `null` e
+/// some da tela. `SERVICE_ORDER` não é nome de nada para quem lê.
+const artifactDocumentTypeLabels = <String, String>{
+  'SERVICE_ORDER': 'Ordem de serviço',
+  'RVT': 'Relatório de visita técnica',
+  'PMOC': 'Relatório PMOC',
+  'RECEIPT': 'Recibo',
+  'QUOTE': 'Orçamento',
+};
+
+String? artifactDocumentTypeLabel(String? type) =>
+    type == null ? null : artifactDocumentTypeLabels[type];

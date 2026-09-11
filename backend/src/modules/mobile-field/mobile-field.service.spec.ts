@@ -82,6 +82,7 @@ describe('MobileFieldService', () => {
       project: jest.fn().mockResolvedValue(emptySource()),
       recentDocuments: jest.fn().mockResolvedValue(documentos),
       recentAppointments: jest.fn().mockResolvedValue([]),
+      recentlyCompleted: jest.fn().mockResolvedValue([]),
     };
     const service = new MobileFieldService(repository as never);
 
@@ -112,6 +113,7 @@ describe('MobileFieldService', () => {
           documentRow('READY', 'TIPO_NOVO'),
         ]),
       recentAppointments: jest.fn().mockResolvedValue([]),
+      recentlyCompleted: jest.fn().mockResolvedValue([]),
     };
     const service = new MobileFieldService(repository as never);
 

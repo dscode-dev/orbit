@@ -54,6 +54,7 @@ Map<String, dynamic> home({
   List<Map<String, dynamic>> appointments = const [],
   bool canScan = false,
   Map<String, int> counters = const {},
+  List<Map<String, dynamic>> completed = const [],
 }) => {
   'dashboard': {
     'next': next,
@@ -68,6 +69,7 @@ Map<String, dynamic> home({
     'inProgress': inProgress,
     'capabilities': {'canScanEquipment': canScan, 'canCreateAdHocRvt': false},
   },
+  'recentlyCompleted': completed,
   'recentDocuments': documents,
   'recentAppointments': appointments,
 };
@@ -162,34 +164,49 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining(RegExp('Olá')), findsOneWidget);
+    /// A saudação acompanha o relógio, como no alvo de produto: "Bom dia,
+    /// Marina" e não um "Olá" fixo.
+    expect(
+      find.textContaining(RegExp('Bom dia|Boa tarde|Boa noite')),
+      findsOneWidget,
+    );
 
     /// Uma rodada anterior tinha **removido** os contadores, com o argumento
     /// de que "contador informa; ele não diz o que fazer". O produto pediu as
     /// métricas de volta, e a objeção foi respondida em vez de descartada:
     /// cada número é tocável e leva à lista que ele resume. É isso que este
     /// teste cobra — número sem destino seria a reclamação de novo.
-    expect(find.text('Hoje'), findsWidgets);
-    expect(find.text('Próximos'), findsOneWidget);
+    /// Quatro indicadores, dois por linha. A faixa de quatro colunas foi
+    /// abandonada porque "Em andamento" quebrava no meio da palavra em 360
+    /// pixels — o rótulo inteiro é o que dá sentido ao número.
+    for (final rotulo in ['Hoje', 'Atrasadas', 'Em andamento', 'Próximas']) {
+      expect(find.text(rotulo), findsWidgets, reason: rotulo);
+    }
 
-    final tocaveis = find.descendant(
-      of: find.byType(OrbitMetricStrip),
-      matching: find.byType(InkWell),
-    );
-    expect(
-      tester.widgetList<InkWell>(tocaveis).where((w) => w.onTap != null),
-      isNotEmpty,
-    );
+    /// Cada número leva à lista que ele resume. Número sem destino era a
+    /// objeção que tirou os contadores da tela numa rodada anterior.
+    final tocaveis = tester
+        .widgetList<InkWell>(
+          find.descendant(
+            of: find.byType(OrbitCard),
+            matching: find.byType(InkWell),
+          ),
+        )
+        .where((w) => w.onTap != null);
+    expect(tocaveis, isNotEmpty);
   });
 
   testWidgets('seção vazia não aparece', (tester) async {
     await tester.pumpWidget(host(home(today: [workItem()])));
     await tester.pumpAndSettle();
 
-    expect(tituloDeSecao('Hoje'), findsOneWidget);
-    expect(tituloDeSecao('Atrasados'), findsNothing);
+    /// As seções por prazo viraram um bloco só, com abas de recorte: a home
+    /// mostra os cinco mais recentes, e o prazo é o selo de cada linha.
+    expect(find.text('Atendimentos'), findsWidgets);
+    for (final aba in ['Abertos', 'Próximos', 'Concluídos']) {
+      expect(find.text(aba), findsOneWidget, reason: aba);
+    }
     expect(tituloDeSecao('Documentos recentes'), findsNothing);
-    expect(tituloDeSecao('Agendamentos recentes'), findsNothing);
   });
 
   testWidgets('a contagem do servidor acompanha o título quando é maior', (
@@ -205,13 +222,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    /// Cinco linhas com "12" no rótulo é honesto; inventar doze linhas não.
-    /// A contagem virou selo ao lado do título — antes era sufixo no texto.
-    expect(tituloDeSecao('Atrasados'), findsOneWidget);
-    expect(
-      find.descendant(of: find.byType(OrbitSection), matching: find.text('7')),
-      findsOneWidget,
-    );
+    /// A contagem do servidor vive no indicador, não mais num selo de seção:
+    /// é ele que responde "quantas ao todo", enquanto a lista abaixo mostra
+    /// as cinco mais recentes.
+    expect(find.text('7'), findsWidgets);
+    expect(find.text('Atrasadas'), findsWidgets);
   });
 
   testWidgets('em andamento vem antes de tudo', (tester) async {
@@ -235,9 +250,18 @@ void main() {
     /// um por tela, com a ação de retomar dentro dele.
     expect(find.byType(OrbitHeroCard), findsOneWidget);
 
-    final andamento = tester.getTopLeft(find.text('EM ANDAMENTO')).dy;
-    final atrasados = tester.getTopLeft(tituloDeSecao('Atrasados')).dy;
-    expect(andamento, lessThan(atrasados));
+    /// "Em andamento" aparece duas vezes agora — é rótulo de indicador e
+    /// sobrancelha do destaque. O finder tem de dizer qual dos dois.
+    final andamento = tester
+        .getTopLeft(
+          find.descendant(
+            of: find.byType(OrbitHeroCard),
+            matching: find.text('Em andamento'),
+          ),
+        )
+        .dy;
+    final lista = tester.getTopLeft(find.text('Atendimentos').last).dy;
+    expect(andamento, lessThan(lista));
   });
 
   testWidgets('o próximo não se repete quando já está em andamento', (
@@ -253,6 +277,13 @@ void main() {
   testWidgets('documentos recentes usam o rótulo que o servidor mandou', (
     tester,
   ) async {
+    /// Viewport de aparelho real: com o cabeçalho, os indicadores e a lista
+    /// de recentes acima, os documentos ficam abaixo dos 600 pixels que o
+    /// `flutter_test` usa por padrão — e o que não é construído não é achado.
+    tester.view.physicalSize = const Size(1179, 3600);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
     await tester.pumpWidget(
       host(
         home(
@@ -285,11 +316,11 @@ void main() {
   ) async {
     await tester.pumpWidget(host(home(today: [workItem()])));
     await tester.pumpAndSettle();
-    expect(find.text('Ler etiqueta'), findsNothing);
+    expect(find.text('QR'), findsNothing);
 
     await tester.pumpWidget(host(home(today: [workItem()], canScan: true)));
     await tester.pumpAndSettle();
-    expect(find.text('Ler etiqueta'), findsOneWidget);
+    expect(find.text('QR'), findsOneWidget);
   });
 
   testWidgets('as ações rápidas cabem e são alcançáveis', (tester) async {
@@ -297,8 +328,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(OrbitQuickAction), findsWidgets);
-    for (final rotulo in ['Minha fila', 'Agenda', 'Documentos']) {
-      expect(find.text(rotulo), findsOneWidget);
+    for (final rotulo in ['Atendimentos', 'Agenda', 'Documentos']) {
+      expect(
+        find.descendant(
+          of: find.byType(OrbitQuickAction),
+          matching: find.text(rotulo),
+        ),
+        findsOneWidget,
+        reason: rotulo,
+      );
     }
   });
 
@@ -354,4 +392,46 @@ void main() {
       expect(layoutError, isNull);
     });
   }
+  testWidgets('as abas trocam o recorte dos atendimentos', (tester) async {
+    tester.view.physicalSize = const Size(1179, 3600);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      host(
+        home(
+          overdue: [workItem(id: 'atrasado', dueState: 'OVERDUE')],
+          next: workItem(id: 'proximo', dueState: 'UPCOMING'),
+          completed: const [
+            {
+              'id': 'op-concluida',
+              'code': 'OP-000031',
+              'title': 'Corretiva — compressor',
+              'kind': 'SERVICE_OPERATION',
+              'customerName': 'Frigorífico Boa Carne',
+              'equipmentName': 'Electrolux EL 12',
+              'completedAt': '2026-09-07T14:00:00.000Z',
+            },
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    /// Abre em "Abertos", que é onde está o trabalho por fazer.
+    expect(find.text('Frigorífico Boa Carne'), findsNothing);
+
+    await tester.tap(find.text('Concluídos'));
+    await tester.pumpAndSettle();
+
+    /// Concluído não sai da fila de trabalho — a consulta dela exclui
+    /// `COMPLETED`. Esta aba prova que a leitura separada chegou à tela.
+    expect(find.text('Frigorífico Boa Carne'), findsOneWidget);
+    expect(find.text('Concluído'), findsWidgets);
+
+    await tester.tap(find.text('Abertos'));
+    await tester.pumpAndSettle();
+    expect(find.text('Frigorífico Boa Carne'), findsNothing);
+  });
+
 }

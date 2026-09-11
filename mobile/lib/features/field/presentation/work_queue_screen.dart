@@ -11,25 +11,17 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/design/orbit_primitives.dart';
 import '../../../core/presentation/field_registry.dart';
-import '../../../core/routing/orbit_router.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../application/field_providers.dart';
-import '../data/field_repository.dart';
 import 'widgets/work_item_row.dart';
+import 'widgets/work_item_sheet.dart';
+import 'widgets/work_queue_filters.dart';
 
-const _views = <(WorkQueueView, String)>[
-  (WorkQueueView.all, 'Tudo'),
-  (WorkQueueView.inProgress, 'Em andamento'),
-  (WorkQueueView.overdue, 'Atrasados'),
-  (WorkQueueView.today, 'Hoje'),
-  (WorkQueueView.upcoming, 'Próximos'),
-];
 
 class WorkQueueScreen extends ConsumerStatefulWidget {
   const WorkQueueScreen({super.key});
@@ -72,10 +64,13 @@ class _WorkQueueScreenState extends ConsumerState<WorkQueueScreen> {
     final session = ref.watch(sessionProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Atendimentos')),
+      backgroundColor: context.orbit.background,
       body: Column(
         children: [
-          _ViewSelector(active: filter.view),
+          WorkQueueFilterBar(
+            filter: filter,
+            resultCount: queue.valueOrNull?.items.length ?? 0,
+          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () =>
@@ -108,40 +103,6 @@ class _WorkQueueScreenState extends ConsumerState<WorkQueueScreen> {
     );
   }
 }
-
-class _ViewSelector extends ConsumerWidget {
-  const _ViewSelector({required this.active});
-
-  final WorkQueueView active;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SizedBox(
-      height: 52,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.gutter),
-        itemCount: _views.length,
-        separatorBuilder: (_, _) => const SizedBox(width: OrbitSpacing.sm),
-        itemBuilder: (context, index) {
-          final (view, label) = _views[index];
-          return Center(
-            child: ChoiceChip(
-              label: Text(label),
-              selected: view == active,
-
-              /// O recorte é do servidor: muda a consulta, não a lista local.
-              onSelected: (_) =>
-                  ref.read(workQueueFilterProvider.notifier).state =
-                      WorkQueueFilter(view: view),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
 class _Queue extends StatelessWidget {
   const _Queue({
     required this.state,
@@ -169,7 +130,12 @@ class _Queue extends StatelessWidget {
 
     return ListView.builder(
       controller: scroll,
-      padding: const EdgeInsets.all(OrbitSpacing.gutter),
+      padding: const EdgeInsets.fromLTRB(
+        OrbitSpacing.gutter,
+        OrbitSpacing.md,
+        OrbitSpacing.gutter,
+        OrbitSpacing.xl,
+      ),
 
       /// +1 pelo rodapé, +1 pelo aviso de lista local quando ele existe.
       itemCount: state.items.length + (state.isOffline ? 2 : 1),
@@ -180,15 +146,25 @@ class _Queue extends StatelessWidget {
 
         final item = state.items[index];
         final previous = index == 0 ? null : state.items[index - 1];
+        final proximo = index + 1 >= state.items.length
+            ? null
+            : state.items[index + 1];
         final abreGrupo = previous?.dueState != item.dueState;
+        final fechaGrupo = proximo?.dueState != item.dueState;
 
-        /// Cada faixa é um cartão, e as linhas dela moram dentro dele.
+        final palette = context.orbit;
+
+        /// Cada faixa de prazo é um cartão, e as linhas moram dentro dele.
         ///
         /// A lista é construída item a item — para paginar sem montar tudo —,
         /// então o cartão não pode envolver o grupo de fora. O contorno é
         /// desenhado por linha: a primeira arredonda em cima, a última
-        /// embaixo, e o miolo fica reto. Visualmente é um cartão só.
-        final palette = context.orbit;
+        /// embaixo. Visualmente é um cartão só, e a linha deixa de flutuar
+        /// solta sobre o fundo da página.
+        final raio = BorderRadius.vertical(
+          top: abreGrupo ? const Radius.circular(16) : Radius.zero,
+          bottom: fechaGrupo ? const Radius.circular(16) : Radius.zero,
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,20 +175,42 @@ class _Queue extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.only(
                   top: index == 0 ? 0 : OrbitSpacing.lg,
-                  left: 0,
-                  bottom: OrbitSpacing.ms,
+                  left: OrbitSpacing.xs,
+                  bottom: OrbitSpacing.sm,
                 ),
                 child: Text(
-                  dueStateLabel(item.dueState),
-                  style: OrbitType.sectionTitle.copyWith(color: palette.ink),
+                  dueStateLabel(item.dueState).toUpperCase(),
+                  style: OrbitType.eyebrow.copyWith(color: palette.inkSubtle),
                 ),
               ),
-            if (!abreGrupo) const OrbitRowDivider(indent: 0),
-            WorkItemRow(
-              key: ValueKey(item.id),
-              item: item,
-              currentUserId: currentUserId,
-              onOpen: () => context.push(OrbitRoutes.workItemDetail(item.id)),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: raio,
+                boxShadow: fechaGrupo ? OrbitShadow.card : null,
+              ),
+              child: ClipRRect(
+                borderRadius: raio,
+                child: Column(
+                  children: [
+                    if (!abreGrupo) const OrbitRowDivider(),
+                    WorkItemRow(
+                      key: ValueKey(item.id),
+                      item: item,
+                      currentUserId: currentUserId,
+
+                      /// A folha primeiro. Quem percorre a lista está
+                      /// decidindo qual abrir, e ir e voltar de uma tela
+                      /// inteira por espiada custa a posição na rolagem.
+                      onOpen: () => showWorkItemSheet(
+                        context,
+                        item,
+                        currentUserId: currentUserId,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         );

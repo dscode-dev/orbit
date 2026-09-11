@@ -46,6 +46,14 @@ export class MobileFieldController {
     return this.service.workQueue(this.actor(request), query);
   }
 
+  @Get('queue-customers')
+  @ApiOperation({
+    summary: 'Clientes com trabalho desta pessoa, para filtrar a fila',
+  })
+  queueCustomers(@Req() request: IdentityRequest) {
+    return this.service.queueCustomers(this.actor(request));
+  }
+
   @Get('documents')
   @ApiOperation({ summary: 'Documentos de campo emitidos, paginados' })
   documents(

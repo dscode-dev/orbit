@@ -6,7 +6,11 @@ import type {
   MobileDocumentsQueryDto,
   MobileWorkQueueQueryDto,
 } from './mobile-field.dto';
-import { MobileFieldRepository } from './mobile-field.repository';
+import {
+  MobileFieldRepository,
+  type MobileFieldProjectionFilters,
+  type MobileFieldProjectionTarget,
+} from './mobile-field.repository';
 import type { ArtifactRenderStatus } from '../artifact-rendering/artifact-render.read-models';
 import type {
   MobileArtifactSummaryReadModel,
@@ -21,6 +25,7 @@ import type {
   MobileFieldHomeReadModel,
   MobileDocumentsPageReadModel,
   MobileRecentDocumentReadModel,
+  MobileQueueCustomerReadModel,
 } from './mobile-field.read-models';
 
 /** Quantos itens cada recorte curto da tela inicial traz. */
@@ -81,22 +86,40 @@ export class MobileFieldService {
    * documento é resolvido aqui para que a tela não traduza enum.
    */
   async home(actor: MobileFieldActor): Promise<MobileFieldHomeReadModel> {
-    const [dashboard, documentos, compromissos] = await Promise.all([
-      this.dashboard(actor),
-      this.repository.recentDocuments(
-        actor.organizationId,
-        actor.businessUnitIds,
-        RECENTES,
-      ),
-      this.repository.recentAppointments(
-        actor.organizationId,
-        actor.businessUnitIds,
-        RECENTES,
-      ),
-    ]);
+    const [dashboard, documentos, compromissos, concluidos] = await Promise.all(
+      [
+        this.dashboard(actor),
+        this.repository.recentDocuments(
+          actor.organizationId,
+          actor.businessUnitIds,
+          RECENTES,
+        ),
+        this.repository.recentAppointments(
+          actor.organizationId,
+          actor.businessUnitIds,
+          RECENTES,
+        ),
+        this.repository.recentlyCompleted(
+          actor.organizationId,
+          actor.businessUnitIds,
+          actor.id,
+          RECENTES,
+        ),
+      ],
+    );
 
     return {
       dashboard,
+      recentlyCompleted: concluidos.map((operacao) => ({
+        id: operacao.id,
+        code: operacao.code,
+        title: operacao.title,
+        kind: operacao.kind,
+        customerName:
+          operacao.customer?.tradeName ?? operacao.customer?.legalName ?? null,
+        equipmentName: operacao.asset?.name ?? null,
+        completedAt: operacao.completedAt!.toISOString(),
+      })),
       recentDocuments: documentos.map((documento) =>
         this.toDocument(documento),
       ),
@@ -225,17 +248,83 @@ export class MobileFieldService {
     return result;
   }
 
+  /**
+   * Os clientes que esta pessoa tem trabalho — e só eles.
+   *
+   * ## Por que não é `/customers`
+   *
+   * A lista de clientes da organização pode ter centenas, exige
+   * `customers.read` (que um técnico não necessariamente tem) e, o que mais
+   * importa, filtrar a fila por um cliente onde não há trabalho devolve uma
+   * tela vazia que parece defeito.
+   *
+   * Isto sai da mesma projeção que alimenta a fila: se aparece aqui, há pelo
+   * menos um atendimento atrás.
+   */
+  async queueCustomers(
+    actor: MobileFieldActor,
+  ): Promise<readonly MobileQueueCustomerReadModel[]> {
+    const items = (await this.items(actor)).filter((item) =>
+      this.matchesPermission(item),
+    );
+
+    const porId = new Map<string, MobileQueueCustomerReadModel>();
+    for (const item of items) {
+      const cliente = item.customer;
+      if (!cliente) continue;
+      const atual = porId.get(cliente.id);
+      porId.set(cliente.id, {
+        id: cliente.id,
+        name: cliente.name,
+        workCount: (atual?.workCount ?? 0) + 1,
+      });
+    }
+
+    /// Quem tem mais trabalho primeiro, e o nome desempata: uma lista que
+    /// muda de ordem a cada carga é uma lista que ninguém aprende.
+    return [...porId.values()].sort(
+      (a, b) => b.workCount - a.workCount || a.name.localeCompare(b.name),
+    );
+  }
+
   async workQueue(
     actor: MobileFieldActor,
     query: MobileWorkQueueQueryDto,
   ): Promise<MobileWorkQueueReadModel> {
     const started = performance.now();
     const view = query.view ?? 'ALL';
-    let items = (await this.items(actor)).filter(
+
+    /**
+     * Cliente e datas são aplicados **na origem**, não sobre a projeção.
+     *
+     * Filtrar depois de projetar devolveria páginas de tamanhos
+     * imprevisíveis: o cursor pagina a lista inteira, e descartar itens já
+     * paginados dá a terceira página com dois itens e a quarta vazia, com o
+     * "carregar mais" mentindo sobre haver mais.
+     */
+    const filters: MobileFieldProjectionFilters = {
+      customerId: query.customerId,
+      from: query.from ? new Date(`${query.from}T00:00:00.000Z`) : undefined,
+      to: query.to ? new Date(`${query.to}T23:59:59.999Z`) : undefined,
+    };
+
+    /**
+     * A busca é aplicada sobre a projeção, e não na origem.
+     *
+     * Três tabelas alimentam a fila — operações, ciclos PMOC e ocorrências
+     * RVT — e cada uma guarda o cliente num lugar diferente. Um `OR` textual
+     * por tabela seriam três consultas divergentes que envelhecem separado.
+     * A projeção já normalizou cliente, título e código; procurar aqui é um
+     * lugar só, e a lista é limitada por classe antes de chegar.
+     */
+    const busca = query.search?.trim().toLowerCase();
+
+    let items = (await this.items(actor, undefined, filters)).filter(
       (item) =>
         this.matchesPermission(item) &&
         (!query.kind || item.kind === query.kind) &&
-        (view === 'ALL' || this.matchesView(item.dueState, view)),
+        (view === 'ALL' || this.matchesView(item.dueState, view)) &&
+        (!busca || this.matchesSearch(item, busca)),
     );
     const cursor = query.cursor ? this.decodeCursor(query.cursor) : null;
     if (cursor) {
@@ -265,10 +354,13 @@ export class MobileFieldService {
     actor: MobileFieldActor,
     canonicalId: string,
   ): Promise<MobileFieldContextReadModel> {
-    const item = (await this.items(actor)).find(
-      (candidate) =>
-        candidate.id === canonicalId && this.matchesPermission(candidate),
-    );
+    const target = this.projectionTarget(canonicalId);
+    const item = target
+      ? (await this.items(actor, target)).find(
+          (candidate) =>
+            candidate.id === canonicalId && this.matchesPermission(candidate),
+        )
+      : undefined;
     if (!item) throw new EntityNotFoundException('MobileWorkItem', canonicalId);
     return {
       workItem: item,
@@ -290,12 +382,16 @@ export class MobileFieldService {
 
   private async items(
     actor: MobileFieldActor,
+    target?: MobileFieldProjectionTarget,
+    filters?: MobileFieldProjectionFilters,
   ): Promise<MobileWorkItemReadModel[]> {
     if (!actor.organizationId || !actor.businessUnitIds.length) return [];
     const source = await this.repository.project(
       actor.organizationId,
       actor.id,
       actor.businessUnitIds,
+      target,
+      filters,
     );
     const units = new Map(source.businessUnits.map((unit) => [unit.id, unit]));
     const customers = new Map(
@@ -579,6 +675,13 @@ export class MobileFieldService {
   private matchesPermission(item: MobileWorkItemReadModel): boolean {
     return item.allowedActions.includes('VIEW');
   }
+  /** Cliente, título ou descrição — o que a pessoa lembraria de digitar. */
+  private matchesSearch(item: MobileWorkItemReadModel, termo: string): boolean {
+    return [item.customer?.name, item.title, item.description].some(
+      (campo) => campo?.toLowerCase().includes(termo) ?? false,
+    );
+  }
+
   private matchesView(state: MobileDueState, view: string): boolean {
     return (
       (view === 'TODAY' && state === 'DUE_TODAY') ||
@@ -608,6 +711,25 @@ export class MobileFieldService {
     return (
       actor.permissions.includes('*') || actor.permissions.includes(permission)
     );
+  }
+
+  /**
+   * Converte somente identidades canônicas conhecidas em uma leitura
+   * direcionada. O ID continua sendo revalidado pelo repository com tenant,
+   * unidade e atribuição; parsear aqui não concede acesso.
+   */
+  private projectionTarget(id: string): MobileFieldProjectionTarget | null {
+    const parts = id.split(':');
+    if (parts[0] === 'SERVICE_OPERATION' && parts.length === 2 && parts[1]) {
+      return { kind: 'SERVICE_OPERATION', sourceId: parts[1] };
+    }
+    if (parts[0] === 'PMOC' && parts.length === 3 && parts[1] && parts[2]) {
+      return { kind: 'PMOC', sourceId: parts[1], equipmentId: parts[2] };
+    }
+    if (parts[0] === 'RVT' && parts.length === 2 && parts[1]) {
+      return { kind: 'RVT', sourceId: parts[1] };
+    }
+    return null;
   }
   private party(value: any) {
     return {

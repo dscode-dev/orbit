@@ -136,10 +136,28 @@ export interface MobileRecentAppointmentReadModel {
  * **agregação**, e não regra nova: cada parte continua vindo de quem já era
  * dona dela, com os mesmos filtros de permissão e o mesmo isolamento.
  */
+/**
+ * Um atendimento que esta pessoa já terminou.
+ *
+ * Não é um item de fila: a fila lista o que falta, e por isso exclui
+ * concluídos. Este é o histórico curto que a tela inicial mostra.
+ */
+export interface MobileCompletedWorkReadModel {
+  id: string;
+  code: string;
+  title: string;
+  kind: string;
+  customerName: string | null;
+  equipmentName: string | null;
+  completedAt: string;
+}
+
 export interface MobileFieldHomeReadModel {
   dashboard: MobileFieldDashboardReadModel;
   recentDocuments: readonly MobileRecentDocumentReadModel[];
   recentAppointments: readonly MobileRecentAppointmentReadModel[];
+  /** O que já foi concluído — alimenta a aba "Concluídos" da home. */
+  recentlyCompleted: readonly MobileCompletedWorkReadModel[];
 }
 
 /**
@@ -170,4 +188,14 @@ export interface MobileFieldContextReadModel {
     paymentStatus: string | null;
   };
   snapshotVersion: 1;
+}
+
+/// Um cliente que aparece na fila desta pessoa.
+///
+/// `workCount` é o que torna a escolha informada: filtrar por um cliente com
+/// dois atendimentos é diferente de filtrar por um com trinta.
+export interface MobileQueueCustomerReadModel {
+  id: string;
+  name: string;
+  workCount: number;
 }

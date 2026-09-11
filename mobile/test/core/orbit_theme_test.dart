@@ -19,9 +19,24 @@ void main() {
     expect(tema.brightness, Brightness.light);
   });
 
-  test('o fundo é branco, e a superfície também', () {
-    expect(palette.background, const Color(0xFFFFFFFF));
+  test('o cartão se destaca do fundo da página', () {
+    /// Antes este teste exigia que os dois fossem branco. Era a regra que
+    /// deixava a lista de Atendimentos parecer colada na barra de filtros: um
+    /// cartão branco sobre uma página branca não é um cartão, é texto solto
+    /// com uma sombra fraca por baixo.
+    ///
+    /// A superfície continua branca — é o objeto. O fundo é levemente frio,
+    /// que é o que faz a camada existir.
     expect(palette.surface, const Color(0xFFFFFFFF));
+    expect(palette.background, isNot(palette.surface));
+
+    /// E a diferença tem de ser sutil: fundo escuro demais transforma cada
+    /// cartão num recorte e cansa numa lista longa.
+    final delta =
+        (palette.surface.r - palette.background.r).abs() +
+        (palette.surface.g - palette.background.g).abs() +
+        (palette.surface.b - palette.background.b).abs();
+    expect(delta, lessThan(0.1));
   });
 
   test('azul e roxo são papéis distintos, e nenhum é o fundo', () {
@@ -55,6 +70,16 @@ void main() {
   test('a paleta interpola sem trocar de identidade', () {
     final meio = palette.lerp(palette, 0.5);
     expect(meio.accent, palette.accent);
+  });
+
+  test('small status labels retain readable contrast on soft surfaces', () {
+    for (final pair in [
+      (palette.success, palette.successSoft),
+      (palette.warning, palette.warningSoft),
+      (palette.danger, palette.dangerSoft),
+    ]) {
+      expect(_contraste(pair.$1, pair.$2), greaterThanOrEqualTo(4.5));
+    }
   });
 
   test('o acesso pelo contexto devolve a paleta do tema', () {

@@ -113,6 +113,10 @@ class FieldRepository {
   Future<MobileWorkQueuePageContract> workQueue({
     WorkQueueView view = WorkQueueView.all,
     MobileWorkItemKind? kind,
+    String? search,
+    String? customerId,
+    DateTime? from,
+    DateTime? to,
     int limit = 20,
     String? cursor,
   }) async {
@@ -121,11 +125,36 @@ class FieldRepository {
       query: {
         'view': _viewCodes[view],
         if (kind != null) 'kind': _kindCodes[kind],
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+        if (customerId != null) 'customerId': customerId,
+
+        /// Data **civil**, sem hora e sem fuso: o servidor resolve a janela
+        /// no fuso da unidade. Mandar um instante daqui faria o dia começar
+        /// na hora do aparelho, e dois técnicos em fusos diferentes veriam
+        /// listas diferentes para "hoje".
+        if (from != null) 'from': _dataCivil(from),
+        if (to != null) 'to': _dataCivil(to),
         'limit': limit,
         if (cursor != null) 'cursor': cursor,
       },
     );
     return MobileWorkQueuePageContract.fromJson(data);
+  }
+
+  static String _dataCivil(DateTime valor) =>
+      '${valor.year.toString().padLeft(4, '0')}-'
+      '${valor.month.toString().padLeft(2, '0')}-'
+      '${valor.day.toString().padLeft(2, '0')}';
+
+  /// Os clientes com trabalho desta pessoa, para o filtro.
+  Future<List<MobileQueueCustomerContract>> queueCustomers() async {
+    final data = await _client.get<List<dynamic>>(
+      '/mobile/field/queue-customers',
+    );
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(MobileQueueCustomerContract.fromJson)
+        .toList(growable: false);
   }
 
   /// O contexto de um item. `null` quando o servidor devolve algo que esta

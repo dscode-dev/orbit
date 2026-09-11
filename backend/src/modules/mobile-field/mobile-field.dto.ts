@@ -1,6 +1,19 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Max,
+  Min,
+} from 'class-validator';
+import { IsUUIDv7 } from '../../validators';
+
+/** `YYYY-MM-DD`, que é como uma data civil viaja. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 export const MOBILE_QUEUE_VIEWS = [
   'ALL',
@@ -38,6 +51,31 @@ export class MobileWorkQueueQueryDto {
   @IsOptional()
   @IsString()
   cursor?: string;
+
+  /// Busca livre por cliente, título ou código.
+  @ApiPropertyOptional({ example: 'Shopping' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
+
+  /// Só os atendimentos deste cliente.
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUIDv7()
+  customerId?: string;
+
+  /// Início da janela de datas, inclusive.
+  @ApiPropertyOptional({ example: '2026-09-01' })
+  @IsOptional()
+  @Matches(DATE_ONLY, { message: 'from must be YYYY-MM-DD' })
+  from?: string;
+
+  /// Fim da janela de datas, inclusive.
+  @ApiPropertyOptional({ example: '2026-09-30' })
+  @IsOptional()
+  @Matches(DATE_ONLY, { message: 'to must be YYYY-MM-DD' })
+  to?: string;
 }
 
 /** Os tipos de documento que a tela de Documentos filtra. */

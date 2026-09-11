@@ -19,7 +19,6 @@ import '../../features/field/presentation/field_dashboard_screen.dart';
 import '../../features/field/presentation/operation_execution_screen.dart';
 import '../../features/field/presentation/work_item_detail_screen.dart';
 import '../../features/field/presentation/work_queue_screen.dart';
-import '../../features/home/presentation/home_screen.dart';
 import '../../features/signature/presentation/customer_acknowledgement_screen.dart';
 import '../../features/signature/presentation/my_signature_screen.dart';
 import '../../features/sync/presentation/sync_center_screen.dart';
@@ -30,6 +29,7 @@ import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/scheduling/presentation/agenda_screen.dart';
 import '../../features/documents/presentation/documents_screen.dart';
 import '../../features/equipment/presentation/equipment_scanner_screen.dart';
+import '../../features/notifications/presentation/notifications_screen.dart';
 import 'app_shell.dart';
 
 abstract final class OrbitRoutes {
@@ -50,6 +50,7 @@ abstract final class OrbitRoutes {
 
   /// A leitura de etiqueta. Fora do shell: a câmera ocupa a tela inteira.
   static const scanner = '/etiqueta';
+  static const notifications = '/avisos';
 
   /// Perfil, sincronização e assinatura. É o "mais" do aplicativo, com o nome
   /// do que ele de fato contém.
@@ -122,7 +123,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       /// diretamente e nunca constroem o roteador.
       GoRoute(
         path: OrbitRoutes.scanner,
-        builder: (context, state) => const EquipmentScannerScreen(),
+        builder: (context, state) => EquipmentScannerScreen(
+          returnsToken: EquipmentScannerRequest.fromExtra(
+            state.extra,
+          ).returnsToken,
+        ),
+      ),
+      /// A caixa de avisos é um destino, não uma aba: abre por cima do shell
+      /// e volta para onde estava. Por isso é **irmã** dele, e não filha —
+      /// uma sub-rota direta de `ShellRoute` não pode carregar a chave do
+      /// navegador raiz, e o `go_router` recusa a árvore inteira se carregar.
+      GoRoute(
+        path: OrbitRoutes.notifications,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const NotificationsScreen(),
       ),
       ShellRoute(
         /// Os gatilhos vivem no shell: existem enquanto houver sessão, e não
@@ -134,19 +148,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: OrbitRoutes.home,
 
-            /// Duas homes, um caminho.
-            ///
-            /// Quem executa em campo abre o **Meu dia** do MB-01 — uma
-            /// requisição que responde o que fazer agora. Quem administra
-            /// continua vendo os indicadores. É a mesma distinção que o shell
-            /// já fazia entre "Início" e "Visão Geral"; agora ela vale também
-            /// para o conteúdo, não só para o rótulo.
-            builder: (context, state) {
-              final session = ref.read(sessionProvider);
-              return session?.profile == OrbitProfile.owner
-                  ? const HomeScreen()
-                  : const FieldDashboardScreen();
-            },
+            /// One operational mobile product. Permissions change data and
+            /// actions; they never select a parallel visual application.
+            builder: (context, state) => const FieldDashboardScreen(),
           ),
           GoRoute(
             path: OrbitRoutes.workQueue,

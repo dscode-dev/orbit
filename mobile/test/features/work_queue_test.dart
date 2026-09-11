@@ -8,6 +8,7 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit_operator/core/contracts/mobile_field_contracts.dart';
 import 'package:orbit_operator/features/field/application/field_providers.dart';
+import 'package:orbit_operator/features/field/data/field_repository.dart';
 
 MobileWorkItemContract _item(String id, MobileDueState due) =>
     MobileWorkItemContract.fromJson({
@@ -235,4 +236,59 @@ void main() {
       expect(dashboard.canScanEquipment, isTrue);
     });
   });
+
+group('recortes da tela de Atendimentos', () {
+  test('a contagem de filtros ativos ignora o recorte de prazo', () {
+    /// O recorte de prazo tem abas próprias e está sempre visível. Contá-lo
+    /// faria o botão nascer com "1" e nunca zerar — um contador que nunca
+    /// zera não informa nada.
+    const semFiltro = WorkQueueFilter(view: WorkQueueView.overdue);
+    expect(semFiltro.activeCount, 0);
+
+    const comTipo = WorkQueueFilter(kind: MobileWorkItemKind.pmoc);
+    expect(comTipo.activeCount, 1);
+  });
+
+  test('período conta como um recorte só, mesmo com as duas pontas', () {
+    final so = WorkQueueFilter(from: DateTime(2026, 9, 1));
+    final ambos = WorkQueueFilter(
+      from: DateTime(2026, 9, 1),
+      to: DateTime(2026, 9, 30),
+    );
+    expect(so.activeCount, 1);
+    expect(ambos.activeCount, 1);
+  });
+
+  test('limpar um recorte não derruba os outros', () {
+    final cheio = WorkQueueFilter(
+      view: WorkQueueView.today,
+      kind: MobileWorkItemKind.rvt,
+      customerId: 'c1',
+      customerName: 'Shopping Recife',
+      from: DateTime(2026, 9, 1),
+      to: DateTime(2026, 9, 30),
+    );
+    expect(cheio.activeCount, 3);
+
+    final semCliente = cheio.copyWith(clearCustomer: true);
+    expect(semCliente.customerId, isNull);
+    expect(semCliente.customerName, isNull);
+    expect(semCliente.kind, MobileWorkItemKind.rvt);
+    expect(semCliente.from, isNotNull);
+
+    /// O recorte de prazo sobrevive a tudo: ele é a aba, não um filtro.
+    expect(semCliente.view, WorkQueueView.today);
+    expect(semCliente.activeCount, 2);
+  });
+
+  test('dois filtros iguais são o mesmo, para o provider não recarregar', () {
+    /// `WorkQueueFilter` é chave de recarga. Se a igualdade ignorasse um
+    /// campo, mudar aquele campo não recarregaria a lista.
+    final a = WorkQueueFilter(customerId: 'c1', from: DateTime(2026, 9, 1));
+    final b = WorkQueueFilter(customerId: 'c1', from: DateTime(2026, 9, 1));
+    final c = WorkQueueFilter(customerId: 'c2', from: DateTime(2026, 9, 1));
+    expect(a, b);
+    expect(a == c, isFalse);
+  });
+});
 }

@@ -102,22 +102,92 @@ class WorkQueueState {
 
 /// Filtro ativo da fila.
 class WorkQueueFilter {
-  const WorkQueueFilter({this.view = WorkQueueView.all, this.kind});
+  const WorkQueueFilter({
+    this.view = WorkQueueView.all,
+    this.search,
+    this.kind,
+    this.customerId,
+    this.customerName,
+    this.from,
+    this.to,
+  });
 
   final WorkQueueView view;
+
+  /// Busca livre. Fora de `activeCount` de propósito: ela tem campo próprio
+  /// e visível, e contá-la faria o botão de filtros acusar algo que a pessoa
+  /// está literalmente vendo.
+  final String? search;
+
   final MobileWorkItemKind? kind;
+  final String? customerId;
+
+  /// Só para o chip da tela dizer **qual** cliente. O filtro que viaja é o id.
+  final String? customerName;
+
+  final DateTime? from;
+  final DateTime? to;
+
+  /// Quantos recortes estão ativos — o número no botão de filtros.
+  ///
+  /// A view não conta: ela tem abas próprias e está sempre visível. Contá-la
+  /// faria o botão nascer com "1" e nunca zerar, que é o mesmo que não ter
+  /// contador.
+  int get activeCount => [
+    kind != null,
+    customerId != null,
+    from != null || to != null,
+  ].where((ativo) => ativo).length;
+
+  WorkQueueFilter copyWith({
+    WorkQueueView? view,
+    String? search,
+    MobileWorkItemKind? kind,
+    String? customerId,
+    String? customerName,
+    DateTime? from,
+    DateTime? to,
+    bool clearKind = false,
+    bool clearCustomer = false,
+    bool clearDates = false,
+    bool clearSearch = false,
+  }) => WorkQueueFilter(
+    view: view ?? this.view,
+    search: clearSearch ? null : (search ?? this.search),
+    kind: clearKind ? null : (kind ?? this.kind),
+    customerId: clearCustomer ? null : (customerId ?? this.customerId),
+    customerName: clearCustomer ? null : (customerName ?? this.customerName),
+    from: clearDates ? null : (from ?? this.from),
+    to: clearDates ? null : (to ?? this.to),
+  );
 
   @override
   bool operator ==(Object other) =>
-      other is WorkQueueFilter && other.view == view && other.kind == kind;
+      other is WorkQueueFilter &&
+      other.view == view &&
+      other.search == search &&
+      other.kind == kind &&
+      other.customerId == customerId &&
+      other.from == from &&
+      other.to == to;
 
   @override
-  int get hashCode => Object.hash(view, kind);
+  int get hashCode => Object.hash(view, search, kind, customerId, from, to);
 }
 
 final workQueueFilterProvider = StateProvider.autoDispose<WorkQueueFilter>(
   (ref) => const WorkQueueFilter(),
 );
+
+/// Os clientes que aparecem na fila desta pessoa.
+///
+/// Carregado sob demanda, quando a folha de filtros abre: é uma leitura que
+/// só interessa a quem foi filtrar, e cobrá-la na abertura da tela atrasaria
+/// a lista por um dado que a maioria nunca usa.
+final queueCustomersProvider =
+    FutureProvider.autoDispose<List<MobileQueueCustomerContract>>(
+      (ref) => ref.watch(fieldRepositoryProvider).queueCustomers(),
+    );
 
 class WorkQueueController extends StateNotifier<AsyncValue<WorkQueueState>> {
   WorkQueueController({
@@ -153,6 +223,10 @@ class WorkQueueController extends StateNotifier<AsyncValue<WorkQueueState>> {
       final page = await _repository.workQueue(
         view: _filter.view,
         kind: _filter.kind,
+        search: _filter.search,
+        customerId: _filter.customerId,
+        from: _filter.from,
+        to: _filter.to,
       );
       state = AsyncValue.data(
         WorkQueueState(
@@ -202,6 +276,10 @@ class WorkQueueController extends StateNotifier<AsyncValue<WorkQueueState>> {
       final page = await _repository.workQueue(
         view: _filter.view,
         kind: _filter.kind,
+        search: _filter.search,
+        customerId: _filter.customerId,
+        from: _filter.from,
+        to: _filter.to,
         cursor: current.cursor,
       );
       state = AsyncValue.data(

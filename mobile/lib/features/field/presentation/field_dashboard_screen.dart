@@ -36,8 +36,10 @@ import '../../../app/providers.dart';
 import '../../../core/contracts/mobile_field_contracts.dart';
 import '../../../core/design/orbit_primitives.dart';
 import '../../../core/design/orbit_operational.dart';
-import 'package:intl/intl.dart';
 import '../../../core/errors/orbit_public_copy.dart';
+import 'package:intl/intl.dart';
+
+import '../../../core/contracts/notification_contracts.dart';
 import '../../../core/presentation/orbit_format.dart';
 import '../../../core/routing/orbit_router.dart';
 import '../../../core/theme/orbit_theme.dart';
@@ -46,11 +48,18 @@ import '../../authentication/domain/session.dart';
 import '../../documents/presentation/documents_screen.dart'
     show documentStateBadge;
 import '../../operations/data/operations_repository.dart' show CachedResult;
+import '../../equipment/presentation/equipment_scanner_screen.dart';
+import '../../notifications/application/notification_providers.dart';
+import '../../notifications/domain/deep_link.dart';
 import '../application/field_providers.dart';
 import 'widgets/work_item_row.dart';
 
 class FieldDashboardScreen extends ConsumerWidget {
-  const FieldDashboardScreen({super.key});
+  const FieldDashboardScreen({super.key, this.now});
+
+  /// Relógio visual da saudação. Em produção usa o horário local do aparelho;
+  /// testes de imagem podem fixá-lo para não transformar a data em ruído.
+  final DateTime? now;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -73,7 +82,7 @@ class FieldDashboardScreen extends ConsumerWidget {
           ///
           /// Com dado em mãos, a falha vira um aviso. Sem dado, aí sim a tela
           /// é o erro: não há o que preservar.
-          child: _corpo(ref, home, session),
+          child: _corpo(ref, home, session, now: now),
         ),
       ),
     );
@@ -87,8 +96,9 @@ class FieldDashboardScreen extends ConsumerWidget {
 Widget _corpo(
   WidgetRef ref,
   AsyncValue<CachedResult<MobileFieldHomeContract>> home,
-  OrbitSession? session,
-) {
+  OrbitSession? session, {
+  DateTime? now,
+}) {
   final dados = home.valueOrNull;
   if (dados != null) {
     return _Home(
@@ -98,6 +108,7 @@ Widget _corpo(
       avatarUrl: session?.user.avatarUrl,
       unitName: session?.businessUnit?.name,
       currentUserId: session?.user.id,
+      now: now,
       refreshFailed: home.hasError,
     );
   }
@@ -122,7 +133,7 @@ Widget _corpo(
   );
 }
 
-class _Home extends StatelessWidget {
+class _Home extends ConsumerWidget {
   const _Home({
     required this.home,
     required this.cachedAt,
@@ -130,6 +141,7 @@ class _Home extends StatelessWidget {
     this.avatarUrl,
     this.unitName,
     required this.currentUserId,
+    this.now,
     this.refreshFailed = false,
   });
 
@@ -139,42 +151,35 @@ class _Home extends StatelessWidget {
   final String? avatarUrl;
   final String? unitName;
   final String? currentUserId;
+  final DateTime? now;
 
   /// A última atualização não veio. Os dados abaixo continuam sendo os
   /// últimos que o servidor confirmou.
   final bool refreshFailed;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final dashboard = home.dashboard;
+    final c = dashboard.counters;
 
-    final proximo = dashboard.next;
-
-    /// "Não há nada" é diferente de "não há nada nesta seção". Só quando
-    /// **todas** estão vazias a tela diz que o dia está livre.
-    final vazio =
-        dashboard.inProgress.isEmpty &&
-        dashboard.overdue.isEmpty &&
-        dashboard.today.isEmpty &&
-        proximo == null &&
-        home.recentDocuments.isEmpty &&
-        home.recentAppointments.isEmpty;
+    /// Os avisos chegam por uma leitura própria, em paralelo.
+    ///
+    /// Encadeá-los ao painel atrasaria a abertura pela soma das duas
+    /// requisições. Enquanto não chegam, a faixa simplesmente não existe —
+    /// um esqueleto cinza no topo é pior que nada ali.
+    final avisos = ref.watch(notificationsProvider).valueOrNull?.value;
 
     /// O destaque: o atendimento que já começou. Um por tela.
     final emAndamento = dashboard.inProgress.isEmpty
         ? null
         : dashboard.inProgress.first;
 
-    /// O próximo só aparece se não estiver em andamento **e** não estiver já
-    /// listado em Hoje. Antes só a primeira checagem existia, e a tela
-    /// mostrava o mesmo atendimento duas vezes, uma embaixo da outra.
-    final jaListado =
-        proximo != null &&
-        (dashboard.inProgress.any((item) => item.id == proximo.id) ||
-            dashboard.today.any((item) => item.id == proximo.id));
-    final proximoInedito = proximo != null && !jaListado;
-
-    final c = dashboard.counters;
+    final semTrabalho =
+        dashboard.inProgress.isEmpty &&
+        dashboard.overdue.isEmpty &&
+        dashboard.today.isEmpty &&
+        dashboard.next == null &&
+        home.recentlyCompleted.isEmpty;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(
@@ -184,53 +189,64 @@ class _Home extends StatelessWidget {
         OrbitSpacing.xl2,
       ),
       children: [
-        _Header(userName: userName, avatarUrl: avatarUrl, unitName: unitName),
+        /// Linha 1 — quem está usando, e o que dá para fazer sem descer.
+        _Header(
+          userName: userName,
+          avatarUrl: avatarUrl,
+          unitName: unitName,
+          now: now,
+          unread: avisos?.unread ?? 0,
+        ),
 
         if (cachedAt != null)
           Padding(
             padding: const EdgeInsets.only(bottom: OrbitSpacing.ms),
             child: StaleDataBanner(cachedAt: cachedAt!),
           ),
-
-        /// Aviso discreto, não substituição.
         if (refreshFailed) const _RefreshFailedNotice(),
 
-        /// O painel de números. Responde "como está meu dia" antes de
-        /// qualquer lista — que é a primeira pergunta de quem abre o app.
-        if (!vazio) ...[
-          OrbitMetricStrip(
-            metrics: [
-              OrbitMetricData(
-                value: '${c.today}',
-                label: 'Hoje',
-                onTap: () => context.go(OrbitRoutes.agenda),
-              ),
-              OrbitMetricData(
-                value: '${c.overdue}',
-                label: 'Atrasados',
-                tone: c.overdue > 0 ? OrbitTone.danger : OrbitTone.neutral,
-                onTap: () => context.go(OrbitRoutes.workQueue),
-              ),
-              OrbitMetricData(
-                value: '${c.inProgress}',
-                label: 'Em campo',
-                tone: c.inProgress > 0 ? OrbitTone.info : OrbitTone.neutral,
-              ),
-              OrbitMetricData(
-                value: '${c.upcoming}',
-                label: 'Próximos',
-                onTap: () => context.go(OrbitRoutes.workQueue),
-              ),
-            ],
-          ),
+        /// Linha 2 — avisos. Só aparece quando há o que avisar.
+        if (avisos != null && avisos.data.isNotEmpty) ...[
+          _AnnouncementCarousel(items: avisos.data),
           const SizedBox(height: OrbitSpacing.lg),
         ],
 
-        _QuickActions(dashboard: dashboard),
+        /// Linha 3 — o dia em quatro números, dois por linha.
+        _KpiGrid(
+          items: [
+            _KpiData(
+              value: '${c.today}',
+              label: 'Hoje',
+              icon: Icons.today_outlined,
+              tone: OrbitTone.info,
+              onTap: () => context.go(OrbitRoutes.agenda),
+            ),
+            _KpiData(
+              value: '${c.overdue}',
+              label: 'Atrasadas',
+              icon: Icons.error_outline,
+              tone: c.overdue > 0 ? OrbitTone.danger : OrbitTone.neutral,
+              onTap: () => context.go(OrbitRoutes.workQueue),
+            ),
+            _KpiData(
+              value: '${c.inProgress}',
+              label: 'Em andamento',
+              icon: Icons.play_circle_outline,
+              tone: c.inProgress > 0 ? OrbitTone.warning : OrbitTone.neutral,
+              onTap: () => context.go(OrbitRoutes.workQueue),
+            ),
+            _KpiData(
+              value: '${c.upcoming}',
+              label: 'Próximas',
+              icon: Icons.event_outlined,
+              tone: OrbitTone.neutral,
+              onTap: () => context.go(OrbitRoutes.workQueue),
+            ),
+          ],
+        ),
         const SizedBox(height: OrbitSpacing.lg),
 
-        /// Em andamento vira o cartão de destaque: é o trabalho que já
-        /// começou, e é para ele que a pessoa volta ao abrir o aplicativo.
+        /// O que fazer agora. Um destaque por tela, e só quando há um.
         if (emAndamento != null) ...[
           OrbitHeroCard(
             eyebrow: 'Em andamento',
@@ -240,7 +256,7 @@ class _Home extends StatelessWidget {
             onTap: () =>
                 context.push(OrbitRoutes.workItemDetail(emAndamento.id)),
             action: OrbitHeroButton(
-              label: 'Continuar',
+              label: 'Retomar atendimento',
               icon: Icons.play_arrow_rounded,
               onPressed: () =>
                   context.push(OrbitRoutes.workItemDetail(emAndamento.id)),
@@ -249,82 +265,36 @@ class _Home extends StatelessWidget {
           const SizedBox(height: OrbitSpacing.lg),
         ],
 
-        if (vazio)
+        /// Linha 4 — quatro acessos, numa fileira só.
+        _QuickActions(dashboard: dashboard),
+        const SizedBox(height: OrbitSpacing.lg),
+
+        /// Linha 5 — os cinco mais recentes, com o recorte escolhido.
+        if (semTrabalho)
           const OrbitEmptyState(
             icon: Icons.event_available_outlined,
             title: 'Nenhum atendimento programado',
             description:
                 'Quando houver trabalho atribuído a você, ele aparece aqui.',
-          ),
-
-        if (dashboard.overdue.isNotEmpty) ...[
-          _ItemSection(
-            title: 'Atrasados',
-            count: dashboard.counters.overdue,
-            items: dashboard.overdue,
-            currentUserId: currentUserId,
-            onSeeAll: () => context.go(OrbitRoutes.workQueue),
-          ),
-          const SizedBox(height: OrbitSpacing.lg),
-        ],
-
-        if (dashboard.today.isNotEmpty) ...[
-          _ItemSection(
-            title: 'Hoje',
-            count: dashboard.counters.today,
-            items: dashboard.today.take(5).toList(),
-            currentUserId: currentUserId,
-            onSeeAll: () => context.go(OrbitRoutes.agenda),
-            seeAllLabel: 'Ver agenda',
-          ),
-          const SizedBox(height: OrbitSpacing.lg),
-        ],
-
-        if (proximoInedito) ...[
-          _ItemSection(
-            title: 'Próximo atendimento',
-            items: [proximo],
-            currentUserId: currentUserId,
-          ),
-          const SizedBox(height: OrbitSpacing.lg),
-        ],
+          )
+        else
+          _RecentWork(home: home, currentUserId: currentUserId),
 
         if (home.recentDocuments.isNotEmpty) ...[
+          const SizedBox(height: OrbitSpacing.lg),
           OrbitSection(
             title: 'Documentos recentes',
             actionLabel: 'Ver todos',
             action: () => context.go(OrbitRoutes.documents),
+            padding: EdgeInsets.zero,
             child: _Rows(
               children: [
-                for (final documento in home.recentDocuments.take(5))
+                for (final documento in home.recentDocuments)
                   _DocumentRow(document: documento),
               ],
             ),
           ),
-          const SizedBox(height: OrbitSpacing.lg),
         ],
-
-        if (home.recentAppointments.isNotEmpty && dashboard.today.isEmpty) ...[
-          OrbitSection(
-            title: 'Agendamentos recentes',
-            actionLabel: 'Ver agenda',
-            action: () => context.go(OrbitRoutes.agenda),
-            child: _Rows(
-              children: [
-                for (final compromisso in home.recentAppointments)
-                  _AppointmentRow(appointment: compromisso),
-              ],
-            ),
-          ),
-          const SizedBox(height: OrbitSpacing.lg),
-        ],
-
-        OutlinedButton.icon(
-          onPressed: () => context.go(OrbitRoutes.workQueue),
-          icon: const Icon(Icons.checklist_rtl, size: 18),
-          label: const Text('Ver toda a fila'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 50)),
-        ),
       ],
     );
   }
@@ -341,52 +311,579 @@ class _Home extends StatelessWidget {
   }
 }
 
-/// Quem está lendo, e que dia é hoje.
+/// Linha 2 — os avisos, um de cada vez.
 ///
-/// O primeiro nome basta: a pessoa sabe o próprio sobrenome, e "Bom dia,
-/// Ricardo" cabe em 320 pixels onde o nome completo não caberia.
-class _Header extends StatelessWidget {
-  const _Header({required this.userName, this.avatarUrl, this.unitName});
+/// ## Por que carrossel, e não lista
+///
+/// Aviso empilhado vira parede: três cartões no topo empurram o trabalho para
+/// fora da tela, e a pessoa aprende a rolar sem ler. Um de cada vez cabe, e os
+/// pontos abaixo dizem que há mais.
+///
+/// Só o texto e o caminho para o detalhe. O corpo inteiro de uma notificação
+/// não cabe aqui e não é para caber — quem quer o detalhe toca.
+class _AnnouncementCarousel extends StatefulWidget {
+  const _AnnouncementCarousel({required this.items});
 
-  final String? userName;
-  final String? avatarUrl;
-  final String? unitName;
+  final List<OrbitNotification> items;
+
+  @override
+  State<_AnnouncementCarousel> createState() => _AnnouncementCarouselState();
+}
+
+class _AnnouncementCarouselState extends State<_AnnouncementCarousel> {
+  late final PageController _controller = PageController();
+  int _atual = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final palette = context.orbit;
-    final agora = DateTime.now();
-    final primeiroNome = userName?.trim().split(' ').first;
+    final itens = widget.items.take(5).toList();
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          OrbitAvatar(
-            initials: primeiroNome?.isNotEmpty == true ? primeiroNome![0] : 'O',
-            url: avatarUrl,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  primeiroNome == null ? 'Olá' : 'Olá, $primeiroNome',
-                  style: OrbitType.sectionTitle.copyWith(color: palette.ink),
+    /// A altura acompanha a escala de texto.
+    ///
+    /// Fixar 86 pixels funciona em 1.0x e corta a segunda linha em 2.0x —
+    /// quem aumenta a fonte do sistema é justamente quem não consegue ler o
+    /// que foi cortado.
+    final escala = MediaQuery.textScalerOf(context).scale(1);
+    final altura = 86.0 + (escala - 1).clamp(0, 1.5) * 52;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: altura,
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: itens.length,
+            onPageChanged: (indice) => setState(() => _atual = indice),
+            itemBuilder: (context, indice) {
+              final aviso = itens[indice];
+              return Padding(
+                padding: EdgeInsets.only(
+                  right: indice == itens.length - 1 ? 0 : OrbitSpacing.sm,
                 ),
+                child: OrbitCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: OrbitSpacing.md,
+                    vertical: OrbitSpacing.ms,
+                  ),
+                  onTap: () {
+                    /// O servidor publica o destino no `payload`. Quando ele
+                    /// não sabe traduzir, a caixa de avisos é a resposta
+                    /// certa — melhor que abrir a tela errada.
+                    final destino = routeForNotificationPayload(aviso.payload);
+                    context.push(destino ?? OrbitRoutes.notifications);
+                  },
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: aviso.isUnread
+                              ? palette.accentSoft
+                              : palette.surfaceMuted,
+                          borderRadius: OrbitRadius.chip,
+                        ),
+                        child: Icon(
+                          Icons.campaign_outlined,
+                          size: 18,
+                          color: aviso.isUnread
+                              ? palette.accent
+                              : palette.inkSubtle,
+                        ),
+                      ),
+                      const SizedBox(width: OrbitSpacing.ms),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              aviso.title,
+                              style: OrbitType.label.copyWith(
+                                color: palette.ink,
+                                fontSize: 13.5,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              aviso.body,
+                              style: OrbitType.caption.copyWith(
+                                color: palette.inkSubtle,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: OrbitSpacing.sm),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 20,
+                        color: palette.inkDisabled,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (itens.length > 1) ...[
+          const SizedBox(height: OrbitSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < itens.length; i += 1)
+                Container(
+                  width: i == _atual ? 16 : 6,
+                  height: 6,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    color: i == _atual ? palette.accent : palette.borderStrong,
+                    borderRadius: OrbitRadius.pill,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Os dados de um indicador.
+class _KpiData {
+  const _KpiData({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.tone,
+    this.onTap,
+  });
+
+  final String value;
+  final String label;
+  final IconData icon;
+  final OrbitTone tone;
+  final VoidCallback? onTap;
+}
+
+/// Linha 3 — quatro indicadores, dois por linha.
+///
+/// ## Por que não é a faixa de quatro colunas
+///
+/// Quatro números lado a lado em 360 pixels deixam 78 para cada rótulo, e
+/// "Em andamento" quebra no meio da palavra. Dois por linha dão espaço para o
+/// ícone, o número grande e o rótulo inteiro — e é o formato que os painéis
+/// de produto usam quando o indicador precisa ser tocável.
+class _KpiGrid extends StatelessWidget {
+  const _KpiGrid({required this.items});
+
+  final List<_KpiData> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var linha = 0; linha < items.length; linha += 2) ...[
+          if (linha > 0) const SizedBox(height: OrbitSpacing.ms),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _KpiTile(data: items[linha])),
+                if (linha + 1 < items.length) ...[
+                  const SizedBox(width: OrbitSpacing.ms),
+                  Expanded(child: _KpiTile(data: items[linha + 1])),
+                ] else
+                  const Spacer(),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _KpiTile extends StatelessWidget {
+  const _KpiTile({required this.data});
+
+  final _KpiData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.orbit;
+    final (Color forte, Color suave) = switch (data.tone) {
+      OrbitTone.info => (palette.accent, palette.accentSoft),
+      OrbitTone.success => (palette.success, palette.successSoft),
+      OrbitTone.warning => (palette.warning, palette.warningSoft),
+      OrbitTone.danger => (palette.danger, palette.dangerSoft),
+      OrbitTone.intelligence => (
+        palette.intelligence,
+        palette.intelligenceSoft,
+      ),
+      OrbitTone.neutral => (palette.inkMuted, palette.surfaceMuted),
+    };
+
+    return Semantics(
+      button: data.onTap != null,
+      label: '${data.label}: ${data.value}',
+      excludeSemantics: true,
+      child: OrbitCard(
+        onTap: data.onTap,
+        padding: const EdgeInsets.all(OrbitSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: suave,
+                    borderRadius: OrbitRadius.chip,
+                  ),
+                  child: Icon(data.icon, size: 16, color: forte),
+                ),
+                const Spacer(),
                 Text(
-                  [
-                    DateFormat('EEE, dd MMM', 'pt_BR').format(agora),
-                    if (unitName != null) unitName!,
-                  ].join(' · '),
-                  style: OrbitType.label.copyWith(
-                    color: palette.inkSubtle,
-                    fontWeight: FontWeight.w400,
+                  data.value,
+                  style: OrbitType.metric.copyWith(
+                    color: data.tone == OrbitTone.neutral
+                        ? palette.ink
+                        : forte,
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: OrbitSpacing.sm),
+            Text(
+              data.label,
+              style: OrbitType.caption.copyWith(color: palette.inkSubtle),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// O recorte da lista de recentes.
+enum _RecentTab { abertos, proximos, concluidos }
+
+/// Linha 5 — os cinco atendimentos mais recentes, no recorte escolhido.
+///
+/// ## De onde vem cada aba
+///
+/// "Abertos" e "Próximos" saem do próprio payload da home — já vieram
+/// classificados pelo servidor. "Concluídos" é uma leitura à parte
+/// (`recentlyCompleted`): a fila de trabalho lista o que **falta**, e a
+/// consulta dela exclui concluídos. Forçar concluído na fila mudaria a
+/// semântica de `dueState`, que o aplicativo inteiro lê, por um motivo de
+/// tela.
+class _RecentWork extends StatefulWidget {
+  const _RecentWork({required this.home, this.currentUserId});
+
+  final MobileFieldHomeContract home;
+  final String? currentUserId;
+
+  @override
+  State<_RecentWork> createState() => _RecentWorkState();
+}
+
+class _RecentWorkState extends State<_RecentWork> {
+  _RecentTab _aba = _RecentTab.abertos;
+
+  @override
+  Widget build(BuildContext context) {
+    final dashboard = widget.home.dashboard;
+
+    /// Abertos é tudo que está pendente, na ordem em que pesa: o que atrasou
+    /// primeiro, depois o que começou, depois o dia.
+    final abertos = <MobileWorkItemContract>[
+      ...dashboard.overdue,
+      ...dashboard.inProgress,
+      ...dashboard.today,
+    ];
+    final vistos = <String>{};
+    final abertosUnicos = [
+      for (final item in abertos)
+        if (vistos.add(item.id)) item,
+    ].take(5).toList();
+
+    final proximos = dashboard.next == null
+        ? const <MobileWorkItemContract>[]
+        : [dashboard.next!];
+    final concluidos = widget.home.recentlyCompleted.take(5).toList();
+
+    final (rotulo, destino) = switch (_aba) {
+      _RecentTab.abertos => ('Ver todos', OrbitRoutes.workQueue),
+      _RecentTab.proximos => ('Ver agenda', OrbitRoutes.agenda),
+      _RecentTab.concluidos => ('Ver documentos', OrbitRoutes.documents),
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(
+            left: OrbitSpacing.xs,
+            bottom: OrbitSpacing.ms,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Atendimentos',
+                  style: OrbitType.sectionTitle.copyWith(
+                    color: context.orbit.ink,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.go(destino),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: OrbitSpacing.sm,
+                  ),
+                  minimumSize: const Size(0, 36),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(rotulo),
+              ),
+            ],
+          ),
+        ),
+
+        _RecentTabs(
+          atual: _aba,
+          onChanged: (aba) => setState(() => _aba = aba),
+          contagens: {
+            _RecentTab.abertos: abertosUnicos.length,
+            _RecentTab.proximos: proximos.length,
+            _RecentTab.concluidos: concluidos.length,
+          },
+        ),
+        const SizedBox(height: OrbitSpacing.ms),
+
+        OrbitCard(
+          padding: EdgeInsets.zero,
+          child: switch (_aba) {
+            _RecentTab.abertos => _listaDeItens(abertosUnicos, 'aberto'),
+            _RecentTab.proximos => _listaDeItens(proximos, 'programado'),
+            _RecentTab.concluidos => _listaDeConcluidos(concluidos),
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _listaDeItens(List<MobileWorkItemContract> itens, String vazio) {
+    if (itens.isEmpty) return _vazio('Nenhum atendimento $vazio agora.');
+    return _Rows(
+      children: [
+        for (final item in itens)
+          WorkItemRow(
+            key: ValueKey(item.id),
+            item: item,
+            currentUserId: widget.currentUserId,
+            onOpen: () => context.push(OrbitRoutes.workItemDetail(item.id)),
+          ),
+      ],
+    );
+  }
+
+  Widget _listaDeConcluidos(List<MobileCompletedWorkContract> itens) {
+    if (itens.isEmpty) return _vazio('Nenhum atendimento concluído ainda.');
+    return _Rows(
+      children: [
+        for (final item in itens)
+          OrbitListRow(
+            key: ValueKey(item.id),
+            leading: OrbitFormat.weekdayAndDay(item.completedAt),
+            title: item.customerName ?? item.title,
+            subtitle: item.customerName == null ? null : item.title,
+            detail: [
+              item.code,
+              if (item.equipmentName != null) item.equipmentName!,
+            ].join(' · '),
+            trailing: const OrbitStatusBadge(
+              label: 'Concluído',
+              tone: OrbitTone.success,
+            ),
+            onTap: () => context.push(OrbitRoutes.operationDetail(item.id)),
+          ),
+      ],
+    );
+  }
+
+  Widget _vazio(String mensagem) => Padding(
+    padding: const EdgeInsets.symmetric(
+      horizontal: OrbitSpacing.ml,
+      vertical: OrbitSpacing.lg,
+    ),
+    child: Text(
+      mensagem,
+      style: OrbitType.body.copyWith(color: context.orbit.inkSubtle),
+      textAlign: TextAlign.center,
+    ),
+  );
+}
+
+/// As três abas do recorte.
+class _RecentTabs extends StatelessWidget {
+  const _RecentTabs({
+    required this.atual,
+    required this.onChanged,
+    required this.contagens,
+  });
+
+  final _RecentTab atual;
+  final ValueChanged<_RecentTab> onChanged;
+  final Map<_RecentTab, int> contagens;
+
+  static const _rotulos = <_RecentTab, String>{
+    _RecentTab.abertos: 'Abertos',
+    _RecentTab.proximos: 'Próximos',
+    _RecentTab.concluidos: 'Concluídos',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.orbit;
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: palette.surfaceSunken,
+        borderRadius: OrbitRadius.pill,
+      ),
+      child: Row(
+        children: [
+          for (final aba in _RecentTab.values)
+            Expanded(
+              child: Semantics(
+                selected: aba == atual,
+                button: true,
+                child: GestureDetector(
+                  onTap: () => onChanged(aba),
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    decoration: BoxDecoration(
+                      color: aba == atual ? palette.surface : null,
+                      borderRadius: OrbitRadius.pill,
+                      boxShadow: aba == atual ? OrbitShadow.card : null,
+                    ),
+                    child: Text(
+                      _rotulos[aba]!,
+                      textAlign: TextAlign.center,
+                      style: OrbitType.label.copyWith(
+                        fontSize: 13,
+                        color: aba == atual ? palette.ink : palette.inkSubtle,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Linha 1 — quem está usando, e o que dá para fazer sem descer a tela.
+///
+/// ## Por que o avatar fica aqui
+///
+/// Não é enfeite: é a confirmação de **em nome de quem** as ações vão sair.
+/// Quem opera com o telefone de outra pessoa, ou troca de unidade no meio do
+/// dia, precisa dessa âncora antes de tocar em qualquer botão.
+///
+/// O sino carrega a contagem que o servidor mandou, não uma soma feita aqui:
+/// contar as não lidas da página traria o número da página, não o total.
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.userName,
+    this.avatarUrl,
+    this.unitName,
+    this.now,
+    this.unread = 0,
+  });
+
+  final String? userName;
+  final String? avatarUrl;
+  final String? unitName;
+  final DateTime? now;
+  final int unread;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.orbit;
+    final agora = now ?? DateTime.now();
+    final primeiroNome = userName?.trim().split(' ').first;
+
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: OrbitSpacing.md,
+        bottom: OrbitSpacing.lg,
+      ),
+      child: Row(
+        children: [
+          OrbitAvatar(
+            initials: _iniciais(userName),
+            url: avatarUrl,
+            size: 46,
+          ),
+          const SizedBox(width: OrbitSpacing.ms),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  greetingFor(agora.hour, primeiroNome),
+                  style: OrbitType.itemTitle.copyWith(
+                    color: palette.ink,
+                    fontSize: 17,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  [todayShort(agora), if (unitName != null) unitName!]
+                      .join(' · '),
+                  style: OrbitType.caption.copyWith(color: palette.inkSubtle),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+
+          _HeaderAction(
+            icon: Icons.notifications_none_rounded,
+            label: 'Notificações',
+            badge: unread,
+            onTap: () => context.push(OrbitRoutes.notifications),
           ),
         ],
       ),
@@ -394,11 +891,92 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// A saudação do relógio do aparelho.
-///
-/// É o único lugar da tela onde a hora local decide alguma coisa — e decide
-/// só a palavra. Prazo, "hoje" e atraso continuam vindo do servidor, no fuso
-/// da unidade, porque quem viaja atravessa fusos e a operação não.
+/// Um botão de ação do cabeçalho, com contador opcional.
+class _HeaderAction extends StatelessWidget {
+  const _HeaderAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.badge = 0,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final int badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.orbit;
+    return Semantics(
+      button: true,
+      label: badge > 0 ? '$label, $badge não lidas' : label,
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.only(left: OrbitSpacing.sm),
+        child: InkResponse(
+          onTap: onTap,
+          radius: 24,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: palette.surface,
+                  borderRadius: OrbitRadius.chip,
+                  border: Border.all(color: palette.border),
+                ),
+                child: Icon(icon, size: 20, color: palette.ink),
+              ),
+              if (badge > 0)
+                Positioned(
+                  top: -3,
+                  right: -3,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 18),
+                    decoration: BoxDecoration(
+                      color: palette.danger,
+                      borderRadius: OrbitRadius.pill,
+                      border: Border.all(color: palette.background, width: 1.5),
+                    ),
+                    child: Text(
+                      badge > 99 ? '99+' : '$badge',
+                      textAlign: TextAlign.center,
+                      style: OrbitType.label.copyWith(
+                        color: Colors.white,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// As iniciais de quem está usando — duas, no máximo.
+String _iniciais(String? nome) {
+  final partes = (nome ?? '')
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((parte) => parte.isNotEmpty)
+      .toList();
+  if (partes.isEmpty) return '?';
+  if (partes.length == 1) return partes.first.characters.first.toUpperCase();
+  return (partes.first.characters.first + partes.last.characters.first)
+      .toUpperCase();
+}
+
+/// A saudação, pelo relógio de quem lê.
 String greetingFor(int hour, String? name) {
   final saudacao = switch (hour) {
     >= 5 && < 12 => 'Bom dia',
@@ -408,17 +986,18 @@ String greetingFor(int hour, String? name) {
   return name == null || name.isEmpty ? saudacao : '$saudacao, $name';
 }
 
-/// `Sexta-feira, 06 de setembro` — com inicial maiúscula.
-String todayLabel(DateTime now) {
-  final texto = OrbitFormat.weekdayAndDay(now);
-  return texto.isEmpty ? texto : texto[0].toUpperCase() + texto.substring(1);
-}
+/// A data de hoje, por extenso e curta.
+String todayLabel(DateTime now) => OrbitFormat.weekdayAndDay(now);
 
-/// O que dá para fazer daqui, sem procurar.
+/// A mesma data, curta, para dividir a linha com o nome da unidade.
 ///
-/// Só entram ações que a sessão realmente permite: `canScanEquipment` e
-/// `canCreateAdHocRvt` vêm do servidor. Botão que existe e recusa é pior do
-/// que botão que não existe.
+/// "terça-feira, 08 de setembro · Unidade Recife" não cabe em 390 pixels, e o
+/// que some na reticência é justamente a unidade — o dado que diz de onde as
+/// ações vão sair.
+String todayShort(DateTime now) => DateFormat('E, d MMM', 'pt_BR')
+    .format(now)
+    .replaceAll('.', '');
+
 class _QuickActions extends StatelessWidget {
   const _QuickActions({required this.dashboard});
 
@@ -429,7 +1008,7 @@ class _QuickActions extends StatelessWidget {
     final acoes = <Widget>[
       OrbitQuickAction(
         icon: Icons.checklist_rtl_outlined,
-        label: 'Minha fila',
+        label: 'Atendimentos',
         onTap: () => context.go(OrbitRoutes.workQueue),
       ),
       OrbitQuickAction(
@@ -437,74 +1016,52 @@ class _QuickActions extends StatelessWidget {
         label: 'Agenda',
         onTap: () => context.go(OrbitRoutes.agenda),
       ),
+
+      /// Ler etiqueta só aparece quando o servidor permite. A capacidade é
+      /// dele; esconder o botão é a tela obedecendo, não decidindo.
+      if (dashboard.canScanEquipment)
+        OrbitQuickAction(
+          icon: Icons.qr_code_scanner,
+          label: 'QR',
+
+          /// A câmera precisa da tela inteira; o **resultado** não. O leitor
+          /// devolve o token e o equipamento aparece numa folha por cima da
+          /// home — quem só queria saber "que equipamento é este" não troca
+          /// de contexto por uma pergunta de dois segundos.
+          onTap: () async {
+            final token = await context.push<String>(
+              OrbitRoutes.scanner,
+              extra: const EquipmentScannerRequest(returnsToken: true),
+            );
+            if (token == null || !context.mounted) return;
+            await showEquipmentSheet(context, token);
+          },
+        ),
       OrbitQuickAction(
         icon: Icons.description_outlined,
         label: 'Documentos',
         onTap: () => context.go(OrbitRoutes.documents),
       ),
-      if (dashboard.canScanEquipment)
-        OrbitQuickAction(
-          icon: Icons.qr_code_scanner,
-          label: 'Ler etiqueta',
-          onTap: () => context.push(OrbitRoutes.scanner),
-        ),
     ];
 
-    return LayoutBuilder(builder: (context, constraints) {
-      final columns = MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 2 : acoes.length;
-      return Wrap(children: [for (final action in acoes)
-        SizedBox(width: constraints.maxWidth / columns, child: action)]);
-    });
-  }
-}
-
-/// Uma seção de itens de trabalho, como lista.
-class _ItemSection extends StatelessWidget {
-  const _ItemSection({
-    required this.title,
-    required this.items,
-    required this.currentUserId,
-    this.count,
-    this.onSeeAll,
-    this.seeAllLabel,
-  });
-
-  final String title;
-  final int? count;
-  final List<MobileWorkItemContract> items;
-  final String? currentUserId;
-  final VoidCallback? onSeeAll;
-  final String? seeAllLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    /// A contagem do servidor pode ser maior do que a lista: o painel entrega
-    /// no máximo cinco por recorte. Dizer "Hoje 12" com cinco linhas é
-    /// honesto; inventar doze linhas não seria. Ela vai como selo ao lado do
-    /// título, e não concatenada no texto.
-    final contagem = count == null || count == items.length ? null : count;
-
-    return OrbitSection(
-      title: title,
-      count: contagem,
-      action: onSeeAll,
-      actionLabel: seeAllLabel,
-      child: _Rows(
-        children: [
-          for (final item in items)
-            WorkItemRow(
-              key: ValueKey(item.id),
-              item: item,
-              currentUserId: currentUserId,
-              onOpen: () => context.push(OrbitRoutes.workItemDetail(item.id)),
-            ),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        final columns = scale > 1.7
+            ? 1
+            : scale > 1.2
+            ? 2
+            : acoes.length;
+        return Wrap(
+          children: [
+            for (final action in acoes)
+              SizedBox(width: constraints.maxWidth / columns, child: action),
+          ],
+        );
+      },
     );
   }
 }
-
-/// Linhas com separador entre elas — nunca depois da última.
 class _Rows extends StatelessWidget {
   const _Rows({required this.children});
 
@@ -537,27 +1094,6 @@ class _DocumentRow extends StatelessWidget {
     onTap: () => context.go(OrbitRoutes.documents),
   );
 }
-
-class _AppointmentRow extends StatelessWidget {
-  const _AppointmentRow({required this.appointment});
-
-  final MobileRecentAppointmentContract appointment;
-
-  @override
-  Widget build(BuildContext context) => OrbitListRow(
-    leading: OrbitFormat.hourOf(appointment.startsAt),
-    title: appointment.customerName ?? appointment.title,
-    subtitle: appointment.customerName == null ? null : appointment.title,
-    detail: OrbitFormat.dateHourOf(appointment.startsAt),
-    onTap: () => context.go(OrbitRoutes.agenda),
-  );
-}
-
-/// A atualização que não veio.
-///
-/// Uma linha, no topo, acima do trabalho — e não uma tela por cima dele. O que
-/// está abaixo continua sendo o que o servidor disse por último, e continua
-/// servindo para trabalhar.
 class _RefreshFailedNotice extends StatelessWidget {
   const _RefreshFailedNotice();
 

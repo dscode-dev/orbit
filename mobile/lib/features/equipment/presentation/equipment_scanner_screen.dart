@@ -17,6 +17,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/contracts/equipment_qr_contracts.dart';
@@ -28,8 +29,40 @@ import '../../../core/widgets/section_states.dart';
 import '../application/equipment_qr_providers.dart';
 import '../data/equipment_qr_repository.dart';
 
+/// Como o leitor foi chamado.
+///
+/// Vai no `extra` da rota porque é configuração de abertura, não identidade:
+/// o caminho `/etiqueta` é o mesmo nos dois modos, e transformá-lo em dois
+/// caminhos só para carregar um booleano espalharia a decisão pelo roteador.
+class EquipmentScannerRequest {
+  const EquipmentScannerRequest({this.returnsToken = false});
+
+  /// Lê o pedido do `extra` da rota.
+  ///
+  /// `extra` é `Object?` — qualquer coisa cabe ali, inclusive nada. Um valor
+  /// inesperado tem de cair no modo padrão, e não derrubar a tela: um leitor
+  /// que abre errado é recuperável, um que não abre não é.
+  factory EquipmentScannerRequest.fromExtra(Object? extra) =>
+      extra is EquipmentScannerRequest
+      ? extra
+      : const EquipmentScannerRequest();
+
+  final bool returnsToken;
+}
+
 class EquipmentScannerScreen extends ConsumerStatefulWidget {
-  const EquipmentScannerScreen({super.key});
+  const EquipmentScannerScreen({super.key, this.returnsToken = false});
+
+  /// Devolver o token em vez de mostrar o resultado aqui.
+  ///
+  /// A câmera precisa da tela inteira — não há como enquadrar uma etiqueta
+  /// numa folha de 40% da altura. Mas o **resultado** não precisa: quem abriu
+  /// o leitor a partir da tela inicial volta para ela, e o equipamento surge
+  /// numa folha por cima, sem trocar de contexto.
+  ///
+  /// Quando `false`, o leitor continua se bastando: resolve e mostra ali
+  /// mesmo, que é o certo para quem entrou pelo caminho do leitor.
+  final bool returnsToken;
 
   @override
   ConsumerState<EquipmentScannerScreen> createState() =>
@@ -64,6 +97,10 @@ class _EquipmentScannerScreenState
       if (valor == null) continue;
       final token = equipmentQrToken(valor);
       if (token != null) {
+        if (widget.returnsToken) {
+          context.pop(token);
+          return;
+        }
         setState(() {
           _token = token;
           _naoReconhecido = false;
@@ -316,11 +353,44 @@ class _EquipmentManualEntrySheetState
 }
 
 /// O equipamento que a etiqueta identificou.
+/// Abre o equipamento lido numa folha, por cima de onde a pessoa estava.
+///
+/// Existe para a tela inicial: de lá, ler etiqueta é uma consulta rápida —
+/// "que equipamento é este?" — e mandar a pessoa para outra tela, com botão de
+/// voltar, é atrito para uma pergunta de dois segundos.
+Future<void> showEquipmentSheet(BuildContext context, String token) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    backgroundColor: context.orbit.background,
+    builder: (context) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.62,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      builder: (context, scrollController) => _Resultado(
+        token: token,
+        onFechar: () => Navigator.of(context).pop(),
+        scrollController: scrollController,
+      ),
+    ),
+  );
+}
+
 class _Resultado extends ConsumerWidget {
-  const _Resultado({required this.token, required this.onFechar});
+  const _Resultado({
+    required this.token,
+    required this.onFechar,
+    this.scrollController,
+  });
 
   final String token;
   final VoidCallback onFechar;
+
+  /// Dado pela folha arrastável, para o gesto de arrastar e o de rolar serem
+  /// o mesmo. Sem ele, puxar a lista para cima fecharia a folha.
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -346,7 +416,11 @@ class _Resultado extends ConsumerWidget {
               TextButton(onPressed: onFechar, child: const Text('Ler outra')),
             ],
           ),
-          data: (dados) => _Equipamento(equipment: dados, onFechar: onFechar),
+          data: (dados) => _Equipamento(
+            equipment: dados,
+            onFechar: onFechar,
+            scrollController: scrollController,
+          ),
         ),
       ),
     );
@@ -354,10 +428,15 @@ class _Resultado extends ConsumerWidget {
 }
 
 class _Equipamento extends StatelessWidget {
-  const _Equipamento({required this.equipment, required this.onFechar});
+  const _Equipamento({
+    required this.equipment,
+    required this.onFechar,
+    this.scrollController,
+  });
 
   final EquipmentQrResolvedContract equipment;
   final VoidCallback onFechar;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -369,6 +448,7 @@ class _Equipamento extends StatelessWidget {
     ].whereType<String>().where((parte) => parte.isNotEmpty).join(' · ');
 
     return ListView(
+      controller: scrollController,
       padding: const EdgeInsets.only(bottom: OrbitSpacing.lg),
       children: [
         Padding(

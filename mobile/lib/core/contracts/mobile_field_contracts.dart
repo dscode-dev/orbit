@@ -630,11 +630,49 @@ class MobileRecentAppointmentContract {
 /// O painel do técnico mais duas listas curtas. Montar "documentos recentes"
 /// no aplicativo custaria uma requisição por atendimento da fila — a cascata
 /// que esta agregação existe para evitar.
+/// Um atendimento que já foi concluído.
+///
+/// Não é item de fila: a fila lista o que falta e exclui concluídos. Este é o
+/// histórico curto que a tela inicial mostra na aba "Concluídos".
+class MobileCompletedWorkContract {
+  const MobileCompletedWorkContract({
+    required this.id,
+    required this.code,
+    required this.title,
+    required this.kind,
+    required this.completedAt,
+    this.customerName,
+    this.equipmentName,
+  });
+
+  factory MobileCompletedWorkContract.fromJson(Map<String, dynamic> json) =>
+      MobileCompletedWorkContract(
+        id: json['id'] as String? ?? '',
+        code: json['code'] as String? ?? '',
+        title: json['title'] as String? ?? '',
+        kind: json['kind'] as String? ?? '',
+        customerName: json['customerName'] as String?,
+        equipmentName: json['equipmentName'] as String?,
+        completedAt:
+            DateTime.tryParse(json['completedAt'] as String? ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0),
+      );
+
+  final String id;
+  final String code;
+  final String title;
+  final String kind;
+  final String? customerName;
+  final String? equipmentName;
+  final DateTime completedAt;
+}
+
 class MobileFieldHomeContract {
   const MobileFieldHomeContract({
     required this.dashboard,
     required this.recentDocuments,
     required this.recentAppointments,
+    this.recentlyCompleted = const [],
   });
 
   factory MobileFieldHomeContract.fromJson(Map<String, dynamic> json) =>
@@ -651,9 +689,39 @@ class MobileFieldHomeContract {
                 .whereType<Map<String, dynamic>>()
                 .map(MobileRecentAppointmentContract.fromJson)
                 .toList(growable: false),
+        recentlyCompleted:
+            (json['recentlyCompleted'] as List<dynamic>? ?? const [])
+                .whereType<Map<String, dynamic>>()
+                .map(MobileCompletedWorkContract.fromJson)
+                .toList(growable: false),
       );
 
   final MobileFieldDashboardContract dashboard;
   final List<MobileRecentDocumentContract> recentDocuments;
   final List<MobileRecentAppointmentContract> recentAppointments;
+  final List<MobileCompletedWorkContract> recentlyCompleted;
+}
+
+/// Um cliente com trabalho na fila desta pessoa.
+///
+/// Vem de `/mobile/field/queue-customers`, e não da lista de clientes da
+/// organização: filtrar por um cliente sem trabalho devolveria uma tela vazia
+/// que parece defeito. `workCount` é o que torna a escolha informada.
+class MobileQueueCustomerContract {
+  const MobileQueueCustomerContract({
+    required this.id,
+    required this.name,
+    required this.workCount,
+  });
+
+  factory MobileQueueCustomerContract.fromJson(Map<String, dynamic> json) =>
+      MobileQueueCustomerContract(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        workCount: (json['workCount'] as num?)?.toInt() ?? 0,
+      );
+
+  final String id;
+  final String name;
+  final int workCount;
 }
