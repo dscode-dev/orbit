@@ -26,6 +26,7 @@ import '../../features/sync/presentation/sync_triggers.dart';
 import '../../features/operations/presentation/operation_detail_screen.dart';
 import '../../features/operations/presentation/operations_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/profile/presentation/settings_screen.dart';
 import '../../features/scheduling/presentation/agenda_screen.dart';
 import '../../features/documents/presentation/documents_screen.dart';
 import '../../features/equipment/presentation/equipment_scanner_screen.dart';
@@ -72,6 +73,9 @@ abstract final class OrbitRoutes {
 
   /// A fila local: o que ainda não chegou ao servidor.
   static const syncCenter = '/perfil/sincronizacao';
+
+  /// Configurações do aplicativo — avisos e o que é deste aparelho.
+  static const settings = '/perfil/configuracoes';
 
   /// A assinatura profissional pertence ao usuário: mora sob o perfil.
   static const mySignature = '/perfil/assinatura';
@@ -228,6 +232,15 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: 'sincronizacao',
                 parentNavigatorKey: _rootNavigatorKey,
                 builder: (context, state) => const SyncCenterScreen(),
+              ),
+
+              /// Neta da `ShellRoute`, e não filha — por isso pode carregar
+              /// a chave do navegador raiz. Numa filha direta do shell essa
+              /// mesma chave derruba o aplicativo na abertura.
+              GoRoute(
+                path: 'configuracoes',
+                parentNavigatorKey: _rootNavigatorKey,
+                builder: (context, state) => const SettingsScreen(),
               ),
             ],
           ),

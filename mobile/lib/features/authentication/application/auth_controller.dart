@@ -101,6 +101,29 @@ class AuthController extends StateNotifier<AuthState> {
     state = const AuthUnauthenticated();
   }
 
+  /// Aplica os dados que a pessoa acabou de editar sobre si.
+  ///
+  /// Sem recompor a sessão inteira: organização, plano e claims não mudaram
+  /// porque alguém corrigiu o próprio telefone, e recarregá-los custaria
+  /// três requisições para atualizar um campo que já veio na resposta do
+  /// `PATCH`.
+  void applyUser(OrbitUser user) {
+    final current = state;
+    if (current is! AuthAuthenticated) return;
+    state = AuthAuthenticated(current.session.copyWith(user: user));
+  }
+
+  /// Recarrega o perfil do servidor, mantendo o resto da sessão.
+  ///
+  /// Existe para o que **não** volta na resposta de um comando: o endereço
+  /// da foto é assinado e temporário, e só o `GET /identity/me` o traz.
+  Future<void> refreshProfile() async {
+    final current = state;
+    if (current is! AuthAuthenticated) return;
+    final user = await _repository.loadProfile();
+    state = AuthAuthenticated(current.session.copyWith(user: user));
+  }
+
   /// Troca a unidade ativa.
   ///
   /// O backend aceita `businessUnitId` como filtro em várias consultas, então a

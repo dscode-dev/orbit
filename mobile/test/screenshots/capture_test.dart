@@ -34,6 +34,7 @@ import '../support/scripted_adapter.dart';
 import 'harness.dart';
 import 'package:orbit_operator/features/documents/presentation/documents_screen.dart';
 import 'package:orbit_operator/features/profile/presentation/profile_screen.dart';
+import 'package:orbit_operator/features/profile/presentation/settings_screen.dart';
 import 'package:orbit_operator/core/design/orbit_operational.dart';
 import 'package:orbit_operator/core/routing/app_shell.dart';
 import 'package:orbit_operator/core/routing/orbit_router.dart';
@@ -250,6 +251,36 @@ Widget host(
     /// aqui o carrossel simplesmente não aparece na captura.
     /// Clientes do filtro: sem esta resposta a folha mostra um erro na
     /// captura, e o erro é do fixture, não da tela.
+    /// Preferências de aviso: `data` é uma **lista**, não um objeto.
+    ///
+    /// O fixture antigo vinha embrulhado duas vezes (`data.data`), e o
+    /// repositório desembrulhava duas vezes junto — os dois errados do mesmo
+    /// jeito, então a captura passava. Contra o servidor de verdade a tela
+    /// mostraria tudo ligado, em silêncio.
+    if (options.uri.path.endsWith('/notifications/preferences')) {
+      return jsonResponse({
+        'success': true,
+        'data': [
+          {
+            'type': 'WORK_ASSIGNED',
+            'enabled': true,
+            'channels': ['IN_APP', 'REALTIME', 'PUSH'],
+          },
+
+          /// Um desligado de propósito: com todos ligados a captura não
+          /// mostraria como é o estado desligado.
+          {
+            'type': 'SYNC_ATTENTION_REQUIRED',
+            'enabled': false,
+            'channels': <String>[],
+          },
+
+          /// `ARTIFACT_AVAILABLE` fica **ausente** — é o caso que o servidor
+          /// não guarda, e que a tela precisa desenhar como ligado.
+        ],
+      });
+    }
+
     if (options.uri.path.endsWith('/mobile/field/customers')) {
       return jsonResponse({
         'success': true,
@@ -630,25 +661,61 @@ void registerCaptures() {
     await tester.pumpWidget(host({}, const ProfileScreen(), profile: true));
     await tester.pumpAndSettle();
     await _settleMemoryImages(tester);
-    expect(
-      tester.getTopLeft(find.text('Perfil no app')).dx,
-      OrbitSpacing.gutter,
-    );
-    expect(tester.getSize(find.byType(OrbitAvatar)).width, 56);
-    final preview = tester.widget<Image>(
-      find.descendant(
-        of: find.byKey(const Key('signature.preview.image')),
-        matching: find.byType(Image),
-      ),
-    );
-    expect(
-      sha256.convert((preview.image as MemoryImage).bytes),
-      sha256.convert(_signaturePng),
-    );
+
+    /// A foto é o tema da tela, não um canto dela: 88 pixels, centralizada.
+    expect(tester.getSize(find.byType(OrbitAvatar)).width, 88);
+    final avatar = tester.getCenter(find.byType(OrbitAvatar)).dx;
+    expect(avatar, closeTo(captureWidth / 2, 1));
+
+    /// Os dois atalhos arredondados, lado a lado.
+    expect(find.text('Assinatura'), findsOneWidget);
+    expect(find.text('Configurações'), findsOneWidget);
+
     await expectLater(
       find.byType(MaterialApp),
       matchesGoldenFile(
         'out/${captureWidth.toInt()}_$captureScale/06_perfil.png',
+      ),
+    );
+  });
+
+  testWidgets('configuracoes', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+    await tester.pumpWidget(
+      host(const {}, const SettingsScreen(), profile: true),
+    );
+    await tester.pumpAndSettle();
+
+    final interruptores = tester
+        .widgetList<Switch>(find.byType(Switch))
+        .toList();
+    expect(interruptores.length, 3);
+    expect(interruptores[0].value, isTrue);
+    expect(interruptores[1].value, isTrue, reason: 'ausente = ligado');
+    expect(interruptores[2].value, isFalse);
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_$captureScale/06b_configuracoes.png',
+      ),
+    );
+  });
+
+  testWidgets('folha de dados', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+    await tester.pumpWidget(host({}, const ProfileScreen(), profile: true));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Meus dados'));
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_$captureScale/06c_meus_dados.png',
       ),
     );
   });

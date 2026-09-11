@@ -26,47 +26,57 @@ final _png = base64Decode(
   'IQAAAABJRU5ErkJggg==',
 );
 
+/// A assinatura virou um dos dois atalhos arredondados do Perfil.
+///
+/// Antes ela era um bloco com a imagem embutida. O que o atalho **precisa**
+/// continuar fazendo é dizer o estado sem mentir — e é isso que estes testes
+/// prendem: "Pendente" quando não há, "Cadastrada" quando há, e
+/// "Não verificado" quando a leitura falhou. O traço que estava ali antes
+/// passava por "não tem", e levaria alguém a cadastrar de novo o que já
+/// existe. A imagem e o erro com nova tentativa moram na tela da assinatura,
+/// a um toque daqui.
 void main() {
-  testWidgets('Perfil mostra ausência e ação de cadastro', (tester) async {
+  testWidgets('sem assinatura, o atalho diz pendente', (tester) async {
     await tester.pumpWidget(_host(available: false));
     await tester.pumpAndSettle();
 
-    expect(find.text('Minha assinatura'), findsOneWidget);
-    expect(find.textContaining('Cadastre sua assinatura'), findsOneWidget);
-    expect(find.text('Cadastrar assinatura'), findsOneWidget);
+    expect(find.text('Assinatura'), findsOneWidget);
+    expect(find.text('Pendente'), findsOneWidget);
     expect(find.byKey(const Key('signature.preview.image')), findsNothing);
   });
 
-  testWidgets('Perfil mostra a imagem ativa real e ação de alteração', (
-    tester,
-  ) async {
+  testWidgets('com assinatura, o atalho diz cadastrada', (tester) async {
     await tester.pumpWidget(_host(available: true));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('signature.preview.image')), findsOneWidget);
-    expect(find.textContaining('Atualizada em'), findsOneWidget);
-    expect(find.text('Alterar assinatura'), findsOneWidget);
+    expect(find.text('Cadastrada'), findsOneWidget);
+    expect(find.text('Pendente'), findsNothing);
   });
 
-  testWidgets('Perfil mantém placeholder discreto durante leitura', (
-    tester,
-  ) async {
+  testWidgets('durante a leitura o atalho não afirma nada', (tester) async {
     final pending = Completer<ResponseBody>();
     await tester.pumpWidget(_host(statusResponse: pending.future));
     await tester.pump();
 
-    expect(find.byType(SectionLoading), findsOneWidget);
+    expect(find.text('Verificando…'), findsOneWidget);
+    expect(find.text('Pendente'), findsNothing);
+
     pending.complete(_statusResponse(available: false));
     await tester.pumpAndSettle();
-    expect(find.text('Cadastrar assinatura'), findsOneWidget);
+    expect(find.text('Pendente'), findsOneWidget);
   });
 
-  testWidgets('Perfil redige erro e oferece nova tentativa', (tester) async {
+  testWidgets('leitura falhada não vira "pendente" nem vaza o host', (
+    tester,
+  ) async {
     await tester.pumpWidget(_host(statusCode: 503));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SectionError), findsOneWidget);
-    expect(find.text('Tentar novamente'), findsOneWidget);
+    /// O erro não pode virar "Pendente": isso faria a pessoa cadastrar de
+    /// novo uma assinatura que está lá.
+    expect(find.text('Não verificado'), findsOneWidget);
+    expect(find.text('Pendente'), findsNothing);
+
     expect(find.textContaining('/mobile/field'), findsNothing);
     expect(find.textContaining('10.0.2.2'), findsNothing);
   });

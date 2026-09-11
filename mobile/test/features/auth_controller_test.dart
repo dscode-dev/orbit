@@ -122,6 +122,50 @@ void main() {
     expect(controller.state, isA<AuthAuthenticated>());
   });
 
+  test('applyUser troca o usuário sem recompor o resto da sessão', () async {
+    /// Editar o próprio telefone não pode custar três requisições — e, mais
+    /// importante, não pode derrubar organização e plano da sessão. Sem
+    /// aplicar nada, a pessoa salva, fecha a folha e continua vendo o nome
+    /// antigo no topo da tela: conclui que não salvou, e salva de novo.
+    when(
+      () => repository.readClaims(),
+    ).thenAnswer((_) async => AuthRepository.decodeClaims(fakeAccessToken()));
+    when(() => repository.loadProfile()).thenAnswer((_) async => _user);
+    when(
+      () => repository.loadOrganization(),
+    ).thenAnswer((_) async => _organization);
+    when(
+      () => repository.loadEntitlements(),
+    ).thenAnswer((_) async => _entitlements);
+
+    final controller = buildController(repository);
+    await controller.restore();
+    final antes = (controller.state as AuthAuthenticated).session;
+
+    /// Zera o que a restauração registrou: o que interessa é o que
+    /// `applyUser` chama, e a restauração legitimamente chamou tudo.
+    clearInteractions(repository);
+
+    controller.applyUser(
+      const OrbitUser(
+        id: 'user-1',
+        email: 'tecnico@acme.com',
+        displayName: 'Marina D. Duarte',
+        phone: '+55 81 99999-0000',
+      ),
+    );
+
+    final depois = (controller.state as AuthAuthenticated).session;
+    expect(depois.user.displayName, 'Marina D. Duarte');
+    expect(depois.user.phone, '+55 81 99999-0000');
+
+    /// O resto da sessão é o mesmo objeto: nada foi recarregado.
+    expect(depois.organization, same(antes.organization));
+    expect(depois.entitlements, same(antes.entitlements));
+    expect(depois.claims, same(antes.claims));
+    verifyNever(() => repository.loadOrganization());
+  });
+
   test('logout limpa a sessão', () async {
     when(
       () => repository.readClaims(),
