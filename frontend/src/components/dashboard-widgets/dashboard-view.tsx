@@ -39,11 +39,8 @@ import {
 } from "@/types/dashboard";
 import { formatDateTime } from "@/lib/formatters";
 import { PanelError, toPanelQuery } from "@/components/panels";
-import {
-  resolveWidgets,
-  WIDGET_SPAN,
-  type WidgetDataSources,
-} from "./widget-registry";
+import { resolveWidgets, type WidgetDataSources } from "./widget-registry";
+import { ehEstreito, organizarPainel } from "./dashboard-layout";
 
 export function DashboardView() {
   const [range, setRange] = useState<DashboardRangeKey>("30D");
@@ -89,6 +86,25 @@ export function DashboardView() {
   };
 
   const widgets = layout.data ? resolveWidgets(layout.data.layout.widgets) : [];
+
+  /**
+   * As seções do painel, e o componente de cada widget por id.
+   *
+   * O mapa existe para o `organizarPainel` poder trabalhar só com o widget —
+   * a arrumação depende do tamanho, não do componente — sem obrigar a
+   * renderização a procurar em lista a cada item.
+   */
+  const secoes = organizarPainel(widgets.map((item) => item.widget));
+  const componentePorId = new Map(
+    widgets.map((item) => [item.widget.id, item] as const),
+  );
+
+  const renderizar = (id: string) => {
+    const item = componentePorId.get(id);
+    if (!item) return null;
+    const { widget, Component } = item;
+    return <Component widget={widget} {...sources} />;
+  };
 
   return (
     <ContentContainer size="wide" className="space-y-8">
@@ -172,15 +188,58 @@ export function DashboardView() {
           Nenhum widget disponível para o seu plano e permissões.
         </p>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-12">
-          {widgets.map(({ widget, Component }) => (
-            <div
-              key={widget.id}
-              className={cn("min-w-0", WIDGET_SPAN[widget.size])}
-            >
-              <Component widget={widget} {...sources} />
-            </div>
-          ))}
+        <div className="space-y-6">
+          {secoes.map((secao, posicao) =>
+            secao.tipo === "faixa" ? (
+              <div key={secao.widget.id} className="min-w-0">
+                {renderizar(secao.widget.id)}
+              </div>
+            ) : (
+              <div
+                key={`bloco-${posicao}`}
+                className="grid gap-6 lg:grid-cols-12"
+              >
+                {/*
+                    Coluna principal. Os estreitos se emparelham de dois em
+                    dois; os largos ocupam a coluna inteira.
+                  */}
+                <div
+                  className={cn(
+                    "grid min-w-0 gap-6 sm:grid-cols-2",
+                    secao.lateral.length > 0
+                      ? "lg:col-span-8"
+                      : "lg:col-span-12",
+                  )}
+                >
+                  {secao.principal.map((widget) => (
+                    <div
+                      key={widget.id}
+                      className={cn(
+                        "min-w-0",
+                        ehEstreito(widget) ? "" : "sm:col-span-2",
+                      )}
+                    >
+                      {renderizar(widget.id)}
+                    </div>
+                  ))}
+                </div>
+
+                {/*
+                    Coluna lateral. Empilha por conta própria: é isso que
+                    impede a altura dela de abrir buraco na principal.
+                  */}
+                {secao.lateral.length > 0 ? (
+                  <div className="min-w-0 space-y-6 lg:col-span-4">
+                    {secao.lateral.map((widget) => (
+                      <div key={widget.id} className="min-w-0">
+                        {renderizar(widget.id)}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ),
+          )}
         </div>
       )}
     </ContentContainer>
