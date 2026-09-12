@@ -238,39 +238,32 @@ function RescheduleForm({
   const [start, setStart] = useState(() =>
     toLocalInput(operation.scheduledStart, timeZone),
   );
-  const [end, setEnd] = useState(() =>
-    toLocalInput(operation.scheduledEnd, timeZone),
-  );
 
   return (
     <>
       <DialogHeader>
         <DialogTitle>Reagendar {operation.code}</DialogTitle>
         <DialogDescription>
-          Janela prevista, no fuso {timeZone}. A operação não passa pelo motor
-          de agenda — nenhuma sobreposição é avaliada.
+          Quando o atendimento começa, no fuso {timeZone}. A operação não passa
+          pelo motor de agenda — nenhuma sobreposição é avaliada.
         </DialogDescription>
       </DialogHeader>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="reschedule-start">Início</Label>
-          <Input
-            id="reschedule-start"
-            type="datetime-local"
-            value={start}
-            onChange={(event) => setStart(event.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="reschedule-end">Fim</Label>
-          <Input
-            id="reschedule-end"
-            type="datetime-local"
-            value={end}
-            onChange={(event) => setEnd(event.target.value)}
-          />
-        </div>
+      {/*
+        Só o começo, como na criação.
+
+        Pedir o fim aqui e não lá deixaria o produto incoerente consigo
+        mesmo: o atendimento nasceria sem previsão de término e ganharia uma
+        ao ser remarcado.
+      */}
+      <div className="space-y-2">
+        <Label htmlFor="reschedule-start">Início</Label>
+        <Input
+          id="reschedule-start"
+          type="datetime-local"
+          value={start}
+          onChange={(event) => setStart(event.target.value)}
+        />
       </div>
 
       <MutationError error={update.error} />
@@ -280,13 +273,10 @@ function RescheduleForm({
           Cancelar
         </Button>
         <Button
-          disabled={update.isPending || (!!start && !!end && end < start)}
+          disabled={update.isPending}
           onClick={() =>
             update.mutate(
-              {
-                scheduledStart: toInstant(start, timeZone),
-                scheduledEnd: toInstant(end, timeZone),
-              },
+              { scheduledStart: toInstant(start, timeZone) },
               { onSuccess: onClose },
             )
           }

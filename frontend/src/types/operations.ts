@@ -84,6 +84,17 @@ export interface CreateOperationInput {
   priority?: OperationPriority;
   scheduledStart?: string;
   scheduledEnd?: string;
+
+  /**
+   * Quem executa, e quem acompanha.
+   *
+   * Os dois campos existem no `CreateOperationDto` desde sempre e nenhuma
+   * tela os enviava: o atendimento nascia sem dono, e atribuir dependia de
+   * abrir a operação depois. O formulário passa a oferecê-los.
+   */
+  responsibleFieldTechnicianId?: string;
+  auxiliaryTechnicianIds?: string[];
+
   location?: Record<string, unknown>;
   data?: Record<string, unknown>;
 }

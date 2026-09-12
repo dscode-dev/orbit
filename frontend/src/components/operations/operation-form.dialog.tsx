@@ -57,6 +57,9 @@ import {
   useUpdateOperation,
 } from "@/hooks/operations/use-operations";
 import { instantFromZoned, zonedParts } from "@/lib/scheduling";
+import { X } from "lucide-react";
+
+import { useFieldTechnicians } from "@/hooks/workforce/use-workforce";
 import { useSession } from "@/providers/session-provider";
 import { useActiveScope } from "@/providers/use-active-scope";
 import { OperationKind, OperationPriority } from "@/types/contracts";
@@ -67,6 +70,9 @@ import {
 } from "@/types/operations";
 import { operationKindLabel, operationPriorityLabel } from "./operation-badges";
 
+/** `Select` não aceita item de valor vazio; este é o "ninguém ainda". */
+const SEM_RESPONSAVEL = "__none__";
+
 interface FormState {
   businessUnitId: string;
   code: string;
@@ -75,9 +81,10 @@ interface FormState {
   description: string;
   priority: string;
   startLocal: string;
-  endLocal: string;
   customerId: string;
   assetId: string;
+  responsibleId: string;
+  auxiliaryIds: string[];
 }
 
 /**
@@ -173,8 +180,7 @@ function OperationForm({
     form.businessUnitId.length > 0 &&
     form.code.trim().length >= OPERATION_LIMITS.codeMinLength &&
     form.title.trim().length >= OPERATION_LIMITS.titleMinLength &&
-    form.kind.length > 0 &&
-    (!form.startLocal || !form.endLocal || form.endLocal >= form.startLocal);
+    form.kind.length > 0;
 
   const submit = () => {
     const payload = buildPayload(form, timeZone);
@@ -192,7 +198,8 @@ function OperationForm({
           {editing ? `Editar ${editing.code}` : "Nova operação"}
         </DialogTitle>
         <DialogDescription>
-          Horários no fuso {timeZone}. A situação inicial e as mudanças possíveis seguem as regras do atendimento.
+          Horários no fuso {timeZone}. A situação inicial e as mudanças
+          possíveis seguem as regras do atendimento.
         </DialogDescription>
       </DialogHeader>
 
@@ -275,6 +282,15 @@ function OperationForm({
           </Select>
         </div>
 
+        {/*
+          Só o começo.
+
+          "Fim previsto" saiu: quem agenda sabe quando o técnico chega, não
+          quando termina — a duração depende do que for encontrado no local.
+          Um campo que pede uma previsão que ninguém tem produz dado que
+          ninguém confere. O contrato mantém `scheduledEnd` opcional; o
+          formulário deixa de pedi-lo.
+        */}
         <div className="space-y-2">
           <Label htmlFor="operation-start">Início previsto</Label>
           <Input
@@ -282,16 +298,6 @@ function OperationForm({
             type="datetime-local"
             value={form.startLocal}
             onChange={(event) => edit({ startLocal: event.target.value })}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="operation-end">Fim previsto</Label>
-          <Input
-            id="operation-end"
-            type="datetime-local"
-            value={form.endLocal}
-            onChange={(event) => edit({ endLocal: event.target.value })}
           />
         </div>
 
@@ -335,6 +341,21 @@ function OperationForm({
             setLabels((current) => ({ ...current, asset: label }));
           }}
         />
+
+        {/*
+          Quem executa e quem acompanha.
+
+          Os dois campos existem no contrato desde sempre e nenhuma tela os
+          enviava: o atendimento nascia sem dono, e atribuir exigia abrir a
+          operação depois de criada.
+        */}
+        <div className="sm:col-span-2">
+          <TechnicianAssignment
+            responsibleId={form.responsibleId}
+            auxiliaryIds={form.auxiliaryIds}
+            onChange={(patch) => edit(patch)}
+          />
+        </div>
 
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="operation-description">Descrição</Label>
@@ -407,7 +428,11 @@ function initialState(
       description: editing.description ?? "",
       priority: editing.priority,
       startLocal: toLocalInput(editing.scheduledStart, timeZone),
-      endLocal: toLocalInput(editing.scheduledEnd, timeZone),
+      responsibleId: editing.responsibleFieldTechnicianId ?? "",
+      /// A atribuição carrega `userId`; o `user` aninhado é só para exibir.
+      auxiliaryIds: (editing.auxiliaryTechnicians ?? []).map(
+        (item) => item.userId,
+      ),
       customerId: editing.customerId ?? "",
       assetId: editing.assetId ?? "",
     };
@@ -434,7 +459,8 @@ function initialState(
      * o domínio recusa.
      */
     startLocal: "",
-    endLocal: "",
+    responsibleId: "",
+    auxiliaryIds: [],
     customerId: prefill?.customerId ?? "",
     assetId: prefill?.assetId ?? "",
   };
@@ -449,8 +475,144 @@ function buildPayload(form: FormState, timeZone: string): CreateOperationInput {
     description: form.description.trim() || undefined,
     priority: form.priority as CreateOperationInput["priority"],
     scheduledStart: toInstant(form.startLocal, timeZone),
-    scheduledEnd: toInstant(form.endLocal, timeZone),
+    responsibleFieldTechnicianId: form.responsibleId || undefined,
+    auxiliaryTechnicianIds:
+      form.auxiliaryIds.length > 0 ? form.auxiliaryIds : undefined,
     customerId: form.customerId || undefined,
     assetId: form.assetId || undefined,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Atribuição                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O responsável e os auxiliares do atendimento.
+ *
+ * ## Os dois papéis não são o mesmo com nomes diferentes
+ *
+ * O **responsável** executa: inicia, responde o checklist, registra
+ * evidência, conclui e assina. O **auxiliar** acompanha: no aplicativo de
+ * campo ele lê o atendimento e os documentos já emitidos, e não executa nada.
+ *
+ * Quem garante isso é o servidor, em `MobileFieldOperationService.actions` —
+ * a lista de ações permitidas é dele. Este formulário só declara quem é quem.
+ *
+ * ## Por que uma pessoa não pode ser as duas coisas
+ *
+ * Estar nas duas listas tornaria a pergunta "esta pessoa pode concluir?"
+ * dependente da ordem em que o servidor olhasse as listas. Quem é escolhido
+ * como responsável some das opções de auxiliar, e vice-versa.
+ */
+function TechnicianAssignment({
+  responsibleId,
+  auxiliaryIds,
+  onChange,
+}: {
+  responsibleId: string;
+  auxiliaryIds: string[];
+  onChange: (patch: {
+    responsibleId?: string;
+    auxiliaryIds?: string[];
+  }) => void;
+}) {
+  const technicians = useFieldTechnicians();
+  const pessoas = technicians.data ?? [];
+
+  const nomeDe = (id: string) =>
+    pessoas.find((pessoa) => pessoa.id === id)?.name ?? id;
+
+  const disponiveisComoAuxiliar = pessoas.filter(
+    (pessoa) =>
+      pessoa.id !== responsibleId && !auxiliaryIds.includes(pessoa.id),
+  );
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2">
+        <Label htmlFor="operation-responsible">Técnico responsável</Label>
+        <Select
+          value={responsibleId || SEM_RESPONSAVEL}
+          onValueChange={(value) =>
+            onChange({
+              responsibleId: value === SEM_RESPONSAVEL ? "" : value,
+              /// Se a pessoa já era auxiliar, deixa de ser ao virar
+              /// responsável: os dois papéis se excluem.
+              auxiliaryIds: auxiliaryIds.filter((id) => id !== value),
+            })
+          }
+        >
+          <SelectTrigger id="operation-responsible">
+            <SelectValue placeholder="Definir depois" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={SEM_RESPONSAVEL}>Definir depois</SelectItem>
+            {pessoas
+              .filter((pessoa) => !auxiliaryIds.includes(pessoa.id))
+              .map((pessoa) => (
+                <SelectItem key={pessoa.id} value={pessoa.id}>
+                  {pessoa.name}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Executa o atendimento no aplicativo de campo.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="operation-auxiliary">Auxiliares</Label>
+        <Select
+          value=""
+          onValueChange={(value) =>
+            onChange({ auxiliaryIds: [...auxiliaryIds, value] })
+          }
+          disabled={disponiveisComoAuxiliar.length === 0}
+        >
+          <SelectTrigger id="operation-auxiliary">
+            <SelectValue placeholder="Adicionar auxiliar" />
+          </SelectTrigger>
+          <SelectContent>
+            {disponiveisComoAuxiliar.map((pessoa) => (
+              <SelectItem key={pessoa.id} value={pessoa.id}>
+                {pessoa.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {auxiliaryIds.length > 0 ? (
+          <ul className="flex flex-wrap gap-1.5">
+            {auxiliaryIds.map((id) => (
+              <li key={id}>
+                <span className="inline-flex items-center gap-1 rounded-md bg-surface-strong px-2 py-0.5 text-xs">
+                  {nomeDe(id)}
+                  <button
+                    type="button"
+                    aria-label={`Remover ${nomeDe(id)}`}
+                    onClick={() =>
+                      onChange({
+                        auxiliaryIds: auxiliaryIds.filter(
+                          (item) => item !== id,
+                        ),
+                      })
+                    }
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        <p className="text-xs text-muted-foreground">
+          Acompanham: leem o atendimento e os documentos emitidos, sem executar.
+        </p>
+      </div>
+    </div>
+  );
 }
