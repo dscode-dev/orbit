@@ -98,7 +98,7 @@ export function PmocCoveragePanel({
           icon: <Package className="size-5" />,
           title: "Nenhum equipamento coberto",
           description:
-            "A cobertura define quais equipamentos este plano mantém. Sem cobertura, os ciclos nascem vazios.",
+            "A cobertura define quais equipamentos este plano mantém. Sem cobertura, as execuções nascem vazias.",
           action: canManage ? (
             <Button size="sm" onClick={() => setAdding(true)}>
               <Plus className="size-3.5" />
@@ -202,7 +202,7 @@ export function PmocCoveragePanel({
       {/**
        * Remover da cobertura não apaga histórico.
        *
-       * Os ciclos já cumpridos continuam apontando para o equipamento; o que
+       * As execuções já cumpridas continuam apontando para o equipamento; o que
        * muda é que ele deixa de entrar nos próximos. Por isso a confirmação é
        * simples — a operação não é destrutiva no domínio, e um alerta grave
        * ensinaria o contrário.
@@ -213,7 +213,7 @@ export function PmocCoveragePanel({
           if (!open) setRemoving(null);
         }}
         title="Remover da cobertura"
-        body={`${removing?.name ?? ""} deixará de entrar nos próximos ciclos. Os ciclos já cumpridos permanecem no histórico.`}
+        body={`${removing?.name ?? ""} deixará de entrar nas próximas execuções. As execuções já cumpridas permanecem no histórico.`}
         confirmLabel="Remover"
         isPending={remove.isPending}
         error={remove.error}

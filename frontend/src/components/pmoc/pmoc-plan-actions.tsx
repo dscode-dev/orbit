@@ -55,17 +55,17 @@ const TRANSITIONS: Readonly<
   ACTIVE: {
     label: "Ativar",
     title: "Ativar PMOC",
-    body: "O plano passa a valer: o primeiro ciclo é aberto e a periodicidade começa a contar.",
+    body: "O plano passa a valer: a primeira execução é aberta e a periodicidade começa a contar.",
   },
   SUSPENDED: {
     label: "Suspender",
     title: "Suspender PMOC",
-    body: "Novos ciclos deixam de ser gerados e as execuções ficam indisponíveis enquanto o plano estiver suspenso. O histórico permanece.",
+    body: "Novas execuções deixam de ser abertas, e as já abertas ficam indisponíveis enquanto o plano estiver suspenso. O histórico permanece.",
   },
   CANCELLED: {
     label: "Cancelar plano",
     title: "Cancelar PMOC",
-    body: "O encerramento é definitivo — o plano não volta a valer. Os ciclos já cumpridos e os documentos emitidos permanecem no histórico.",
+    body: "O encerramento é definitivo — o plano não volta a valer. As execuções já cumpridas e os documentos emitidos permanecem no histórico.",
     destructive: true,
   },
 };

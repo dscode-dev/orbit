@@ -111,6 +111,21 @@ export class PmocController {
     return this.pmoc.create(this.actor(request), input);
   }
 
+  /**
+   * Nomes sugeridos para um plano.
+   *
+   * Catálogo da plataforma, igual para todo inquilino — por isso exige só
+   * leitura de PMOC, e não `pmoc.manage`: quem consulta a lista ainda não
+   * está criando nada.
+   */
+  @Get('plan-name-options')
+  @Capabilities('pmoc.read')
+  @Permissions('pmoc.read')
+  @ApiOperation({ summary: 'Nomes sugeridos para um plano de PMOC' })
+  planNameOptions() {
+    return this.pmoc.planNameOptions();
+  }
+
   @Get('code-suggestion')
   @Capabilities('pmoc.manage')
   @Permissions('pmoc.manage')

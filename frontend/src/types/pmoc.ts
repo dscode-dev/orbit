@@ -227,3 +227,14 @@ export interface PmocExecutionPreparation {
    */
   allowedActions: readonly string[];
 }
+
+/**
+ * Um nome sugerido para o plano (`GET /pmoc/plan-name-options`).
+ *
+ * Catálogo da plataforma. Quem precisa de um nome fora dele escolhe "Outros"
+ * e digita o seu — esse texto vai para `PmocPlan.name` e não entra aqui.
+ */
+export interface PmocPlanNameOption {
+  key: string;
+  label: string;
+}

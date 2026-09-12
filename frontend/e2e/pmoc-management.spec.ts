@@ -1,5 +1,5 @@
 /**
- * Gestão de PMOC pela interface: cobertura e ciclo de vida do plano.
+ * Gestão de PMOC pela interface: cobertura e vida do plano.
  *
  * Os três buracos que mantiveram a PR-FE-03 aberta — cobertura só de leitura,
  * lifecycle sem superfície e suspensão sem prova — fecham aqui, contra backend
@@ -147,8 +147,8 @@ test("remover da cobertura confirma e persiste", async ({ page }) => {
 
   const confirm = page.getByRole("alertdialog").or(page.getByRole("dialog"));
   await expect(confirm).toBeVisible();
-  /** A frase diz o efeito real: sai dos próximos ciclos, histórico permanece. */
-  await expect(confirm).toContainText(/próximos ciclos/i);
+  /** A frase diz o efeito real: sai das próximas execuções, histórico fica. */
+  await expect(confirm).toContainText(/próximas execuções/i);
   await confirm.getByRole("button", { name: "Remover", exact: true }).click();
   await expect(confirm).toBeHidden({ timeout: 20_000 });
   await settled(page);
@@ -230,7 +230,7 @@ test("suspender o plano bloqueia a execução, com o motivo do servidor", async 
   const plan = await provisionPmocPlan(page, "suspender", 4);
   /**
    * O motivo do bloqueio aparece por equipamento coberto: sem cobertura, a aba
-   * de ciclos não tem linha onde mostrá-lo.
+   * de execuções não tem linha onde mostrá-lo.
    */
   await coverAsset(page, plan.id, plan.assets[0].id);
   await openPlan(page, plan.id, "Visão geral");
@@ -239,21 +239,21 @@ test("suspender o plano bloqueia a execução, com o motivo do servidor", async 
   await page.getByRole("menuitem", { name: "Suspender" }).click();
 
   const confirm = page.getByRole("alertdialog").or(page.getByRole("dialog"));
-  await expect(confirm).toContainText(/execuções ficam indisponíveis/i);
+  await expect(confirm).toContainText(/já abertas ficam indisponíveis/i);
   await confirm.getByRole("button", { name: "Suspender" }).click();
   await expect(confirm).toBeHidden({ timeout: 20_000 });
   await settled(page);
 
   /** O estado é o publicado, e o aviso explica o que ele significa. */
   await expect(page.getByText("Suspenso").first()).toBeVisible();
-  await expect(page.getByText(/novos ciclos não são gerados/i)).toBeVisible();
+  await expect(page.getByText(/novas execuções não são abertas/i)).toBeVisible();
 
   /**
    * A prova do bloqueio não é o badge: é `execution-preparation` respondendo
-   * `PLAN_NOT_ACTIVE` para cada equipamento do ciclo. A tela traduz o código —
+   * `PLAN_NOT_ACTIVE` para cada equipamento da execução. A tela traduz o código —
    * e nunca o deduz de `status === "SUSPENDED"`.
    */
-  await page.getByRole("tab", { name: "Ciclos" }).click();
+  await page.getByRole("tab", { name: "Execuções" }).click();
   await settled(page);
   await expect(
     page.getByText(/O plano não está ativo/i).first(),
@@ -284,7 +284,7 @@ test("reativar devolve o plano ao estado ativo", async ({ page }) => {
   await settled(page);
 
   await expect(page.getByText("Ativo").first()).toBeVisible();
-  await expect(page.getByText(/novos ciclos não são gerados/i)).toHaveCount(0);
+  await expect(page.getByText(/novas execuções não são abertas/i)).toHaveCount(0);
 
   assertClean(recorder, "reativar plano");
 });

@@ -228,3 +228,17 @@ export function usePmocPreview() {
     pmocService.preview(input),
   );
 }
+
+/**
+ * Os nomes sugeridos para um plano.
+ *
+ * Catálogo da plataforma: não muda por organização, não muda durante a
+ * sessão, e por isso pode ser lido uma vez e reaproveitado.
+ */
+export function usePmocPlanNameOptions() {
+  return useApiQuery(
+    pmocService.keys.planNameOptions(),
+    ({ signal }) => pmocService.planNameOptions({ signal }),
+    CACHE.stable,
+  );
+}

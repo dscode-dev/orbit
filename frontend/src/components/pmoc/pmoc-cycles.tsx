@@ -1,19 +1,26 @@
 "use client";
 
 /**
- * Os ciclos de um plano, e as execuções por equipamento de cada ciclo.
+ * As execuções de um plano, e os equipamentos de cada uma.
  *
- * ## Ciclo não é ordem de serviço
+ * ## "Execução", e não "ciclo"
  *
- * Um ciclo é uma **competência**: a janela com vencimento em que a manutenção
- * daquele período deve acontecer. Não tem status de OS, não tem responsável
- * único, e **não gera documento** — quem gera é cada equipamento executado.
+ * O modelo do servidor sempre se chamou `PmocExecution`; "ciclo" era nome
+ * só desta tela, e a divergência obrigava quem lê o código a traduzir duas
+ * vezes. Ficou o nome do domínio.
+ *
+ * ## Execução do plano não é ordem de serviço
+ *
+ * É uma **competência**: a janela com vencimento em que a manutenção daquele
+ * período deve acontecer. Não tem status de OS, não tem responsável único, e
+ * **não gera documento** — quem gera é cada equipamento executado, no nível
+ * de baixo (`PmocEquipmentExecution`).
  *
  * ## O progresso vem do que o servidor devolve
  *
- * "3 de 8 concluídos" é contado sobre a lista de execuções que o backend
- * publica para o ciclo — uma consulta, não uma por equipamento. O ciclo não
- * publica um campo de progresso, e inventar um exigiria carregar tudo de
+ * "3 de 8 concluídos" é contado sobre a lista de equipamentos que o backend
+ * publica para a execução — uma consulta, não uma por equipamento. A execução
+ * não publica um campo de progresso, e inventar um exigiria carregar tudo de
  * qualquer forma; contar o que já está em mãos é honesto e não custa
  * requisição nenhuma.
  */
@@ -52,9 +59,9 @@ export function PmocCyclesPanel({ planId }: { planId: string }) {
         items={cycles.data ?? []}
         empty={{
           icon: <CalendarClock className="size-5" />,
-          title: "Nenhum ciclo disponível",
+          title: "Nenhuma execução disponível",
           description:
-            "Ciclos são gerados quando o plano é ativado, seguindo a periodicidade contratada.",
+            "As execuções são abertas quando o plano é ativado, seguindo a periodicidade contratada.",
         }}
       >
         {(rows) => (
@@ -84,7 +91,7 @@ function CycleList({
   onSelect: (id: string) => void;
 }) {
   return (
-    <ul className="space-y-2" aria-label="Ciclos do plano">
+    <ul className="space-y-2" aria-label="Execuções do plano">
       {cycles.map((cycle) => (
         <li key={cycle.id}>
           <button
@@ -100,7 +107,7 @@ function CycleList({
           >
             <span className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium">
-                Ciclo {cycle.sequenceNumber}
+                Execução {cycle.sequenceNumber}
               </span>
               <CycleStatusBadge status={cycle.status} />
             </span>
@@ -132,9 +139,9 @@ function EquipmentExecutions({
   const done = items.filter((row) => row.status === "COMPLETED").length;
 
   return (
-    <section className="space-y-3" aria-label="Execuções por equipamento">
+    <section className="space-y-3" aria-label="Equipamentos desta execução">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold">Execuções por equipamento</h3>
+        <h3 className="text-sm font-semibold">Equipamentos desta execução</h3>
         {items.length > 0 ? (
           <p className="text-xs tabular-nums text-muted-foreground">
             {done} de {items.length} equipamentos concluídos
@@ -149,9 +156,9 @@ function EquipmentExecutions({
         items={items}
         empty={{
           icon: <Package className="size-5" />,
-          title: "Nenhum equipamento neste ciclo",
+          title: "Nenhum equipamento nesta execução",
           description:
-            "O ciclo abrange os equipamentos cobertos pelo plano no momento em que foi aberto.",
+            "A execução abrange os equipamentos cobertos pelo plano no momento em que foi aberta.",
         }}
       >
         {(equipment) => (
@@ -167,7 +174,7 @@ function EquipmentExecutions({
 }
 
 /**
- * Um equipamento do ciclo — executado ou não.
+ * Um equipamento da execução — atendido ou não.
  *
  * Quando há execução, mostra quem fez, quando, com quantas evidências e qual
  * documento. Quando não há, mostra o que o servidor respondeu na própria
@@ -241,7 +248,7 @@ function EquipmentRow({ row }: { row: PmocCycleEquipmentRow }) {
 
             {/**
              * O documento é **deste** equipamento. Cada máquina executada tem
-             * o próprio PMOC; não existe um PDF único do ciclo.
+             * o próprio PMOC; não existe um PDF único da execução.
              */}
             {row.execution.artifactExecution ? (
               <span className="flex items-center gap-2">

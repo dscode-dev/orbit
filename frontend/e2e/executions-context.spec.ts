@@ -3,7 +3,7 @@
  *
  * O produto tem três execuções distintas, e elas não se confundem:
  *
- * - `PmocEquipmentExecution` — por equipamento, dentro de um ciclo do plano;
+ * - `PmocEquipmentExecution` — por equipamento, dentro de uma execução do plano;
  * - `RvtExecution` — por ocorrência, dentro de uma configuração;
  * - `ArtifactExecution` — o preenchimento de um artefato, que pode vir de uma
  *   operação, de um RVT ou de nada além de si.
@@ -51,7 +51,7 @@ async function openFirst(page: Page, base: string): Promise<string | null> {
   return new URL(page.url()).pathname;
 }
 
-test("as execuções do PMOC são vistas dentro do plano, por ciclo", async ({
+test("as execuções do PMOC são vistas dentro do plano", async ({
   page,
 }) => {
   const recorder = record(page);
@@ -60,11 +60,11 @@ test("as execuções do PMOC são vistas dentro do plano, por ciclo", async ({
   const detail = await openFirst(page, "/pmoc");
   expect(detail, "nenhum plano PMOC na listagem").not.toBeNull();
 
-  await expect(page.getByRole("tab", { name: "Ciclos" })).toBeVisible();
-  await page.getByRole("tab", { name: "Ciclos" }).click();
+  await expect(page.getByRole("tab", { name: "Execuções" })).toBeVisible();
+  await page.getByRole("tab", { name: "Execuções" }).click();
 
-  /** A seção é do ciclo selecionado — a granularidade é o equipamento. */
-  const section = page.locator('section[aria-label="Execuções por equipamento"]');
+  /** A seção é da execução selecionada — a granularidade é o equipamento. */
+  const section = page.locator('section[aria-label="Equipamentos desta execução"]');
   await expect(section).toBeVisible({ timeout: 20_000 });
 
   /** O contexto do plano não é pedido de novo: a URL continua a do plano. */
@@ -73,7 +73,7 @@ test("as execuções do PMOC são vistas dentro do plano, por ciclo", async ({
   assertClean(recorder, "execuções do PMOC");
 });
 
-test("as consultas do PMOC são recortadas pelo servidor, por plano e ciclo", async ({
+test("as consultas do PMOC são recortadas pelo servidor, por plano e execução", async ({
   page,
 }) => {
   const recorder = record(page);
@@ -89,12 +89,12 @@ test("as consultas do PMOC são recortadas pelo servidor, por plano e ciclo", as
   expect(detail).not.toBeNull();
   const planId = detail!.split("/").pop()!;
 
-  await page.getByRole("tab", { name: "Ciclos" }).click();
+  await page.getByRole("tab", { name: "Execuções" }).click();
   await expect(
-    page.locator('section[aria-label="Execuções por equipamento"]'),
+    page.locator('section[aria-label="Equipamentos desta execução"]'),
   ).toBeVisible({ timeout: 20_000 });
 
-  /** Nada de buscar tudo e filtrar no navegador: plano e ciclo vão na rota. */
+  /** Nada de buscar tudo e filtrar no navegador: plano e execução vão na rota. */
   expect(scoped.length).toBeGreaterThan(0);
   for (const path of scoped) {
     expect(path).toContain(`/pmoc/plans/${planId}/cycles/`);
@@ -318,7 +318,7 @@ test("execuções de artefato e checklists continuam seções distintas", async 
 /* PMOC — a elegibilidade no Read Model                                 */
 /* ------------------------------------------------------------------ */
 
-test("a lista do ciclo não pede uma preparação por equipamento", async ({
+test("a lista da execução não pede uma preparação por equipamento", async ({
   page,
 }) => {
   const recorder = record(page);
@@ -333,9 +333,9 @@ test("a lista do ciclo não pede uma preparação por equipamento", async ({
   });
 
   await openFirst(page, "/pmoc");
-  await page.getByRole("tab", { name: "Ciclos" }).click();
+  await page.getByRole("tab", { name: "Execuções" }).click();
   const section = page.locator(
-    'section[aria-label="Execuções por equipamento"]',
+    'section[aria-label="Equipamentos desta execução"]',
   );
   await expect(section).toBeVisible({ timeout: 20_000 });
   await page.waitForTimeout(2_000);
@@ -345,7 +345,7 @@ test("a lista do ciclo não pede uma preparação por equipamento", async ({
   /** E nenhuma requisição por linha só para desenhar a disponibilidade. */
   expect(preparations).toEqual([]);
 
-  assertClean(recorder, "ciclo sem N+1");
+  assertClean(recorder, "execução sem N+1");
 });
 
 test("a disponibilidade da lista concorda com a preparação canônica", async ({
@@ -355,9 +355,9 @@ test("a disponibilidade da lista concorda com a preparação canônica", async (
   await login(page);
 
   /**
-   * O plano é do cenário, e nasce com cobertura: assim ele tem ciclo e tem
+   * O plano é do cenário, e nasce com cobertura: assim ele tem execução e tem
    * linha de equipamento, que é o que a paridade compara. Antes abria o
-   * primeiro plano da listagem e se pulava quando aquele não tinha ciclo.
+   * primeiro plano da listagem e se pulava quando aquele não tinha execução.
    */
   const plan = await provisionPmocPlan(page, "paridade", 2);
   await coverAsset(page, plan.id, plan.assets[0].id);
@@ -369,7 +369,7 @@ test("a disponibilidade da lista concorda com a preparação canônica", async (
   const cycleId = (cycleBody.data?.data ?? cycleBody.data ?? [])[0]?.id as
     | string
     | undefined;
-  expect(cycleId, "o plano ativado precisa ter um ciclo aberto").toBeTruthy();
+  expect(cycleId, "o plano ativado precisa ter uma execução aberta").toBeTruthy();
 
   const listResponse = await bff(
     page,

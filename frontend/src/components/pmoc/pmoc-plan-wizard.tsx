@@ -8,7 +8,7 @@
  * A versão anterior pedia código, nome, datas e periodicidade numa tela só, e
  * mandava escolher os equipamentos **depois**, no detalhe. O resultado está no
  * banco: setenta e cinco planos ativos sem equipamento nenhum — planos que
- * têm ciclo, aparecem na lista e não mandam ninguém a lugar nenhum, porque
+ * têm execução, aparecem na lista e não mandam ninguém a lugar nenhum, porque
  * sem equipamento não há execução para projetar.
  *
  * A ordem aqui não é estética. O cliente vem primeiro porque tudo depende
@@ -17,7 +17,7 @@
  *
  * ## O que esta tela **não** decide
  *
- * Nem a sequência do código, nem quantos ciclos vão existir, nem quais
+ * Nem a sequência do código, nem quantas execuções vão existir, nem quais
  * equipamentos são elegíveis. Tudo isso vem do servidor — a etapa de revisão
  * mostra a matriz que o `POST /pmoc/plans/preview` devolveu, não uma
  * multiplicação feita aqui. Uma vigência que começa dia 31 tem regra de
@@ -52,7 +52,9 @@ import {
   useCreatePmocPlan,
   usePmocCodeSuggestion,
   usePmocPreview,
+  usePmocPlanNameOptions,
 } from "@/hooks/pmoc/use-pmoc";
+import { useFieldTechnicians } from "@/hooks/workforce/use-workforce";
 import { useActiveScope } from "@/providers/use-active-scope";
 import type { Asset, AssetQuery } from "@/types/assets";
 import { PmocFrequencyUnit } from "@/types/contracts";
@@ -67,6 +69,12 @@ const FREQUENCY_LABELS: Readonly<Record<string, string>> = {
   MONTHS: "mês(es)",
   YEARS: "ano(s)",
 };
+
+/** `Select` não aceita item de valor vazio; este é o "ninguém ainda". */
+const SEM_TECNICO = "__none__";
+
+/** A saída do catálogo: quem escolhe isto digita o próprio nome. */
+const NOME_OUTROS = "__outros__";
 
 const ETAPAS = [
   "Cliente",
@@ -85,6 +93,11 @@ export function PmocPlanWizard({
 }) {
   const { businessUnitId } = useActiveScope();
   const customers = useCustomersList({ limit: 100 });
+  const tecnicos = useFieldTechnicians();
+  const nomeOpcoes = usePmocPlanNameOptions();
+
+  /** O que está marcado no seletor — um rótulo do catálogo, ou "Outros". */
+  const [nomeEscolhido, setNomeEscolhido] = useState("");
   const create = useCreatePmocPlan();
   const preview = usePmocPreview();
 
@@ -350,33 +363,76 @@ export function PmocPlanWizard({
                 </p>
               </div>
 
+              {/*
+                O nome vem de um catálogo, com saída para o que não está nele.
+
+                Era campo livre, e cada plano nascia com uma grafia diferente
+                do mesmo serviço — "Manutenção preventiva", "Preventiva",
+                "MANUT. PREV." —, o que torna a lista de planos impossível de
+                ler e o relatório inconsistente. O catálogo é da plataforma;
+                "Outros" continua permitindo qualquer nome.
+              */}
               <div className="space-y-2">
-                <Label htmlFor="pmoc-name">Nome</Label>
-                <Input
-                  id="pmoc-name"
-                  value={name}
-                  maxLength={160}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Manutenção preventiva — sede administrativa"
-                />
+                <Label htmlFor="pmoc-name-option">Nome</Label>
+                <Select
+                  value={nomeEscolhido}
+                  onValueChange={(valor) => {
+                    setNomeEscolhido(valor);
+                    /// Escolher da lista grava o rótulo; "Outros" limpa o
+                    /// campo para quem vai digitar.
+                    setName(valor === NOME_OUTROS ? "" : valor);
+                  }}
+                >
+                  <SelectTrigger id="pmoc-name-option">
+                    <SelectValue placeholder="Selecione o tipo de plano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(nomeOpcoes.data ?? []).map((opcao) => (
+                      <SelectItem key={opcao.key} value={opcao.label}>
+                        {opcao.label}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={NOME_OUTROS}>Outros…</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {nomeEscolhido === NOME_OUTROS ? (
+                  <Input
+                    id="pmoc-name"
+                    value={name}
+                    maxLength={160}
+                    autoFocus
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Como este plano se chama"
+                  />
+                ) : null}
               </div>
             </>
           )}
 
           {etapa === 1 && (
             <>
-              <div className="flex items-center justify-between gap-3">
+              {/*
+                A busca ocupa a linha inteira.
+
+                Dividindo espaço com a contagem, ela ficava com pouco mais de
+                um terço da largura do diálogo — estreita demais para o que se
+                digita nela (nome, identificação, série ou fabricante). A
+                contagem é curta e cabe embaixo.
+              */}
+              <div className="space-y-2">
                 <SearchField
                   id="pmoc-wizard-equipment-search"
+                  className="w-full"
                   value={assetsController.searchTerm}
                   onChange={assetsController.setSearchTerm}
                   label="Buscar"
                   placeholder="Nome, identificação, série ou fabricante"
                 />
-                <span className="whitespace-nowrap text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {selecionados.length} selecionado
                   {selecionados.length === 1 ? "" : "s"}
-                </span>
+                </p>
               </div>
 
               <ListState
@@ -526,12 +582,31 @@ export function PmocPlanWizard({
           {etapa === 3 && (
             <div className="space-y-2">
               <Label htmlFor="pmoc-tecnico">Responsável operacional</Label>
-              <Input
-                id="pmoc-tecnico"
-                value={tecnicoId}
-                placeholder="Opcional — pode ser definido no detalhe do plano"
-                onChange={(event) => setTecnicoId(event.target.value)}
-              />
+              {/*
+                Seletor, e não campo livre.
+
+                O campo pedia o **id** do técnico e ninguém o tem de cabeça:
+                era um `Input` de texto onde se esperava um UUID. Quem
+                preenchesse errado só descobriria na recusa do servidor.
+              */}
+              <Select
+                value={tecnicoId || SEM_TECNICO}
+                onValueChange={(valor) =>
+                  setTecnicoId(valor === SEM_TECNICO ? "" : valor)
+                }
+              >
+                <SelectTrigger id="pmoc-tecnico">
+                  <SelectValue placeholder="Definir depois" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SEM_TECNICO}>Definir depois</SelectItem>
+                  {(tecnicos.data ?? []).map((pessoa) => (
+                    <SelectItem key={pessoa.id} value={pessoa.id}>
+                      {pessoa.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
                 O Responsável Técnico profissional é definido no detalhe do
                 plano, antes da ativação.
@@ -622,7 +697,7 @@ function RevisaoDoPlano({
     ],
     ["Frequência", projecao.frequency.label],
     ["Equipamentos", String(projecao.equipmentCount)],
-    ["Ciclos", String(projecao.cycleCount)],
+    ["Execuções", String(projecao.cycleCount)],
     ["Execuções previstas", String(projecao.projectedExecutions)],
   ];
 
@@ -639,7 +714,7 @@ function RevisaoDoPlano({
 
       {projecao.truncated && (
         <p className="text-xs text-muted-foreground">
-          A vigência é aberta; a projeção mostra os primeiros ciclos.
+          A vigência é aberta; a projeção mostra as primeiras execuções.
         </p>
       )}
 

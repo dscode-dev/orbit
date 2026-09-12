@@ -11,7 +11,7 @@ export default function PmocPage() {
   return (
     <WorkspacePage
       entity="pmoc-plan"
-      description="Contratos de manutenção preventiva: cobertura de equipamentos, periodicidade e responsável técnico. Ciclos e execuções vivem dentro de cada plano."
+      description="Contratos de manutenção preventiva: cobertura de equipamentos, periodicidade e responsável técnico. As execuções vivem dentro de cada plano."
       suspense={false}
     >
       <PmocCenter />

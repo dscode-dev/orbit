@@ -4,7 +4,7 @@
  * Os selos do PMOC.
  *
  * Um primitivo por conceito, para que a tela não confunda o estado do
- * **contrato** com o do **ciclo** nem com o da **execução de um equipamento**.
+ * **contrato** com o da **execução do plano** nem com o do **equipamento**.
  * Os três usam a mesma paleta semântica do produto — verde é concluído,
  * âmbar é atenção, vermelho é atraso — em vez de uma cor por enum.
  */

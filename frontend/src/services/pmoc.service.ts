@@ -37,6 +37,7 @@ import type {
   PmocTimelineQuery,
   PmocUpcoming,
   UpdatePmocPlanInput,
+  PmocPlanNameOption,
 } from "@/types/pmoc";
 
 const PMOC = "pmoc";
@@ -72,6 +73,12 @@ export const pmocService = {
    * Não reserva número: quem consome a sequência é o create. Duas telas
    * abertas ao mesmo tempo veem o mesmo `003` e salvam como `003` e `004`.
    */
+  /** Os nomes sugeridos para um plano. Catálogo da plataforma. */
+  planNameOptions: (
+    options?: RequestOptions,
+  ): Promise<PmocPlanNameOption[]> =>
+    apiClient.get<PmocPlanNameOption[]>("/pmoc/plan-name-options", options),
+
   codeSuggestion: (
     customerId: string,
     options?: RequestOptions,
@@ -202,6 +209,7 @@ export const pmocService = {
         ...(query as QueryParams | undefined),
       }),
     cycles: (id: string): QueryKey => queryKeys.query(PMOC, "cycles", { id }),
+    planNameOptions: (): QueryKey => queryKeys.query(PMOC, "plan-name-options"),
     equipmentExecutions: (planId: string, cycleId: string): QueryKey =>
       queryKeys.query(PMOC, "equipment-executions", { planId, cycleId }),
     preparation: (planId: string, cycleId: string, assetId: string): QueryKey =>

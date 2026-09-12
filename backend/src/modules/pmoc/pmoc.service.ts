@@ -252,6 +252,15 @@ export class PmocService {
    * formulário ao mesmo tempo veem o mesmo `003` — e o segundo a salvar
    * recebe `004` sem erro nenhum, porque o create realoca.
    */
+  /**
+   * Os nomes sugeridos, ativos, na ordem do catálogo.
+   *
+   * Não recebe ator: o catálogo é da plataforma e não varia por organização.
+   */
+  planNameOptions() {
+    return this.repository.planNameOptions();
+  }
+
   async codeSuggestion(actor: PmocActor, customerId: string) {
     const customer = await this.repository.findCustomer(
       customerId,

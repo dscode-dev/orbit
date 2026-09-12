@@ -2216,6 +2216,24 @@ export class PmocRepository {
     );
   }
 
+  /**
+   * O catálogo de nomes sugeridos.
+   *
+   * Tabela global, sem `organizationId` — mesma forma de `plans`. Continua
+   * passando pelo `rls.run` para usar a mesma conexão e o mesmo papel de
+   * runtime que o resto do módulo; não há política a satisfazer porque não
+   * há coluna de inquilino.
+   */
+  planNameOptions() {
+    return this.rls.run((tx) =>
+      tx.pmocPlanNameOption.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+        select: { key: true, label: true },
+      }),
+    );
+  }
+
   findCustomer(id: string, organizationId: string) {
     return this.rls.run((tx) =>
       tx.customer.findFirst({

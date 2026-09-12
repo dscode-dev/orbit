@@ -8,7 +8,7 @@
  * ```text
  * Visão geral → o contrato: cliente, periodicidade, RT, conformidade
  * Cobertura   → quais equipamentos
- * Ciclos      → competências, e as execuções de cada equipamento
+ * Execuções   → as competências do plano, e os equipamentos de cada uma
  * Histórico   → o que aconteceu
  * ```
  *
@@ -16,7 +16,11 @@
  * documento**. O PMOC emitido pertence a cada equipamento executado, e é de lá
  * que se chega até ele.
  */
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+
 import { PanelError } from "@/components/panels";
+import { Button } from "@/components/ui/button";
 import {
   ComplianceBadge,
   PlanStatusBadge,
@@ -25,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePmocPlan } from "@/hooks/pmoc/use-pmoc";
 import { formatDate } from "@/lib/formatters";
+import { ROUTES } from "@/lib/routes";
 import type { PmocPlan } from "@/types/pmoc";
 import { TabBoundary } from "@/workspace";
 import { PmocCoveragePanel } from "./pmoc-coverage";
@@ -60,7 +65,7 @@ export function PmocWorkspace({ planId }: { planId: string }) {
         <TabsList>
           <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
           <TabsTrigger value="cobertura">Cobertura</TabsTrigger>
-          <TabsTrigger value="ciclos">Ciclos</TabsTrigger>
+          <TabsTrigger value="execucoes">Execuções</TabsTrigger>
           <TabsTrigger value="historico">Histórico</TabsTrigger>
         </TabsList>
 
@@ -78,8 +83,8 @@ export function PmocWorkspace({ planId }: { planId: string }) {
           </TabBoundary>
         </TabsContent>
 
-        <TabsContent value="ciclos">
-          <TabBoundary id="pmoc-cycles" label="os ciclos">
+        <TabsContent value="execucoes">
+          <TabBoundary id="pmoc-cycles" label="as execuções">
             <PmocCyclesPanel planId={planId} />
           </TabBoundary>
         </TabsContent>
@@ -97,6 +102,20 @@ export function PmocWorkspace({ planId }: { planId: string }) {
 function PlanHeader({ plan }: { plan: PmocPlan }) {
   return (
     <header className="space-y-3 rounded-xl border border-border p-4">
+      {/*
+        A volta é explícita, e não só a trilha.
+
+        Esta tela é alcançada por link direto — de um atendimento, de um
+        documento, de um aviso. Quem chega assim não tem para onde voltar no
+        histórico do navegador que faça sentido no produto.
+      */}
+      <Button variant="ghost" size="sm" className="-ml-2" asChild>
+        <Link href={ROUTES.pmoc}>
+          <ArrowLeft className="size-4" />
+          Planos de PMOC
+        </Link>
+      </Button>
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-lg font-semibold">{plan.name}</h2>
@@ -118,14 +137,14 @@ function PlanHeader({ plan }: { plan: PmocPlan }) {
        */}
       {plan.status === "SUSPENDED" ? (
         <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
-          Plano suspenso: novos ciclos não são gerados e as execuções ficam
+          Plano suspenso: novas execuções não são abertas e as já abertas ficam
           indisponíveis até a reativação. O histórico permanece.
         </p>
       ) : null}
 
       {plan.status === "CANCELLED" ? (
         <p className="rounded-lg bg-surface-strong px-3 py-2 text-xs text-muted-foreground">
-          Plano encerrado definitivamente. Ciclos cumpridos e documentos
+          Plano encerrado definitivamente. Execuções cumpridas e documentos
           emitidos permanecem disponíveis para consulta.
         </p>
       ) : null}

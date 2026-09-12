@@ -3,7 +3,7 @@
 /**
  * A lista de **configurações** de PMOC.
  *
- * Cada linha é um contrato de manutenção — não um ciclo, não uma execução. O
+ * Cada linha é um contrato de manutenção — não uma execução dele. O
  * que se lê aqui é: para quem, em que unidade, com que periodicidade, sob
  * responsabilidade de quem, e como está a conformidade.
  *

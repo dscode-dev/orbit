@@ -1,9 +1,9 @@
 /**
  * PMOC V2 em navegador real.
  *
- * O que estes testes travam é a separação do domínio: configuração, ciclo,
+ * O que estes testes travam é a separação do domínio: configuração, execução
  * execução por equipamento e documento são quatro coisas, e a tela não pode
- * colapsá-las. Um "Gerar PDF" aparecendo na configuração ou no ciclo reprova
+ * do plano e equipamento. Um "Gerar PDF" na configuração ou na execução reprova
  * aqui — porque o documento pertence a cada equipamento executado.
  */
 import { expect, test } from "@playwright/test";
@@ -13,7 +13,7 @@ import { seededPmocPlanId } from "./provision";
 /** O plano do seed, identificado pelo código — o nome é editável. */
 const PLANO_SEMEADO = "PMOC-2026-001";
 
-test("a lista mostra configurações, não ciclos nem execuções", async ({
+test("a lista mostra configurações, não as execuções delas", async ({
   page,
 }) => {
   const recorder = record(page);
@@ -41,10 +41,10 @@ test("a configuração não oferece geração de documento", async ({ page }) =>
   await expect(page.getByRole("tab", { name: "Visão geral" })).toBeVisible();
 
   /**
-   * Nem na configuração nem no ciclo. Documento é por equipamento executado —
+   * Nem na configuração nem na execução. Documento é por equipamento —
    * a interface não pode sugerir um PDF único do plano.
    */
-  for (const tab of ["Visão geral", "Ciclos"]) {
+  for (const tab of ["Visão geral", "Execuções"]) {
     await page.getByRole("tab", { name: tab }).click();
     await settled(page);
     const body = await page.evaluate(() => document.body.innerText);
@@ -54,17 +54,17 @@ test("a configuração não oferece geração de documento", async ({ page }) =>
   assertClean(recorder, "detalhe do plano");
 });
 
-test("o ciclo mostra progresso e o bloqueio real de cada equipamento", async ({
+test("a execução mostra progresso e o bloqueio real de cada equipamento", async ({
   page,
 }) => {
   const recorder = record(page);
   await login(page);
   await page.goto(`/pmoc/${await seededPmocPlanId(page, PLANO_SEMEADO)}`);
-  await page.getByRole("tab", { name: "Ciclos" }).click();
+  await page.getByRole("tab", { name: "Execuções" }).click();
   await settled(page);
 
-  /** O ciclo é competência, com vencimento — não ordem de serviço. */
-  await expect(page.getByText(/Ciclo 1/)).toBeVisible();
+  /** A execução é competência, com vencimento — não ordem de serviço. */
+  await expect(page.getByText(/Execução 1/)).toBeVisible();
   await expect(page.getByText(/Vencimento/)).toBeVisible();
 
   /**
@@ -79,7 +79,7 @@ test("o ciclo mostra progresso e o bloqueio real de cada equipamento", async ({
   const body = await page.evaluate(() => document.body.innerText);
   expect(body).not.toContain("SIGNATURE_MISSING");
 
-  assertClean(recorder, "ciclos");
+  assertClean(recorder, "execuções");
 });
 
 test("a cobertura pagina pelo cursor do servidor", async ({ page }) => {
@@ -122,7 +122,7 @@ test("nenhum código de contrato aparece nas telas de PMOC", async ({ page }) =>
   await page.goto(`/pmoc/${await seededPmocPlanId(page, PLANO_SEMEADO)}`);
   await settled(page);
 
-  for (const tab of ["Visão geral", "Cobertura", "Ciclos", "Histórico"]) {
+  for (const tab of ["Visão geral", "Cobertura", "Execuções", "Histórico"]) {
     await page.getByRole("tab", { name: tab }).click();
     await settled(page);
     const body = await page.evaluate(() => document.body.innerText);
@@ -145,7 +145,7 @@ test("o deep link do plano abre e recarrega", async ({ page }) => {
 
   await page.reload();
   await settled(page);
-  await expect(page.getByRole("tab", { name: "Ciclos" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Execuções" })).toBeVisible();
 
   assertClean(recorder, "deep link");
 });
