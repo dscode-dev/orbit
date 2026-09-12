@@ -48,17 +48,27 @@ export function bffJson<T>(
 }
 
 /**
- * Requisições devem partir da origem exata da aplicação. `same-site` não é
- * suficiente: um subdomínio comprometido também é same-site, mas não deve
- * conseguir usar cookies HttpOnly do BFF como autoridade.
+ * Requisições devem partir de uma das origens exatas da aplicação.
+ * `same-site` não é suficiente: um subdomínio comprometido também é
+ * same-site, mas não deve conseguir usar cookies HttpOnly do BFF como
+ * autoridade.
+ *
+ * A comparação é de **igualdade exata** contra a lista configurada — não há
+ * prefixo, sufixo nem curinga. Uma implantação serve mais de uma origem
+ * legítima (`localhost` no smoke local, o domínio público em produção), e
+ * `localhost` e `127.0.0.1` são origens **diferentes** para o navegador:
+ * configurar uma e navegar pela outra é recusa, não engano.
  */
 export function isSameOriginRequest(request: Request): boolean {
   const site = request.headers.get("sec-fetch-site");
   const origin = request.headers.get("origin");
-  const expected = serverEnv.frontendOrigin ?? new URL(request.url).origin;
+  const configured = serverEnv.frontendOrigins;
+  const permitidas =
+    configured.length > 0 ? configured : [new URL(request.url).origin];
   const safeMethod = request.method === "GET" || request.method === "HEAD";
+  const conhecida = origin !== null && permitidas.includes(origin);
 
-  if (origin && origin !== expected) return false;
+  if (origin && !conhecida) return false;
   if (safeMethod) return site === "same-origin" || site === "none";
-  return site === "same-origin" && origin === expected;
+  return site === "same-origin" && conhecida;
 }

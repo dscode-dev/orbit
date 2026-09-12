@@ -70,48 +70,80 @@ export const serverEnv = {
     return process.env.NODE_ENV === "production";
   },
   /**
-   * Origem pública canônica do Next/BFF.
+   * As origens públicas canônicas do Next/BFF.
    *
    * `request.url` pode conter o host interno do container ou do reverse proxy;
    * por isso ele não é autoridade suficiente para validar `Origin` em
-   * produção. A origem configurada é deliberadamente exata e não aceita path,
-   * credenciais, query string ou fragmento.
+   * produção. Cada origem configurada é deliberadamente exata e não aceita
+   * path, credenciais, query string ou fragmento.
+   *
+   * ## Por que é uma lista
+   *
+   * `FRONTEND_ORIGIN` é lido por **dois** processos, e o backend sempre o
+   * tratou como lista separada por vírgula (`configure-api.ts`, para o CORS).
+   * Aqui ele era lido como origem única, e `new URL()` sobre
+   * `http://localhost:3000,https://orbit.exemplo` lança — ou seja, a mesma
+   * variável que fazia o backend aceitar dois ambientes derrubava todo pedido
+   * ao BFF com 500.
+   *
+   * Um implantação serve mais de uma origem legítima com frequência —
+   * `localhost` no smoke local, o domínio público em produção. O que continua
+   * proibido é curinga: cada entrada é validada inteira, e a comparação em
+   * [isSameOriginRequest] segue sendo de igualdade exata.
    */
-  get frontendOrigin(): string | null {
+  get frontendOrigins(): readonly string[] {
     const configured = process.env.FRONTEND_ORIGIN?.trim();
     if (!configured) {
       if (process.env.NODE_ENV === "production") {
         throw new Error("FRONTEND_ORIGIN is required in production");
       }
-      return null;
+      return [];
     }
 
-    let parsed: URL;
-    try {
-      parsed = new URL(configured);
-    } catch {
-      throw new Error("FRONTEND_ORIGIN must be an exact HTTP(S) origin");
+    const entries = configured
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    if (entries.length === 0) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("FRONTEND_ORIGIN is required in production");
+      }
+      return [];
     }
-    if (
-      !["http:", "https:"].includes(parsed.protocol) ||
-      parsed.username ||
-      parsed.password ||
-      parsed.pathname !== "/" ||
-      parsed.search ||
-      parsed.hash
-    ) {
-      throw new Error("FRONTEND_ORIGIN must be an exact HTTP(S) origin");
-    }
-    if (
-      process.env.NODE_ENV === "production" &&
-      parsed.protocol !== "https:" &&
-      process.env.ALLOW_INSECURE_LOCAL_COOKIES !== "true"
-    ) {
-      throw new Error(
-        "FRONTEND_ORIGIN must use HTTPS outside an explicit local-only runtime",
-      );
-    }
-    return parsed.origin;
+
+    return entries.map((entry) => {
+      if (entry === "*") {
+        throw new Error("FRONTEND_ORIGIN must never contain a wildcard");
+      }
+
+      let parsed: URL;
+      try {
+        parsed = new URL(entry);
+      } catch {
+        throw new Error("FRONTEND_ORIGIN must be an exact HTTP(S) origin");
+      }
+      if (
+        !["http:", "https:"].includes(parsed.protocol) ||
+        parsed.username ||
+        parsed.password ||
+        parsed.pathname !== "/" ||
+        parsed.search ||
+        parsed.hash
+      ) {
+        throw new Error("FRONTEND_ORIGIN must be an exact HTTP(S) origin");
+      }
+      if (
+        process.env.NODE_ENV === "production" &&
+        parsed.protocol !== "https:" &&
+        process.env.ALLOW_INSECURE_LOCAL_COOKIES !== "true"
+      ) {
+        throw new Error(
+          "FRONTEND_ORIGIN must use HTTPS outside an explicit local-only runtime",
+        );
+      }
+      return parsed.origin;
+    });
   },
   /**
    * Cookies Secure exigem HTTPS. Deploys locais em HTTP precisam desabilitar
