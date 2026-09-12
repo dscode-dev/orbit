@@ -54,6 +54,7 @@ import type {
   CompletePmocExecutionDto,
   CreatePmocOperationDto,
   CreatePmocPlanDto,
+  CreatePmocUnitDto,
   PreviewPmocPlanDto,
   LinkPmocEvidenceDto,
   PmocAnalyticsQueryDto,
@@ -63,6 +64,7 @@ import type {
   PmocUpcomingQueryDto,
   StartPmocEquipmentExecutionDto,
   UpdatePmocPlanDto,
+  UpdatePmocUnitDto,
 } from './pmoc.dto';
 import { PmocMapper } from './pmoc.mapper';
 import type {
@@ -184,7 +186,40 @@ export class PmocService {
       }
     }
 
-    const plan = await this.createPlan(actor, input, code, assetIds, customer);
+    /**
+     * E as unidades também.
+     *
+     * A RLS de `pmoc_plan_units` só garante que o **plano** é desta
+     * organização: a tabela de vínculo não tem coluna de inquilino, e a FK para
+     * `pmoc_units` não conhece organização. Sem esta checagem um `unitId` de
+     * outro inquilino era aceito — verificado ao vivo, 201 — e o plano passava a
+     * declarar o atendimento de uma unidade que ninguém desta conta pode ler,
+     * que é exatamente o que o relatório iria imprimir.
+     *
+     * Unidade inativa também não entra: declarar atendimento de uma unidade
+     * tirada de circulação seria prometer serviço que o catálogo já aposentou.
+     */
+    const unitIds: string[] = [...new Set(input.unitIds ?? [])];
+    if (unitIds.length) {
+      const elegiveis = await this.repository.findEligibleUnits(
+        actor.organizationId,
+        unitIds,
+      );
+      if (elegiveis.length !== unitIds.length) {
+        throw new ValidationException(
+          'Every unit must be an active unit of this organization',
+        );
+      }
+    }
+
+    const plan = await this.createPlan(
+      actor,
+      input,
+      code,
+      assetIds,
+      unitIds,
+      customer,
+    );
     return this.mapper.summary(plan);
   }
 
@@ -194,12 +229,15 @@ export class PmocService {
     input: CreatePmocPlanDto,
     code: string | null,
     assetIds: string[],
+    unitIds: string[],
     customer: { legalName: string },
   ) {
     try {
       return await this.repository.create(
         {
           assetIds,
+          /// Já sem duplicatas e já conferidas — veja `create`.
+          unitIds,
           organizationId: actor.organizationId,
           businessUnitId: input.businessUnitId,
           customerId: input.customerId,
@@ -252,6 +290,75 @@ export class PmocService {
    * formulário ao mesmo tempo veem o mesmo `003` — e o segundo a salvar
    * recebe `004` sem erro nenhum, porque o create realoca.
    */
+  /* ---------------------------------------------------------------- */
+  /* Unidades                                                          */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * As unidades da organização — condensadora, evaporadora, dutos.
+   *
+   * Cada uma traz o roteiro vinculado, porque é o que a tela precisa mostrar
+   * para quem escolhe: uma unidade sem checklist entra no plano e não
+   * descreve serviço nenhum, e isso tem de ser visível na hora de marcar.
+   */
+  async listUnits(actor: PmocActor, onlyActive = true) {
+    const rows = await this.repository.listUnits(
+      actor.organizationId,
+      onlyActive,
+    );
+    return rows.map((row) => this.mapper.unitEntry(row));
+  }
+
+  async createUnit(actor: PmocActor, input: CreatePmocUnitDto) {
+    await this.requireChecklist(actor, input.checklistTemplateId);
+    const created = await this.repository.createUnit({
+      organizationId: actor.organizationId,
+      key: input.key.toUpperCase(),
+      name: input.name,
+      description: input.description,
+      checklistTemplateId: input.checklistTemplateId,
+      sortOrder: input.sortOrder,
+    });
+    return this.mapper.unitEntry(created);
+  }
+
+  async updateUnit(actor: PmocActor, id: string, input: UpdatePmocUnitDto) {
+    const current = await this.repository.findUnit(id, actor.organizationId);
+    if (!current) throw new EntityNotFoundException('PmocUnit', id);
+    await this.requireChecklist(actor, input.checklistTemplateId);
+    const updated = await this.repository.updateUnit(id, {
+      name: input.name,
+      description: input.description,
+      checklistTemplateId: input.checklistTemplateId,
+      sortOrder: input.sortOrder,
+      isActive: input.isActive,
+    });
+    return this.mapper.unitEntry(updated);
+  }
+
+  async removeUnit(actor: PmocActor, id: string) {
+    const current = await this.repository.findUnit(id, actor.organizationId);
+    if (!current) throw new EntityNotFoundException('PmocUnit', id);
+    await this.repository.softDeleteUnit(id);
+  }
+
+  /**
+   * O checklist informado existe nesta organização?
+   *
+   * Sem esta checagem, um id de outro inquilino seria aceito pelo banco (a
+   * FK não conhece organização) e a unidade nasceria apontando para um
+   * roteiro que ninguém desta conta pode ler.
+   */
+  private async requireChecklist(actor: PmocActor, templateId?: string) {
+    if (!templateId) return;
+    const template = await this.repository.findChecklistTemplate(
+      templateId,
+      actor.organizationId,
+    );
+    if (!template)
+      throw new EntityNotFoundException('ChecklistTemplate', templateId);
+  }
+
   /**
    * Os nomes sugeridos, ativos, na ordem do catálogo.
    *
@@ -492,16 +599,18 @@ export class PmocService {
      * não há conexão compartilhada. O que a PR-26.6.1 proíbe é concorrência de
      * consultas sobre o mesmo cliente transacional — outra coisa.
      */
-    const [coverages, current, recent] = await Promise.all([
+    const [coverages, current, recent, planUnits] = await Promise.all([
       this.repository.listCoverages(id, actor.organizationId),
       this.repository.currentExecution(id, actor.organizationId),
       this.repository.listExecutions(id, actor.organizationId),
+      this.repository.listPlanUnits(id, actor.organizationId),
     ]);
 
     return this.mapper.details(plan, {
       coverages,
       currentExecution: current,
       recentExecutions: recent,
+      units: planUnits.map((link) => link.unit),
     });
   }
 
@@ -1363,6 +1472,77 @@ export class PmocService {
       },
       generatedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * As unidades em atendimento, e em quantos planos ativos cada uma entra.
+   *
+   * Existe para o relatório: a conformidade diz **quantos** planos estão em dia,
+   * e isto diz **o que** é atendido em cada visita. Sem a segunda metade, o PDF
+   * afirma cobertura sem descrever serviço — que é exatamente o que um PMOC
+   * precisa provar.
+   *
+   * A mesma leitura da tela, pela mesma régua: unidade viva, plano ativo.
+   */
+  async unitCoverage(
+    actor: PmocActor,
+    query: { businessUnitId?: string } = {},
+  ): Promise<
+    readonly {
+      key: string;
+      name: string;
+      checklistName: string | null;
+      checklistItems: number;
+      plans: number;
+    }[]
+  > {
+    const links = await this.repository.listActiveUnitLinks(
+      actor.organizationId,
+      query.businessUnitId,
+    );
+
+    /** Agrupado por unidade; `Set` de planos porque o vínculo é por par. */
+    const porUnidade = new Map<
+      string,
+      {
+        key: string;
+        name: string;
+        sortOrder: number;
+        checklistName: string | null;
+        checklistItems: number;
+        plans: Set<string>;
+      }
+    >();
+
+    for (const link of links) {
+      const atual = porUnidade.get(link.unit.id);
+      if (atual) {
+        atual.plans.add(link.planId);
+        continue;
+      }
+      porUnidade.set(link.unit.id, {
+        key: link.unit.key,
+        name: link.unit.name,
+        sortOrder: link.unit.sortOrder,
+        checklistName: link.unit.checklistTemplate?.name ?? null,
+        checklistItems: Array.isArray(link.unit.checklistTemplate?.items)
+          ? link.unit.checklistTemplate.items.length
+          : 0,
+        plans: new Set([link.planId]),
+      });
+    }
+
+    return [...porUnidade.values()]
+      .sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'pt-BR'),
+      )
+      .map((unidade) => ({
+        key: unidade.key,
+        name: unidade.name,
+        checklistName: unidade.checklistName,
+        checklistItems: unidade.checklistItems,
+        plans: unidade.plans.size,
+      }));
   }
 
   async upcoming(

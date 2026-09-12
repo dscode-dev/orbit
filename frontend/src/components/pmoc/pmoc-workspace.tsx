@@ -155,7 +155,12 @@ function PlanHeader({ plan }: { plan: PmocPlan }) {
 function PlanOverview({ plan }: { plan: PmocPlan }) {
   const fields: readonly { label: string; value: string }[] = [
     { label: "Cliente", value: plan.customer.name },
-    { label: "Unidade", value: plan.businessUnit.name },
+    /*
+      "Unidade de negócio", não "Unidade": desde que o plano declara unidades
+      atendidas — condensadora, evaporadora —, o rótulo curto apontaria para
+      duas coisas diferentes na mesma tela.
+    */
+    { label: "Unidade de negócio", value: plan.businessUnit.name },
     { label: "Periodicidade", value: plan.frequency.label },
     {
       label: "Vigência",
@@ -196,6 +201,32 @@ function PlanOverview({ plan }: { plan: PmocPlan }) {
           </div>
         ))}
       </dl>
+
+      <div className="rounded-xl border border-border p-4">
+        <p className="text-xs text-muted-foreground">Unidades atendidas</p>
+        {plan.units.length === 0 ? (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Nenhuma declarada. O relatório sai sem o detalhamento por unidade.
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-1.5">
+            {plan.units.map((unidade) => (
+              <li key={unidade.id} className="text-sm">
+                <span className="font-medium">{unidade.name}</span>
+                <span className="text-muted-foreground">
+                  {unidade.checklist
+                    ? ` — ${unidade.checklist.name} · ${
+                        unidade.checklist.items.length
+                      } ${
+                        unidade.checklist.items.length === 1 ? "item" : "itens"
+                      }`
+                    : " — sem roteiro"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {plan.notes ? (
         <div className="rounded-xl border border-border p-4">

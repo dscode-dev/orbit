@@ -71,6 +71,18 @@ const planView = {
   },
 } satisfies Prisma.PmocPlanSelect;
 
+/**
+ * O roteiro vem junto da unidade em toda leitura.
+ *
+ * Não é conveniência: é o que diz se a unidade tem algo a descrever no
+ * relatório. `create` e `update` usam o mesmo include porque uma resposta de
+ * escrita com forma diferente da leitura obrigaria o cliente a recarregar para
+ * saber o que acabou de gravar.
+ */
+const unitView = {
+  checklistTemplate: { select: { id: true, name: true, items: true } },
+} satisfies Prisma.PmocUnitInclude;
+
 const coverageView = {
   id: true,
   startsOn: true,
@@ -154,6 +166,11 @@ const equipmentExecutionView = {
 } satisfies Prisma.PmocEquipmentExecutionSelect;
 
 export type PlanRecord = Prisma.PmocPlanGetPayload<{ select: typeof planView }>;
+
+/** Uma unidade como o plano a declarou, com o roteiro dela. */
+export type PlanUnitRecord = Prisma.PmocUnitGetPayload<{
+  include: typeof unitView;
+}>;
 export type CoverageRecord = Prisma.PmocEquipmentCoverageGetPayload<{
   select: typeof coverageView;
 }>;
@@ -190,6 +207,8 @@ export interface CreatePlanData {
   createdById: string;
   /** Equipamentos que participam do plano desde a criação. */
   assetIds?: readonly string[];
+  /// As unidades que o plano declara — o que o relatório final lista.
+  unitIds?: readonly string[];
 }
 
 @Injectable()
@@ -273,6 +292,23 @@ export class PmocRepository {
         });
       }
 
+      /**
+       * As unidades declaradas, na mesma transação, pela mesma razão.
+       *
+       * Unidade descreve o serviço — é o que o relatório final lista. Um
+       * plano criado sem elas e completado depois existiria, no intervalo,
+       * como um PMOC que não diz o que faz.
+       */
+      if (data.unitIds?.length) {
+        await tx.pmocPlanUnit.createMany({
+          data: data.unitIds.map((unitId) => ({
+            id: generateUuidV7(),
+            planId: plan.id,
+            unitId,
+          })),
+        });
+      }
+
       await this.audit(
         tx,
         plan.id,
@@ -283,6 +319,7 @@ export class PmocRepository {
           code,
           name: data.name,
           equipmentCount: data.assetIds?.length ?? 0,
+          unitCount: data.unitIds?.length ?? 0,
         },
       );
       return plan;
@@ -2212,6 +2249,151 @@ export class PmocRepository {
           /** O preview projeta datas civis: o fuso é da unidade. */
           timezone: true,
         },
+      }),
+    );
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Unidades                                                          */
+  /* ---------------------------------------------------------------- */
+
+  listUnits(organizationId: string, onlyActive = true) {
+    return this.rls.run((tx) =>
+      tx.pmocUnit.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          ...(onlyActive ? { isActive: true } : {}),
+        },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        include: unitView,
+      }),
+    );
+  }
+
+  /**
+   * As unidades que **este plano** declarou atender.
+   *
+   * Leitura própria, fora do `planView`: a listagem de planos não precisa
+   * delas, e carregá-las ali faria toda página de lista pagar um join que só o
+   * detalhe e o relatório usam.
+   */
+  listPlanUnits(planId: string, organizationId: string) {
+    return this.rls.run((tx) =>
+      tx.pmocPlanUnit.findMany({
+        where: { planId, plan: { organizationId, deletedAt: null } },
+        orderBy: [{ unit: { sortOrder: 'asc' } }, { unit: { name: 'asc' } }],
+        include: { unit: { include: unitView } },
+      }),
+    );
+  }
+
+  /**
+   * As unidades declaradas por planos **ativos**, para o relatório.
+   *
+   * Vem pela tabela de vínculo e não pela de unidades: o relatório descreve o
+   * que está em vigor, e uma unidade cadastrada que nenhum plano atende não é
+   * serviço prestado. A agregação fica no serviço porque o volume é o número de
+   * vínculos ativos — unidades por plano, alguns por organização —, e um
+   * `GROUP BY` em SQL cru aqui custaria a tipagem do `items` do roteiro.
+   */
+  listActiveUnitLinks(organizationId: string, businessUnitId?: string) {
+    return this.rls.run((tx) =>
+      tx.pmocPlanUnit.findMany({
+        where: {
+          plan: {
+            organizationId,
+            deletedAt: null,
+            status: 'ACTIVE',
+            ...(businessUnitId ? { businessUnitId } : {}),
+          },
+          unit: { deletedAt: null },
+        },
+        select: {
+          planId: true,
+          unit: { include: unitView },
+        },
+      }),
+    );
+  }
+
+  /** As unidades destes ids que são **desta** organização e estão vivas. */
+  findEligibleUnits(organizationId: string, unitIds: readonly string[]) {
+    return this.rls.run((tx) =>
+      tx.pmocUnit.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          isActive: true,
+          id: { in: [...unitIds] },
+        },
+        select: { id: true },
+      }),
+    );
+  }
+
+  /** O modelo de checklist, restrito à organização — a FK não a conhece. */
+  findChecklistTemplate(id: string, organizationId: string) {
+    return this.rls.run((tx) =>
+      tx.checklistTemplate.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true },
+      }),
+    );
+  }
+
+  findUnit(id: string, organizationId: string) {
+    return this.rls.run((tx) =>
+      tx.pmocUnit.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        include: unitView,
+      }),
+    );
+  }
+
+  createUnit(data: {
+    organizationId: string;
+    key: string;
+    name: string;
+    description?: string;
+    checklistTemplateId?: string;
+    sortOrder?: number;
+  }) {
+    return this.rls.run((tx) =>
+      tx.pmocUnit.create({
+        data: { id: generateUuidV7(), ...data },
+        include: unitView,
+      }),
+    );
+  }
+
+  updateUnit(
+    id: string,
+    data: {
+      name?: string;
+      description?: string;
+      checklistTemplateId?: string | null;
+      sortOrder?: number;
+      isActive?: boolean;
+    },
+  ) {
+    return this.rls.run((tx) =>
+      tx.pmocUnit.update({ where: { id }, data, include: unitView }),
+    );
+  }
+
+  /**
+   * Remoção é lógica.
+   *
+   * Planos já criados apontam para a unidade, e o relatório de um período
+   * passado precisa continuar dizendo o que foi feito. Apagar a linha
+   * deixaria o histórico sem nome.
+   */
+  softDeleteUnit(id: string) {
+    return this.rls.run((tx) =>
+      tx.pmocUnit.update({
+        where: { id },
+        data: { deletedAt: new Date(), isActive: false },
       }),
     );
   }

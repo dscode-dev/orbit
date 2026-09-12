@@ -12,7 +12,7 @@
  * relógio do navegador está no fuso de quem abriu, e o vencimento é do fuso da
  * unidade — duas pessoas veriam estados diferentes do mesmo plano.
  */
-import { ClipboardCheck, Plus } from "lucide-react";
+import { ClipboardCheck, ClipboardList, Plus } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -85,12 +85,28 @@ export function PmocList({ onCreate }: { onCreate: () => void }) {
           gender="f"
           note="Ordenado pelo próximo vencimento."
         />
-        {canManage ? (
-          <Button size="sm" onClick={onCreate}>
-            <Plus className="size-3.5" />
-            Novo PMOC
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {/*
+            O cadastro de unidades fica aqui porque é pré-requisito do
+            assistente: quem chega para criar o primeiro plano e não tem
+            unidade alguma precisa de um caminho visível, não de descobrir a
+            rota pelo estado vazio de uma etapa adiante.
+          */}
+          {canManage ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href="/pmoc/unidades">
+                <ClipboardList className="size-3.5" />
+                Unidades
+              </Link>
+            </Button>
+          ) : null}
+          {canManage ? (
+            <Button size="sm" onClick={onCreate}>
+              <Plus className="size-3.5" />
+              Novo PMOC
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <ListState

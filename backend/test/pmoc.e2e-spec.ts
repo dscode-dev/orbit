@@ -3121,4 +3121,315 @@ describe('PMOC (e2e)', () => {
       ).toEqual({ status: 'DRAFT' });
     });
   });
+
+  /* ================================================================ */
+  /* PR-36 — unidades atendidas                                        */
+  /* ================================================================ */
+
+  describe('PR-36 · unidades', () => {
+    /**
+     * Unidade é a **parte** do sistema que recebe manutenção — condensadora,
+     * evaporadora —, não a máquina sob contrato: essa é o equipamento da
+     * cobertura. O plano declara quais atende, e é por unidade que o relatório
+     * final descreve o serviço.
+     */
+    interface Unidade {
+      id: string;
+      key: string;
+      name: string;
+      description: string | null;
+      checklist: { id: string; name: string; items: unknown[] } | null;
+      sortOrder: number;
+      isActive: boolean;
+    }
+
+    async function criarRoteiro(tok = token): Promise<string> {
+      const response = await auth(
+        http().post('/api/v1/checklist-templates'),
+        tok,
+      )
+        .send({
+          key: `ROTEIRO_${digits(6)}`,
+          name: 'Limpeza de serpentina',
+          items: [
+            { key: 'SERPENTINA', label: 'Serpentina limpa', type: 'BOOLEAN' },
+            { key: 'DRENO', label: 'Dreno desobstruído', type: 'BOOLEAN' },
+          ],
+        })
+        .expect(201);
+      return (response.body as Envelope<{ id: string }>).data.id;
+    }
+
+    async function criarUnidade(
+      body: Record<string, unknown> = {},
+      tok = token,
+      expected = 201,
+    ) {
+      const response = await auth(http().post('/api/v1/pmoc/units'), tok)
+        .send({
+          key: `UNIDADE_${digits(6)}`,
+          name: 'Unidade condensadora',
+          ...body,
+        })
+        .expect(expected);
+      return response.body as Envelope<Unidade> & ErrorEnvelope;
+    }
+
+    it('publica a unidade com o roteiro, e só o que é contrato', async () => {
+      const roteiro = await criarRoteiro();
+      const criada = (
+        await criarUnidade({
+          name: 'Unidade condensadora',
+          description: 'Externa, no telhado',
+          checklistTemplateId: roteiro,
+        })
+      ).data;
+
+      /**
+       * A mesma forma na escrita e na leitura.
+       *
+       * Antes destes testes os dois endpoints devolviam a linha do Prisma: o
+       * `create` sem o roteiro, o `list` com ele. Quem criasse uma unidade
+       * precisaria recarregar para saber o que tinha acabado de gravar.
+       */
+      expect(criada.checklist).toEqual({
+        id: roteiro,
+        name: 'Limpeza de serpentina',
+        items: [
+          { key: 'SERPENTINA', label: 'Serpentina limpa' },
+          { key: 'DRENO', label: 'Dreno desobstruído' },
+        ],
+      });
+      expect(criada.isActive).toBe(true);
+
+      /** Colunas internas não são contrato. */
+      expect(Object.keys(criada).sort()).toEqual([
+        'checklist',
+        'description',
+        'id',
+        'isActive',
+        'key',
+        'name',
+        'sortOrder',
+      ]);
+
+      const lista = await auth(http().get('/api/v1/pmoc/units')).expect(200);
+      const encontrada = (lista.body as Envelope<Unidade[]>).data.find(
+        (unidade) => unidade.id === criada.id,
+      );
+      expect(encontrada).toEqual(criada);
+    });
+
+    it('recusa roteiro de outra organização', async () => {
+      const alheio = await criarRoteiro(neighbourToken);
+
+      /**
+       * A FK não conhece organização: sem a checagem no serviço o banco
+       * aceitaria, e a unidade nasceria apontando para um roteiro que ninguém
+       * desta conta pode ler.
+       */
+      const recusada = await criarUnidade(
+        { checklistTemplateId: alheio },
+        token,
+        404,
+      );
+      expect(recusada.error.code).toBeDefined();
+    });
+
+    it('o plano declara as unidades, sem duplicar o par repetido', async () => {
+      const roteiro = await criarRoteiro();
+      const comRoteiro = (await criarUnidade({ checklistTemplateId: roteiro }))
+        .data;
+      const semRoteiro = (await criarUnidade({ name: 'Unidade evaporadora' }))
+        .data;
+
+      const plano = await createPlan({
+        name: 'Com unidades declaradas',
+        assetIds: [assetA],
+        /** Repetido de propósito: o vínculo é por par, e par não se duplica. */
+        unitIds: [comRoteiro.id, semRoteiro.id, comRoteiro.id],
+      });
+
+      expect(
+        await prisma.pmocPlanUnit.count({ where: { planId: plano.id } }),
+      ).toBe(2);
+
+      const detalhe = await auth(
+        http().get(`/api/v1/pmoc/plans/${plano.id}`),
+      ).expect(200);
+      const unidades = (
+        detalhe.body as Envelope<{ units: Unidade[] }>
+      ).data.units;
+
+      expect(unidades.map((unidade) => unidade.id).sort()).toEqual(
+        [comRoteiro.id, semRoteiro.id].sort(),
+      );
+
+      /**
+       * O roteiro viaja com a unidade no detalhe do plano.
+       *
+       * É o que o relatório tem a descrever. Uma unidade sem roteiro aparece
+       * como `null` em vez de sumir: quem lê o PDF precisa ver que ela foi
+       * atendida e nada foi registrado.
+       */
+      expect(
+        unidades.find((unidade) => unidade.id === comRoteiro.id)?.checklist
+          ?.items,
+      ).toHaveLength(2);
+      expect(
+        unidades.find((unidade) => unidade.id === semRoteiro.id)?.checklist,
+      ).toBeNull();
+    });
+
+    it('recusa unidade de outra organização na criação do plano', async () => {
+      const alheia = (await criarUnidade({}, neighbourToken)).data;
+
+      /**
+       * 400, como o equipamento de outro cliente.
+       *
+       * A RLS de `pmoc_plan_units` só garante que o **plano** é desta
+       * organização — a tabela de vínculo não tem coluna de inquilino. Sem a
+       * checagem no serviço isto respondia **201**, e o plano declarava
+       * atendimento de uma unidade que ninguém desta conta pode ler.
+       */
+      await auth(http().post('/api/v1/pmoc/plans'))
+        .send({
+          businessUnitId: unitA,
+          customerId,
+          name: 'Com unidade de fora',
+          startsOn: inDays(0),
+          frequencyAmount: 1,
+          frequencyUnit: 'MONTHS',
+          assetIds: [assetA],
+          unitIds: [alheia.id],
+        })
+        .expect(400);
+
+      /**
+       * E nada foi gravado.
+       *
+       * O status por si não prova: um 400 depois do insert deixaria o plano
+       * criado e a transação é que garante que não.
+       */
+      expect(
+        await prisma.pmocPlan.count({ where: { name: 'Com unidade de fora' } }),
+      ).toBe(0);
+    });
+
+    it('remover é lógico: sai da lista e o plano que a declarou continua', async () => {
+      const unidade = (await criarUnidade({ name: 'Unidade a remover' })).data;
+      const plano = await createPlan({
+        name: 'Plano que declarou a removida',
+        assetIds: [assetA],
+        unitIds: [unidade.id],
+      });
+
+      await auth(
+        http().delete(`/api/v1/pmoc/units/${unidade.id}`),
+      ).expect(204);
+
+      const lista = await auth(http().get('/api/v1/pmoc/units')).expect(200);
+      expect(
+        (lista.body as Envelope<Unidade[]>).data.some(
+          (atual) => atual.id === unidade.id,
+        ),
+      ).toBe(false);
+
+      /**
+       * O histórico não perde o nome.
+       *
+       * Um relatório de período passado precisa continuar dizendo o que foi
+       * atendido; apagar a linha deixaria o vínculo apontando para nada.
+       */
+      const detalhe = await auth(
+        http().get(`/api/v1/pmoc/plans/${plano.id}`),
+      ).expect(200);
+      expect(
+        (detalhe.body as Envelope<{ units: Unidade[] }>).data.units.map(
+          (atual) => atual.name,
+        ),
+      ).toContain('Unidade a remover');
+    });
+
+    it('o relatório de PMOC descreve as unidades dos planos ativos', async () => {
+      const roteiro = await criarRoteiro();
+      const unidade = (
+        await criarUnidade({
+          name: 'Unidade do relatório',
+          checklistTemplateId: roteiro,
+        })
+      ).data;
+
+      const plano = await createPlan({
+        name: 'Plano ativo com unidade',
+        assetIds: [assetA],
+        unitIds: [unidade.id],
+      });
+      await auth(
+        http().post(`/api/v1/pmoc/plans/${plano.id}/activate`),
+      ).expect(201);
+
+      const requested = await auth(http().post('/api/v1/management-reports'))
+        .send({
+          type: 'PMOC_COMPLIANCE',
+          dateFrom: inDays(-60),
+          dateTo: inDays(1),
+        })
+        .expect(202);
+      const reportId = (requested.body as Envelope<{ id: string }>).data.id;
+
+      await drain(10);
+
+      const report = await auth(
+        http().get(`/api/v1/management-reports/${reportId}`),
+      ).expect(200);
+      const snapshot = (
+        report.body as Envelope<{
+          status: string;
+          snapshot: {
+            schemaVersion: number;
+            sections: {
+              id: string;
+              title: string;
+              metrics: { id: string; value: string }[];
+              tables: {
+                id: string;
+                rows: Record<string, string>[];
+              }[];
+            }[];
+          };
+        }>
+      ).data;
+
+      expect(snapshot.status).toBe('READY');
+      expect(snapshot.snapshot.schemaVersion).toBe(2);
+
+      const secao = snapshot.snapshot.sections.find(
+        (atual) => atual.id === 'pmoc.units',
+      );
+      expect(secao).toBeDefined();
+
+      const linhas = secao!.tables.find(
+        (tabela) => tabela.id === 'pmoc.units_table',
+      )?.rows;
+      expect(linhas).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            unit: 'Unidade do relatório',
+            checklist: 'Limpeza de serpentina',
+            items: '2',
+          }),
+        ]),
+      );
+
+      /** "Ciclo" saiu dos rótulos do PDF junto com a aba. */
+      const execucoes = snapshot.snapshot.sections.find(
+        (atual) => atual.id === 'pmoc.cycles',
+      );
+      expect(execucoes?.title).toBe('Execuções de manutenção');
+      expect(
+        JSON.stringify(snapshot.snapshot.sections).toLowerCase(),
+      ).not.toContain('ciclo');
+    }, 240000);
+  });
 });

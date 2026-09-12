@@ -18,6 +18,8 @@ import {
 import type {
   PmocComplianceReadModel,
   PmocCoverageReadModel,
+  PmocPlanUnitReadModel,
+  PmocUnitReadModel,
   PmocExecutionReadModel,
   PmocEquipmentExecutionReadModel,
   PmocPlanReadModel,
@@ -28,6 +30,7 @@ import type {
   ExecutionRecord,
   EquipmentExecutionRecord,
   PlanRecord,
+  PlanUnitRecord,
 } from './pmoc.repository';
 
 @Injectable()
@@ -75,6 +78,7 @@ export class PmocMapper {
     source: PlanRecord,
     extras: {
       coverages: readonly CoverageRecord[];
+      units: readonly PlanUnitRecord[];
       currentExecution: ExecutionRecord | null;
       recentExecutions: readonly ExecutionRecord[];
     },
@@ -98,6 +102,7 @@ export class PmocMapper {
         displayName: source.createdBy.displayName,
       },
       coverages: extras.coverages.map((coverage) => this.coverage(coverage)),
+      units: extras.units.map((unit) => this.unit(unit)),
       currentExecution: extras.currentExecution
         ? this.execution(extras.currentExecution)
         : null,
@@ -127,6 +132,53 @@ export class PmocMapper {
       /** O instante da avaliação — deixa explícito que é do servidor. */
       evaluatedAt: now.toISOString(),
     };
+  }
+
+  /**
+   * Uma unidade, com o roteiro achatado em `checklist`.
+   *
+   * Os itens vêm do `Json` do modelo e podem ser qualquer coisa — o modelo foi
+   * gravado por outra tela, em outra versão. Por isso a leitura filtra o que
+   * não tem `key` e `label` em vez de publicar forma que o consumidor não
+   * consegue renderizar.
+   */
+  unit(source: PlanUnitRecord): PmocPlanUnitReadModel {
+    const roteiro = source.checklistTemplate;
+    return {
+      id: source.id,
+      key: source.key,
+      name: source.name,
+      description: source.description,
+      checklist: roteiro
+        ? {
+            id: roteiro.id,
+            name: roteiro.name,
+            items: this.checklistItems(roteiro.items),
+          }
+        : null,
+    };
+  }
+
+  /** A unidade como cadastro: o que o plano declara, mais o estado no catálogo. */
+  unitEntry(source: PlanUnitRecord): PmocUnitReadModel {
+    return {
+      ...this.unit(source),
+      sortOrder: source.sortOrder,
+      isActive: source.isActive,
+    };
+  }
+
+  private checklistItems(
+    source: unknown,
+  ): readonly { key: string; label: string }[] {
+    if (!Array.isArray(source)) return [];
+    return source.flatMap((item) => {
+      if (typeof item !== 'object' || item === null) return [];
+      const record = item as Record<string, unknown>;
+      return typeof record.key === 'string' && typeof record.label === 'string'
+        ? [{ key: record.key, label: record.label }]
+        : [];
+    });
   }
 
   coverage(source: CoverageRecord): PmocCoverageReadModel {

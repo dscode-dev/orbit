@@ -142,10 +142,28 @@ export interface MobileRecentAppointmentReadModel {
  * **agregação**, e não regra nova: cada parte continua vindo de quem já era
  * dona dela, com os mesmos filtros de permissão e o mesmo isolamento.
  */
+/**
+ * Um atendimento que esta pessoa já terminou.
+ *
+ * Não é um item de fila: a fila lista o que falta, e por isso exclui
+ * concluídos. Este é o histórico curto que a tela inicial mostra.
+ */
+export interface MobileCompletedWorkReadModel {
+  id: string;
+  code: string;
+  title: string;
+  kind: string;
+  customerName: string | null;
+  equipmentName: string | null;
+  completedAt: string;
+}
+
 export interface MobileFieldHomeReadModel {
   dashboard: MobileFieldDashboardReadModel;
   recentDocuments: readonly MobileRecentDocumentReadModel[];
   recentAppointments: readonly MobileRecentAppointmentReadModel[];
+  /** O que já foi concluído — alimenta a aba "Concluídos" da home. */
+  recentlyCompleted: readonly MobileCompletedWorkReadModel[];
 }
 
 /**
@@ -176,4 +194,44 @@ export interface MobileFieldContextReadModel {
     paymentStatus: string | null;
   };
   snapshotVersion: 1;
+}
+
+/// Um cliente que aparece na fila desta pessoa.
+///
+/// `workCount` é o que torna a escolha informada: filtrar por um cliente com
+/// dois atendimentos é diferente de filtrar por um com trinta.
+export interface MobileQueueCustomerReadModel {
+  id: string;
+  name: string;
+  workCount: number;
+}
+
+/// Um cliente da carteira desta pessoa.
+///
+/// Não é o cadastro completo do CRM — é o que a tela de Clientes precisa para
+/// listar e decidir: quanto trabalho há, quando foi a última vez e quando é a
+/// próxima. O cadastro completo exige `customers.read`, que a role de campo
+/// não tem.
+export interface MobileFieldCustomerReadModel {
+  id: string;
+  /// O nome comercial quando existe; a razão social quando não.
+  name: string;
+  legalName: string;
+  documentNumber: string | null;
+  status: string;
+
+  /// Quantos atendimentos **desta pessoa** com este cliente.
+  openCount: number;
+  completedCount: number;
+  lastServiceAt: string | null;
+  nextServiceAt: string | null;
+}
+
+export interface MobileFieldCustomerPageReadModel {
+  data: readonly MobileFieldCustomerReadModel[];
+  meta: {
+    limit: number;
+    hasNextPage: boolean;
+    nextCursor: string | null;
+  };
 }

@@ -20,6 +20,8 @@ import type {
   PmocPlanQuery,
   PmocTimelineQuery,
   UpdatePmocPlanInput,
+  CreatePmocUnitInput,
+  UpdatePmocUnitInput,
 } from "@/types/pmoc";
 import { useMemo } from "react";
 
@@ -241,4 +243,43 @@ export function usePmocPlanNameOptions() {
     ({ signal }) => pmocService.planNameOptions({ signal }),
     CACHE.stable,
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* Unidades                                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * As unidades da organização, com o roteiro de cada uma.
+ *
+ * O roteiro vem junto porque é o que a tela precisa mostrar na hora de
+ * escolher: uma unidade sem checklist entra no plano e não descreve serviço
+ * nenhum, e quem marca tem de ver isso antes.
+ */
+export function usePmocUnits() {
+  return useApiQuery(
+    pmocService.keys.units(),
+    ({ signal }) => pmocService.units({ signal }),
+    CACHE.stable,
+  );
+}
+
+export function useCreatePmocUnit() {
+  return useApiMutation(
+    (input: CreatePmocUnitInput) => pmocService.createUnit(input),
+    { invalidate: [pmocService.keys.units()] },
+  );
+}
+
+export function useUpdatePmocUnit(id: string) {
+  return useApiMutation(
+    (input: UpdatePmocUnitInput) => pmocService.updateUnit(id, input),
+    { invalidate: [pmocService.keys.units()] },
+  );
+}
+
+export function useRemovePmocUnit() {
+  return useApiMutation((id: string) => pmocService.removeUnit(id), {
+    invalidate: [pmocService.keys.units()],
+  });
 }

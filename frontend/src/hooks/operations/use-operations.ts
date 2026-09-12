@@ -292,6 +292,21 @@ export function useChecklistTemplateForKind(kind: OperationKind | null) {
 }
 
 /**
+ * O catálogo de modelos de checklist, ativos.
+ *
+ * Para quem **escolhe** um roteiro — o cadastro de unidade, por exemplo — e
+ * não tem um tipo de atendimento para derivá-lo.
+ */
+export function useChecklistTemplates() {
+  return useApiQuery(
+    checklistTemplatesService.keys.list({ isActive: true, limit: 100 }),
+    ({ signal }) =>
+      checklistTemplatesService.list({ isActive: true, limit: 100 }, { signal }),
+    CACHE.stable,
+  );
+}
+
+/**
  * Começa a execução do checklist num atendimento.
  *
  * O id vai no disparo, e não na criação do hook: quem cria a operação só o

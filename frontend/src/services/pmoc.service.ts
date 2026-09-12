@@ -38,6 +38,9 @@ import type {
   PmocUpcoming,
   UpdatePmocPlanInput,
   PmocPlanNameOption,
+  PmocUnit,
+  CreatePmocUnitInput,
+  UpdatePmocUnitInput,
 } from "@/types/pmoc";
 
 const PMOC = "pmoc";
@@ -73,6 +76,30 @@ export const pmocService = {
    * Não reserva número: quem consome a sequência é o create. Duas telas
    * abertas ao mesmo tempo veem o mesmo `003` e salvam como `003` e `004`.
    */
+  /** As unidades da organização, com o roteiro de cada uma. */
+  units: (options?: RequestOptions): Promise<PmocUnit[]> =>
+    apiClient.get<PmocUnit[]>("/pmoc/units", options),
+
+  createUnit: (
+    input: CreatePmocUnitInput,
+    options?: RequestOptions,
+  ): Promise<PmocUnit> =>
+    apiClient.post<PmocUnit>("/pmoc/units", input, options),
+
+  updateUnit: (
+    id: string,
+    input: UpdatePmocUnitInput,
+    options?: RequestOptions,
+  ): Promise<PmocUnit> =>
+    apiClient.patch<PmocUnit>(
+      `/pmoc/units/${encodeURIComponent(id)}`,
+      input,
+      options,
+    ),
+
+  removeUnit: (id: string, options?: RequestOptions): Promise<void> =>
+    apiClient.delete<void>(`/pmoc/units/${encodeURIComponent(id)}`, options),
+
   /** Os nomes sugeridos para um plano. Catálogo da plataforma. */
   planNameOptions: (
     options?: RequestOptions,
@@ -210,6 +237,7 @@ export const pmocService = {
       }),
     cycles: (id: string): QueryKey => queryKeys.query(PMOC, "cycles", { id }),
     planNameOptions: (): QueryKey => queryKeys.query(PMOC, "plan-name-options"),
+    units: (): QueryKey => queryKeys.query(PMOC, "units"),
     equipmentExecutions: (planId: string, cycleId: string): QueryKey =>
       queryKeys.query(PMOC, "equipment-executions", { planId, cycleId }),
     preparation: (planId: string, cycleId: string, assetId: string): QueryKey =>

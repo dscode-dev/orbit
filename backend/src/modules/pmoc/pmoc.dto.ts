@@ -106,6 +106,21 @@ export class PreviewPmocPlanDto {
   @ArrayMaxSize(500)
   @IsUUIDv7({ each: true })
   assetIds?: string[];
+
+  /**
+   * As unidades que este plano declara.
+   *
+   * Unidade não é equipamento: `assetIds` são as máquinas sob contrato;
+   * estas são as partes do sistema que recebem manutenção — condensadora,
+   * evaporadora, dutos —, e é por elas que o relatório final descreve o
+   * serviço. Cada uma traz o seu roteiro.
+   */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUIDv7({ each: true })
+  unitIds?: string[];
 }
 
 export class PmocCodeSuggestionQueryDto {
@@ -192,6 +207,21 @@ export class CreatePmocPlanDto {
   @ArrayMaxSize(500)
   @IsUUIDv7({ each: true })
   assetIds?: string[];
+
+  /**
+   * As unidades que este plano declara.
+   *
+   * Unidade não é equipamento: `assetIds` são as máquinas sob contrato;
+   * estas são as partes do sistema que recebem manutenção — condensadora,
+   * evaporadora, dutos —, e é por elas que o relatório final descreve o
+   * serviço. Cada uma traz o seu roteiro.
+   */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUIDv7({ each: true })
+  unitIds?: string[];
 
   /**
    * Responsável técnico — **referência operacional**.
@@ -502,4 +532,53 @@ export class PmocUpcomingQueryDto {
   @Min(1)
   @Max(200)
   limit = 50;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Unidades                                                            */
+/* ------------------------------------------------------------------ */
+
+export class CreatePmocUnitDto {
+  @ApiProperty({ example: 'CONDENSADORA' })
+  @Transform(trim)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  key!: string;
+
+  @ApiProperty({ example: 'Unidade condensadora' })
+  @Transform(trim)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(160)
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
+
+  /** O roteiro desta unidade. Pode vir depois. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUIDv7()
+  checklistTemplateId?: string;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(9999)
+  sortOrder?: number;
+}
+
+export class UpdatePmocUnitDto extends PartialType(CreatePmocUnitDto) {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

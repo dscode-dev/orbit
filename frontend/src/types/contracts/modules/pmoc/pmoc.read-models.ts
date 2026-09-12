@@ -141,6 +141,39 @@ export interface PmocPlanSummaryReadModel {
   updatedAt: string;
 }
 
+/**
+ * Uma unidade atendida pelo plano.
+ *
+ * "Unidade" é a parte do sistema que recebe manutenção — condensadora,
+ * evaporadora, dutos —, não a máquina sob contrato: essa é o equipamento da
+ * cobertura. É por unidade que o relatório final descreve o serviço, e
+ * `checklist` é o que ele tem a descrever.
+ */
+export interface PmocPlanUnitReadModel {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  checklist: {
+    id: string;
+    name: string;
+    items: readonly { key: string; label: string }[];
+  } | null;
+}
+
+/**
+ * Uma unidade no cadastro da organização.
+ *
+ * Sobrepõe-se a `PmocPlanUnitReadModel` de propósito e não é a mesma coisa: lá
+ * a unidade aparece **como um plano a declarou**, para o relatório; aqui ela
+ * aparece como cadastro — com `isActive` e `sortOrder`, que são decisões de
+ * catálogo e não dizem nada sobre plano nenhum.
+ */
+export interface PmocUnitReadModel extends PmocPlanUnitReadModel {
+  sortOrder: number;
+  isActive: boolean;
+}
+
 export interface PmocPlanReadModel extends PmocPlanSummaryReadModel {
   notes: string | null;
   technicalResponsible: { id: string; displayName: string } | null;
@@ -155,6 +188,8 @@ export interface PmocPlanReadModel extends PmocPlanSummaryReadModel {
   activatedAt: string | null;
   createdBy: { id: string; displayName: string };
   coverages: readonly PmocCoverageReadModel[];
+  /** As unidades que este plano atende — o detalhamento do relatório final. */
+  units: readonly PmocPlanUnitReadModel[];
   /** O ciclo aberto — a próxima manutenção prevista. */
   currentExecution: PmocExecutionReadModel | null;
   /** As últimas execuções, da mais recente para a mais antiga. */

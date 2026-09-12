@@ -46,6 +46,7 @@ import {
   CompletePmocExecutionDto,
   CreatePmocOperationDto,
   CreatePmocPlanDto,
+  CreatePmocUnitDto,
   PmocCodeSuggestionQueryDto,
   PreviewPmocPlanDto,
   LinkPmocEvidenceDto,
@@ -56,6 +57,7 @@ import {
   PmocUpcomingQueryDto,
   StartPmocEquipmentExecutionDto,
   UpdatePmocPlanDto,
+  UpdatePmocUnitDto,
 } from './pmoc.dto';
 import { PmocService, type PmocActor } from './pmoc.service';
 
@@ -118,6 +120,59 @@ export class PmocController {
    * leitura de PMOC, e não `pmoc.manage`: quem consulta a lista ainda não
    * está criando nada.
    */
+  /* ---------------------------------------------------------------- */
+  /* Unidades                                                          */
+  /* ---------------------------------------------------------------- */
+
+  @Get('units')
+  @Capabilities('pmoc.read')
+  @Permissions('pmoc.read')
+  @ApiOperation({ summary: 'Unidades do sistema, com o roteiro de cada uma' })
+  units(
+    @Req() request: IdentityRequest,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    return this.pmoc.listUnits(
+      this.actor(request),
+      includeInactive !== 'true',
+    );
+  }
+
+  @Post('units')
+  @Capabilities('pmoc.manage')
+  @Permissions('pmoc.manage')
+  @ApiOperation({ summary: 'Cadastra uma unidade' })
+  createUnit(
+    @Req() request: IdentityRequest,
+    @Body() input: CreatePmocUnitDto,
+  ) {
+    return this.pmoc.createUnit(this.actor(request), input);
+  }
+
+  @Patch('units/:id')
+  @Capabilities('pmoc.manage')
+  @Permissions('pmoc.manage')
+  @ApiOperation({ summary: 'Edita uma unidade' })
+  updateUnit(
+    @Req() request: IdentityRequest,
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Body() input: UpdatePmocUnitDto,
+  ) {
+    return this.pmoc.updateUnit(this.actor(request), id, input);
+  }
+
+  @Delete('units/:id')
+  @Capabilities('pmoc.manage')
+  @Permissions('pmoc.manage')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove uma unidade (remoção lógica)' })
+  removeUnit(
+    @Req() request: IdentityRequest,
+    @Param('id', ParseUUIDv7Pipe) id: string,
+  ) {
+    return this.pmoc.removeUnit(this.actor(request), id);
+  }
+
   @Get('plan-name-options')
   @Capabilities('pmoc.read')
   @Permissions('pmoc.read')

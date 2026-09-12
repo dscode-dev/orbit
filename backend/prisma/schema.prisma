@@ -314,6 +314,7 @@ model Organization {
   customerServiceRequestEvents  CustomerServiceRequestEvent[]
 
   pmocCodeSequences PmocCodeSequence[]
+  pmocUnits         PmocUnit[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -1368,6 +1369,7 @@ model ChecklistTemplate {
   organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   executions       ChecklistExecution[]
   artifactTemplate ArtifactTemplate?    @relation(fields: [artifactTemplateId], references: [id], onDelete: SetNull)
+  pmocUnits        PmocUnit[]
 
   @@unique([organizationId, key, version])
   @@index([organizationId, isActive, deletedAt])
@@ -3376,6 +3378,7 @@ model PmocPlan {
 
   coverages  PmocEquipmentCoverage[]
   executions PmocExecution[]
+  units      PmocPlanUnit[]
 
   @@index([organizationId, status, nextDueOn])
   @@index([organizationId, businessUnitId, status])
@@ -3436,6 +3439,62 @@ model PmocEquipmentCoverage {
 /// serviço que a cumpriu e a execução de artefato que a documentou. Sem ela não
 /// haveria como responder "quando foi a última" nem impedir duas ordens para o
 /// mesmo vencimento.
+/// Uma unidade do sistema que recebe manutenção.
+///
+/// Condensadora, evaporadora, dutos, torre. É o nível em que o PMOC descreve
+/// o serviço: o relatório final lista, por unidade, o que foi feito nela.
+///
+/// ## Unidade não é equipamento
+///
+/// `Asset` é a máquina sob contrato — "Split Cassete 1, Sala 1". Unidade é a
+/// **parte** dessa máquina que recebe manutenção, e cada parte tem o seu
+/// roteiro. Um plano cobre equipamentos (que existem no cliente) e declara
+/// unidades (que descrevem o serviço).
+///
+/// O nome é o do mercado: foi assim que as empresas que usam PMOC pediram.
+model PmocUnit {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  key            String  @db.VarChar(60)
+  name           String  @db.VarChar(160)
+  description    String? @db.Text
+
+  /// O roteiro desta unidade. Opcional: uma unidade recém-cadastrada ainda
+  /// não tem checklist, e recusar o cadastro por isso impediria o caminho
+  /// natural — criar a unidade, depois escrever o roteiro dela.
+  checklistTemplateId String? @map("checklist_template_id") @db.Uuid
+
+  sortOrder Int       @default(0) @map("sort_order")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  checklistTemplate ChecklistTemplate? @relation(fields: [checklistTemplateId], references: [id], onDelete: SetNull)
+  plans             PmocPlanUnit[]
+
+  @@unique([organizationId, key])
+  @@index([organizationId, isActive, deletedAt])
+  @@index([checklistTemplateId])
+  @@map("pmoc_units")
+}
+
+/// As unidades declaradas por um plano.
+model PmocPlanUnit {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  planId    String   @map("plan_id") @db.Uuid
+  unitId    String   @map("unit_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  plan PmocPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  unit PmocUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, unitId])
+  @@index([unitId])
+  @@map("pmoc_plan_units")
+}
+
 /// Nomes sugeridos para um plano de PMOC.
 ///
 /// Catálogo **da plataforma**, não da organização: são os nomes que a norma e

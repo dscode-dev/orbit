@@ -192,7 +192,7 @@ export const REPORT_TYPES: readonly ReportTypeDefinition[] = [
     type: 'PMOC_COMPLIANCE',
     name: 'PMOC e conformidade',
     description:
-      'Planos de manutenção, conformidade e ciclos cumpridos no período — com a evidência documental ao lado.',
+      'Planos de manutenção, conformidade e execuções cumpridas no período — com a evidência documental ao lado.',
     domains: ['PMOC', 'DOCUMENTS'],
     capabilities: [PMOC.capability, EXECUTIONS.capability],
     permissions: [PMOC.permission, EXECUTIONS.permission],
@@ -231,4 +231,11 @@ export const findReportType = (
  * confere antes de interpretar, em vez de assumir que o formato de hoje sempre
  * valeu.
  */
-export const REPORT_SCHEMA_VERSION = 1;
+/**
+ * 2 — PR-36: o relatório de PMOC ganhou a seção `pmoc.units` (unidades
+ * atendidas e o roteiro de cada uma), e `pmoc.cycles` passou a falar em
+ * "execução" no lugar de "ciclo". Snapshots gravados na versão 1 continuam
+ * como estão: nada os reescreve, e quem os lê vê a versão com que foram
+ * compostos.
+ */
+export const REPORT_SCHEMA_VERSION = 2;

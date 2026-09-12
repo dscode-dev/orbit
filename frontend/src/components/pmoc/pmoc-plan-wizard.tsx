@@ -27,6 +27,7 @@
 import { useMemo, useState } from "react";
 
 import { MutationError } from "@/components/artifact-studio/mutation-error";
+import { PmocUnitsField } from "@/components/pmoc/pmoc-units.field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -81,6 +82,7 @@ const ETAPAS = [
   "Equipamentos",
   "Programação",
   "Responsáveis",
+  "Unidades",
   "Revisão",
 ] as const;
 
@@ -128,6 +130,9 @@ export function PmocPlanWizard({
   );
   const [tecnicoId, setTecnicoId] = useState("");
   const [selecionados, setSelecionados] = useState<readonly Asset[]>([]);
+
+  /** As unidades que este plano atende — ids de `PmocUnit`. */
+  const [unidades, setUnidades] = useState<readonly string[]>([]);
 
   const sugestao = usePmocCodeSuggestion(customerId || null);
 
@@ -252,18 +257,25 @@ export function PmocPlanWizard({
       Number(vigenciaAmount) > 0 &&
       Number(frequenciaAmount) > 0,
     true,
+    /*
+      Unidade é opcional de propósito: há plano que o owner ainda não modelou
+      por unidade, e travar aqui impediria de cadastrar o plano. O aviso na
+      própria etapa diz o que a omissão custa no relatório.
+    */
+    true,
     Boolean(projecao),
   ][etapa];
 
   const avancar = () => {
     if (!podeAvancar) return;
-    if (etapa === 3) projetar();
+    if (etapa === 4) projetar();
     setEtapa((atual) => Math.min(atual + 1, ETAPAS.length - 1));
   };
 
   const fechar = () => {
     setEtapa(0);
     setProjecao(null);
+    setUnidades([]);
     onOpenChange(false);
   };
 
@@ -288,6 +300,7 @@ export function PmocPlanWizard({
         frequencyUnit: frequenciaUnit,
         ...(tecnicoId ? { technicianUserId: tecnicoId } : {}),
         assetIds: selecionados.map((asset) => asset.id),
+        ...(unidades.length > 0 ? { unitIds: [...unidades] } : {}),
       },
       { onSuccess: fechar },
     );
@@ -615,6 +628,10 @@ export function PmocPlanWizard({
           )}
 
           {etapa === 4 && (
+            <PmocUnitsField selecionadas={unidades} onChange={setUnidades} />
+          )}
+
+          {etapa === 5 && (
             <RevisaoDoPlano
               carregando={preview.isPending}
               projecao={projecao}

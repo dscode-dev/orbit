@@ -12,6 +12,16 @@ export interface MobileSignatureStatusReadModel {
   version: number | null;
   updatedAt: string | null;
   roles: readonly MobileProfessionalRole[];
+  preview: MobileSignaturePreviewReadModel | null;
+}
+
+export interface MobileSignaturePreviewReadModel {
+  url: string;
+  expiresAt: string;
+  requiredHeaders: Readonly<Record<string, string>>;
+  mimeType: string;
+  sizeBytes: string;
+  sha256: string;
 }
 
 export interface MobileSignatureUploadResultReadModel extends MobileSignatureStatusReadModel {

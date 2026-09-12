@@ -28,6 +28,7 @@ import type {
   PmocPlanReadModel,
   PmocPlanSummaryReadModel,
   PmocTimelineItemReadModel,
+  PmocUnitReadModel,
   PmocUpcomingReadModel,
 } from "./contracts/modules/pmoc/pmoc.read-models";
 
@@ -238,3 +239,24 @@ export interface PmocPlanNameOption {
   key: string;
   label: string;
 }
+
+/**
+ * Uma unidade do sistema que recebe manutenção.
+ *
+ * Condensadora, evaporadora, dutos. **Não é equipamento**: `Asset` é a
+ * máquina sob contrato; unidade é a parte dela que recebe manutenção, e é
+ * por unidade que o relatório final descreve o serviço.
+ */
+export type PmocUnit = PmocUnitReadModel;
+
+export interface CreatePmocUnitInput {
+  key: string;
+  name: string;
+  description?: string;
+  checklistTemplateId?: string;
+  sortOrder?: number;
+}
+
+export type UpdatePmocUnitInput = Partial<CreatePmocUnitInput> & {
+  isActive?: boolean;
+};
