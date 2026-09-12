@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   LayoutGrid,
@@ -24,6 +24,11 @@ import { getEntity, type EntityId } from "@/entities/entity-registry";
 import { ROUTES } from "@/lib/routes";
 import { SECTION_PARAM } from "@/lib/section-navigation";
 import { cn } from "@/lib/utils";
+import { useSidebarPreference } from "./sidebar-preference";
+
+/** As duas larguras da barra, em pixels. */
+const LARGURA_RECOLHIDA = 84;
+const LARGURA_ABERTA = 276;
 import { useActiveScope } from "@/providers/use-active-scope";
 import { useSession } from "@/providers/session-provider";
 
@@ -381,11 +386,23 @@ export function Sidebar({
   activeLabel?: string;
   footer?: ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(true);
+  const { collapsed, toggle } = useSidebarPreference();
+  const width = collapsed ? LARGURA_RECOLHIDA : LARGURA_ABERTA;
 
   return (
     <motion.aside
-      animate={{ width: collapsed ? 84 : 276 }}
+      /**
+       * `initial={false}` e a largura também em `style`.
+       *
+       * Sem os dois, cada montagem reanimava: o HTML do servidor saía sem
+       * largura, o elemento assumia a do conteúdo e a hidratação o encolhia
+       * — o piscar que aparecia a cada navegação. Com a largura no `style`,
+       * o primeiro quadro já é o certo; com `initial={false}`, a animação
+       * fica reservada ao toque de quem recolhe.
+       */
+      initial={false}
+      animate={{ width }}
+      style={{ width }}
       transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
       className="sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar/80 backdrop-blur-xl lg:flex"
     >
@@ -413,7 +430,7 @@ export function Sidebar({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setCollapsed((v) => !v)}
+          onClick={toggle}
           aria-label={
             collapsed ? "Expandir menu lateral" : "Recolher menu lateral"
           }

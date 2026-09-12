@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { IBM_Plex_Mono, Inter, Space_Grotesk } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { Providers } from "./providers";
+import {
+  parseSidebarCookie,
+  SIDEBAR_COOKIE,
+} from "@/components/layout/sidebar-cookie";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const spaceGrotesk = Space_Grotesk({
@@ -29,14 +34,30 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.ico" },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  /**
+   * A preferência de menu é lida **no servidor**.
+   *
+   * É o que faz o primeiro quadro sair com a largura certa. Lida só no
+   * cliente, a barra renderizaria expandida no HTML e encolheria na
+   * hidratação — que era exatamente o piscar a cada navegação.
+   */
+  const store = await cookies();
+  const sidebarCollapsed = parseSidebarCookie(
+    store.get(SIDEBAR_COOKIE)?.value,
+  );
+
   return (
     <html
       lang="pt-BR"
       className={`${inter.variable} ${spaceGrotesk.variable} ${ibmPlexMono.variable}`}
     >
       <body>
-        <Providers>{children}</Providers>
+        <Providers sidebarCollapsed={sidebarCollapsed}>{children}</Providers>
       </body>
     </html>
   );
