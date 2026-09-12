@@ -7,6 +7,36 @@ import 'package:orbit_operator/core/contracts/mobile_signature_contracts.dart';
 import 'package:orbit_operator/core/presentation/field_registry.dart';
 
 void main() {
+  group('impedimentos de execução', () {
+    test('auxiliar recebe a frase do papel, não a de permissão', () {
+      /// O servidor passou a distinguir os dois motivos. Dizer "falta
+      /// permissão" ao auxiliar o mandaria pedir um acesso que ele já tem.
+      final frase = executionBlockerLabel('AUXILIARY_TECHNICIAN_READ_ONLY');
+      expect(frase, contains('acompanha'));
+      expect(frase, isNot(contains('permissão')));
+    });
+
+    test('os códigos que já chegavam deixaram de cair no genérico', () {
+      for (final codigo in [
+        'EXECUTION_PERMISSION_REQUIRED',
+        'FIELD_ASSIGNMENT_REQUIRED',
+      ]) {
+        expect(
+          executionBlockerLabel(codigo),
+          isNot('Execução indisponível no momento.'),
+          reason: codigo,
+        );
+      }
+    });
+
+    test('código desconhecido continua com a frase honesta', () {
+      expect(
+        executionBlockerLabel('CODIGO_QUE_NAO_EXISTE'),
+        'Execução indisponível no momento.',
+      );
+    });
+  });
+
   group('vocabulário', () {
     test('toda ação publicada pelo backend tem rótulo', () {
       /// Se o backend ganhar uma ação nova, o enum cresce e este teste falha —

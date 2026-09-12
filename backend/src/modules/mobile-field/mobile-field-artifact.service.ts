@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-base-to-string -- Prisma infere um union discriminado profundo para as três autoridades; o TypeScript valida o contrato, mas o parser type-aware do ESLint não o resolve. */
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { ConflictException, EntityNotFoundException } from '../../exceptions';
+import { ForbiddenException, ConflictException, EntityNotFoundException } from '../../exceptions';
 import { ArtifactManifestService } from '../artifact-manifests/artifact-manifest.service';
 import { ArtifactRenderService } from '../artifact-rendering/artifact-render.service';
 import type { MobileFieldActor } from './mobile-field.service';
@@ -67,6 +67,24 @@ export class MobileFieldArtifactService {
       this.repository.existing(actor, sourceType, sourceId),
     ]);
     if (!source) throw new EntityNotFoundException('Field source', sourceId);
+
+    /**
+     * Auxiliar não emite documento.
+     *
+     * Ele lê o atendimento e baixa o que já existe — `current` acima devolve
+     * o documento pronto sem passar por aqui. O que ele não faz é **criar**
+     * o snapshot imutável: emitir é ato de quem executou, e o documento sai
+     * com a assinatura de quem é responsável.
+     *
+     * A checagem mora aqui, e não no controller, porque `@Capabilities` e
+     * `@Permissions` decidem pelo papel — iguais para todo técnico de campo —
+     * e o que separa os dois é a atribuição neste atendimento.
+     */
+    if (this.isAuxiliaryOnly(source, actor))
+      throw new ForbiddenException(
+        'Auxiliares acompanham o atendimento e não emitem documentos.',
+      );
+
     if (current) return this.map(current);
     const preparation = this.prepare(source, null);
     if (!preparation.eligibility.eligible)
@@ -93,6 +111,21 @@ export class MobileFieldArtifactService {
       }),
     );
     return this.map(artifact);
+  }
+
+  /**
+   * Esta pessoa está neste atendimento **apenas** como auxiliar?
+   *
+   * Só vale para atendimento: RVT e PMOC têm outros donos e outro fluxo, e
+   * dizer "não" para eles preserva o comportamento que já existia.
+   */
+  private isAuxiliaryOnly(source: any, actor: MobileFieldActor): boolean {
+    if (source.kind !== 'OPERATION') return false;
+    const operation = source.source;
+    if (operation?.responsibleFieldTechnicianId === actor.id) return false;
+    return (operation?.auxiliaryTechnicians ?? []).some(
+      (item: any) => (item.userId ?? item.user?.id) === actor.id,
+    );
   }
 
   async render(

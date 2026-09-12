@@ -357,13 +357,47 @@ export class MobileFieldOperationService {
     return source;
   }
 
+  /**
+   * Esta pessoa **executa** este atendimento, ou apenas acompanha?
+   *
+   * Auxiliar acompanha. Ele lê o atendimento e os documentos já emitidos, e
+   * não inicia, não responde checklist, não registra material, não conclui e
+   * não emite nada.
+   *
+   * ## Por que não bastava a permissão do papel
+   *
+   * `actions()` decidia só por `operations.status.update` e
+   * `operations.update` — permissões do **papel**, iguais para todo técnico
+   * de campo. Um auxiliar com o papel padrão recebia `START` e `COMPLETE` e
+   * podia concluir no aplicativo um atendimento que não é dele. A permissão
+   * diz o que a pessoa sabe fazer; a atribuição diz em qual atendimento.
+   *
+   * O responsável não atribuído a nada continua sem ações: `requireVisible`
+   * já recusa quem não está em nenhuma das duas listas.
+   */
+  private isAuxiliaryOnly(source: any, actor: MobileFieldActor): boolean {
+    if (source.responsibleFieldTechnicianId === actor.id) return false;
+    return source.auxiliaryTechnicians.some(
+      (item: any) => item.user.id === actor.id,
+    );
+  }
+
   private actions(
     source: any,
     actor: MobileFieldActor,
   ): FieldOperationAllowedAction[] {
     const actions: FieldOperationAllowedAction[] = ['VIEW'];
     if (source.location || source.customer?.address) actions.push('OPEN_ROUTE');
-    if (source.status === OperationStatus.IN_PROGRESS) {
+
+    /**
+     * O auxiliar para por aqui — mais o que for leitura, logo abaixo.
+     *
+     * Ir embora antes das leituras tiraria dele a rota e o documento já
+     * emitido, que é justamente o que ele precisa em campo.
+     */
+    const auxiliary = this.isAuxiliaryOnly(source, actor);
+
+    if (!auxiliary && source.status === OperationStatus.IN_PROGRESS) {
       if (this.has(actor, 'operations.status.update'))
         actions.push('RESUME', 'COMPLETE');
       if (this.has(actor, 'operations.update'))
@@ -371,6 +405,7 @@ export class MobileFieldOperationService {
       if (this.has(actor, 'inventory.manage'))
         actions.push('REGISTER_MATERIAL');
     } else if (
+      !auxiliary &&
       OperationStateMachine.allows(
         source.status,
         OperationStatus.IN_PROGRESS,
@@ -378,6 +413,8 @@ export class MobileFieldOperationService {
       this.has(actor, 'operations.status.update')
     )
       actions.push('START');
+
+    /// Ler a etiqueta é consulta: identifica o equipamento, não muda nada.
     if (source.asset && this.has(actor, 'assets.read'))
       actions.push('SCAN_EQUIPMENT');
     if (
@@ -390,7 +427,12 @@ export class MobileFieldOperationService {
 
   private blockers(source: any, actor: MobileFieldActor): string[] {
     const values: string[] = [];
-    if (!this.has(actor, 'operations.status.update'))
+
+    /// Para o auxiliar o motivo é o papel no atendimento, não a permissão —
+    /// dizer "falta permissão" o mandaria pedir um acesso que ele já tem.
+    if (this.isAuxiliaryOnly(source, actor))
+      values.push('AUXILIARY_TECHNICIAN_READ_ONLY');
+    else if (!this.has(actor, 'operations.status.update'))
       values.push('EXECUTION_PERMISSION_REQUIRED');
     if (
       !source.responsibleFieldTechnicianId &&

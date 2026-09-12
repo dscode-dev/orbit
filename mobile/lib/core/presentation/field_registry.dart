@@ -267,6 +267,20 @@ const executionBlockerLabels = <String, String>{
   'PROFESSIONAL_ROLE_MISSING': 'Sua conta não tem o papel de Técnico em Campo.',
   'SIGNATURE_MISSING': 'Sua assinatura profissional ainda não foi registrada.',
   'BUSINESS_UNIT_SCOPE_MISSING': 'Este atendimento pertence a outra unidade.',
+
+  /// Auxiliar acompanha; quem executa é o responsável.
+  ///
+  /// A frase diz o **papel**, não a permissão: mandar pedir acesso faria a
+  /// pessoa procurar quem libere algo que já está liberado para ela — o que
+  /// falta é a atribuição neste atendimento.
+  'AUXILIARY_TECHNICIAN_READ_ONLY':
+      'Você acompanha este atendimento. Quem executa é o técnico responsável.',
+
+  /// Os dois abaixo já chegavam do servidor e caíam no texto genérico.
+  'EXECUTION_PERMISSION_REQUIRED':
+      'Sua conta não tem permissão para executar atendimentos.',
+  'FIELD_ASSIGNMENT_REQUIRED':
+      'Este atendimento ainda não tem técnico atribuído.',
 };
 
 /// A frase de um impedimento. Código desconhecido cai num texto honesto em vez
