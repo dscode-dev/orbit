@@ -68,17 +68,39 @@ const fromEntity = (id: EntityId): NavItem => {
 /**
  * Navegação por categoria de trabalho.
  *
- * Os grupos separam o que a pessoa faz: executar o dia (Operação), cuidar da
- * carteira (Comercial), configurar o que é preenchido em campo (Documentos) e
- * administrar a conta (Administração). Nada aqui muda aparência, animação ou
- * componente — só a organização dos itens.
+ * ## O que mudou, e por quê
+ *
+ * "Operação" tinha virado o grupo de tudo que não era comercial: a visão
+ * geral, a agenda, os atendimentos, os planos, os documentos emitidos e os
+ * relatórios do mês. Sete itens sob um rótulo que descreve três deles.
+ *
+ * Três correções concretas:
+ *
+ * **Visão geral e Agenda saem de "Operação".** Nenhuma das duas é trabalho a
+ * executar: são para onde se vai para *ver* o dia. Ficam no topo, sem
+ * rótulo de grupo, que é onde a pessoa espera a porta de entrada.
+ *
+ * **O nome repetido acabou.** Havia um grupo "Documentos" contendo modelos, e
+ * um item "Documentos" dentro de "Operação" contendo os documentos emitidos —
+ * duas coisas diferentes com o mesmo nome, em lugares diferentes. Agora o
+ * grupo "Documentos" reúne o que de fato é documento: os emitidos, os
+ * relatórios do período e os modelos que os geram.
+ *
+ * **"Operação" fica com o que é operação:** o atendimento e os dois planos
+ * que o originam.
  */
 export const defaultNavigation: { group: string; items: NavItem[] }[] = [
   {
-    group: "Operação",
+    /** Sem rótulo: é a porta de entrada, não uma categoria. */
+    group: "",
     items: [
       { label: "Visão geral", icon: LayoutGrid, to: ROUTES.dashboard },
       fromEntity("scheduling-event"),
+    ],
+  },
+  {
+    group: "Operação",
+    items: [
       fromEntity("operation"),
       /*
        * "Execuções de artefato" não é item de menu.
@@ -95,16 +117,6 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
        */
       fromEntity("pmoc-plan"),
       fromEntity("rvt-configuration"),
-      { label: "Documentos", icon: FileStack, to: ROUTES.documents },
-      /**
-       * Relatórios gerenciais, e não os documentos de campo.
-       *
-       * Ficam em "Operação" porque é quem acompanha o mês que os abre — e ao
-       * lado de "Documentos" de propósito: a proximidade deixa visível que são
-       * coisas diferentes. Documento emitido pertence a uma execução; relatório
-       * gerencial é o retrato de um período.
-       */
-      fromEntity("management-report"),
     ],
   },
   {
@@ -138,7 +150,29 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
   },
   {
     group: "Documentos",
-    items: [fromEntity("artifact-template")],
+    items: [
+      /**
+       * Os três, juntos, e na ordem em que se pensa neles.
+       *
+       * O emitido é o que se procura no dia a dia; o relatório é o retrato do
+       * período; o modelo é o que define os dois. Ficavam em dois grupos
+       * diferentes, um deles chamado igual a um item do outro.
+       */
+      /**
+       * "Documentos emitidos", e não "Documentos".
+       *
+       * O rótulo precisa se sustentar sozinho: com o menu recolhido some o
+       * título do grupo e sobra o tooltip. E dentro de um grupo chamado
+       * "Documentos", um item chamado "Documentos" não diz qual dos três é.
+       */
+      {
+        label: "Documentos emitidos",
+        icon: FileStack,
+        to: ROUTES.documents,
+      },
+      fromEntity("management-report"),
+      fromEntity("artifact-template"),
+    ],
   },
   {
     group: "Administração",
@@ -353,15 +387,23 @@ export function NavigationGroups({
       aria-label="Navegação principal"
       className={cn("scroll-panel flex-1 space-y-6 px-3 py-2", className)}
     >
-      {navigation.map((group) => (
-        <div key={group.group} className="space-y-1">
+      {navigation.map((group, posicao) => (
+        <div key={group.group || "topo"} className="space-y-1">
+          {/*
+            O primeiro grupo não tem rótulo: são os destinos que não são uma
+            categoria de trabalho — para onde se vai para ver o dia, não para
+            executá-lo. Sem título expandido, e sem filete recolhido, porque
+            filete antes do primeiro item separa de nada.
+          */}
           {!collapsed ? (
-            <p className="px-3 pb-1 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground/70 uppercase">
-              {group.group}
-            </p>
-          ) : (
+            group.group ? (
+              <p className="px-3 pb-1 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground/70 uppercase">
+                {group.group}
+              </p>
+            ) : null
+          ) : posicao > 0 ? (
             <div className="mx-auto mb-2 h-px w-8 bg-sidebar-border" />
-          )}
+          ) : null}
           {group.items.map((item) => (
             <SidebarItem
               key={item.label}

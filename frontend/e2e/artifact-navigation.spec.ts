@@ -27,7 +27,7 @@ test.describe("Navegação de artefatos", () => {
       menu.getByRole("link", { name: /Execuç(ões|ão) de artefato/ }),
     ).toHaveCount(0);
 
-    /** E o grupo "Operação" continua inteiro, sem buraco. */
+    /** E os destinos vizinhos continuam de pé, sem buraco no menu. */
     for (const item of ["Visão geral", "Documentos"]) {
       await expect(menu.getByRole("link", { name: item })).toBeVisible();
     }
