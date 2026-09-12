@@ -46,11 +46,72 @@ export const serverEnv = {
   /** URL interna do NestJS. Nunca exposta ao browser. */
   get backendOrigin(): string {
     assertServer("serverEnv.backendOrigin");
-    const origin = process.env.ORBIT_API_URL ?? DEFAULT_BACKEND_ORIGIN;
+    const configured = process.env.ORBIT_API_URL?.trim();
+    if (!configured && process.env.NODE_ENV === "production") {
+      throw new Error("ORBIT_API_URL is required in production");
+    }
+    const origin = configured || DEFAULT_BACKEND_ORIGIN;
+    let parsed: URL;
+    try {
+      parsed = new URL(origin);
+    } catch {
+      throw new Error("ORBIT_API_URL must be an absolute HTTP(S) URL");
+    }
+    if (
+      !["http:", "https:"].includes(parsed.protocol) ||
+      parsed.username ||
+      parsed.password
+    ) {
+      throw new Error("ORBIT_API_URL must be an absolute HTTP(S) URL");
+    }
     return origin.replace(/\/+$/, "");
   },
   get isProduction(): boolean {
     return process.env.NODE_ENV === "production";
+  },
+  /**
+   * Origem pública canônica do Next/BFF.
+   *
+   * `request.url` pode conter o host interno do container ou do reverse proxy;
+   * por isso ele não é autoridade suficiente para validar `Origin` em
+   * produção. A origem configurada é deliberadamente exata e não aceita path,
+   * credenciais, query string ou fragmento.
+   */
+  get frontendOrigin(): string | null {
+    const configured = process.env.FRONTEND_ORIGIN?.trim();
+    if (!configured) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("FRONTEND_ORIGIN is required in production");
+      }
+      return null;
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(configured);
+    } catch {
+      throw new Error("FRONTEND_ORIGIN must be an exact HTTP(S) origin");
+    }
+    if (
+      !["http:", "https:"].includes(parsed.protocol) ||
+      parsed.username ||
+      parsed.password ||
+      parsed.pathname !== "/" ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      throw new Error("FRONTEND_ORIGIN must be an exact HTTP(S) origin");
+    }
+    if (
+      process.env.NODE_ENV === "production" &&
+      parsed.protocol !== "https:" &&
+      process.env.ALLOW_INSECURE_LOCAL_COOKIES !== "true"
+    ) {
+      throw new Error(
+        "FRONTEND_ORIGIN must use HTTPS outside an explicit local-only runtime",
+      );
+    }
+    return parsed.origin;
   },
   /**
    * Cookies Secure exigem HTTPS. Deploys locais em HTTP precisam desabilitar
@@ -59,7 +120,17 @@ export const serverEnv = {
   get authCookieSecure(): boolean {
     const configured = process.env.AUTH_COOKIE_SECURE?.trim().toLowerCase();
     if (configured === "true") return true;
-    if (configured === "false") return false;
+    if (configured === "false") {
+      if (
+        process.env.NODE_ENV === "production" &&
+        process.env.ALLOW_INSECURE_LOCAL_COOKIES !== "true"
+      ) {
+        throw new Error(
+          "AUTH_COOKIE_SECURE=false requires ALLOW_INSECURE_LOCAL_COOKIES=true in a local-only runtime",
+        );
+      }
+      return false;
+    }
     return process.env.NODE_ENV === "production";
   },
 } as const;

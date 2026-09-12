@@ -89,8 +89,6 @@ export class MobileFieldArtifactService {
       JSON.stringify({
         metric: 'mobile_artifact_snapshot_frozen',
         sourceType,
-        artifactId: artifact.id,
-        snapshotHash,
         snapshotBytes: Buffer.byteLength(JSON.stringify(snapshot)),
       }),
     );
@@ -150,7 +148,6 @@ export class MobileFieldArtifactService {
     this.logger.log(
       JSON.stringify({
         metric: 'mobile_artifact_download_total',
-        artifactId,
         operation,
       }),
     );

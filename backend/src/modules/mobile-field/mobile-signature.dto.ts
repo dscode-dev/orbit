@@ -8,6 +8,7 @@ import {
   IsString,
   Max,
   MaxLength,
+  Matches,
   MinLength,
   Min,
 } from 'class-validator';
@@ -22,6 +23,19 @@ export class MobileSignatureUploadDto {
   })
   @IsUUIDv7()
   storageObjectId!: string;
+}
+
+/** Grant opaco e curto para ler somente a assinatura do ator autenticado. */
+export class MobileSignaturePreviewQueryDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(4_102_444_800)
+  expires!: number;
+
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  signature!: string;
 }
 
 /** Para que serve o arquivo reservado. É o que a trilha de auditoria registra. */

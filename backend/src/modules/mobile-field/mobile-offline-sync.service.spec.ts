@@ -124,4 +124,50 @@ describe('MobileOfflineSyncService', () => {
     const value = await service.pull(actor, cursor, []);
     expect(value.changes).toEqual([]);
   });
+
+  it('requires a full resync when the cursor row has been compacted', async () => {
+    field.offlineItems.mockResolvedValue([]);
+    repository.journalBounds.mockResolvedValue({
+      oldest: { sequence: 3n },
+      latest: { sequence: 8n },
+    });
+    const cursor = Buffer.from(
+      JSON.stringify({ v: 1, sequence: '1' }),
+    ).toString('base64url');
+
+    const value = await service.pull(actor, cursor, []);
+
+    expect(value).toMatchObject({
+      status: 'FULL_RESYNC_REQUIRED',
+      changes: [],
+      nextCursor: null,
+      hasMore: false,
+    });
+    expect(repository.journal).not.toHaveBeenCalled();
+  });
+
+  it('pages an initial snapshot beyond 500 without skipping eligible work', async () => {
+    const items = Array.from({ length: 601 }, (_, index) => ({
+      id: `SERVICE_OPERATION:${String(index).padStart(4, '0')}`,
+      updatedAt: `2026-09-11T12:${String(index % 60).padStart(2, '0')}:00.000Z`,
+    }));
+    field.offlineItems.mockResolvedValue(items);
+    repository.journalBounds.mockResolvedValue({
+      oldest: { sequence: 1n },
+      latest: { sequence: 41n },
+    });
+
+    const first = await service.pull(actor);
+    expect(first.changes).toHaveLength(500);
+    expect(first.hasMore).toBe(true);
+    expect(first.nextCursor).not.toBeNull();
+
+    const second = await service.pull(actor, first.nextCursor!);
+    expect(second.changes).toHaveLength(101);
+    expect(second.changes[0]?.resourceId).toBe('SERVICE_OPERATION:0500');
+    expect(second.hasMore).toBe(false);
+    expect(
+      JSON.parse(Buffer.from(second.nextCursor!, 'base64url').toString('utf8')),
+    ).toEqual({ v: 1, sequence: '41' });
+  });
 });

@@ -48,8 +48,16 @@ const precos = (
   [BillingInterval.ANNUAL]: brl(anual),
 });
 
-/** Toda capacidade do catálogo V1. O Empresarial recebe exatamente esta lista. */
-const TODAS_AS_CAPACIDADES = Object.values(PlanCapability);
+/**
+ * Capacidades realmente entregues pela release V1.
+ *
+ * `CUSTOMER_PORTAL` permanece no vocabulário para compatibilidade de contrato,
+ * mas não é comercializado enquanto UI e delivery de e-mail estiverem
+ * dormant. O Empresarial também não pode anunciar o que o runtime não expõe.
+ */
+const CAPACIDADES_DA_RELEASE = Object.values(PlanCapability).filter(
+  (capability) => capability !== PlanCapability.CUSTOMER_PORTAL,
+);
 
 /** A camada operacional que todo plano tem — inteligência entra à parte. */
 const OPERACIONAL: readonly PlanCapability[] = [
@@ -61,7 +69,6 @@ const OPERACIONAL: readonly PlanCapability[] = [
   PlanCapability.RVT,
   PlanCapability.ARTIFACTS,
   PlanCapability.DOCUMENT_TEMPLATES,
-  PlanCapability.CUSTOMER_PORTAL,
   PlanCapability.CUSTOMER_SERVICE_REQUESTS,
   PlanCapability.AUTOMATIONS,
   PlanCapability.ANALYTICS,
@@ -194,7 +201,7 @@ export const PLAN_CATALOG: readonly PlanDefinition[] = [
     label: 'Empresarial Ilimitado',
     description: 'Sem tetos operacionais, com inteligência incluída.',
     prices: precos(69990, 386340, 699900),
-    capabilities: TODAS_AS_CAPACIDADES,
+    capabilities: CAPACIDADES_DA_RELEASE,
     allocation: alocacao(
       UNLIMITED,
       UNLIMITED,

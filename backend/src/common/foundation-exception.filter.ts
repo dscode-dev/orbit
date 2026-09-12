@@ -56,21 +56,26 @@ export class FoundationExceptionFilter implements ExceptionFilter {
     }
     if (status >= 500) {
       const classified = classifyInternalError(exception);
-      this.logger.error(
-        JSON.stringify({
-          stage: 'internal-error',
-          status,
-          method: request.method,
-          path: redactSensitivePath(request.originalUrl ?? request.path),
-          requestId: request.id ?? null,
-          actorId: request.identity?.id ?? null,
-          organizationId: request.identity?.organizationId ?? null,
-          errorCategory: classified.category,
-          exceptionClass: classified.exceptionClass,
-          errorCode: classified.code,
-        }),
-        internalErrorStack(exception) ?? String(exception),
-      );
+      const record = JSON.stringify({
+        stage: 'internal-error',
+        status,
+        method: request.method,
+        path: redactSensitivePath(request.originalUrl ?? request.path),
+        requestId: request.id ?? null,
+        actorId: request.identity?.id ?? null,
+        organizationId: request.identity?.organizationId ?? null,
+        errorCategory: classified.category,
+        exceptionClass: classified.exceptionClass,
+        errorCode: classified.code,
+      });
+      if (process.env.NODE_ENV === 'production') {
+        this.logger.error(record);
+      } else {
+        this.logger.error(
+          record,
+          internalErrorStack(exception) ?? String(exception),
+        );
+      }
     } else if (status >= 400 && this.logsClientErrors) {
       /**
        * Recusa de cliente, registrada sob demanda.

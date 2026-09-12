@@ -516,8 +516,26 @@ describe('Mobile Offline Command & Sync Protocol (e2e)', () => {
     await push([
       envelope('OPERATION_START', operationId, prepared.version, {}),
     ]);
+    const journal = await prisma.mobileSyncChange.findMany({
+      where: { organizationId },
+      orderBy: { sequence: 'asc' },
+      take: 3,
+      select: { sequence: true },
+    });
+    expect(journal).toHaveLength(3);
+    const cursorSequence = journal[0]!.sequence;
+
+    // Reproduz uma compactação prefixada real e somente sobre o tenant-fixture:
+    // ao menos uma mudança posterior ao cursor deixa de existir, enquanto uma
+    // linha mais nova permanece para delimitar o journal disponível.
+    await prisma.mobileSyncChange.deleteMany({
+      where: {
+        organizationId,
+        sequence: { lte: journal[1]!.sequence },
+      },
+    });
     const obsoleteCursor = Buffer.from(
-      JSON.stringify({ v: 1, sequence: '1' }),
+      JSON.stringify({ v: 1, sequence: cursorSequence.toString() }),
     ).toString('base64url');
     const response = await pull(obsoleteCursor, []);
     expect(response).toMatchObject({

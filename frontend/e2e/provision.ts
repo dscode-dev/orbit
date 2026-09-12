@@ -68,11 +68,20 @@ export function scenarioId(): string {
 
 /** A unidade em que o cenário vai criar as coisas. */
 export async function activeBusinessUnit(page: Page): Promise<string> {
-  const units = await json<{ data?: Array<{ id: string }> } | Array<{ id: string }>>(
-    await bff(page, "get", "/api/orbit/organizations/current/business-units?limit=1"),
+  const units = await json<
+    { data?: Array<{ id: string }> } | Array<{ id: string }>
+  >(
+    await bff(
+      page,
+      "get",
+      "/api/orbit/organizations/current/business-units?limit=1",
+    ),
   );
   const rows = Array.isArray(units) ? units : (units.data ?? []);
-  expect(rows.length, "o tenant precisa de ao menos uma unidade").toBeGreaterThan(0);
+  expect(
+    rows.length,
+    "o tenant precisa de ao menos uma unidade",
+  ).toBeGreaterThan(0);
   return rows[0].id;
 }
 
@@ -230,6 +239,20 @@ export async function provisionPmocPlan(
     assets.push({ id: asset.id, name });
   }
 
+  /**
+   * A ativação exige ao menos uma cobertura operacional. Este equipamento é
+   * a âncora do cenário e não integra a lista devolvida: os equipamentos
+   * `Sala` continuam todos livres para os testes de busca, inclusão e conflito.
+   */
+  const anchor = await json<{ id: string }>(
+    await bff(page, "post", "/api/orbit/assets", {
+      businessUnitId,
+      customerId: customer.id,
+      category: "EQUIPMENT",
+      name: `Cobertura inicial ${suffix}`,
+    }),
+  );
+
   const code = `E2E-PMOC-${suffix}`.toUpperCase().slice(0, 60);
   const name = `Cenário PMOC ${label} ${suffix}`;
   const plan = await json<{ id: string }>(
@@ -241,6 +264,7 @@ export async function provisionPmocPlan(
       startsOn: new Date().toISOString().slice(0, 10),
       frequencyAmount: 1,
       frequencyUnit: "MONTHS",
+      assetIds: [anchor.id],
     }),
   );
 
@@ -287,15 +311,22 @@ export async function suspendPlan(page: Page, planId: string): Promise<void> {
 export async function provisionOperationWithArtifact(
   page: Page,
   label: string,
-): Promise<ProvisionedOperation & { executionId: string; executionCode: string }> {
+): Promise<
+  ProvisionedOperation & { executionId: string; executionCode: string }
+> {
   const businessUnitId = await activeBusinessUnit(page);
   const operation = await provisionOperation(page, label);
 
-  const templates = await json<{ data?: Array<{ id: string; status: string }> }>(
-    await bff(page, "get", "/api/orbit/artifact-templates?limit=10"),
+  const templates = await json<{
+    data?: Array<{ id: string; status: string }>;
+  }>(await bff(page, "get", "/api/orbit/artifact-templates?limit=10"));
+  const template = (templates.data ?? []).find(
+    (item) => item.status === "ACTIVE",
   );
-  const template = (templates.data ?? []).find((item) => item.status === "ACTIVE");
-  expect(template, "o tenant precisa de um modelo de documento publicado").toBeTruthy();
+  expect(
+    template,
+    "o tenant precisa de um modelo de documento publicado",
+  ).toBeTruthy();
 
   const code = `E2EART${scenarioId()}`.toUpperCase();
   const execution = await json<{ id: string; code: string }>(
@@ -308,7 +339,11 @@ export async function provisionOperationWithArtifact(
     }),
   );
 
-  return { ...operation, executionId: execution.id, executionCode: execution.code };
+  return {
+    ...operation,
+    executionId: execution.id,
+    executionCode: execution.code,
+  };
 }
 
 export interface ProvisionedRvt {
@@ -350,18 +385,22 @@ export async function provisionRvtVisit(
 
   const name = `Visita avulsa — ${label} ${suffix}`;
   const created = await json<{ execution: { id: string } }>(
-    await bff(page, "post", "/api/orbit/rvt/ad-hoc/executions", {
-      businessUnitId,
-      customerId: customer.id,
-      name,
-      visitType: "WEEKLY",
-      timezone: "America/Recife",
-      serviceLocation: { city: "Recife" },
-      procedure: { items: [] },
-      equipmentIds: [asset.id],
-    },
-    /** A criação é idempotente no contrato; a chave é do cenário. */
-    { "idempotency-key": `e2e-rvt-${suffix}` },
+    await bff(
+      page,
+      "post",
+      "/api/orbit/rvt/ad-hoc/executions",
+      {
+        businessUnitId,
+        customerId: customer.id,
+        name,
+        visitType: "WEEKLY",
+        timezone: "America/Recife",
+        serviceLocation: { city: "Recife" },
+        procedure: { items: [] },
+        equipmentIds: [asset.id],
+      },
+      /** A criação é idempotente no contrato; a chave é do cenário. */
+      { "idempotency-key": `e2e-rvt-${suffix}` },
     ),
   );
 
@@ -395,9 +434,16 @@ export async function provisionRvtVisit(
  * bastou um cenário renomear o seu plano para o locator encontrar três links e
  * falhar por ambiguidade. Código não se edita.
  */
-export async function seededPmocPlanId(page: Page, code: string): Promise<string> {
+export async function seededPmocPlanId(
+  page: Page,
+  code: string,
+): Promise<string> {
   const plans = await json<{ data?: Array<{ id: string; code: string }> }>(
-    await bff(page, "get", `/api/orbit/pmoc/plans?search=${encodeURIComponent(code)}&limit=10`),
+    await bff(
+      page,
+      "get",
+      `/api/orbit/pmoc/plans?search=${encodeURIComponent(code)}&limit=10`,
+    ),
   );
   const plan = (plans.data ?? []).find((item) => item.code === code);
   expect(plan, `o tenant precisa do plano semeado ${code}`).toBeTruthy();

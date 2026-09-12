@@ -220,8 +220,14 @@ export class AutomationActionProcessor implements JobProcessor, OnModuleInit {
         }),
       );
     } catch (error) {
+      // PermanentJobError is produced by this bounded processor for stable
+      // domain conditions (for example, a notification without a recipient).
+      // Preserve that actionable reason in the domain execution only. Provider
+      // and unexpected exceptions remain opaque, and logs receive only a code.
       const reason =
-        error instanceof Error ? error.message : 'erro desconhecido';
+        error instanceof PermanentJobError
+          ? error.message
+          : 'ACTION_EXECUTION_FAILED';
 
       await this.repository.finish({
         id: claimed.id,
@@ -238,7 +244,10 @@ export class AutomationActionProcessor implements JobProcessor, OnModuleInit {
           actionType: action.type,
           correlationId: job.correlationId,
           attempt: claimed.attempts,
-          reason,
+          failureCode:
+            error instanceof PermanentJobError
+              ? 'PERMANENT_ACTION_ERROR'
+              : 'ACTION_EXECUTION_FAILED',
         }),
       );
 

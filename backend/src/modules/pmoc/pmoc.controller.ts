@@ -134,7 +134,8 @@ export class PmocController {
   @Capabilities('pmoc.manage')
   @Permissions('pmoc.manage')
   @ApiOperation({
-    summary: 'Project cycles and the equipment matrix without creating anything',
+    summary:
+      'Project cycles and the equipment matrix without creating anything',
   })
   preview(@Req() request: IdentityRequest, @Body() input: PreviewPmocPlanDto) {
     return this.pmoc.preview(this.actor(request), input);

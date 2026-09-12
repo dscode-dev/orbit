@@ -17,7 +17,7 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -202,7 +202,7 @@ export default function CadastroPage() {
     handleSubmit,
     trigger,
     setValue,
-    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -213,6 +213,9 @@ export default function CadastroPage() {
       terms: false,
     },
   });
+  const selectedPlan = useWatch({ control, name: "planKey" });
+  const documentNumber = useWatch({ control, name: "documentNumber" });
+  const termsAccepted = useWatch({ control, name: "terms" });
 
   async function next() {
     if (await trigger(fieldsByStep[step])) {
@@ -354,7 +357,7 @@ export default function CadastroPage() {
 
                 {step === 0 && (
                   <PlanStep
-                    selected={watch("planKey")}
+                    selected={selectedPlan}
                     onSelect={(planKey) =>
                       setValue("planKey", planKey, { shouldValidate: true })
                     }
@@ -445,10 +448,8 @@ export default function CadastroPage() {
                     <div className="space-y-2">
                       <Label htmlFor="documentNumber">
                         CPF ou CNPJ
-                        {detectBrazilianDocumentType(
-                          watch("documentNumber") ?? "",
-                        )
-                          ? ` (${detectBrazilianDocumentType(watch("documentNumber") ?? "")})`
+                        {detectBrazilianDocumentType(documentNumber ?? "")
+                          ? ` (${detectBrazilianDocumentType(documentNumber ?? "")})`
                           : ""}
                       </Label>
                       <Input
@@ -483,11 +484,11 @@ export default function CadastroPage() {
                 {step === 3 && (
                   <div className="grid gap-5 sm:grid-cols-[1fr_6rem]">
                     {/*
-                      * O CEP preenche cidade, UF e endereço — e não viaja no
-                      * cadastro: o contrato de criação da organização não tem
-                      * campo para ele, e o `ValidationPipe` recusa o que não
-                      * está declarado. Aqui ele serve só para poupar digitação.
-                      */}
+                     * O CEP preenche cidade, UF e endereço — e não viaja no
+                     * cadastro: o contrato de criação da organização não tem
+                     * campo para ele, e o `ValidationPipe` recusa o que não
+                     * está declarado. Aqui ele serve só para poupar digitação.
+                     */}
                     <PostalCodeField
                       id="cadastro-cep"
                       className="sm:col-span-2"
@@ -532,7 +533,7 @@ export default function CadastroPage() {
                       <div className="flex items-start gap-3">
                         <Checkbox
                           id="terms"
-                          checked={watch("terms")}
+                          checked={termsAccepted}
                           onCheckedChange={(checked) =>
                             setValue("terms", checked === true, {
                               shouldValidate: true,

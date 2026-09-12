@@ -31,7 +31,7 @@ describe('RVT V2 domain', () => {
       timezone: 'America/New_York',
     });
     expect(values).toHaveLength(1);
-    expect(formatOccurrenceSequence(values[0].sequenceNumber)).toBe('001');
+    expect(formatOccurrenceSequence(values[0]!.sequenceNumber)).toBe('001');
   });
 
   it('clamps semiannual calendar dates and preserves local time through DST', () => {

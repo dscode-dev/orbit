@@ -1,6 +1,14 @@
 "use client";
 
-export default function GlobalError({ error, reset }: { error: Error; reset: () => void }) {
+import Link from "next/link";
+
+export default function GlobalError({
+  error,
+  reset,
+}: {
+  error: Error;
+  reset: () => void;
+}) {
   console.error(error);
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background px-4">
@@ -19,12 +27,12 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
           >
             Tentar novamente
           </button>
-          <a
+          <Link
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent/20"
           >
             Início
-          </a>
+          </Link>
         </div>
       </div>
     </div>

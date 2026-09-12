@@ -272,14 +272,9 @@ export function executionEligibility(
  * legível do código, e nada mais depende dela.
  */
 export function customerSlug(name: string, maxLength = 28): string {
-  const semAcento = name
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toUpperCase();
+  const semAcento = name.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
 
-  const bruto = semAcento
-    .replace(/[^A-Z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  const bruto = semAcento.replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
   if (bruto.length <= maxLength) return bruto;
 
@@ -362,7 +357,10 @@ export interface SchedulePreviewInput {
 }
 
 export interface SchedulePreview {
-  readonly cycles: readonly { readonly sequence: number; readonly dueOn: string }[];
+  readonly cycles: readonly {
+    readonly sequence: number;
+    readonly dueOn: string;
+  }[];
   /** `true` quando a vigência é aberta e a lista foi truncada pelo teto. */
   readonly truncated: boolean;
 }
@@ -387,7 +385,7 @@ function addCalendar(
 
   const mesesAdiante = unit === 'YEARS' ? total * 12 : total;
   const alvoAno = ano + Math.floor((mes + mesesAdiante) / 12);
-  const alvoMes = ((mes + mesesAdiante) % 12 + 12) % 12;
+  const alvoMes = (((mes + mesesAdiante) % 12) + 12) % 12;
 
   /**
    * Satura no último dia do mês de destino. 31/01 + 1 mês = 28/02 (ou 29 em

@@ -198,31 +198,31 @@ export class PmocService {
   ) {
     try {
       return await this.repository.create(
-      {
-        assetIds,
-        organizationId: actor.organizationId,
-        businessUnitId: input.businessUnitId,
-        customerId: input.customerId,
-        code,
-        customerName: customer.legalName,
-        name: input.name,
-        startsOn: input.startsOn,
-        endsOn: input.endsOn ?? null,
-        frequencyAmount: input.frequencyAmount,
-        frequencyUnit: input.frequencyUnit,
-        dueSoonDays: input.dueSoonDays ?? 15,
-        technicianUserId: input.technicianUserId ?? null,
-        technicalResponsibleUserId: input.technicalResponsibleUserId ?? null,
-        serviceLocation: input.serviceLocation as never,
-        scope: input.scope as never,
-        serviceTypes: input.serviceTypes ?? [],
-        procedure: (input.procedure ?? {}) as never,
-        schedulingPaused: input.schedulingPaused ?? false,
-        reviewRequired: input.reviewRequired ?? false,
-        notes: input.notes ?? null,
-        createdById: actor.actorId,
-      },
-      actor.actorId,
+        {
+          assetIds,
+          organizationId: actor.organizationId,
+          businessUnitId: input.businessUnitId,
+          customerId: input.customerId,
+          code,
+          customerName: customer.legalName,
+          name: input.name,
+          startsOn: input.startsOn,
+          endsOn: input.endsOn ?? null,
+          frequencyAmount: input.frequencyAmount,
+          frequencyUnit: input.frequencyUnit,
+          dueSoonDays: input.dueSoonDays ?? 15,
+          technicianUserId: input.technicianUserId ?? null,
+          technicalResponsibleUserId: input.technicalResponsibleUserId ?? null,
+          serviceLocation: input.serviceLocation as never,
+          scope: input.scope as never,
+          serviceTypes: input.serviceTypes ?? [],
+          procedure: (input.procedure ?? {}) as never,
+          schedulingPaused: input.schedulingPaused ?? false,
+          reviewRequired: input.reviewRequired ?? false,
+          notes: input.notes ?? null,
+          createdById: actor.actorId,
+        },
+        actor.actorId,
       );
     } catch (error) {
       /**
@@ -511,6 +511,11 @@ export class PmocService {
    */
   async activate(id: string, actor: PmocActor) {
     const plan = await this.plan(id, actor);
+    if (plan._count.coverages === 0) {
+      throw new ConflictException(
+        'A PMOC plan needs at least one covered equipment before activation',
+      );
+    }
     if (plan.status === 'ACTIVE') {
       const cycle = await this.repository.currentExecution(
         plan.id,

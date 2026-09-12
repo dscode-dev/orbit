@@ -2,7 +2,12 @@ import { ValidationException } from '../../exceptions';
 import { SchedulingService } from './scheduling.service';
 
 describe('SchedulingService validation', () => {
-  const service = new SchedulingService({} as never, {} as never);
+  const service = new SchedulingService(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
 
   it('rejects events whose end does not follow the start', async () => {
     await expect(
@@ -92,6 +97,8 @@ describe('SchedulingService agenda timezone', () => {
     const service = new SchedulingService(
       repository as never,
       recurrence as never,
+      {} as never,
+      {} as never,
     );
 
     const agenda = await service.agenda('organization', {

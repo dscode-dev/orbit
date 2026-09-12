@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
-import { PermissionGuard, RoleGuard } from '../../guards';
 import { EnvironmentProvider } from '../../providers';
 import { AuthenticationService } from './application/authentication.service';
 import { InvitationService } from './application/invitation.service';
@@ -14,8 +12,10 @@ import { IdentityTokenService } from './application/token.service';
 import { IDENTITY_TOKEN_DELIVERY } from './domain/identity.types';
 import { IdentityRepository } from './infrastructure/identity.repository';
 import { RegistrationRepository } from './infrastructure/registration.repository';
-import { NoopIdentityTokenDelivery } from './infrastructure/identity-token.delivery';
-import { JwtAuthenticationGuard } from './infrastructure/jwt-authentication.guard';
+import {
+  NoopIdentityTokenDelivery,
+  SmtpIdentityTokenDelivery,
+} from './infrastructure/identity-token.delivery';
 import { IdentityReadModelMapper } from './identity.mapper';
 import { AuthController } from './presentation/auth.controller';
 import { InvitationController } from './presentation/invitation.controller';
@@ -60,13 +60,15 @@ import { AvatarRepository } from './infrastructure/avatar.repository';
     RegistrationService,
     IdentityReadModelMapper,
     NoopIdentityTokenDelivery,
+    SmtpIdentityTokenDelivery,
     {
       provide: IDENTITY_TOKEN_DELIVERY,
-      useExisting: NoopIdentityTokenDelivery,
+      inject: [NoopIdentityTokenDelivery, SmtpIdentityTokenDelivery],
+      useFactory: (
+        noop: NoopIdentityTokenDelivery,
+        smtp: SmtpIdentityTokenDelivery,
+      ) => (process.env.NODE_ENV === 'production' ? smtp : noop),
     },
-    { provide: APP_GUARD, useClass: JwtAuthenticationGuard },
-    { provide: APP_GUARD, useClass: PermissionGuard },
-    { provide: APP_GUARD, useClass: RoleGuard },
   ],
   exports: [IdentityTokenService, IdentityRepository, RegistrationRepository],
 })

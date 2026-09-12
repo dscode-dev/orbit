@@ -1,5 +1,6 @@
 import './configure-environment';
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { FoundationModule } from './common';
@@ -35,6 +36,13 @@ import { MobileFieldModule } from './modules/mobile-field/mobile-field.module';
 import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
 import { CustomerServiceRequestModule } from './modules/customer-service-requests/customer-service-request.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { PermissionGuard, RoleGuard } from './guards';
+import { JwtAuthenticationGuard } from './modules/identity/infrastructure/jwt-authentication.guard';
+import {
+  ActivePlanGuard,
+  CapabilityGuard,
+  RequiredPlanGuard,
+} from './modules/subscription-plans/plan-access';
 
 @Module({
   imports: [
@@ -70,18 +78,25 @@ import { BillingModule } from './modules/billing/billing.module';
     MobileFieldModule,
     CustomerPortalModule,
     CustomerServiceRequestModule,
-    /**
-     * Por último, e nunca antes do módulo de identidade.
-     *
-     * A ordem dos imports é a ordem em que os `APP_GUARD` são registrados, e
-     * este módulo arrasta o de planos consigo. Posto no topo, ele fazia os
-     * guardas de plano rodarem **antes** do de autenticação: sem
-     * `request.identity`, todos recusavam a requisição com um 403 genérico —
-     * em toda rota do produto, não só nas de cobrança.
-     */
     BillingModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    /**
+     * Pipeline global de segurança, deliberadamente centralizado e ordenado.
+     *
+     * Módulos de produto não registram `APP_GUARD`: a ordem de `imports`
+     * deixa de ser uma autoridade acidental sobre autenticação/autorização.
+     * Toda requisição privada autentica primeiro; só então RBAC e
+     * entitlements podem consultar o contexto estabelecido pelo JWT.
+     */
+    { provide: APP_GUARD, useClass: JwtAuthenticationGuard },
+    { provide: APP_GUARD, useClass: PermissionGuard },
+    { provide: APP_GUARD, useClass: RoleGuard },
+    { provide: APP_GUARD, useClass: ActivePlanGuard },
+    { provide: APP_GUARD, useClass: RequiredPlanGuard },
+    { provide: APP_GUARD, useClass: CapabilityGuard },
+  ],
 })
 export class AppModule {}

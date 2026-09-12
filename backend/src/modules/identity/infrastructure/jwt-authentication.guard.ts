@@ -110,20 +110,22 @@ export class JwtAuthenticationGuard implements CanActivate {
   private logInternalFailure(request: IdentityRequest, error: unknown): void {
     const classified = classifyInternalError(error);
     const requestId = (request as { id?: unknown }).id;
-    this.logger.error(
-      JSON.stringify({
-        stage: 'guard-internal-error',
-        guard: JwtAuthenticationGuard.name,
-        method: request.method,
-        path: redactSensitivePath(request.path),
-        requestId: typeof requestId === 'string' ? requestId : null,
-        actorId: request.identity?.id ?? null,
-        organizationId: request.identity?.organizationId ?? null,
-        errorCategory: classified.category,
-        exceptionClass: classified.exceptionClass,
-        errorCode: classified.code,
-      }),
-      internalErrorStack(error),
-    );
+    const record = JSON.stringify({
+      stage: 'guard-internal-error',
+      guard: JwtAuthenticationGuard.name,
+      method: request.method,
+      path: redactSensitivePath(request.path),
+      requestId: typeof requestId === 'string' ? requestId : null,
+      actorId: request.identity?.id ?? null,
+      organizationId: request.identity?.organizationId ?? null,
+      errorCategory: classified.category,
+      exceptionClass: classified.exceptionClass,
+      errorCode: classified.code,
+    });
+    if (process.env.NODE_ENV === 'production') {
+      this.logger.error(record);
+    } else {
+      this.logger.error(record, internalErrorStack(error));
+    }
   }
 }

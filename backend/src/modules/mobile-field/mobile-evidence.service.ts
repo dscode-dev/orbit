@@ -145,7 +145,6 @@ export class MobileEvidenceService {
     }
     await this.scheduleCleanup(actor);
     this.metric('mobile_evidence_upload_intent_total', started, {
-      uploadId: upload.id,
       targetType: input.target.type,
       result: 'CREATED',
     });
@@ -246,15 +245,12 @@ export class MobileEvidenceService {
           'EVIDENCE_LIMIT_REACHED',
         );
       this.metric('mobile_evidence_finalize_total', started, {
-        uploadId,
-        evidenceId: result.evidence.id,
         sizeBytes: body.length,
         result: 'FINALIZED',
       });
       return this.map(result.evidence);
     } catch (error) {
       this.metric('mobile_evidence_finalize_failed_total', started, {
-        uploadId,
         result: 'FAILED',
       });
       throw error;

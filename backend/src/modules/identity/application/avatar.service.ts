@@ -156,7 +156,6 @@ export class AvatarService {
     this.logger.log(
       JSON.stringify({
         metric: 'user_avatar_changed_total',
-        organizationId: actor.organizationId,
       }),
     );
     return this.view(actor);

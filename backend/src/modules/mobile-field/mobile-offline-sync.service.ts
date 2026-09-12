@@ -43,11 +43,8 @@ export class MobileOfflineSyncService {
     actor: MobileFieldActor,
     workItemId: string,
   ): Promise<FieldPackageReadModel> {
-    const item = (await this.field.offlineItems(actor)).find(
-      (value) => value.id === workItemId,
-    );
-    if (!item) throw new EntityNotFoundException('MobileWorkItem', workItemId);
     const context = await this.field.fieldContext(actor, workItemId);
+    const item = context.workItem;
     const operation =
       item.kind === 'SERVICE_OPERATION'
         ? await this.operations.preparation(actor, item.sourceId)
@@ -237,11 +234,35 @@ export class MobileOfflineSyncService {
       actor.organizationId,
       actor.businessUnitIds,
     );
-    if (!encodedCursor) {
+    const parsedCursor = encodedCursor
+      ? this.parseCursor(encodedCursor)
+      : {
+          kind: 'INITIAL' as const,
+          afterId: null,
+          baseline: bounds.latest?.sequence ?? 0n,
+        };
+    if (parsedCursor.kind === 'INITIAL') {
+      const start = parsedCursor.afterId
+        ? items.findIndex((item) => item.id === parsedCursor.afterId) + 1
+        : 0;
+      if (parsedCursor.afterId && start === 0) {
+        return {
+          status: 'FULL_RESYNC_REQUIRED',
+          changes: [],
+          tombstones: [],
+          nextCursor: null,
+          hasMore: false,
+          purgeRequired: false,
+        };
+      }
+      const page = items.slice(start, start + 501);
+      const visiblePage = page.slice(0, 500);
+      const hasMore = page.length > 500;
+      const last = visiblePage.at(-1);
       return {
         status: 'DELTA',
-        changes: items.slice(0, 500).map((item, index) => ({
-          sequence: `initial:${index}`,
+        changes: visiblePage.map((item, index) => ({
+          sequence: `initial:${start + index}`,
           resourceType: 'WORK_ITEM',
           resourceId: item.id,
           changeType: 'UPSERTED' as const,
@@ -249,12 +270,15 @@ export class MobileOfflineSyncService {
           snapshot: item,
         })),
         tombstones,
-        nextCursor: this.cursor(bounds.latest?.sequence ?? 0n),
-        hasMore: items.length > 500,
+        nextCursor:
+          hasMore && last
+            ? this.initialCursor(last.id, parsedCursor.baseline)
+            : this.cursor(parsedCursor.baseline),
+        hasMore,
         purgeRequired: false,
       };
     }
-    const after = this.parseCursor(encodedCursor);
+    const after = parsedCursor.sequence;
     if (bounds.oldest && after > 0n && after + 1n < bounds.oldest.sequence) {
       return {
         status: 'FULL_RESYNC_REQUIRED',
@@ -402,10 +426,8 @@ export class MobileOfflineSyncService {
       this.logger.log(
         JSON.stringify({
           metric: 'mobile_sync_commands_applied_total',
-          commandId: command.commandId,
           commandType: command.commandType,
           result: persisted.alreadyApplied ? 'ALREADY_APPLIED' : 'APPLIED',
-          organizationId: actor.organizationId,
         }),
       );
       return persisted.alreadyApplied
@@ -592,18 +614,46 @@ export class MobileOfflineSyncService {
       JSON.stringify({ v: 1, sequence: sequence.toString() }),
     ).toString('base64url');
   }
-  private parseCursor(value: string): bigint {
+  private initialCursor(afterId: string, baseline: bigint): string {
+    return Buffer.from(
+      JSON.stringify({ v: 2, afterId, baseline: baseline.toString() }),
+    ).toString('base64url');
+  }
+  private parseCursor(
+    value: string,
+  ):
+    | { kind: 'JOURNAL'; sequence: bigint }
+    | { kind: 'INITIAL'; afterId: string; baseline: bigint } {
     try {
       const decoded = JSON.parse(
         Buffer.from(value, 'base64url').toString('utf8'),
-      ) as { v?: unknown; sequence?: unknown };
+      ) as {
+        v?: unknown;
+        sequence?: unknown;
+        afterId?: unknown;
+        baseline?: unknown;
+      };
       if (
-        decoded.v !== 1 ||
-        typeof decoded.sequence !== 'string' ||
-        !/^\d+$/.test(decoded.sequence)
-      )
-        throw new Error();
-      return BigInt(decoded.sequence);
+        decoded.v === 1 &&
+        typeof decoded.sequence === 'string' &&
+        /^\d+$/.test(decoded.sequence)
+      ) {
+        return { kind: 'JOURNAL', sequence: BigInt(decoded.sequence) };
+      }
+      if (
+        decoded.v === 2 &&
+        typeof decoded.afterId === 'string' &&
+        decoded.afterId.length <= 160 &&
+        typeof decoded.baseline === 'string' &&
+        /^\d+$/.test(decoded.baseline)
+      ) {
+        return {
+          kind: 'INITIAL',
+          afterId: decoded.afterId,
+          baseline: BigInt(decoded.baseline),
+        };
+      }
+      throw new Error();
     } catch {
       throw new ConflictException('Cursor de sincronização inválido');
     }

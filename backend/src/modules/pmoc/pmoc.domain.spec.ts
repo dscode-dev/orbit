@@ -298,7 +298,8 @@ describe('PR-FX-03 — código sugerido', () => {
   });
 
   it('respeita o limite da coluna cortando o nome, nunca o número', () => {
-    const nome = 'Associacao Beneficente Hospitalar Sao Vicente de Paulo Filial';
+    const nome =
+      'Associacao Beneficente Hospitalar Sao Vicente de Paulo Filial';
     const code = buildSuggestedCode(nome, 7);
     expect(code.length).toBeLessThanOrEqual(60);
     expect(code.endsWith('-007')).toBe(true);
@@ -374,7 +375,11 @@ describe('PR-FX-03 — projeção da programação', () => {
     for (const [equipamentos, ciclosEsperados, total] of casos) {
       const { cycles } = previewSchedule({
         startsOn: '2026-01-01',
-        endsOn: coverageEndFromDuration('2026-01-01', ciclosEsperados, 'MONTHS'),
+        endsOn: coverageEndFromDuration(
+          '2026-01-01',
+          ciclosEsperados,
+          'MONTHS',
+        ),
         ...mensal,
       });
       expect(cycles).toHaveLength(ciclosEsperados);

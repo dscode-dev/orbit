@@ -70,6 +70,24 @@ describe('Mobile signatures and customer acknowledgement (e2e)', () => {
         active: true,
       })
       .expect(200);
+    const foreignContext = await auth(
+      api().get('/api/v1/organizations/current'),
+      foreignToken,
+    ).expect(200);
+    const foreignActorId = (foreignContext.body as Envelope<any>).data
+      .ownerUserId as string;
+    await auth(
+      api().patch(
+        `/api/v1/workforce/members/${foreignActorId}/professional-profile`,
+      ),
+      foreignToken,
+    )
+      .send({
+        fieldTechnicianEnabled: true,
+        technicalResponsibleEnabled: true,
+        active: true,
+      })
+      .expect(200);
   });
 
   afterAll(async () => {
@@ -88,9 +106,8 @@ describe('Mobile signatures and customer acknowledgement (e2e)', () => {
       version: 1,
       replacedVersion: null,
     });
-    const second = await uploadSignature(
-      Buffer.concat([PNG, Buffer.from('v2')]),
-    );
+    const secondBody = Buffer.concat([PNG, Buffer.from('v2')]);
+    const second = await uploadSignature(secondBody);
     expect(second).toMatchObject({
       signatureAvailable: true,
       version: 2,
@@ -106,6 +123,45 @@ describe('Mobile signatures and customer acknowledgement (e2e)', () => {
         where: { organizationId, userId: actorId },
       }),
     ).toBe(2);
+
+    const ownStatus = await auth(
+      api().get('/api/v1/mobile/field/me/signature'),
+    ).expect(200);
+    const ownData = (ownStatus.body as Envelope<any>).data;
+    expect(ownData.preview).toMatchObject({
+      mimeType: 'image/png',
+      sizeBytes: secondBody.length.toString(),
+    });
+    expect(ownData.preview.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(new Date(ownData.preview.expiresAt).getTime()).toBeGreaterThan(
+      Date.now(),
+    );
+    const serialized = JSON.stringify(ownData);
+    expect(serialized).not.toContain('bucket');
+    expect(serialized).not.toContain('objectKey');
+    expect(serialized).not.toContain('storageObjectId');
+
+    await api().get(ownData.preview.url).expect(401);
+    await auth(api().get(ownData.preview.url), foreignToken).expect(403);
+    const previewRequest = auth(api().get(ownData.preview.url));
+    for (const [name, value] of Object.entries(
+      ownData.preview.requiredHeaders as Record<string, string>,
+    ))
+      previewRequest.set(name, value);
+    const preview = await previewRequest.expect(200);
+    expect(Buffer.from(preview.body as Buffer)).toEqual(secondBody);
+    const tampered = new URL(ownData.preview.url, 'http://orbit.local');
+    tampered.searchParams.set('expires', '0');
+    await auth(api().get(`${tampered.pathname}${tampered.search}`)).expect(403);
+
+    const foreignOwnStatus = await auth(
+      api().get(`/api/v1/mobile/field/me/signature?userId=${actorId}`),
+      foreignToken,
+    ).expect(200);
+    expect((foreignOwnStatus.body as Envelope<any>).data).toMatchObject({
+      signatureAvailable: false,
+      preview: null,
+    });
   });
 
   it('rejects spoofed MIME and cross-tenant activation', async () => {
@@ -124,7 +180,7 @@ describe('Mobile signatures and customer acknowledgement (e2e)', () => {
       .expect(400);
     await auth(api().post('/api/v1/mobile/field/me/signature'), foreignToken)
       .send({ storageObjectId: reservation.fileId })
-      .expect(403);
+      .expect(404);
     expect(
       await prisma.userSignature.count({
         where: { organizationId, userId: actorId, active: true },
@@ -470,6 +526,7 @@ describe('Mobile signatures and customer acknowledgement (e2e)', () => {
       api().get('/api/v1/mobile/field/me/signature'),
     ).expect(200);
     expect((revoked.body as Envelope<any>).data.signatureAvailable).toBe(false);
+    expect((revoked.body as Envelope<any>).data.preview).toBeNull();
     expect(
       await prisma.auditLog.count({
         where: {

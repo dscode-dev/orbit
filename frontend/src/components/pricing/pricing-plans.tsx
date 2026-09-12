@@ -98,7 +98,6 @@ const CAPACIDADES: readonly { code: string; label: string }[] = [
   { code: "PMOC", label: "PMOC" },
   { code: "RVT", label: "Relatório de visita técnica" },
   { code: "ARTIFACTS", label: "Documentos e modelos" },
-  { code: "CUSTOMER_PORTAL", label: "Portal do cliente" },
   { code: "AUTOMATIONS", label: "Automações" },
   { code: "ANALYTICS", label: "Indicadores" },
   { code: "INTEGRATIONS", label: "Integrações" },
@@ -280,7 +279,11 @@ function LimitsTable({ planos }: { planos: readonly PlanCatalogEntry[] }) {
   );
 }
 
-function CapabilitiesTable({ planos }: { planos: readonly PlanCatalogEntry[] }) {
+function CapabilitiesTable({
+  planos,
+}: {
+  planos: readonly PlanCatalogEntry[];
+}) {
   return (
     <ComparisonTable
       caption="Funcionalidades por plano"

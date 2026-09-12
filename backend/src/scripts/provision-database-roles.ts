@@ -114,6 +114,25 @@ async function provision(): Promise<void> {
     await admin.query(
       `GRANT CONNECT ON DATABASE ${quoteIdentifier(database)} TO ${role}`,
     );
+
+    /**
+     * Fresh databases need the role before migration 20260826180000, whose
+     * GRANT statements intentionally name it. The migrator calls this narrow
+     * phase first and performs the full grant reconciliation after every
+     * migration has created its tables/functions.
+     */
+    if (process.env.DATABASE_ROLE_BOOTSTRAP_ONLY === 'true') {
+      console.log(
+        JSON.stringify({
+          stage: 'database-role-bootstrapped',
+          runtimeRole: appUser,
+          rolsuper: false,
+          rolbypassrls: false,
+        }),
+      );
+      return;
+    }
+
     await admin.query(`GRANT USAGE ON SCHEMA public TO ${role}`);
 
     /**

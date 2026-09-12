@@ -133,7 +133,7 @@ export class MobileFieldOperationService {
       version: source.updatedAt.toISOString(),
       executionEligibility: { eligible: blockers.length === 0, blockers },
     };
-    this.metric('preparation', started, operationId);
+    this.metric('preparation', started);
     return result;
   }
 
@@ -155,7 +155,6 @@ export class MobileFieldOperationService {
     this.logger.log(
       JSON.stringify({
         metric: 'mobile_field_operation_start_total',
-        operationId,
         idempotentReplay: result.idempotentReplay,
       }),
     );
@@ -180,7 +179,6 @@ export class MobileFieldOperationService {
     this.logger.log(
       JSON.stringify({
         metric: 'mobile_field_operation_complete_total',
-        operationId,
         idempotentReplay: result.idempotentReplay,
       }),
     );
@@ -566,11 +564,10 @@ export class MobileFieldOperationService {
       allowed.filter((key) => key in source).map((key) => [key, source[key]]),
     );
   }
-  private metric(kind: string, started: number, operationId: string): void {
+  private metric(kind: string, started: number): void {
     this.logger.log(
       JSON.stringify({
         metric: `mobile_field_operation_${kind}_total`,
-        operationId,
         durationMs: Number((performance.now() - started).toFixed(2)),
       }),
     );

@@ -7,9 +7,12 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   Req,
+  Res,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { ForbiddenException } from '../../exceptions';
 import { ParseUUIDv7Pipe } from '../../pipes';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
@@ -17,6 +20,7 @@ import { RequiresActivePlan } from '../subscription-plans/plan-access';
 import type { MobileFieldActor } from './mobile-field.service';
 import {
   CustomerAcknowledgementInputDto,
+  MobileSignaturePreviewQueryDto,
   MobileSignatureUploadDto,
   MobileSignatureUploadReservationDto,
 } from './mobile-signature.dto';
@@ -34,6 +38,22 @@ export class MobileSignatureController {
   })
   status(@Req() request: IdentityRequest) {
     return this.service.status(this.actor(request));
+  }
+
+  @Get('me/signature/preview')
+  @ApiOperation({ summary: 'Lê a prévia temporária da própria assinatura' })
+  async preview(
+    @Req() request: IdentityRequest,
+    @Query() query: MobileSignaturePreviewQueryDto,
+    @Res() response: Response,
+  ): Promise<void> {
+    const preview = await this.service.previewBytes(this.actor(request), query);
+    response.setHeader('Content-Type', preview.mimeType);
+    response.setHeader('Content-Length', String(preview.body.length));
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Cache-Control', 'private, max-age=0, no-store');
+    response.setHeader('Content-Disposition', 'inline');
+    response.send(preview.body);
   }
 
   @Post('me/signature')

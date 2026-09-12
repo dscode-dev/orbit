@@ -1,7 +1,6 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import {
   JOB_QUEUES,
-  type BackgroundJobRecord,
   type JobProcessor,
   type JobQueue,
 } from '../jobs/background-job.types';
@@ -19,13 +18,12 @@ export class MobileSyncCleanupProcessor implements JobProcessor, OnModuleInit {
   onModuleInit(): void {
     this.registry.register(this);
   }
-  async process(job: BackgroundJobRecord): Promise<void> {
+  async process(): Promise<void> {
     const started = performance.now();
     const result = await this.repository.cleanupExpired();
     this.logger.log(
       JSON.stringify({
         metric: 'mobile_sync_cleanup',
-        organizationId: job.organizationId,
         receiptsDeleted: result.receiptsDeleted,
         journalDeleted: result.journalDeleted,
         durationMs: Number((performance.now() - started).toFixed(2)),

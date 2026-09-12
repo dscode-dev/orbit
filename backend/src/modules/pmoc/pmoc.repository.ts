@@ -66,7 +66,9 @@ const planView = {
   technician: { select: { id: true, displayName: true } },
   technicalResponsible: { select: { id: true, displayName: true } },
   createdBy: { select: { id: true, displayName: true } },
-  _count: { select: { coverages: true } },
+  _count: {
+    select: { coverages: { where: { deletedAt: null } } },
+  },
 } satisfies Prisma.PmocPlanSelect;
 
 const coverageView = {
@@ -296,7 +298,10 @@ export class PmocRepository {
    */
   private async nextCode(
     tx: PrismaTransactionClient,
-    data: Pick<CreatePlanData, 'organizationId' | 'customerId' | 'customerName'>,
+    data: Pick<
+      CreatePlanData,
+      'organizationId' | 'customerId' | 'customerName'
+    >,
   ): Promise<string> {
     for (let tentativa = 0; tentativa < 50; tentativa += 1) {
       const linhas = await tx.$queryRaw<{ last_value: number }[]>`
@@ -407,7 +412,10 @@ export class PmocRepository {
         sequencia += 1;
       }
 
-      return { code: buildSuggestedCode(input.customerName, sequencia), sequence: sequencia };
+      return {
+        code: buildSuggestedCode(input.customerName, sequencia),
+        sequence: sequencia,
+      };
     });
   }
 
@@ -624,6 +632,13 @@ export class PmocRepository {
            AND organization_id = ${organizationId}::uuid
            AND deleted_at IS NULL
            AND status IN ('DRAFT', 'SUSPENDED')
+           AND EXISTS (
+             SELECT 1
+               FROM pmoc_equipment_coverages coverage
+              WHERE coverage.plan_id = pmoc_plans.id
+                AND coverage.organization_id = pmoc_plans.organization_id
+                AND coverage.deleted_at IS NULL
+           )
         RETURNING id, next_due_on
       `;
       if (rows.length === 0) return null;
@@ -1776,6 +1791,27 @@ export class PmocRepository {
     actorId: string,
   ) {
     return this.rls.run(async (tx) => {
+      /**
+       * Serializa alterações de cobertura do mesmo plano. Sem esta trava,
+       * duas remoções simultâneas poderiam enxergar duas coberturas e apagar
+       * ambas, deixando um plano ACTIVE sem trabalho operacional.
+       */
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pmoc:coverage:${planId}`}))`;
+      const plan = await tx.pmocPlan.findFirst({
+        where: { id: planId, organizationId, deletedAt: null },
+        select: {
+          status: true,
+          _count: {
+            select: { coverages: { where: { deletedAt: null } } },
+          },
+        },
+      });
+      if (!plan) return false;
+      if (plan.status === 'ACTIVE' && plan._count.coverages <= 1) {
+        throw new ConflictException(
+          'An active PMOC plan must keep at least one covered equipment',
+        );
+      }
       const removed = await tx.pmocEquipmentCoverage.updateMany({
         where: { id, planId, organizationId, deletedAt: null },
         data: { deletedAt: new Date() },

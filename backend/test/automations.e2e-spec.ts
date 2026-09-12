@@ -1132,7 +1132,7 @@ describe('Automations (e2e)', () => {
     });
     /** Erro permanente não fica repetindo: vai direto para o cemitério. */
     expect(job.status).toBe('DEAD');
-    expect(job.lastError).toContain('destinatário');
+    expect(job.lastError).toBe('PERMANENT_JOB_ERROR');
 
     await disable(rule.id);
   }, 180000);

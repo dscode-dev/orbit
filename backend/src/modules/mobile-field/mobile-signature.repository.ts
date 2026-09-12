@@ -27,7 +27,23 @@ export class MobileSignatureRepository {
       });
       const signature = await tx.userSignature.findFirst({
         where: { organizationId, userId, active: true, revokedAt: null },
-        select: { id: true, version: true, updatedAt: true },
+        select: {
+          id: true,
+          version: true,
+          updatedAt: true,
+          sha256: true,
+          storageObject: {
+            select: {
+              bucket: true,
+              objectKey: true,
+              fileName: true,
+              mimeType: true,
+              sizeBytes: true,
+              sha256: true,
+              status: true,
+            },
+          },
+        },
       });
       return { membership, profile, signature };
     });

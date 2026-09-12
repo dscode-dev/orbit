@@ -577,6 +577,9 @@ export class OperationRepository {
           },
         },
         orderBy: { createdAt: 'desc' },
+        // Workspace overview only. The immutable rows remain in PostgreSQL;
+        // a dedicated paginated audit export can expose older history later.
+        take: 500,
       });
       const attachments = await transaction.operationAttachment.findMany({
         where: { operationId: id, deletedAt: null },
@@ -586,6 +589,7 @@ export class OperationRepository {
           },
         },
         orderBy: { createdAt: 'desc' },
+        take: 100,
       });
       return { history, attachments };
     });

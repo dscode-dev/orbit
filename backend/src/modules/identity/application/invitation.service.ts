@@ -49,8 +49,9 @@ export class InvitationService {
     );
     const token = this.tokens.generateOpaqueToken();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60_000);
+    let invitation: Awaited<ReturnType<IdentityRepository['createInvitation']>>;
     try {
-      const invitation = await this.repository.createInvitation({
+      invitation = await this.repository.createInvitation({
         organizationId: input.organizationId,
         businessUnitId: input.businessUnitId,
         roleId: input.roleId,
@@ -60,15 +61,15 @@ export class InvitationService {
         tokenHash: this.tokens.hashOpaqueToken(token),
         expiresAt,
       });
-      await this.delivery.deliver(
-        IdentityTokenPurpose.INVITATION,
-        invitation.email,
-        token,
-      );
-      return { id: invitation.id, expiresAt };
     } catch {
       throw new ConflictException('A pending invitation already exists');
     }
+    await this.delivery.deliver(
+      IdentityTokenPurpose.INVITATION,
+      invitation.email,
+      token,
+    );
+    return { id: invitation.id, expiresAt };
   }
 
   /**

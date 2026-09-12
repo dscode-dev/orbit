@@ -70,8 +70,6 @@ export class EquipmentQrService {
     this.logger.log(
       JSON.stringify({
         metric: 'equipment_qr_rotate_total',
-        actorId: actor.actorId,
-        equipmentId,
       }),
     );
     return this.summary(equipmentId, actor);
@@ -109,8 +107,6 @@ export class EquipmentQrService {
       this.logger.warn(
         JSON.stringify({
           metric: 'equipment_qr_resolve_denied_total',
-          tokenCorrelation: tokenHash.slice(0, 12),
-          actorId: actor.actorId,
         }),
       );
       throw new EntityNotFoundException('Equipment');
@@ -184,8 +180,6 @@ export class EquipmentQrService {
     this.logger.log(
       JSON.stringify({
         metric: 'equipment_qr_resolve_total',
-        tokenCorrelation: tokenHash.slice(0, 12),
-        actorId: actor.actorId,
       }),
     );
     return {

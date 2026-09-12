@@ -39,6 +39,7 @@ interface Execution {
   operation: { id: string } | null;
   artifact: { id: string } | null;
   equipment: { id: string }[];
+  customerAcknowledgement: { name: string } | null;
 }
 
 const digits = (length: number) =>

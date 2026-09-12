@@ -282,7 +282,7 @@ export class AiService {
         status: 'FAILED',
         error: {
           code: 'PROVIDER_EXECUTION_FAILED',
-          message: this.errorMessage(error).slice(0, 2000),
+          message: 'The provider could not complete this execution.',
         },
         durationMs: Date.now() - startedAt,
         completedAt: new Date(),
@@ -320,7 +320,7 @@ export class AiService {
         JSON.stringify({
           stage: 'ai-metering-failed',
           executionId,
-          reason: this.errorMessage(error).slice(0, 200),
+          errorClass: error instanceof Error ? error.constructor.name : 'Error',
         }),
       );
     }
@@ -465,7 +465,11 @@ export class AiService {
       });
     } catch (error) {
       this.logger.error(
-        `Failed to notify AI execution ${executionId}: ${this.errorMessage(error)}`,
+        JSON.stringify({
+          stage: 'ai-notification-failed',
+          executionId,
+          errorClass: error instanceof Error ? error.constructor.name : 'Error',
+        }),
       );
     }
   }
@@ -477,9 +481,5 @@ export class AiService {
     )
       throw new ConflictException('AI agent version already exists');
     throw error;
-  }
-
-  private errorMessage(error: unknown) {
-    return error instanceof Error ? error.message : String(error);
   }
 }

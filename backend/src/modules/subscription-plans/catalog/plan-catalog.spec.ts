@@ -103,6 +103,7 @@ describe('Essencial', () => {
     const capacidades = planDefinition(PlanCode.ESSENTIAL).capabilities;
     expect(capacidades).not.toContain(PlanCapability.ORBIT_INTELLIGENCE);
     expect(capacidades).not.toContain(PlanCapability.AI_ASSISTANTS);
+    expect(capacidades).not.toContain(PlanCapability.CUSTOMER_PORTAL);
   });
 });
 
@@ -169,10 +170,14 @@ describe('Empresarial Ilimitado', () => {
     }
   });
 
-  it('tem todas as capacidades do catálogo', () => {
+  it('tem todas as capacidades qualificadas para a release', () => {
     expect(
       [...planDefinition(PlanCode.ENTERPRISE_UNLIMITED).capabilities].sort(),
-    ).toEqual([...Object.values(PlanCapability)].sort());
+    ).toEqual(
+      Object.values(PlanCapability)
+        .filter((capability) => capability !== PlanCapability.CUSTOMER_PORTAL)
+        .sort(),
+    );
   });
 });
 

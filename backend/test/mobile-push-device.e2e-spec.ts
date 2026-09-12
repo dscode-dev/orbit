@@ -10,8 +10,10 @@ import { BackgroundJobWorker } from '../src/modules/jobs/background-job.worker';
 import {
   MOBILE_PUSH_PROVIDER,
   type MobilePushDeliveryProvider,
+  type MobilePushTarget,
   type MobilePushResult,
 } from '../src/modules/notifications/mobile-push.provider';
+import type { MobilePushPayloadReadModel } from '../src/modules/notifications/mobile-device.read-models';
 import { adminPrisma, disconnectAdminPrisma } from './support/admin-prisma';
 
 jest.setTimeout(180_000);
@@ -22,13 +24,16 @@ interface Envelope<T> {
 
 class InspectablePushProvider implements MobilePushDeliveryProvider {
   readonly name = 'e2e-push';
-  readonly calls: { token: string; payload: Record<string, unknown> }[] = [];
+  readonly calls: {
+    token: string;
+    payload: MobilePushPayloadReadModel;
+  }[] = [];
   next: MobilePushResult = {
     kind: 'ACCEPTED_BY_PROVIDER',
     providerMessageId: 'provider-message',
   };
 
-  send(target: { token: string }, payload: Record<string, unknown>) {
+  send(target: MobilePushTarget, payload: MobilePushPayloadReadModel) {
     this.calls.push({ token: target.token, payload });
     return Promise.resolve(this.next);
   }

@@ -2,8 +2,10 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { configureApiVersioning } from './configure-api';
+import { validateReleaseEnvironment } from './release-environment';
 
 async function bootstrap() {
+  validateReleaseEnvironment(process.env);
   /**
    * `rawBody` guarda os bytes originais além do JSON já interpretado.
    *

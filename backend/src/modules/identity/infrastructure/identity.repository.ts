@@ -211,6 +211,10 @@ export class IdentityRepository {
     return this.prisma.session.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      // The profile UI is a security overview, not an audit export. A bounded
+      // latest-first window prevents an account with years of rotated or
+      // revoked sessions from creating an unbounded response.
+      take: 100,
       select: {
         id: true,
         client: true,

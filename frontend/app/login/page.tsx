@@ -143,6 +143,7 @@ function LoginView() {
                   <Label htmlFor="password">Senha</Label>
                   <Link
                     href={ROUTES.forgotPassword}
+                    prefetch={false}
                     className="text-xs font-medium text-primary hover:underline"
                   >
                     Esqueceu a senha?
@@ -248,6 +249,7 @@ function LoginView() {
               Ainda não tem acesso?{" "}
               <Link
                 href="/cadastro"
+                prefetch={false}
                 className="font-medium text-primary hover:underline"
               >
                 Criar minha organização

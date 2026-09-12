@@ -31,6 +31,7 @@ import { configureApiVersioning } from './../src/configure-api';
 import type { PrismaClient } from '@prisma/client';
 import { adminPrisma, disconnectAdminPrisma } from './support/admin-prisma';
 import { BackgroundJobWorker } from './../src/modules/jobs/background-job.worker';
+import { generateUuidV7 } from './../src/utils';
 import {
   STORAGE_PROVIDER,
   type StorageProvider,
@@ -66,6 +67,20 @@ interface Envelope<T> {
 interface Page<T> {
   data: T[];
   meta: { total: number };
+}
+
+interface ErrorEnvelope {
+  error: { code: string; message: string };
+}
+
+interface PmocPreview {
+  endsOn: string;
+  cycleCount: number;
+  equipmentCount: number;
+  projectedExecutions: number;
+  matrix: {
+    executions: { executionNumber: number }[];
+  }[];
 }
 
 interface Plan {
@@ -137,6 +152,7 @@ describe('PMOC (e2e)', () => {
   let customerId: string;
   let assetA: string;
   let assetB: string;
+  let activationAsset: string;
 
   const auth = (req: request.Test, tok = token) =>
     req.set('Authorization', `Bearer ${tok}`);
@@ -339,6 +355,10 @@ describe('PMOC (e2e)', () => {
 
     assetA = await createAsset(unitA, 'Split 12.000 BTU — recepção');
     assetB = await createAsset(unitB, 'Split 18.000 BTU — filial');
+    activationAsset = await createAsset(
+      unitA,
+      'Equipamento de cobertura mínima',
+    );
 
     /**
      * Papel com equipamentos, mas **sem** PMOC — é o cenário do enunciado:
@@ -404,6 +424,13 @@ describe('PMOC (e2e)', () => {
 
   it('2 · ativar define o primeiro vencimento e abre o ciclo', async () => {
     const created = await createPlan({ startsOn: inDays(-2) });
+
+    await auth(http().post(`/api/v1/pmoc/plans/${created.id}/activate`)).expect(
+      409,
+    );
+    await auth(http().post(`/api/v1/pmoc/plans/${created.id}/equipment`))
+      .send({ assetId: activationAsset })
+      .expect(201);
 
     const response = await auth(
       http().post(`/api/v1/pmoc/plans/${created.id}/activate`),
@@ -660,6 +687,9 @@ describe('PMOC (e2e)', () => {
 
   it('3 · suspender para a avaliação; cancelar é terminal', async () => {
     const plan = await createPlan();
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+      .send({ assetId: activationAsset })
+      .expect(201);
     await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
       201,
     );
@@ -778,6 +808,21 @@ describe('PMOC (e2e)', () => {
     expect(full.coverages).toHaveLength(1);
   }, 120000);
 
+  it('não remove a última cobertura de um plano ativo', async () => {
+    const plan = await createPlan({ assetIds: [activationAsset] });
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
+      201,
+    );
+    const active = await detail(plan.id);
+    const coverageId = active.coverages?.[0]?.id;
+    expect(coverageId).toBeTruthy();
+
+    await auth(
+      http().delete(`/api/v1/pmoc/plans/${plan.id}/equipment/${coverageId!}`),
+    ).expect(409);
+    expect((await detail(plan.id)).coveredEquipment).toBe(1);
+  });
+
   /* ================================================================ */
   /* 8 · 9 — periodicidade de calendário e próxima execução            */
   /* ================================================================ */
@@ -788,6 +833,9 @@ describe('PMOC (e2e)', () => {
       frequencyAmount: 6,
       frequencyUnit: 'MONTHS',
     });
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+      .send({ assetId: activationAsset })
+      .expect(201);
     await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
       201,
     );
@@ -853,6 +901,9 @@ describe('PMOC (e2e)', () => {
     });
 
     for (const plan of [upToDate, dueSoon, overdue]) {
+      await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+        .send({ assetId: activationAsset })
+        .expect(201);
       await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
         201,
       );
@@ -972,6 +1023,9 @@ describe('PMOC (e2e)', () => {
 
   it('17 · a evidência precisa ser uma execução de artefato de PMOC', async () => {
     const plan = await createPlan({ startsOn: inDays(0) });
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+      .send({ assetId: activationAsset })
+      .expect(201);
     await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
       201,
     );
@@ -1082,6 +1136,9 @@ describe('PMOC (e2e)', () => {
       .expect(201);
 
     const otherPlan = await createPlan({ startsOn: inDays(0) });
+    await auth(http().post(`/api/v1/pmoc/plans/${otherPlan.id}/equipment`))
+      .send({ assetId: activationAsset })
+      .expect(201);
     await auth(
       http().post(`/api/v1/pmoc/plans/${otherPlan.id}/activate`),
     ).expect(201);
@@ -1141,6 +1198,9 @@ describe('PMOC (e2e)', () => {
 
     /** Um plano que já nasce vencido: o aviso é agendado para agora. */
     const plan = await createPlan({ startsOn: inDays(-3) });
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+      .send({ assetId: activationAsset })
+      .expect(201);
     await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
       201,
     );
@@ -1205,6 +1265,9 @@ describe('PMOC (e2e)', () => {
       frequencyAmount: 3,
       frequencyUnit: 'MONTHS',
     });
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+      .send({ assetId: activationAsset })
+      .expect(201);
     await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)).expect(
       201,
     );
@@ -1430,6 +1493,9 @@ describe('PMOC (e2e)', () => {
 
     /** O mundo anda: um plano novo, vencido, depois do relatório. */
     const late = await createPlan({ startsOn: inDays(-40) });
+    await auth(http().post(`/api/v1/pmoc/plans/${late.id}/equipment`))
+      .send({ assetId: activationAsset })
+      .expect(201);
     await auth(http().post(`/api/v1/pmoc/plans/${late.id}/activate`)).expect(
       201,
     );
@@ -1455,6 +1521,9 @@ describe('PMOC (e2e)', () => {
    */
   it('ativa concorrentemente sem duplicar ciclo, agenda ou due jobs', async () => {
     const plan = await createPlan({ startsOn: inDays(1) });
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+      .send({ assetId: activationAsset })
+      .expect(201);
     const responses = await Promise.all(
       Array.from({ length: 4 }, () =>
         auth(http().post(`/api/v1/pmoc/plans/${plan.id}/activate`)),
@@ -1510,6 +1579,9 @@ describe('PMOC (e2e)', () => {
 
   it('faz rollback de ACTIVE quando a criação do ciclo falha e aceita retry', async () => {
     const plan = await createPlan({ startsOn: inDays(1) });
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+      .send({ assetId: activationAsset })
+      .expect(201);
     await prisma.$executeRawUnsafe(`
       CREATE OR REPLACE FUNCTION test_pmoc_cycle_fault() RETURNS trigger AS $$
       BEGIN
@@ -2738,16 +2810,24 @@ describe('PMOC (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
-      expect(primeira.body.data.suggestedCode).toMatch(/^PMOC-[A-Z0-9-]+-\d{3,}$/);
-      expect(primeira.body.data.reserved).toBe(false);
+      const primeiraSugestao = (
+        primeira.body as Envelope<{ suggestedCode: string; reserved: boolean }>
+      ).data;
+      expect(primeiraSugestao.suggestedCode).toMatch(
+        /^PMOC-[A-Z0-9-]+-\d{3,}$/,
+      );
+      expect(primeiraSugestao.reserved).toBe(false);
 
       /** Consultar duas vezes devolve o mesmo: sugerir não consome. */
       const segunda = await http()
         .get(`/api/v1/pmoc/code-suggestion?customerId=${customerId}`)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
-      expect(segunda.body.data.suggestedCode).toBe(
-        primeira.body.data.suggestedCode,
+      const segundaSugestao = (
+        segunda.body as Envelope<{ suggestedCode: string }>
+      ).data;
+      expect(segundaSugestao.suggestedCode).toBe(
+        primeiraSugestao.suggestedCode,
       );
     });
 
@@ -2767,7 +2847,7 @@ describe('PMOC (e2e)', () => {
         })
         .expect(200);
 
-      const preview = resposta.body.data;
+      const preview = (resposta.body as Envelope<PmocPreview>).data;
       expect(preview.endsOn).toBe('2027-03-07');
       expect(preview.cycleCount).toBe(6);
       expect(preview.equipmentCount).toBe(2);
@@ -2777,10 +2857,67 @@ describe('PMOC (e2e)', () => {
       expect(preview.matrix).toHaveLength(2);
       for (const linha of preview.matrix) {
         expect(
-          linha.executions.map((e: { executionNumber: number }) => e.executionNumber),
+          linha.executions.map((execution) => execution.executionNumber),
         ).toEqual([1, 2, 3, 4, 5, 6]);
       }
     });
+
+    it('mantém o preview real 100×12 dentro do budget interativo', async () => {
+      const assetIds = Array.from({ length: 100 }, () => generateUuidV7());
+      await prisma.asset.createMany({
+        data: assetIds.map((id, index) => ({
+          id,
+          organizationId,
+          businessUnitId: unitA,
+          customerId,
+          category: 'EQUIPMENT',
+          name: `Preview performance ${index + 1}`,
+          status: 'ACTIVE',
+        })),
+      });
+
+      const durations: number[] = [];
+      let payloadBytes = 0;
+      try {
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+          const started = performance.now();
+          const response = await http()
+            .post('/api/v1/pmoc/plans/preview')
+            .set('Authorization', `Bearer ${token}`)
+            .send({
+              businessUnitId: unitA,
+              customerId,
+              startsOn: '2026-01-01',
+              coverageAmount: 12,
+              coverageUnit: 'MONTHS',
+              frequencyAmount: 1,
+              frequencyUnit: 'MONTHS',
+              assetIds,
+            })
+            .expect(200);
+          durations.push(performance.now() - started);
+          const preview = (response.body as Envelope<PmocPreview>).data;
+          expect(preview.cycleCount).toBe(12);
+          expect(preview.equipmentCount).toBe(100);
+          expect(preview.projectedExecutions).toBe(1_200);
+          payloadBytes = Buffer.byteLength(JSON.stringify(preview));
+        }
+
+        const ordered = [...durations].sort((a, b) => a - b);
+        const p50 = ordered[Math.ceil(ordered.length * 0.5) - 1]!;
+        const p95 = ordered[Math.ceil(ordered.length * 0.95) - 1]!;
+        process.stdout.write(
+          `[PR36_PERF] ${JSON.stringify({ endpoint: 'POST /api/v1/pmoc/plans/preview', scenario: '100x12', samples: durations.length, p50Ms: Number(p50.toFixed(2)), p95Ms: Number(p95.toFixed(2)), queryCount: 3, payloadBytes })}\n`,
+        );
+        expect(p95).toBeLessThan(1_000);
+        expect(payloadBytes).toBeLessThan(512 * 1024);
+      } finally {
+        await prisma.equipmentQrIdentity.deleteMany({
+          where: { equipmentId: { in: assetIds } },
+        });
+        await prisma.asset.deleteMany({ where: { id: { in: assetIds } } });
+      }
+    }, 120000);
 
     it('o preview não cria nada', async () => {
       const antes = await prisma.pmocPlan.count({ where: { organizationId } });
@@ -2807,19 +2944,25 @@ describe('PMOC (e2e)', () => {
       const outro = await http()
         .post('/api/v1/customers')
         .set('Authorization', `Bearer ${token}`)
-        .send({ type: 'COMPANY', legalName: `Alheio ${randomUUID().slice(0, 8)}` })
+        .send({
+          type: 'COMPANY',
+          legalName: `Alheio ${randomUUID().slice(0, 8)}`,
+        })
         .expect(201);
 
+      const outroId = (outro.body as Envelope<{ id: string }>).data.id;
       const alheio = await http()
         .post('/api/v1/assets')
         .set('Authorization', `Bearer ${token}`)
         .send({
           businessUnitId: unitA,
-          customerId: outro.body.data.id,
+          customerId: outroId,
           category: 'EQUIPMENT',
           name: `Alheio ${randomUUID().slice(0, 8)}`,
         })
         .expect(201);
+
+      const assetAlheioId = (alheio.body as Envelope<{ id: string }>).data.id;
 
       await http()
         .post('/api/v1/pmoc/plans/preview')
@@ -2832,7 +2975,7 @@ describe('PMOC (e2e)', () => {
           coverageUnit: 'MONTHS',
           frequencyAmount: 1,
           frequencyUnit: 'MONTHS',
-          assetIds: [assetA, alheio.body.data.id],
+          assetIds: [assetA, assetAlheioId],
         })
         .expect(400);
 
@@ -2847,7 +2990,7 @@ describe('PMOC (e2e)', () => {
           endsOn: '2027-03-07',
           frequencyAmount: 1,
           frequencyUnit: 'MONTHS',
-          assetIds: [alheio.body.data.id],
+          assetIds: [assetAlheioId],
         })
         .expect(400);
     });
@@ -2868,8 +3011,9 @@ describe('PMOC (e2e)', () => {
         })
         .expect(201);
 
-      const planId = criado.body.data.id;
-      expect(criado.body.data.code).toMatch(/^PMOC-[A-Z0-9-]+-\d{3,}$/);
+      const plan = (criado.body as Envelope<{ id: string; code: string }>).data;
+      const planId = plan.id;
+      expect(plan.code).toMatch(/^PMOC-[A-Z0-9-]+-\d{3,}$/);
 
       const coberturas = await prisma.pmocEquipmentCoverage.count({
         where: { planId, deletedAt: null },
@@ -2898,7 +3042,9 @@ describe('PMOC (e2e)', () => {
 
       const codigos = resultados
         .filter((resposta) => resposta.status === 201)
-        .map((resposta) => resposta.body.data.code as string);
+        .map(
+          (resposta) => (resposta.body as Envelope<{ code: string }>).data.code,
+        );
 
       /** Nenhuma falha, e nenhum código repetido. */
       expect(codigos).toHaveLength(4);
@@ -2931,11 +3077,10 @@ describe('PMOC (e2e)', () => {
         .send(corpo('Duplicado'))
         .expect(409);
 
-      expect(conflito.body.error.code).toBe('CONFLICT');
+      const erro = (conflito.body as ErrorEnvelope).error;
+      expect(erro.code).toBe('CONFLICT');
       /** Sem nome de constraint, sem SQL, sem tabela. */
-      expect(conflito.body.error.message).not.toMatch(
-        /pmoc_plans|unique|constraint|index/i,
-      );
+      expect(erro.message).not.toMatch(/pmoc_plans|unique|constraint|index/i);
     });
 
     it('mantém a criação legada sem equipamentos', async () => {
@@ -2953,11 +3098,27 @@ describe('PMOC (e2e)', () => {
         })
         .expect(201);
 
+      const planId = (legado.body as Envelope<{ id: string }>).data.id;
       expect(
         await prisma.pmocEquipmentCoverage.count({
-          where: { planId: legado.body.data.id },
+          where: { planId },
         }),
       ).toBe(0);
+
+      /** Defesa final: nem escrita administrativa contorna o invariante. */
+      await expect(
+        prisma.$executeRaw`
+          UPDATE pmoc_plans
+             SET status = 'ACTIVE'
+           WHERE id = ${planId}::uuid
+        `,
+      ).rejects.toThrow(/ACTIVE PMOC requires equipment coverage/);
+      expect(
+        await prisma.pmocPlan.findUniqueOrThrow({
+          where: { id: planId },
+          select: { status: true },
+        }),
+      ).toEqual({ status: 'DRAFT' });
     });
   });
 });

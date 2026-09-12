@@ -408,31 +408,34 @@ describe('Equipment QR Identity PR-31 (e2e)', () => {
   });
 
   it('reuses authoritative PMOC eligibility for eligible and blocked contexts', async () => {
-    const plan = await prisma.pmocPlan.create({
-      data: {
-        organizationId,
-        businessUnitId: unitId,
-        customerId,
-        code: `PMOC-QR-${digits(6)}`,
-        name: 'PMOC QR elegível',
-        status: 'ACTIVE',
-        startsOn: new Date('2026-01-01T00:00:00.000Z'),
-        frequencyAmount: 1,
-        frequencyUnit: 'MONTHS',
-        technicalResponsibleUserId: userId,
-        procedure: {},
-        serviceTypes: [],
-        createdById: userId,
-        activatedAt: new Date(),
-      },
-    });
-    await prisma.pmocEquipmentCoverage.create({
-      data: {
-        organizationId,
-        planId: plan.id,
-        assetId: equipmentId,
-        startsOn: new Date('2026-01-01T00:00:00.000Z'),
-      },
+    const plan = await prisma.$transaction(async (tx) => {
+      const created = await tx.pmocPlan.create({
+        data: {
+          organizationId,
+          businessUnitId: unitId,
+          customerId,
+          code: `PMOC-QR-${digits(6)}`,
+          name: 'PMOC QR elegível',
+          status: 'ACTIVE',
+          startsOn: new Date('2026-01-01T00:00:00.000Z'),
+          frequencyAmount: 1,
+          frequencyUnit: 'MONTHS',
+          technicalResponsibleUserId: userId,
+          procedure: {},
+          serviceTypes: [],
+          createdById: userId,
+          activatedAt: new Date(),
+        },
+      });
+      await tx.pmocEquipmentCoverage.create({
+        data: {
+          organizationId,
+          planId: created.id,
+          assetId: equipmentId,
+          startsOn: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      });
+      return created;
     });
     await prisma.pmocExecution.create({
       data: {

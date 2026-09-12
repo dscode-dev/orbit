@@ -539,27 +539,30 @@ export class MobileFieldOperationRepository {
     action: string,
     key: string,
   ): Promise<{ payloadHash: string } | null> {
-    const values = await tx.operationHistory.findMany({
-      where: { operation: { organizationId }, userId: actorId, action },
+    const value = await tx.operationHistory.findFirst({
+      where: {
+        operation: { organizationId },
+        userId: actorId,
+        action,
+        details: { path: ['idempotencyKey'], equals: key },
+      },
       orderBy: { createdAt: 'desc' },
-      take: 500,
       select: { operationId: true, details: true },
     });
-    for (const value of values) {
-      const details = value.details as {
-        idempotencyKey?: unknown;
-        payloadHash?: unknown;
-      } | null;
-      if (
-        details?.idempotencyKey === key &&
-        typeof details.payloadHash === 'string'
-      ) {
-        if (value.operationId !== operationId)
-          throw new ConflictException(
-            'Idempotency key already used by another operation',
-          );
-        return { payloadHash: details.payloadHash };
-      }
+    if (!value) return null;
+    const details = value.details as {
+      idempotencyKey?: unknown;
+      payloadHash?: unknown;
+    } | null;
+    if (value.operationId !== operationId)
+      throw new ConflictException(
+        'Idempotency key already used by another operation',
+      );
+    if (
+      details?.idempotencyKey === key &&
+      typeof details.payloadHash === 'string'
+    ) {
+      return { payloadHash: details.payloadHash };
     }
     return null;
   }

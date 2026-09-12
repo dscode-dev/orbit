@@ -19,12 +19,22 @@ RUN npm run build
 
 FROM builder AS migrator
 
-# Migrar e provisionar são o mesmo passo, nesta ordem.
+ARG ORBIT_COMMIT_SHA=unknown
+ARG ORBIT_BUILD_TIME=unknown
+LABEL org.opencontainers.image.revision=$ORBIT_COMMIT_SHA \
+  org.opencontainers.image.created=$ORBIT_BUILD_TIME \
+  org.opencontainers.image.source="https://github.com/allbluelabs/orbit"
+ENV ORBIT_COMMIT_SHA=$ORBIT_COMMIT_SHA
+ENV ORBIT_BUILD_TIME=$ORBIT_BUILD_TIME
+
+# Migrar, provisionar e reconciliar o catálogo obrigatório são o mesmo passo,
+# nesta ordem.
 #
 # O provisionamento roda **depois** para que uma tabela criada pela migration
 # recém-aplicada já receba os GRANTs do papel de runtime — sem passo manual
 # depois do `docker compose up`. É idempotente: rodar de novo reconcilia.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/scripts/provision-database-roles.js"]
+USER node
+CMD ["sh", "-c", "DATABASE_ROLE_BOOTSTRAP_ONLY=true node dist/src/scripts/provision-database-roles.js && ./node_modules/.bin/prisma migrate deploy && node dist/src/scripts/provision-database-roles.js && node dist/src/scripts/seed-plan-catalog.js"]
 
 FROM builder AS production-dependencies
 
@@ -32,8 +42,16 @@ RUN npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runner
 
+ARG ORBIT_COMMIT_SHA=unknown
+ARG ORBIT_BUILD_TIME=unknown
+LABEL org.opencontainers.image.revision=$ORBIT_COMMIT_SHA \
+  org.opencontainers.image.created=$ORBIT_BUILD_TIME \
+  org.opencontainers.image.source="https://github.com/allbluelabs/orbit"
+
 ENV NODE_ENV=production
 ENV PORT=3001
+ENV ORBIT_COMMIT_SHA=$ORBIT_COMMIT_SHA
+ENV ORBIT_BUILD_TIME=$ORBIT_BUILD_TIME
 WORKDIR /app
 
 RUN apt-get update \

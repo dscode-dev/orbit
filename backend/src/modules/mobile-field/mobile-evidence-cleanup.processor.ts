@@ -2,7 +2,6 @@ import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { FileObjectService } from '../storage/file-object.service';
 import {
   JOB_QUEUES,
-  type BackgroundJobRecord,
   type JobProcessor,
   type JobQueue,
 } from '../jobs/background-job.types';
@@ -24,7 +23,7 @@ export class MobileEvidenceCleanupProcessor
   onModuleInit(): void {
     this.registry.register(this);
   }
-  async process(job: BackgroundJobRecord): Promise<void> {
+  async process(): Promise<void> {
     const started = performance.now();
     const batchSize = mobileEvidencePolicy().cleanupBatchSize;
     const candidates = await this.repository.expired(batchSize);
@@ -39,7 +38,6 @@ export class MobileEvidenceCleanupProcessor
     this.logger.log(
       JSON.stringify({
         metric: 'mobile_evidence_cleanup_total',
-        organizationId: job.organizationId,
         batchSize,
         rowsScanned: candidates.length,
         rowsDeleted: deleted,

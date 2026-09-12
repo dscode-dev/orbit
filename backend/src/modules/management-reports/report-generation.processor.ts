@@ -309,10 +309,7 @@ export class ReportGenerationProcessor implements JobProcessor, OnModuleInit {
   /** Motivo de negócio. Stack e caminho ficam no log, com o correlationId. */
   private publicReason(error: unknown): string {
     if (error instanceof PermanentJobError) return error.message;
-    if (error instanceof Error) {
-      return `Falha ao compor o relatório: ${error.message}`;
-    }
-    return 'Falha desconhecida ao compor o relatório';
+    return 'Não foi possível compor o relatório. Tente novamente ou contate o suporte.';
   }
 
   /** Input/configuração inválida não fica bloqueando a fila com retry inútil. */

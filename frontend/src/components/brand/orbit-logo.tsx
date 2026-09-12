@@ -1,7 +1,9 @@
 "use client";
 
-const logoAsset = { url: "/orbit_logo.png" };
+import Image from "next/image";
 import { cn } from "@/lib/utils";
+
+const logoAsset = { url: "/orbit_logo.png" };
 
 type OrbitLogoProps = {
   /** full lockup (mark + wordmark) or compact mark plate */
@@ -23,13 +25,16 @@ export function OrbitLogo({ variant = "full", className }: OrbitLogoProps) {
         className,
       )}
     >
-
-      <img
+      <Image
         src={logoAsset.url}
         alt="Orbit Operations ERP"
+        width={1536}
+        height={1024}
         className={cn(
           "object-contain",
-          variant === "full" ? "h-full w-full" : "h-9 w-9 scale-[2.1] object-left",
+          variant === "full"
+            ? "h-full w-full"
+            : "h-9 w-9 scale-[2.1] object-left",
         )}
         style={variant === "mark" ? { objectPosition: "22% 50%" } : undefined}
       />

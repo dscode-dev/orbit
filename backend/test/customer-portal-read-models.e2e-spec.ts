@@ -532,34 +532,36 @@ describe('Customer Portal operational Read Models (e2e)', () => {
         deletedAt: now,
       },
     });
-    const pmoc = await prisma.pmocPlan.create({
-      data: {
-        id: generateUuidV7(),
-        organizationId: input.organizationId,
-        businessUnitId: input.businessUnitId,
-        customerId: input.customerId,
-        code: `PMOC-${input.marker}-${randomUUID()}`,
-        name: `Plano PMOC ${input.marker}`,
-        status: 'ACTIVE',
-        startsOn: new Date('2026-01-01T00:00:00.000Z'),
-        endsOn: new Date('2027-01-01T00:00:00.000Z'),
-        frequencyAmount: 1,
-        frequencyUnit: 'MONTHS',
-        nextDueOn: new Date('2026-10-01T00:00:00.000Z'),
-        activatedAt: now,
-        createdById: input.ownerId,
-      },
+    const pmoc = await prisma.$transaction(async (tx) => {
+      const created = await tx.pmocPlan.create({
+        data: {
+          id: generateUuidV7(),
+          organizationId: input.organizationId,
+          businessUnitId: input.businessUnitId,
+          customerId: input.customerId,
+          code: `PMOC-${input.marker}-${randomUUID()}`,
+          name: `Plano PMOC ${input.marker}`,
+          status: 'ACTIVE',
+          startsOn: new Date('2026-01-01T00:00:00.000Z'),
+          endsOn: new Date('2027-01-01T00:00:00.000Z'),
+          frequencyAmount: 1,
+          frequencyUnit: 'MONTHS',
+          nextDueOn: new Date('2026-10-01T00:00:00.000Z'),
+          activatedAt: now,
+          createdById: input.ownerId,
+        },
+      });
+      await tx.pmocEquipmentCoverage.create({
+        data: {
+          id: generateUuidV7(),
+          organizationId: input.organizationId,
+          planId: created.id,
+          assetId: asset.id,
+          startsOn: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      });
+      return created;
     });
-    const coverage = await prisma.pmocEquipmentCoverage.create({
-      data: {
-        id: generateUuidV7(),
-        organizationId: input.organizationId,
-        planId: pmoc.id,
-        assetId: asset.id,
-        startsOn: new Date('2026-01-01T00:00:00.000Z'),
-      },
-    });
-    void coverage;
 
     const artifact = await createArtifact(input, operation.id, asset.id, 'OS');
     const pmocExecution = await prisma.pmocExecution.create({
