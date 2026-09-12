@@ -24,6 +24,9 @@ import type {
   OperationQuery,
   OperationTimeline,
   UpdateOperationInput,
+  ChecklistTemplate,
+  ChecklistTemplateQuery,
+  StartChecklistInput,
 } from "@/types/operations";
 
 const RESOURCE = "operations";
@@ -164,11 +167,48 @@ export const operationChecklistsService = {
       options,
     ),
 
+  /** Começa a execução do checklist num atendimento. */
+  start: (
+    operationId: string,
+    input: StartChecklistInput,
+    options?: RequestOptions,
+  ): Promise<ChecklistExecution> =>
+    apiClient.post<ChecklistExecution>(
+      `/operations/${encodeURIComponent(operationId)}/checklists`,
+      input,
+      options,
+    ),
+
   keys: {
     module: (): QueryKey => queryKeys.module(CHECKLISTS_RESOURCE),
     byOperation: (operationId: string): QueryKey =>
       queryKeys.list(CHECKLISTS_RESOURCE, { operationId }),
     detail: (id: string): QueryKey => queryKeys.detail(CHECKLISTS_RESOURCE, id),
+  },
+} as const;
+
+const CHECKLIST_TEMPLATES_RESOURCE = "checklist-templates";
+
+/**
+ * Modelos de checklist — o catálogo que o dono da organização mantém.
+ *
+ * Separado das execuções de propósito: modelo é o que se define uma vez;
+ * execução é o que acontece num atendimento.
+ */
+export const checklistTemplatesService = {
+  list: (
+    query?: ChecklistTemplateQuery,
+    options?: RequestOptions,
+  ): Promise<PaginatedResult<ChecklistTemplate>> =>
+    apiClient.get<PaginatedResult<ChecklistTemplate>>("/checklist-templates", {
+      ...options,
+      query: query as QueryParams | undefined,
+    }),
+
+  keys: {
+    module: (): QueryKey => queryKeys.module(CHECKLIST_TEMPLATES_RESOURCE),
+    list: (query?: ChecklistTemplateQuery): QueryKey =>
+      queryKeys.list(CHECKLIST_TEMPLATES_RESOURCE, asParams(query)),
   },
 } as const;
 

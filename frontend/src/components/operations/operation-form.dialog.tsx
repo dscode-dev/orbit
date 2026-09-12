@@ -59,6 +59,7 @@ import {
 import { instantFromZoned, zonedParts } from "@/lib/scheduling";
 import { X } from "lucide-react";
 
+import { useStartOperationChecklist } from "@/hooks/operations/use-operations";
 import { useFieldTechnicians } from "@/hooks/workforce/use-workforce";
 import { useSession } from "@/providers/session-provider";
 import { useActiveScope } from "@/providers/use-active-scope";
@@ -66,9 +67,11 @@ import { OperationKind, OperationPriority } from "@/types/contracts";
 import {
   OPERATION_LIMITS,
   type CreateOperationInput,
+  type ChecklistItem,
   type OperationListItem,
 } from "@/types/operations";
 import { operationKindLabel, operationPriorityLabel } from "./operation-badges";
+import { OperationChecklistField } from "./operation-checklist.field";
 
 /** `Select` não aceita item de valor vazio; este é o "ninguém ainda". */
 const SEM_RESPONSAVEL = "__none__";
@@ -85,6 +88,8 @@ interface FormState {
   assetId: string;
   responsibleId: string;
   auxiliaryIds: string[];
+  /// Itens acrescentados só para este atendimento.
+  checklistExtras: ChecklistItem[];
 }
 
 /**
@@ -151,6 +156,7 @@ function OperationForm({
   const session = useSession();
   const { businessUnitId } = useActiveScope();
   const create = useCreateOperation();
+  const checklist = useStartOperationChecklist();
   const update = useUpdateOperation(editing?.id ?? "");
   const mutation = editing ? update : create;
 
@@ -176,6 +182,11 @@ function OperationForm({
   const edit = (patch: Partial<FormState>) =>
     setForm((current) => ({ ...current, ...patch }));
 
+  /** O modelo de checklist do tipo escolhido, quando existe. */
+  const [checklistTemplateId, setChecklistTemplateId] = useState<string | null>(
+    null,
+  );
+
   const valid =
     form.businessUnitId.length > 0 &&
     form.code.trim().length >= OPERATION_LIMITS.codeMinLength &&
@@ -188,7 +199,27 @@ function OperationForm({
       update.mutate(payload, { onSuccess: onClose });
       return;
     }
-    create.mutate(payload, { onSuccess: onClose });
+
+    create.mutate(payload, {
+      /**
+       * O checklist começa **depois** da operação, porque precisa do id dela.
+       *
+       * A falha em anexar não desfaz a criação e não segura a tela: o
+       * atendimento existe, e o checklist pode ser iniciado por dentro dele.
+       * Fechar só depois da segunda chamada faria uma indisponibilidade do
+       * checklist parecer falha ao criar o atendimento.
+       */
+      onSuccess: (operation) => {
+        if (checklistTemplateId) {
+          checklist.mutate({
+            operationId: operation.id,
+            templateId: checklistTemplateId,
+            additionalItems: form.checklistExtras,
+          });
+        }
+        onClose();
+      },
+    });
   };
 
   return (
@@ -357,6 +388,24 @@ function OperationForm({
           />
         </div>
 
+        {/*
+          O checklist entra pelo tipo, e só na criação.
+
+          Numa operação que já existe o checklist já foi iniciado (ou
+          deliberadamente não foi): oferecer o campo aqui prometeria trocar
+          um roteiro que pode já ter respostas.
+        */}
+        {!editing ? (
+          <div className="sm:col-span-2">
+            <OperationChecklistField
+              kind={(form.kind || null) as OperationKind | null}
+              extras={form.checklistExtras}
+              onChangeExtras={(items) => edit({ checklistExtras: [...items] })}
+              onTemplateChange={setChecklistTemplateId}
+            />
+          </div>
+        ) : null}
+
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="operation-description">Descrição</Label>
           <Textarea
@@ -428,6 +477,7 @@ function initialState(
       description: editing.description ?? "",
       priority: editing.priority,
       startLocal: toLocalInput(editing.scheduledStart, timeZone),
+      checklistExtras: [],
       responsibleId: editing.responsibleFieldTechnicianId ?? "",
       /// A atribuição carrega `userId`; o `user` aninhado é só para exibir.
       auxiliaryIds: (editing.auxiliaryTechnicians ?? []).map(
@@ -461,6 +511,7 @@ function initialState(
     startLocal: "",
     responsibleId: "",
     auxiliaryIds: [],
+    checklistExtras: [],
     customerId: prefill?.customerId ?? "",
     assetId: prefill?.assetId ?? "",
   };

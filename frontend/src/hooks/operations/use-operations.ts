@@ -20,15 +20,18 @@ import { CACHE } from "@/hooks/api/cache-policy";
 import { useActiveScope } from "@/providers/use-active-scope";
 import { artifactExecutionsService } from "@/services/artifact-executions.service";
 import {
+  checklistTemplatesService,
   operationChecklistsService,
   operationIntelligenceService,
   operationsService,
 } from "@/services/operations.service";
+import type { OperationKind } from "@/types/contracts";
 import type {
   AssignOperationUserInput,
   ChangeOperationStatusInput,
   CreateOperationInput,
   OperationQuery,
+  StartChecklistInput,
   UpdateOperationInput,
 } from "@/types/operations";
 
@@ -250,5 +253,58 @@ export function useRemoveOperationAttachment(id: string) {
     (attachmentId: string) =>
       operationsService.removeAttachment(id, attachmentId),
     { invalidate: affectedKeys(id) },
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Modelos de checklist                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O modelo de checklist deste tipo de atendimento.
+ *
+ * Só consulta quando há um tipo escolhido: sem ele, a pergunta não existe —
+ * e uma consulta sem filtro traria o catálogo inteiro para escolher um.
+ *
+ * Devolve o primeiro ativo. Se a organização tiver mais de um modelo para o
+ * mesmo tipo, é o catálogo que está ambíguo, e resolver isso adivinhando aqui
+ * esconderia o problema de quem pode corrigi-lo.
+ */
+export function useChecklistTemplateForKind(kind: OperationKind | null) {
+  const query = useApiQuery(
+    checklistTemplatesService.keys.list({
+      operationKind: kind ?? undefined,
+      isActive: true,
+      limit: 1,
+    }),
+    ({ signal }) =>
+      checklistTemplatesService.list(
+        { operationKind: kind!, isActive: true, limit: 1 },
+        { signal },
+      ),
+    { enabled: Boolean(kind) },
+  );
+
+  return {
+    ...query,
+    template: query.data?.data?.[0] ?? null,
+  };
+}
+
+/**
+ * Começa a execução do checklist num atendimento.
+ *
+ * O id vai no disparo, e não na criação do hook: quem cria a operação só o
+ * conhece depois da resposta, e um hook que o exigisse antes obrigaria a
+ * remontar o componente para usá-lo.
+ */
+export function useStartOperationChecklist() {
+  return useApiMutation(
+    ({
+      operationId,
+      ...input
+    }: StartChecklistInput & { operationId: string }) =>
+      operationChecklistsService.start(operationId, input),
+    { invalidate: [operationChecklistsService.keys.module()] },
   );
 }

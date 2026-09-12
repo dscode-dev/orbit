@@ -132,6 +132,40 @@ export interface ChecklistTemplateRef {
   name: string;
 }
 
+/**
+ * Modelo de checklist (`GET /checklist-templates`).
+ *
+ * `operationKind` é o vínculo com o tipo de atendimento. Nulo significa que o
+ * modelo serve a qualquer tipo — é o que todo modelo era antes de a coluna
+ * existir.
+ */
+export interface ChecklistTemplate {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  operationKind: OperationKind | null;
+  version: number;
+  isActive: boolean;
+  items: readonly ChecklistItem[];
+}
+
+export interface ChecklistTemplateQuery {
+  operationKind?: OperationKind;
+  isActive?: boolean;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+/** `POST /operations/:id/checklists`. */
+export interface StartChecklistInput {
+  templateId: string;
+  notes?: string;
+  /** Itens só desta execução; o modelo não muda. */
+  additionalItems?: readonly ChecklistItem[];
+}
+
 /** Item do snapshot do template (`ChecklistItemDto`). */
 export interface ChecklistItem {
   key: string;

@@ -1343,10 +1343,19 @@ model OperationAttachment {
 // -----------------------------------------------------------------------------
 
 model ChecklistTemplate {
-  id                 String    @id @default(uuid(7)) @db.Uuid
-  organizationId     String    @map("organization_id") @db.Uuid
-  key                String    @db.VarChar(100)
-  name               String    @db.VarChar(180)
+  id             String @id @default(uuid(7)) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  key            String @db.VarChar(100)
+  name           String @db.VarChar(180)
+
+  /// O tipo de atendimento a que este checklist pertence.
+  ///
+  /// Nulo quando o modelo serve a qualquer tipo — é o que todo modelo era
+  /// antes desta coluna, e continua válido. Guardado como texto, e não como
+  /// enum do Prisma, pelo mesmo motivo de `Operation.kind`: o conjunto de
+  /// tipos é do domínio e cresce sem migração de enum.
+  operationKind String? @map("operation_kind") @db.VarChar(40)
+
   description        String?   @db.Text
   version            Int       @default(1)
   items              Json      @default("[]") @db.JsonB
@@ -1362,6 +1371,7 @@ model ChecklistTemplate {
 
   @@unique([organizationId, key, version])
   @@index([organizationId, isActive, deletedAt])
+  @@index([organizationId, operationKind, isActive, deletedAt])
   @@index([artifactTemplateId])
   @@map("checklist_templates")
 }
@@ -1702,7 +1712,7 @@ model StorageFile {
 
   memberCertifications   MemberCertification[]
   professionalSignatures UserSignature[]
-  userAvatars            User[]                        @relation("UserAvatarFile")
+  userAvatars            User[]                @relation("UserAvatarFile")
   fieldEvidenceUploads   FieldEvidenceUpload[]
   fieldEvidence          FieldEvidence[]
 
