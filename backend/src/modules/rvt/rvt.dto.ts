@@ -1,4 +1,9 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
@@ -12,6 +17,9 @@ import {
   MinLength,
   Matches,
   ValidateNested,
+  IsInt,
+  Min,
+  Max,
 } from 'class-validator';
 import { IsUUIDv7 } from '../../validators';
 import { CursorDto } from '../../dtos/foundation.dto';
@@ -58,9 +66,16 @@ export class CreateRvtConfigurationDto {
   @MinLength(3)
   @MaxLength(220)
   name!: string;
-  @ApiProperty({ enum: ['WEEKLY', 'SEMIANNUAL'] })
-  @IsIn(['WEEKLY', 'SEMIANNUAL'])
-  visitType!: 'WEEKLY' | 'SEMIANNUAL';
+  /**
+   * O tipo de manutenção contratado.
+   *
+   * Substitui `visitType`, que era um literal de dois valores — semanal e
+   * semestral — e governava a cadência das visitas. O tipo é cadastro da
+   * organização e carrega o próprio intervalo, então mensal, trimestral e anual
+   * deixam de exigir migração e um `if` novo no domínio.
+   */
+  @IsUUIDv7()
+  maintenanceTypeId!: string;
   @ApiProperty({ enum: ['RECURRING', 'ONE_TIME'] })
   @IsIn(['RECURRING', 'ONE_TIME'])
   scheduleMode!: 'RECURRING' | 'ONE_TIME';
@@ -280,9 +295,16 @@ export class CreateAdHocRvtDto extends StartRvtExecutionDto {
   @MinLength(3)
   @MaxLength(220)
   name!: string;
-  @ApiProperty({ enum: ['WEEKLY', 'SEMIANNUAL'] })
-  @IsIn(['WEEKLY', 'SEMIANNUAL'])
-  visitType!: 'WEEKLY' | 'SEMIANNUAL';
+  /**
+   * O tipo de manutenção contratado.
+   *
+   * Substitui `visitType`, que era um literal de dois valores — semanal e
+   * semestral — e governava a cadência das visitas. O tipo é cadastro da
+   * organização e carrega o próprio intervalo, então mensal, trimestral e anual
+   * deixam de exigir migração e um `if` novo no domínio.
+   */
+  @IsUUIDv7()
+  maintenanceTypeId!: string;
   @ApiProperty({ example: 'America/Recife' }) @IsString() timezone!: string;
   @ApiProperty({ type: Object }) @IsObject() serviceLocation!: Record<
     string,
@@ -302,4 +324,113 @@ export class CreateAdHocRvtDto extends StartRvtExecutionDto {
   @Type(() => ContextualRvtEquipmentDto)
   @ValidateNested()
   equipment?: ContextualRvtEquipmentDto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Tipos de manutenção                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Um ritmo de manutenção da organização — semanal, mensal, trimestral…
+ *
+ * A cadência é dado, e não literal no código: acrescentar "quadrimestral" é
+ * cadastro, não migração.
+ */
+export class CreateRvtMaintenanceTypeDto {
+  @ApiProperty()
+  @Transform(trim)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  key!: string;
+
+  @ApiProperty()
+  @Transform(trim)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  label!: string;
+
+  /** Cadência em dias. Exclusivo com `intervalMonths`. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(366)
+  intervalDays?: number;
+
+  /** Cadência em meses de calendário. Exclusivo com `intervalDays`. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  intervalMonths?: number;
+
+  /** O roteiro que o técnico preenche na visita deste tipo. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUIDv7()
+  checklistTemplateId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+}
+
+/**
+ * Os três campos abaixo saem da base e voltam declarados aqui.
+ *
+ * Não é repetição por gosto: uma subclasse não pode alargar `number` para
+ * `number | null`, e é exatamente o `null` que dá ao cliente como dizer "este
+ * campo não vale mais". `key` fica de fora porque não se edita.
+ */
+export class UpdateRvtMaintenanceTypeDto extends PartialType(
+  OmitType(CreateRvtMaintenanceTypeDto, [
+    'key',
+    'intervalDays',
+    'intervalMonths',
+    'checklistTemplateId',
+  ] as const),
+) {
+  /**
+   * Trocar a unidade da cadência exige mandar a outra como `null`.
+   *
+   * Dia e mês são exclusivos. Se um `PATCH` só pudesse acrescentar, mudar de
+   * trimestral para 90 dias mandaria `intervalDays` e deixaria `intervalMonths`
+   * de pé — os dois preenchidos, que é justamente o que `assertCadence` recusa.
+   * `null` é como o cliente diz "esta não vale mais"; ausente continua sendo
+   * "não mexi".
+   */
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(366)
+  intervalDays?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  intervalMonths?: number | null;
+
+  /** `null` tira o roteiro do tipo; ausente mantém o que está lá. */
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsUUIDv7()
+  checklistTemplateId?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

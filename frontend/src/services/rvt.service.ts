@@ -31,6 +31,9 @@ import type {
   RvtTimelineQuery,
   RvtUpdateResult,
   UpdateRvtConfigurationInput,
+  RvtMaintenanceType,
+  CreateRvtMaintenanceTypeInput,
+  UpdateRvtMaintenanceTypeInput,
 } from "@/types/rvt";
 
 const RVT = "rvt";
@@ -101,7 +104,46 @@ export const rvtService = {
       options,
     ),
 
+  /* ---------------------------------------------------------------- */
+  /* Tipos de manutenção                                               */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Os ritmos da organização, com o roteiro de cada um.
+   *
+   * Substituem `visitType`, que eram dois códigos fixos no cliente. Quem nomeia
+   * "Trimestral" é o dono da conta.
+   */
+  maintenanceTypes: (
+    options?: RequestOptions,
+  ): Promise<readonly RvtMaintenanceType[]> =>
+    apiClient.get<readonly RvtMaintenanceType[]>(
+      "/rvt/maintenance-types",
+      options,
+    ),
+
+  createMaintenanceType: (
+    input: CreateRvtMaintenanceTypeInput,
+  ): Promise<RvtMaintenanceType> =>
+    apiClient.post<RvtMaintenanceType>("/rvt/maintenance-types", input),
+
+  updateMaintenanceType: (
+    id: string,
+    input: UpdateRvtMaintenanceTypeInput,
+  ): Promise<RvtMaintenanceType> =>
+    apiClient.patch<RvtMaintenanceType>(
+      `/rvt/maintenance-types/${encodeURIComponent(id)}`,
+      input,
+    ),
+
+  removeMaintenanceType: (id: string): Promise<void> =>
+    apiClient.delete<void>(
+      `/rvt/maintenance-types/${encodeURIComponent(id)}`,
+    ),
+
   keys: {
+    maintenanceTypes: (): QueryKey =>
+      queryKeys.query(RVT, "maintenance-types"),
     module: (): QueryKey => queryKeys.module(RVT),
     configurations: (query?: RvtConfigurationQuery): QueryKey =>
       queryKeys.list(RVT, query as QueryParams | undefined),

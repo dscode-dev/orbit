@@ -332,7 +332,22 @@ class ScenarioProvisioner {
     final scenarioId = newCommandId();
     final short = scenarioId.split('-').last;
     final created = <String>[];
-    var step = 'criar execução de RVT avulsa';
+    var step = 'descobrir o tipo de manutenção semanal';
+
+    /// O ritmo da visita é cadastro da organização, não um literal.
+    ///
+    /// Era `'visitType': 'WEEKLY'` no corpo. Os tipos — semanal, mensal,
+    /// trimestral — passaram a ser catálogo, cada um com a própria cadência e
+    /// o próprio roteiro, e toda organização nasce com os sete. O cenário
+    /// procura o desta conta em vez de fixar um código que o servidor não
+    /// conhece mais.
+    final tipos = await client.get<List<dynamic>>('/rvt/maintenance-types');
+    final semanal = tipos
+        .cast<Map<String, dynamic>>()
+        .firstWhere((tipo) => tipo['key'] == 'WEEKLY');
+    final maintenanceTypeId = semanal['id'] as String;
+
+    step = 'criar execução de RVT avulsa';
 
     try {
       final response = await client.post<Map<String, dynamic>>(
@@ -343,7 +358,7 @@ class ScenarioProvisioner {
         body: {
           'businessUnitId': businessUnitId,
           'name': '[SMOKE-$suite] Visita técnica $short',
-          'visitType': 'WEEKLY',
+          'maintenanceTypeId': maintenanceTypeId,
           'timezone': 'America/Recife',
           'responsibleFieldTechnicianId': userId,
           'customer': {

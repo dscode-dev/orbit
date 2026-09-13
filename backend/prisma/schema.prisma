@@ -314,8 +314,9 @@ model Organization {
   customerServiceRequests       CustomerServiceRequest[]
   customerServiceRequestEvents  CustomerServiceRequestEvent[]
 
-  pmocCodeSequences PmocCodeSequence[]
-  pmocUnits         PmocUnit[]
+  pmocCodeSequences   PmocCodeSequence[]
+  pmocUnits           PmocUnit[]
+  rvtMaintenanceTypes RvtMaintenanceType[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -1429,10 +1430,11 @@ model ChecklistTemplate {
   deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
   artifactTemplateId String?   @map("artifact_template_id") @db.Uuid
 
-  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  executions       ChecklistExecution[]
-  artifactTemplate ArtifactTemplate?    @relation(fields: [artifactTemplateId], references: [id], onDelete: SetNull)
-  pmocUnits        PmocUnit[]
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  executions          ChecklistExecution[]
+  artifactTemplate    ArtifactTemplate?    @relation(fields: [artifactTemplateId], references: [id], onDelete: SetNull)
+  pmocUnits           PmocUnit[]
+  rvtMaintenanceTypes RvtMaintenanceType[]
 
   @@unique([organizationId, key, version])
   @@index([organizationId, isActive, deletedAt])
@@ -1927,6 +1929,12 @@ model ChecklistExecution {
   businessUnitId   String    @map("business_unit_id") @db.Uuid
   templateId       String    @map("template_id") @db.Uuid
   operationId      String?   @map("operation_id") @db.Uuid
+  /// O checklist preenchido numa visita técnica.
+  ///
+  /// `operationId` já era opcional: o modelo foi feito para checklist que não
+  /// pertence a uma ordem. RVT é o segundo dono, e reusar aqui traz de graça o
+  /// snapshot do roteiro, as respostas, o progresso e a conclusão.
+  rvtExecutionId   String?   @map("rvt_execution_id") @db.Uuid
   createdById      String    @map("created_by_id") @db.Uuid
   status           String    @default("IN_PROGRESS") @db.VarChar(40)
   templateVersion  Int       @map("template_version")
@@ -1942,10 +1950,12 @@ model ChecklistExecution {
   businessUnit BusinessUnit      @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
   template     ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
   operation    Operation?        @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  rvtExecution RvtExecution?     @relation(fields: [rvtExecutionId], references: [id], onDelete: SetNull)
   createdBy    User              @relation("ChecklistCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([organizationId, businessUnitId, status])
   @@index([operationId])
+  @@index([rvtExecutionId])
   @@index([createdById, createdAt])
   @@map("checklist_executions")
 }
@@ -3685,6 +3695,50 @@ model PmocEquipmentEvidence {
 // RVT V2 — TECHNICAL VISIT REPORT
 // -----------------------------------------------------------------------------
 
+/// Tipo de manutenção de uma visita técnica.
+///
+/// ## O que ele substitui
+///
+/// `RvtConfiguration.visitType` era um literal de **dois** valores — semanal e
+/// semestral — e governava a matemática de recorrência (mais 7 dias, ou mais 6
+/// meses). Operação real tem mensal, trimestral, anual, e a cada novo ritmo o
+/// literal precisava de outra migração e outro `if` no domínio.
+///
+/// Aqui a cadência é dado: `intervalDays` **ou** `intervalMonths`, um deles.
+/// Dias para ritmos curtos, meses para os que seguem o calendário — somar 30
+/// dias não é o mesmo que somar um mês, e quem contrata trimestral espera a
+/// visita no mesmo dia do terceiro mês.
+///
+/// ## Cada tipo tem o seu roteiro
+///
+/// `checklistTemplateId` é o que o técnico preenche em campo, e o que o
+/// relatório final descreve. Um tipo sem roteiro é legítimo — nem toda visita
+/// tem lista — e aparece como tal na hora de escolher.
+model RvtMaintenanceType {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  key                 String    @db.VarChar(60)
+  label               String    @db.VarChar(120)
+  /// Cadência em dias. Exclusivo com `intervalMonths`.
+  intervalDays        Int?      @map("interval_days")
+  /// Cadência em meses de calendário. Exclusivo com `intervalDays`.
+  intervalMonths      Int?      @map("interval_months")
+  checklistTemplateId String?   @map("checklist_template_id") @db.Uuid
+  sortOrder           Int       @default(0) @map("sort_order")
+  isActive            Boolean   @default(true) @map("is_active")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  checklistTemplate ChecklistTemplate? @relation(fields: [checklistTemplateId], references: [id], onDelete: SetNull)
+  configurations    RvtConfiguration[]
+
+  @@unique([organizationId, key])
+  @@index([organizationId, isActive, deletedAt])
+  @@map("rvt_maintenance_types")
+}
+
 model RvtConfiguration {
   id                                  String    @id @default(uuid(7)) @db.Uuid
   organizationId                      String    @map("organization_id") @db.Uuid
@@ -3692,7 +3746,8 @@ model RvtConfiguration {
   customerId                          String    @map("customer_id") @db.Uuid
   code                                String    @db.VarChar(60)
   name                                String    @db.VarChar(220)
-  visitType                           String    @map("visit_type") @db.VarChar(24)
+  /// O tipo de manutenção contratado — é dele que sai a cadência.
+  maintenanceTypeId                   String?   @map("maintenance_type_id") @db.Uuid
   scheduleMode                        String    @map("schedule_mode") @db.VarChar(20)
   coverageStart                       DateTime  @map("coverage_start") @db.Date
   coverageEnd                         DateTime? @map("coverage_end") @db.Date
@@ -3710,8 +3765,9 @@ model RvtConfiguration {
   updatedAt                           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt                           DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  equipment   RvtConfigurationEquipment[]
-  occurrences RvtOccurrence[]
+  equipment            RvtConfigurationEquipment[]
+  occurrences          RvtOccurrence[]
+  maintenanceType      RvtMaintenanceType?         @relation(fields: [maintenanceTypeId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, code])
   @@index([organizationId, businessUnitId, status])
@@ -3792,6 +3848,7 @@ model RvtExecution {
   @@index([organizationId, businessUnitId, status])
   @@index([organizationId, responsibleFieldTechnicianId, status])
   @@map("rvt_executions")
+  checklistExecutions ChecklistExecution[]
 }
 
 model RvtExecutionEquipment {

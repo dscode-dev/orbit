@@ -3200,9 +3200,15 @@ describe('PMOC (e2e)', () => {
       expect(criada.checklist).toEqual({
         id: roteiro,
         name: 'Limpeza de serpentina',
+        /*
+          Minúsculas porque o serviço normaliza a chave ao gravar
+          (`checklist.service.ts`), e é a chave normalizada que o técnico
+          recebe em campo. O teste nasceu afirmando o que foi enviado, não o
+          que foi gravado.
+        */
         items: [
-          { key: 'SERPENTINA', label: 'Serpentina limpa' },
-          { key: 'DRENO', label: 'Dreno desobstruído' },
+          { key: 'serpentina', label: 'Serpentina limpa' },
+          { key: 'dreno', label: 'Dreno desobstruído' },
         ],
       });
       expect(criada.isActive).toBe(true);
@@ -3315,8 +3321,17 @@ describe('PMOC (e2e)', () => {
        * O status por si não prova: um 400 depois do insert deixaria o plano
        * criado e a transação é que garante que não.
        */
+      /*
+        Contado dentro desta organização.
+
+        Procurar o nome no banco inteiro reprovava por causa de execuções
+        anteriores — o E2E compartilha banco, e um plano homônimo de ontem não
+        diz nada sobre a transação de agora.
+      */
       expect(
-        await prisma.pmocPlan.count({ where: { name: 'Com unidade de fora' } }),
+        await prisma.pmocPlan.count({
+          where: { organizationId, name: 'Com unidade de fora' },
+        }),
       ).toBe(0);
     });
 

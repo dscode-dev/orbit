@@ -137,7 +137,8 @@ const rvtSelect = {
   customerId: true,
   code: true,
   name: true,
-  visitType: true,
+  /** O tipo de manutenção contratado — era `visitType`, de dois valores. */
+  maintenanceType: { select: { id: true, key: true, label: true } },
   scheduleMode: true,
   coverageStart: true,
   coverageEnd: true,

@@ -286,7 +286,7 @@ describe('Customer Portal operational Read Models (e2e)', () => {
     expect(data).toHaveLength(1);
     expect(data[0]).toMatchObject({
       id: rvtIdA,
-      visitType: 'Visita semanal',
+      visitType: 'Semanal',
       completedVisits: 1,
     });
     expect(JSON.stringify(data)).not.toContain(rvtIdB);
@@ -580,6 +580,18 @@ describe('Customer Portal operational Read Models (e2e)', () => {
     });
     void pmocExecution;
 
+    /**
+     * O ritmo vem do catálogo da organização, não de um literal.
+     *
+     * `visitType` era um enum de dois valores traduzido no portal. Hoje o
+     * rótulo que o cliente lê é o que o dono da conta cadastrou, e é isso que
+     * este cenário precisa exercitar — um contrato sem tipo cairia no texto
+     * genérico e o teste passaria sem provar nada.
+     */
+    const tipoSemanal = await prisma.rvtMaintenanceType.findFirstOrThrow({
+      where: { organizationId: input.organizationId, key: 'WEEKLY' },
+      select: { id: true },
+    });
     const rvt = await prisma.rvtConfiguration.create({
       data: {
         id: generateUuidV7(),
@@ -588,7 +600,7 @@ describe('Customer Portal operational Read Models (e2e)', () => {
         customerId: input.customerId,
         code: `RVT-${input.marker}-${randomUUID()}`,
         name: `Visitas RVT ${input.marker}`,
-        visitType: 'WEEKLY',
+        maintenanceTypeId: tipoSemanal.id,
         scheduleMode: 'RECURRING',
         coverageStart: new Date('2026-01-01T00:00:00.000Z'),
         coverageEnd: new Date('2027-01-01T00:00:00.000Z'),

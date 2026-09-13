@@ -64,6 +64,24 @@ describe('Equipment QR Identity PR-31 (e2e)', () => {
   const auth = (test: request.Test, value = token) =>
     test.set('Authorization', `Bearer ${value}`);
 
+  /**
+   * O tipo de manutenção semanal desta organização.
+   *
+   * Era o literal `'WEEKLY'` no corpo. O ritmo virou cadastro — toda
+   * organização nasce com os seus —, então o teste procura o da conta em vez
+   * de fixar um código que o servidor não conhece mais.
+   */
+  async function tipoSemanal(): Promise<string> {
+    const response = await auth(
+      http().get('/api/v1/rvt/maintenance-types'),
+    ).expect(200);
+    const tipos = (response.body as Envelope<{ id: string; key: string }[]>)
+      .data;
+    const semanal = tipos.find((tipo) => tipo.key === 'WEEKLY');
+    if (!semanal) throw new Error('organização sem o tipo semanal');
+    return semanal.id;
+  }
+
   async function register(label: string) {
     const suffix = randomUUID().slice(0, 8);
     const response = await http()
@@ -488,7 +506,7 @@ describe('Equipment QR Identity PR-31 (e2e)', () => {
           serialNumber: `CTX-QR-${digits(6)}`,
         },
         name: 'RVT QR contextual',
-        visitType: 'WEEKLY',
+        maintenanceTypeId: await tipoSemanal(),
         timezone: 'America/Recife',
         serviceLocation: { city: 'Recife' },
         procedure: { items: [] },

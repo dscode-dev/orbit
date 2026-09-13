@@ -33,19 +33,17 @@ export interface RvtPresentation {
 /* Periodicidade                                                       */
 /* ------------------------------------------------------------------ */
 
-/**
- * Duas colunas, não uma.
- *
- * O backend guarda `scheduleMode` (RECURRING/ONE_TIME) e `visitType`
- * (WEEKLY/SEMIANNUAL) separadamente — e são ortogonais: uma visita avulsa
- * também tem tipo. Achatar os dois em um enum só de produto criaria um
- * vocabulário que o servidor não tem, e a primeira tela que precisasse dos
- * dois ficaria sem resposta.
- */
-export const VISIT_TYPE: Readonly<Record<string, RvtPresentation>> = {
-  WEEKLY: { label: "Semanal", tone: "info" },
-  SEMIANNUAL: { label: "Semestral", tone: "info" },
-};
+/*
+  `VISIT_TYPE` saiu daqui.
+
+  Ele traduzia dois códigos fixos — `WEEKLY` e `SEMIANNUAL` — para rótulos de
+  produto. O tipo de manutenção passou a ser **cadastro da organização**: quem
+  nomeia "Trimestral" é o dono da conta, e um mapa no cliente só teria como
+  acertar os dois que existiam antes.
+
+  `scheduleMode` continua aqui, e continua ortogonal: uma visita avulsa também
+  tem tipo de manutenção.
+*/
 
 export const SCHEDULE_MODE: Readonly<Record<string, RvtPresentation>> = {
   RECURRING: {
@@ -174,8 +172,6 @@ function lookup(
   return map[value] ?? FALLBACK;
 }
 
-export const visitType = (value: string | null | undefined) =>
-  lookup(VISIT_TYPE, value);
 export const scheduleMode = (value: string | null | undefined) =>
   lookup(SCHEDULE_MODE, value);
 export const configurationStatus = (value: string | null | undefined) =>
@@ -199,11 +195,15 @@ export const renderStatus = (value: string | null | undefined) =>
  * simplesmente falso.
  */
 export function recurrenceLabel(
-  configuration: Pick<RvtConfigurationReadModel, "scheduleMode" | "visitType">,
+  configuration: Pick<
+    RvtConfigurationReadModel,
+    "scheduleMode" | "maintenanceType"
+  >,
 ): string {
   if (configuration.scheduleMode === "ONE_TIME")
     return SCHEDULE_MODE.ONE_TIME!.label;
-  return visitType(configuration.visitType).label;
+  /** O rótulo que a organização deu ao ritmo — não um mapa no cliente. */
+  return configuration.maintenanceType?.label ?? "Recorrente";
 }
 
 /** Visita avulsa é derivada de `ONE_TIME` — não é um enum de produto. */
@@ -228,4 +228,28 @@ export function occurrenceBlockedLabel(
     professionalFallback(reason) ??
     "Visita indisponível no momento."
   );
+}
+
+/**
+ * A cadência de um tipo, em palavras.
+ *
+ * "a cada 3 meses", e não "90 dias": três meses civis vão de 89 a 92 dias
+ * conforme a data de partida, e anunciar dias transformaria calendário em
+ * contagem — que é o erro que o tipo existe para evitar.
+ */
+export function cadenciaDe(tipo: {
+  intervalDays: number | null;
+  intervalMonths: number | null;
+}): string {
+  if (tipo.intervalMonths) {
+    return tipo.intervalMonths === 1
+      ? "a cada mês"
+      : `a cada ${tipo.intervalMonths} meses`;
+  }
+  if (tipo.intervalDays) {
+    return tipo.intervalDays === 1
+      ? "todo dia"
+      : `a cada ${tipo.intervalDays} dias`;
+  }
+  return "sem cadência definida";
 }

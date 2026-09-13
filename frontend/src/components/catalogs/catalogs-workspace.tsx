@@ -17,11 +17,13 @@
  * diferentes — juntá-los numa lista só obrigaria a filtrar para achar qualquer
  * coisa.
  *
- * **RVT não tem aba** porque não tem catálogo de checklist: a visita carrega um
- * `procedure` dentro da própria configuração, e o documento vem de um modelo de
- * artefato. Inventar uma aba vazia aqui prometeria um cadastro que não existe.
+ * RVT ganhou a sua: o ritmo da visita técnica era um literal de dois valores
+ * gravado na configuração, sem onde cadastrar trimestral nem o que conferir em
+ * cada tipo. Agora é catálogo como os outros — cada tipo de manutenção com a
+ * sua cadência e o seu roteiro.
  */
 import { ChecklistTemplatesTab } from "@/components/catalogs/checklist-templates.tab";
+import { RvtMaintenanceTypesTab } from "@/components/catalogs/rvt-maintenance-types.tab";
 import { PmocUnitsSection } from "@/components/pmoc/pmoc-units.section";
 import { ContentContainer } from "@/components/layout/page-primitives";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,7 +31,7 @@ import { useSectionFromUrl } from "@/hooks/use-section-from-url";
 import { TabBoundary } from "@/workspace";
 
 /** Os apelidos das abas, na ordem em que aparecem. */
-const SECOES = ["roteiros", "pmoc"] as const;
+const SECOES = ["roteiros", "rvt", "pmoc"] as const;
 
 export function CatalogsWorkspace() {
   /* Cada aba é um endereço: um link pode apontar direto para o cadastro certo. */
@@ -40,6 +42,7 @@ export function CatalogsWorkspace() {
       <Tabs value={section.current} onValueChange={section.go}>
         <TabsList aria-label="Catálogos">
           <TabsTrigger value="roteiros">Atendimentos</TabsTrigger>
+          <TabsTrigger value="rvt">RVT</TabsTrigger>
           <TabsTrigger value="pmoc">Unidades de PMOC</TabsTrigger>
         </TabsList>
 
@@ -47,6 +50,12 @@ export function CatalogsWorkspace() {
         <TabsContent value="roteiros">
           <TabBoundary id="catalog-checklists" label="os roteiros">
             <ChecklistTemplatesTab />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="rvt">
+          <TabBoundary id="catalog-rvt-types" label="os tipos de manutenção">
+            <RvtMaintenanceTypesTab />
           </TabBoundary>
         </TabsContent>
 

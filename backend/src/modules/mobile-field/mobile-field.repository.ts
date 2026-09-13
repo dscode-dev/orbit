@@ -782,7 +782,9 @@ export class MobileFieldRepository {
                   select: {
                     id: true,
                     name: true,
-                    visitType: true,
+                    maintenanceType: {
+                      select: { id: true, key: true, label: true },
+                    },
                     customerId: true,
                     serviceLocation: true,
                     timezone: true,

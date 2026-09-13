@@ -8,6 +8,7 @@
  * enquanto o técnico está em campo.
  */
 import { useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { queryKeys } from "@/api/query-keys";
 import { CACHE } from "@/hooks/api/cache-policy";
@@ -21,6 +22,8 @@ import type {
   RvtOccurrenceQuery,
   RvtTimelineQuery,
   UpdateRvtConfigurationInput,
+  CreateRvtMaintenanceTypeInput,
+  UpdateRvtMaintenanceTypeInput,
 } from "@/types/rvt";
 
 export const RVT_REFRESH = {
@@ -129,4 +132,56 @@ export function useUpdateRvtConfiguration(id: string) {
       ],
     },
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* Tipos de manutenção                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Os ritmos de manutenção da organização.
+ *
+ * Substituem os dois códigos fixos que o cliente traduzia. `CACHE.stable`
+ * porque é catálogo: muda quando alguém cadastra, não a cada visita.
+ */
+export function useRvtMaintenanceTypes() {
+  return useApiQuery(
+    rvtService.keys.maintenanceTypes(),
+    ({ signal }) => rvtService.maintenanceTypes({ signal }),
+    CACHE.stable,
+  );
+}
+
+function useMaintenanceTypeInvalidation() {
+  const queryClient = useQueryClient();
+  return async () => {
+    await queryClient.invalidateQueries({
+      queryKey: rvtService.keys.maintenanceTypes(),
+    });
+  };
+}
+
+export function useCreateRvtMaintenanceType() {
+  const invalidate = useMaintenanceTypeInvalidation();
+  return useApiMutation(
+    (input: CreateRvtMaintenanceTypeInput) =>
+      rvtService.createMaintenanceType(input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useUpdateRvtMaintenanceType(id: string) {
+  const invalidate = useMaintenanceTypeInvalidation();
+  return useApiMutation(
+    (input: UpdateRvtMaintenanceTypeInput) =>
+      rvtService.updateMaintenanceType(id, input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useRemoveRvtMaintenanceType() {
+  const invalidate = useMaintenanceTypeInvalidation();
+  return useApiMutation((id: string) => rvtService.removeMaintenanceType(id), {
+    onSuccess: invalidate,
+  });
 }

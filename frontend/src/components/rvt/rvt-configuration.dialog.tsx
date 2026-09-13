@@ -9,9 +9,14 @@
  *
  * ## Periodicidade são dois campos, não um
  *
- * O backend guarda `scheduleMode` (recorrente ou única) e `visitType`
- * (semanal ou semestral) separadamente. Este formulário oferece os dois porque
- * são ortogonais: uma visita avulsa também tem tipo, e o DTO exige ambos.
+ * O backend guarda `scheduleMode` (recorrente ou única) e o tipo de manutenção
+ * separadamente. Este formulário oferece os dois porque são ortogonais: uma
+ * visita avulsa também tem tipo, e o DTO exige ambos.
+ *
+ * O tipo não é mais um código fixo: vem da Central de Catálogos, onde a
+ * organização cadastra os seus ritmos e o roteiro de checagens de cada um. É
+ * dele que sai a cadência que gera as ocorrências, e é o checklist dele que os
+ * técnicos preenchem em campo.
  *
  * A validação aqui é de usabilidade. As regras — código único, vigência
  * coerente, unidade no escopo do ator, quantidade de ocorrências geradas — são
@@ -40,10 +45,13 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useCustomersList } from "@/hooks/customers/use-customers";
-import { useCreateRvtConfiguration } from "@/hooks/rvt/use-rvt";
+import {
+  useCreateRvtConfiguration,
+  useRvtMaintenanceTypes,
+} from "@/hooks/rvt/use-rvt";
 import { useActiveScope } from "@/providers/use-active-scope";
 import { useSession } from "@/providers/session-provider";
-import { SCHEDULE_MODE, VISIT_TYPE } from "@/registry";
+import { SCHEDULE_MODE, cadenciaDe } from "@/registry";
 
 export function RvtConfigurationDialog({
   open,
@@ -74,12 +82,13 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   const { businessUnitId } = useActiveScope();
   const customers = useCustomersList({ limit: 100 });
   const create = useCreateRvtConfiguration();
+  const tiposDeManutencao = useRvtMaintenanceTypes();
 
   const [customerId, setCustomerId] = useState("");
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [mode, setMode] = useState<"RECURRING" | "ONE_TIME">("RECURRING");
-  const [type, setType] = useState<"WEEKLY" | "SEMIANNUAL">("SEMIANNUAL");
+  const [type, setType] = useState("");
   const [coverageStart, setCoverageStart] = useState("");
   const [coverageEnd, setCoverageEnd] = useState("");
   const [city, setCity] = useState("");
@@ -97,7 +106,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
    */
   const ready =
     Boolean(customerId && code.trim() && name.trim() && coverageStart) &&
-    Boolean(businessUnitId) &&
+    Boolean(businessUnitId && type) &&
     (mode === "ONE_TIME" || Boolean(coverageEnd));
 
   const submit = () => {
@@ -108,7 +117,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         customerId,
         code: code.trim(),
         name: name.trim(),
-        visitType: type,
+        maintenanceTypeId: type,
         scheduleMode: mode,
         coverageStart,
         ...(mode === "RECURRING" && coverageEnd ? { coverageEnd } : {}),
@@ -193,24 +202,28 @@ function CreateForm({ onDone }: { onDone: () => void }) {
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="rvt-type">Tipo de visita</Label>
-            <Select
-              value={type}
-              onValueChange={(value) =>
-                setType(value as "WEEKLY" | "SEMIANNUAL")
-              }
-            >
+            <Label htmlFor="rvt-type">Tipo de manutenção</Label>
+            <Select value={type} onValueChange={setType}>
               <SelectTrigger id="rvt-type">
-                <SelectValue />
+                <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(VISIT_TYPE).map(([value, entry]) => (
-                  <SelectItem key={value} value={value}>
-                    {entry.label}
+                {/*
+                  Os ritmos cadastrados pela organização, com a cadência à
+                  vista: é ela que define quantas visitas o contrato gera.
+                */}
+                {(tiposDeManutencao.data ?? []).map((tipo) => (
+                  <SelectItem key={tipo.id} value={tipo.id}>
+                    {`${tipo.label} · ${cadenciaDe(tipo)}`}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {tiposDeManutencao.data?.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Nenhum tipo cadastrado. Cadastre em Central de Catálogos → RVT.
+              </p>
+            ) : null}
           </div>
         </div>
 

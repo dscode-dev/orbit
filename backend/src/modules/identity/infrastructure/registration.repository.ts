@@ -7,6 +7,7 @@ import {
   ASSIGNABLE_TEAM_ROLES,
   OWNER_ROLE_KEY,
 } from '../../organizations/team-roles';
+import { RVT_MAINTENANCE_TYPE_SEEDS } from '../../rvt/rvt-maintenance-types.seed';
 
 export type TenantProvisioningOptions = {
   actorUserId?: string;
@@ -103,6 +104,23 @@ export class RegistrationRepository {
        * "Owner", e cadastrar o primeiro técnico exigiria compor permissões à
        * mão. Criar aqui é o que torna o cadastro possível no primeiro dia.
        */
+      /**
+       * Os ritmos de manutenção de RVT nascem com a organização.
+       *
+       * Sem eles a primeira visita técnica exigiria cadastrar um tipo antes, e
+       * "Semanal, 7 dias" não é decisão que valha pedir a alguém.
+       */
+      await transaction.rvtMaintenanceType.createMany({
+        data: RVT_MAINTENANCE_TYPE_SEEDS.map((tipo) => ({
+          organizationId,
+          key: tipo.key,
+          label: tipo.label,
+          intervalDays: tipo.intervalDays,
+          intervalMonths: tipo.intervalMonths,
+          sortOrder: tipo.sortOrder,
+        })),
+      });
+
       await transaction.role.createMany({
         data: ASSIGNABLE_TEAM_ROLES.map((papel) => ({
           organizationId,

@@ -6,7 +6,18 @@ import {
   instantFromCivilDate,
 } from '../scheduling/scheduling-time';
 
-export type RvtVisitType = 'WEEKLY' | 'SEMIANNUAL';
+/**
+ * A cadência de um tipo de manutenção.
+ *
+ * Dias **ou** meses, nunca os dois. Dias para ritmos curtos — semanal,
+ * quinzenal; meses para os que seguem o calendário — mensal, trimestral,
+ * semestral, anual. Somar 30 dias não é somar um mês, e quem contrata
+ * trimestral espera a visita no mesmo dia do terceiro mês.
+ */
+export interface RvtCadence {
+  intervalDays: number | null;
+  intervalMonths: number | null;
+}
 export type RvtScheduleMode = 'RECURRING' | 'ONE_TIME';
 export type RvtDueState = 'UPCOMING' | 'DUE_TODAY' | 'OVERDUE';
 
@@ -18,7 +29,7 @@ export interface OccurrenceCandidate {
 
 export function generateRvtOccurrences(input: {
   scheduleMode: RvtScheduleMode;
-  visitType: RvtVisitType;
+  cadence: RvtCadence;
   coverageStart: string;
   coverageEnd?: string;
   timezone: string;
@@ -36,6 +47,21 @@ export function generateRvtOccurrences(input: {
   }
   if (!input.coverageEnd)
     throw new ValidationException('Recurring RVT requires coverageEnd');
+  /**
+   * Uma cadência, e só uma.
+   *
+   * O tipo é cadastro do dono da organização e nada impede, em banco, que os
+   * dois campos venham preenchidos — ou nenhum. Sem esta checagem, "nenhum"
+   * viraria um laço que não avança e só para no teto de mil ocorrências.
+   */
+  const dias = input.cadence.intervalDays ?? 0;
+  const meses = input.cadence.intervalMonths ?? 0;
+  if (dias > 0 === meses > 0) {
+    throw new ValidationException(
+      'A maintenance type must define either a day or a month interval',
+    );
+  }
+
   const end = instantFromCivilDate(input.coverageEnd, input.timezone, 23);
   if (end < start)
     throw new ValidationException('coverageEnd must not precede coverageStart');
@@ -51,10 +77,17 @@ export function generateRvtOccurrences(input: {
       throw new ValidationException(
         'RVT coverage produces too many occurrences',
       );
-    current =
-      input.visitType === 'WEEKLY'
-        ? addCivilDays(current, 7, input.timezone)
-        : addCalendarMonthsClamped(start, result.length * 6, input.timezone);
+    /**
+     * A próxima visita, pela cadência do tipo.
+     *
+     * Em meses, a conta parte **sempre do início** e multiplica — somar um mês
+     * de cada vez a partir do anterior faz 31/01 virar 28/02 e ficar preso em
+     * 28 pelo resto do contrato. Em dias, somar do anterior é o certo, porque é
+     * isso que "a cada 7 dias" quer dizer.
+     */
+    current = meses
+      ? addCalendarMonthsClamped(start, result.length * meses, input.timezone)
+      : addCivilDays(current, dias, input.timezone);
   }
   return result;
 }

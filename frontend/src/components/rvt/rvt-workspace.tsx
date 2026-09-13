@@ -33,7 +33,7 @@ import { RvtOccurrencesPanel } from "./rvt-occurrences";
 import {
   ConfigurationStatusBadge,
   ScheduleModeBadge,
-  VisitTypeBadge,
+  MaintenanceTypeBadge,
 } from "./rvt-presentation";
 import { RvtTimelinePanel } from "./rvt-timeline";
 
@@ -121,7 +121,7 @@ function ConfigurationHeader({
           <ScheduleModeBadge mode={configuration.scheduleMode} />
           {/** Visita avulsa não tem periodicidade a anunciar. */}
           {isOneTime(configuration) ? null : (
-            <VisitTypeBadge type={configuration.visitType} />
+            <MaintenanceTypeBadge label={configuration.maintenanceType?.label} />
           )}
           {canManage ? (
             <Button

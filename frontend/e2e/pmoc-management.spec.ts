@@ -316,12 +316,31 @@ test("conflito real de cobertura não duplica e explica o que houve", async ({
    */
   const planId = page.url().split("/").pop()!;
   const parallel = await page.evaluate(
-    async ({ id, name }: { id: string; name: string }) => {
+    async ({
+      id,
+      name,
+      customerId,
+    }: {
+      id: string;
+      name: string;
+      customerId: string;
+    }) => {
+      /*
+        Procurado dentro do cliente do plano, e casando o nome inteiro.
+
+        A busca era global com `limit=1`: o catálogo da organização acumula os
+        equipamentos das outras execuções da suíte, e um homônimo de outro
+        cliente chegava primeiro. Aí a inclusão "paralela" incluía outra coisa —
+        ou batia em algo já coberto e voltava 409 antes da hora. Sozinho o teste
+        passava, porque o catálogo estava vazio.
+      */
       const found = await fetch(
-        `/api/orbit/assets?search=${encodeURIComponent(name)}&limit=1`,
+        `/api/orbit/assets?customerId=${customerId}&search=${encodeURIComponent(name)}&limit=50`,
         { headers: { "sec-fetch-site": "same-origin" } },
       ).then((response) => response.json());
-      const asset = (found as { data: { data: { id: string }[] } }).data.data[0];
+      const asset = (
+        found as { data: { data: { id: string; name: string }[] } }
+      ).data.data.find((candidato) => candidato.name === name);
       if (!asset) return 0;
       const response = await fetch(`/api/orbit/pmoc/plans/${id}/equipment`, {
         method: "POST",
@@ -333,7 +352,7 @@ test("conflito real de cobertura não duplica e explica o que houve", async ({
       });
       return response.status;
     },
-    { id: planId, name: label },
+    { id: planId, name: label, customerId: plan.customerId },
   );
   expect(parallel, "a inclusão paralela deveria ter sido aceita").toBe(201);
 

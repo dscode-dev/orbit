@@ -302,8 +302,20 @@ describe('Customer Service Requests (e2e)', () => {
       organizationId: organizationA,
       customerId: customerA,
       businessUnitId: unitA,
-      assetId: assetA,
     });
+    /*
+      O equipamento agora vive em `operation_assets`.
+
+      O atendimento passou a aceitar vários, e `operations.asset_id` saiu. O
+      vínculo continua sendo o mesmo: o equipamento da solicitação entra como o
+      único do atendimento criado.
+    */
+    expect(
+      await prisma.operationAsset.findMany({
+        where: { operationId: operation.id },
+        select: { assetId: true },
+      }),
+    ).toEqual([{ assetId: assetA }]);
     expect(operation.data).toMatchObject({
       source: { type: 'CUSTOMER_SERVICE_REQUEST', id: requestA },
     });

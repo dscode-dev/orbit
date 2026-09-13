@@ -22,6 +22,7 @@ import type {
   RvtOccurrenceReadModel,
   RvtPartyReadModel,
   RvtTimelineItemReadModel,
+  RvtMaintenanceTypeReadModel,
 } from "./contracts/modules/rvt/rvt.read-models";
 
 export type RvtConfiguration = RvtConfigurationReadModel;
@@ -84,7 +85,13 @@ export interface CreateRvtConfigurationInput {
   customerId: string;
   code: string;
   name: string;
-  visitType: "WEEKLY" | "SEMIANNUAL";
+  /**
+   * O tipo de manutenção, escolhido da Central de Catálogos.
+   *
+   * Eram dois literais fixos. A cadência e o checklist do contrato saem do
+   * tipo, então o que viaja é o id do cadastro, não um código de calendário.
+   */
+  maintenanceTypeId: string;
   scheduleMode: "RECURRING" | "ONE_TIME";
   coverageStart: string;
   coverageEnd?: string;
@@ -192,3 +199,41 @@ export function readNotes(value: unknown): readonly RvtNote[] {
     return entries.length > 0 ? [{ entries }] : [];
   });
 }
+
+/* ------------------------------------------------------------------ */
+/* Tipos de manutenção                                                 */
+/* ------------------------------------------------------------------ */
+
+export type RvtMaintenanceType = RvtMaintenanceTypeReadModel;
+
+/** `POST /rvt/maintenance-types`. */
+export interface CreateRvtMaintenanceTypeInput {
+  key: string;
+  label: string;
+  /** Cadência em dias. Exclusivo com `intervalMonths`. */
+  intervalDays?: number;
+  /** Cadência em meses de calendário. Exclusivo com `intervalDays`. */
+  intervalMonths?: number;
+  /** O roteiro que o técnico preenche na visita deste tipo. */
+  checklistTemplateId?: string;
+  sortOrder?: number;
+}
+
+/**
+ * `null` apaga, ausente mantém.
+ *
+ * Dia e mês são exclusivos: trocar a unidade exige mandar a antiga como `null`,
+ * senão o servidor vê as duas preenchidas e recusa. O mesmo vale para tirar o
+ * roteiro de um tipo.
+ */
+export type UpdateRvtMaintenanceTypeInput = Partial<
+  Omit<
+    CreateRvtMaintenanceTypeInput,
+    "key" | "intervalDays" | "intervalMonths" | "checklistTemplateId"
+  >
+> & {
+  intervalDays?: number | null;
+  intervalMonths?: number | null;
+  checklistTemplateId?: string | null;
+  isActive?: boolean;
+};

@@ -40,8 +40,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useUpdateRvtConfiguration } from "@/hooks/rvt/use-rvt";
-import { SCHEDULE_MODE, VISIT_TYPE } from "@/registry";
+import {
+  useRvtMaintenanceTypes,
+  useUpdateRvtConfiguration,
+} from "@/hooks/rvt/use-rvt";
+import { SCHEDULE_MODE, cadenciaDe } from "@/registry";
 import type { RvtConfiguration, RvtReconciliation } from "@/types/rvt";
 
 export function RvtConfigurationEditDialog({
@@ -76,10 +79,11 @@ function EditForm({
   onClose: () => void;
 }) {
   const update = useUpdateRvtConfiguration(configuration.id);
+  const tiposDeManutencao = useRvtMaintenanceTypes();
   const [result, setResult] = useState<RvtReconciliation | null>(null);
 
   const [name, setName] = useState(configuration.name);
-  const [type, setType] = useState(configuration.visitType);
+  const [type, setType] = useState(configuration.maintenanceType?.id ?? "");
   const [coverageStart, setCoverageStart] = useState(
     configuration.coverage.start,
   );
@@ -91,14 +95,15 @@ function EditForm({
   );
 
   const recurring = configuration.scheduleMode === "RECURRING";
-  const ready = Boolean(name.trim()) && (!recurring || Boolean(coverageEnd));
+  const ready =
+    Boolean(name.trim() && type) && (!recurring || Boolean(coverageEnd));
 
   const submit = () => {
     if (!ready) return;
     update.mutate(
       {
         name: name.trim(),
-        visitType: type as "WEEKLY" | "SEMIANNUAL",
+        maintenanceTypeId: type,
         coverageStart,
         ...(recurring && coverageEnd ? { coverageEnd } : {}),
         requiresTechnicalResponsible: requiresRt,
@@ -144,15 +149,22 @@ function EditForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="rvt-edit-type">Tipo de visita</Label>
+          <Label htmlFor="rvt-edit-type">Tipo de manutenção</Label>
           <Select value={type} onValueChange={setType}>
             <SelectTrigger id="rvt-edit-type">
-              <SelectValue />
+              <SelectValue placeholder="Selecione" />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(VISIT_TYPE).map(([value, entry]) => (
-                <SelectItem key={value} value={value}>
-                  {entry.label}
+              {/*
+                Os ritmos cadastrados pela organização.
+
+                Eram dois códigos fixos traduzidos no cliente. A cadência de
+                cada um vem junto para quem escolhe conferir o que está
+                contratando.
+              */}
+              {(tiposDeManutencao.data ?? []).map((tipo) => (
+                <SelectItem key={tipo.id} value={tipo.id}>
+                  {`${tipo.label} · ${cadenciaDe(tipo)}`}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -36,7 +36,15 @@ export const metadata: Metadata = {
     type: "website",
   },
   twitter: { card: "summary_large_image" },
-  icons: { icon: "/favicon.ico" },
+  /**
+   * O símbolo do Orbit na aba do navegador.
+   *
+   * Era um `.ico` do logotipo completo — a palavra "Orbit" reduzida a 16px
+   * vira um borrão. `app/icon.png` é a convenção do App Router e o Next
+   * publica o `<link rel="icon">` a partir dele; a entrada explícita abaixo
+   * cobre quem procura `/icon.png` direto.
+   */
+  icons: { icon: "/icon.png" },
 };
 
 export default async function RootLayout({

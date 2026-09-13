@@ -314,7 +314,17 @@ describe('Team members, temporary password and recovery (e2e)', () => {
 
     expect(existente.status).toBe(202);
     expect(inexistente.status).toBe(202);
-    expect(existente.body).toEqual(inexistente.body);
+    /*
+      O corpo, e não o envelope.
+
+      `requestId` e `timestamp` mudam a cada requisição por construção — são
+      justamente os campos que não podem ser iguais. O que não pode diferir é a
+      resposta que o visitante lê.
+    */
+    const corpo = (resposta: { body: unknown }) =>
+      resposta.body as { success: boolean; data: unknown };
+    expect(corpo(existente).data).toEqual(corpo(inexistente).data);
+    expect(corpo(existente).success).toBe(corpo(inexistente).success);
 
     /** E o token nunca aparece na resposta pública. */
     expect(JSON.stringify(existente.body)).not.toContain('token');

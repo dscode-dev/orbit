@@ -6,9 +6,121 @@ import { RlsTransaction } from '../../database';
 import { generateUuidV7 } from '../../utils';
 import type { OccurrenceCandidate } from './rvt.domain';
 
+/**
+ * O roteiro vem junto do tipo em toda leitura.
+ *
+ * É ele que o técnico preenche em campo e o que o relatório final descreve; um
+ * tipo lido sem o roteiro obrigaria uma segunda consulta em todo lugar que
+ * precisa saber se há o que preencher.
+ */
+const maintenanceTypeView = {
+  checklistTemplate: {
+    select: { id: true, key: true, name: true, version: true, items: true },
+  },
+} satisfies Prisma.RvtMaintenanceTypeInclude;
+
 @Injectable()
 export class RvtRepository {
   constructor(private readonly rls: RlsTransaction) {}
+
+  /* ---------------------------------------------------------------- */
+  /* Tipos de manutenção                                               */
+  /* ---------------------------------------------------------------- */
+
+  /** Os tipos da organização, com o roteiro de cada um. */
+  listMaintenanceTypes(organizationId: string, onlyActive = true) {
+    return this.rls.run((tx) =>
+      tx.rvtMaintenanceType.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          ...(onlyActive ? { isActive: true } : {}),
+        },
+        orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+        include: maintenanceTypeView,
+      }),
+    );
+  }
+
+  findMaintenanceType(id: string, organizationId: string) {
+    return this.rls.run((tx) =>
+      tx.rvtMaintenanceType.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        include: maintenanceTypeView,
+      }),
+    );
+  }
+
+  createMaintenanceType(data: {
+    organizationId: string;
+    key: string;
+    label: string;
+    intervalDays?: number;
+    intervalMonths?: number;
+    checklistTemplateId?: string;
+    sortOrder?: number;
+  }) {
+    return this.rls.run((tx) =>
+      tx.rvtMaintenanceType.create({
+        data: { id: generateUuidV7(), ...data },
+        include: maintenanceTypeView,
+      }),
+    );
+  }
+
+  updateMaintenanceType(
+    id: string,
+    data: {
+      label?: string;
+      intervalDays?: number | null;
+      intervalMonths?: number | null;
+      checklistTemplateId?: string | null;
+      sortOrder?: number;
+      isActive?: boolean;
+    },
+  ) {
+    return this.rls.run((tx) =>
+      tx.rvtMaintenanceType.update({
+        where: { id },
+        data,
+        include: maintenanceTypeView,
+      }),
+    );
+  }
+
+  /**
+   * Remoção é lógica.
+   *
+   * Contratos de RVT apontam para o tipo, e um relatório de visita passada
+   * precisa continuar dizendo qual manutenção foi feita.
+   */
+  softDeleteMaintenanceType(id: string) {
+    return this.rls.run((tx) =>
+      tx.rvtMaintenanceType.update({
+        where: { id },
+        data: { deletedAt: new Date(), isActive: false },
+      }),
+    );
+  }
+
+  /** Quantos contratos ativos dependem deste tipo. */
+  countConfigurationsByMaintenanceType(id: string, organizationId: string) {
+    return this.rls.run((tx) =>
+      tx.rvtConfiguration.count({
+        where: { maintenanceTypeId: id, organizationId, deletedAt: null },
+      }),
+    );
+  }
+
+  /** O modelo de checklist, restrito à organização — a FK não a conhece. */
+  findChecklistTemplate(id: string, organizationId: string) {
+    return this.rls.run((tx) =>
+      tx.checklistTemplate.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true },
+      }),
+    );
+  }
 
   createConfiguration(
     input: any,
@@ -30,7 +142,7 @@ export class RvtRepository {
           customerId: input.customerId,
           code: input.code,
           name: input.name,
-          visitType: input.visitType,
+          maintenanceTypeId: input.maintenanceTypeId,
           scheduleMode: input.scheduleMode,
           coverageStart: this.date(input.coverageStart),
           coverageEnd: input.coverageEnd ? this.date(input.coverageEnd) : null,
@@ -142,7 +254,7 @@ export class RvtRepository {
         throw new Error('RVT_SCHEDULE_MODE_IMMUTABLE');
       const effective = {
         name: input.name ?? current.name,
-        visitType: input.visitType ?? current.visitType,
+        maintenanceTypeId: input.maintenanceTypeId ?? current.maintenanceTypeId,
         coverageStart:
           input.coverageStart ??
           current.coverageStart.toISOString().slice(0, 10),
@@ -158,7 +270,7 @@ export class RvtRepository {
         where: { id },
         data: {
           name: input.name,
-          visitType: input.visitType,
+          maintenanceTypeId: input.maintenanceTypeId,
           coverageStart: input.coverageStart
             ? this.date(input.coverageStart)
             : undefined,
@@ -342,12 +454,36 @@ export class RvtRepository {
     return this.rls.run(async (tx) => {
       const rows = await tx.$queryRaw<
         any[]
-      >`SELECT c.*, COALESCE(b.trade_name,b.legal_name) AS "businessUnitName", COALESCE(cu.trade_name,cu.legal_name) AS "customerName", tr.display_name AS "technicalResponsibleName", ft.display_name AS "fieldTechnicianName" FROM rvt_configurations c JOIN business_units b ON b.id=c.business_unit_id JOIN customers cu ON cu.id=c.customer_id LEFT JOIN users tr ON tr.id=c.technical_responsible_user_id LEFT JOIN users ft ON ft.id=c.default_responsible_field_technician_id WHERE c.id=${id}::uuid AND c.organization_id=${organizationId}::uuid AND c.deleted_at IS NULL`;
+      >`SELECT c.*, COALESCE(b.trade_name,b.legal_name) AS "businessUnitName", COALESCE(cu.trade_name,cu.legal_name) AS "customerName", tr.display_name AS "technicalResponsibleName", ft.display_name AS "fieldTechnicianName", mt.id AS "mtId", mt.key AS "mtKey", mt.label AS "mtLabel", mt.interval_days AS "mtIntervalDays", mt.interval_months AS "mtIntervalMonths", ct.id AS "mtChecklistId", ct.name AS "mtChecklistName", ct.version AS "mtChecklistVersion" FROM rvt_configurations c JOIN business_units b ON b.id=c.business_unit_id JOIN customers cu ON cu.id=c.customer_id LEFT JOIN users tr ON tr.id=c.technical_responsible_user_id LEFT JOIN users ft ON ft.id=c.default_responsible_field_technician_id LEFT JOIN rvt_maintenance_types mt ON mt.id=c.maintenance_type_id LEFT JOIN checklist_templates ct ON ct.id=mt.checklist_template_id AND ct.deleted_at IS NULL WHERE c.id=${id}::uuid AND c.organization_id=${organizationId}::uuid AND c.deleted_at IS NULL`;
       const source = rows[0];
       if (!source) return null;
       source.businessUnitId = source.business_unit_id;
       source.customerId = source.customer_id;
-      source.visitType = source.visit_type;
+      /**
+       * O tipo de manutenção, montado a partir do JOIN.
+       *
+       * Esta consulta é **SQL cru**, e por isso o compilador não a acompanhou
+       * quando `visit_type` deixou de existir: a linha antiga era
+       * `source.visitType = source.visit_type`, que passou a produzir
+       * `undefined` em silêncio — sem erro de tipo e sem erro de banco. Foi a
+       * verificação contra a API viva que mostrou.
+       */
+      source.maintenanceType = source.mtId
+        ? {
+            id: source.mtId,
+            key: source.mtKey,
+            label: source.mtLabel,
+            intervalDays: source.mtIntervalDays,
+            intervalMonths: source.mtIntervalMonths,
+            checklistTemplate: source.mtChecklistId
+              ? {
+                  id: source.mtChecklistId,
+                  name: source.mtChecklistName,
+                  version: source.mtChecklistVersion,
+                }
+              : null,
+          }
+        : null;
       source.scheduleMode = source.schedule_mode;
       source.coverageStart = source.coverage_start;
       source.coverageEnd = source.coverage_end;
@@ -498,7 +634,29 @@ export class RvtRepository {
         where: { id: input.occurrenceId, organizationId: input.organizationId },
         include: {
           configuration: {
-            include: { equipment: { where: { removedAt: null } } },
+            include: {
+              equipment: { where: { removedAt: null } },
+              /**
+               * O tipo traz o roteiro que o técnico vai preencher.
+               *
+               * Carregado aqui porque o checklist da visita nasce junto com a
+               * execução, na mesma transação — começar a visita e descobrir
+               * depois que falta o roteiro deixaria o técnico sem o que fazer.
+               */
+              maintenanceType: {
+                include: {
+                  checklistTemplate: {
+                    select: {
+                      id: true,
+                      key: true,
+                      name: true,
+                      version: true,
+                      items: true,
+                    },
+                  },
+                },
+              },
+            },
           },
           execution: true,
         },
@@ -574,7 +732,20 @@ export class RvtRepository {
         configurationId: occurrence.configuration.id,
         code: occurrence.configuration.code,
         name: occurrence.configuration.name,
-        visitType: occurrence.configuration.visitType,
+        /**
+         * O tipo de manutenção, congelado no que ele era na hora da visita.
+         *
+         * O rótulo vai junto do id de propósito: o dono da organização pode
+         * renomear "Trimestral" depois, e um relatório emitido tem de continuar
+         * dizendo o que dizia.
+         */
+        maintenanceType: occurrence.configuration.maintenanceType
+          ? {
+              id: occurrence.configuration.maintenanceType.id,
+              key: occurrence.configuration.maintenanceType.key,
+              label: occurrence.configuration.maintenanceType.label,
+            }
+          : null,
         scheduleMode: occurrence.configuration.scheduleMode,
         timezone: occurrence.configuration.timezone,
         customerId: occurrence.configuration.customerId,
@@ -607,6 +778,42 @@ export class RvtRepository {
           },
         },
       });
+      /**
+       * O checklist do tipo de manutenção nasce com a visita.
+       *
+       * Reusa `ChecklistExecution` — o mesmo modelo dos atendimentos, cujo
+       * `operationId` sempre foi opcional. Vem de graça o snapshot do roteiro,
+       * as respostas, o progresso e a conclusão, além dos endpoints que o
+       * aplicativo de campo já usa para responder item a item.
+       *
+       * O snapshot é o que torna o relatório estável: editar o roteiro no
+       * catálogo depois não reescreve a visita que já aconteceu.
+       *
+       * Tipo sem roteiro não cria checklist — e é um caso legítimo, não erro.
+       */
+      const roteiro =
+        occurrence.configuration.maintenanceType?.checklistTemplate;
+      if (roteiro) {
+        await tx.checklistExecution.create({
+          data: {
+            id: generateUuidV7(),
+            organizationId: input.organizationId,
+            businessUnitId: occurrence.businessUnitId,
+            templateId: roteiro.id,
+            rvtExecutionId: execution.id,
+            createdById: input.actorId,
+            templateVersion: roteiro.version,
+            templateSnapshot: this.json({
+              id: roteiro.id,
+              key: roteiro.key,
+              name: roteiro.name,
+              version: roteiro.version,
+              items: roteiro.items,
+            }),
+          },
+        });
+      }
+
       await tx.rvtOccurrence.update({
         where: { id: occurrence.id },
         data: { status: 'IN_PROGRESS' },
@@ -775,7 +982,7 @@ export class RvtRepository {
           customerId,
           code,
           name: input.name,
-          visitType: input.visitType,
+          maintenanceTypeId: input.maintenanceTypeId,
           scheduleMode: 'ONE_TIME',
           coverageStart: this.date(today),
           timezone: input.timezone,
@@ -942,6 +1149,13 @@ export class RvtRepository {
         include: {
           equipment: true,
           evidence: true,
+          /**
+           * O checklist da visita.
+           *
+           * Publicado no detalhe porque é o que o técnico abre para preencher
+           * e o que a tela mostra como progresso da visita.
+           */
+          checklistExecutions: { orderBy: { createdAt: 'asc' } },
           occurrence: { include: { configuration: true } },
         },
       });
@@ -1349,6 +1563,8 @@ export class RvtRepository {
           occurrence: { include: { configuration: true } },
           equipment: true,
           evidence: true,
+          /** O checklist preenchido em campo entra no documento. */
+          checklistExecutions: { orderBy: { createdAt: 'asc' }, take: 1 },
         },
       });
       if (execution.status !== 'COMPLETED')
@@ -1410,6 +1626,33 @@ export class RvtRepository {
         performedAt: execution.performedAt,
         equipment: execution.equipment.map((x) => x.assetSnapshot),
         procedure: execution.procedureSnapshot,
+        /**
+         * O checklist do tipo de manutenção, como o técnico preencheu.
+         *
+         * É o que o item pedia: cada check marcado em campo aparece no
+         * relatório final. Vai o roteiro **e** as respostas — só as respostas
+         * seriam um mapa de chaves sem os rótulos que dão sentido a elas, e o
+         * roteiro pode ter sido editado no catálogo desde a visita.
+         */
+        maintenanceChecklist: execution.checklistExecutions[0]
+          ? {
+              name: (
+                execution.checklistExecutions[0].templateSnapshot as {
+                  name?: string;
+                }
+              )?.name,
+              version: execution.checklistExecutions[0].templateVersion,
+              status: execution.checklistExecutions[0].status,
+              progress: execution.checklistExecutions[0].progress,
+              items: (
+                execution.checklistExecutions[0].templateSnapshot as {
+                  items?: { key: string; label: string }[];
+                }
+              )?.items,
+              answers: execution.checklistExecutions[0].answers,
+              completedAt: execution.checklistExecutions[0].completedAt,
+            }
+          : null,
         observations: execution.observations,
         recommendations: execution.recommendations,
         freeTextRecommendation: execution.freeTextRecommendation,

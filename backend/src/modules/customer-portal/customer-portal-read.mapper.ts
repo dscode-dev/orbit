@@ -189,8 +189,14 @@ export class CustomerPortalReadMapper {
       id: value.id,
       code: value.code,
       name: value.name,
-      visitType:
-        value.visitType === 'WEEKLY' ? 'Visita semanal' : 'Visita semestral',
+      /**
+       * O rótulo do tipo, como a organização o nomeou.
+       *
+       * Era um `if` sobre dois valores fixos — semanal ou semestral. Com
+       * mensal, trimestral e anual no catálogo, traduzir aqui produziria
+       * "Visita semestral" para tudo que não fosse semanal.
+       */
+      visitType: value.maintenanceType?.label ?? 'Visita técnica',
       schedule:
         value.scheduleMode === 'ONE_TIME' ? 'Visita única' : 'Recorrente',
       status: this.rvtConfigurationStatus(value.status),

@@ -18,7 +18,6 @@ import {
   occurrenceStatus,
   renderStatus,
   scheduleMode,
-  visitType,
   type RvtPresentation,
   type RvtTone,
 } from "@/registry";
@@ -53,8 +52,24 @@ export const ConfigurationStatusBadge = ({ status }: { status: string }) => (
   <Chip presentation={configurationStatus(status)} />
 );
 
-export const VisitTypeBadge = ({ type }: { type: string }) => (
-  <Chip presentation={visitType(type)} />
+/**
+ * O tipo de manutenção, pelo rótulo que a organização deu a ele.
+ *
+ * Era um mapa de dois códigos — `WEEKLY` e `SEMIANNUAL` — traduzidos no
+ * cliente. Agora o tipo é cadastro: quem nomeia é o dono da organização, e
+ * qualquer tradução aqui só teria como acertar os dois de antes.
+ */
+export const MaintenanceTypeBadge = ({
+  label,
+}: {
+  label: string | null | undefined;
+}) => (
+  <Chip
+    presentation={{
+      label: label ?? "Sem tipo",
+      tone: label ? "info" : "neutral",
+    }}
+  />
 );
 
 export const ScheduleModeBadge = ({ mode }: { mode: string }) => (

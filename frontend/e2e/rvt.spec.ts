@@ -54,8 +54,17 @@ async function createConfiguration(
   await dialog.getByLabel("Agenda").click();
   await page.getByRole("option", { name: options.mode, exact: true }).click();
 
-  await dialog.getByLabel("Tipo de visita").click();
-  await page.getByRole("option", { name: options.type, exact: true }).click();
+  /*
+    "Tipo de manutenção", e a opção traz a cadência junto.
+
+    O ritmo deixou de ser um literal de dois valores traduzido no cliente: é
+    cadastro da organização, e o seletor mostra "Semanal · a cada 7 dias" para
+    quem contrata saber o que está contratando.
+  */
+  await dialog.getByLabel("Tipo de manutenção").click();
+  await page
+    .getByRole("option", { name: new RegExp(`^${options.type} · `) })
+    .click();
 
   await dialog.getByLabel("Início da vigência").fill("2026-09-07");
   if (options.recurring) {
@@ -181,6 +190,13 @@ test.beforeAll(async ({ request }) => {
     ids.push((await asset.json()).data.id as string);
   }
 
+  /** O tipo semanal desta organização — o ritmo virou cadastro, não literal. */
+  const tipos = await request.get(`${api}/rvt/maintenance-types`, { headers });
+  expect(tipos.ok(), await tipos.text()).toBe(true);
+  const maintenanceTypeId = (
+    (await tipos.json()).data as { id: string; key: string }[]
+  ).find((tipo) => tipo.key === "WEEKLY")!.id;
+
   const adHoc = async (name: string, equipmentIds: string[]) => {
     const created = await request.post(`${api}/rvt/ad-hoc/executions`, {
       headers: {
@@ -191,7 +207,7 @@ test.beforeAll(async ({ request }) => {
         businessUnitId: unit,
         customerId,
         name,
-        visitType: "WEEKLY",
+        maintenanceTypeId,
         timezone: "America/Recife",
         serviceLocation: { city: "Recife" },
         procedure: { items: [] },
@@ -472,8 +488,8 @@ test("editar a configuração deixa o servidor reconciliar a agenda futura", asy
   await expect(dialog.getByLabel("Cliente")).toHaveCount(0);
 
   /** Semanal → semestral muda quais visitas devem existir. */
-  await dialog.getByLabel("Tipo de visita").click();
-  await page.getByRole("option", { name: "Semestral", exact: true }).click();
+  await dialog.getByLabel("Tipo de manutenção").click();
+  await page.getByRole("option", { name: /^Semestral · / }).click();
   await dialog.getByRole("button", { name: "Salvar" }).click();
 
   /**

@@ -15,7 +15,7 @@ export default function CatalogsPage() {
   return (
     <WorkspacePage
       title="Central de Catálogos"
-      description="O que se cadastra uma vez e a operação reaproveita: roteiros de atendimento e unidades de PMOC."
+      description="O que se cadastra uma vez e a operação reaproveita: roteiros de atendimento, tipos de manutenção de RVT e unidades de PMOC."
       permission="checklists.read"
       contained={false}
     >

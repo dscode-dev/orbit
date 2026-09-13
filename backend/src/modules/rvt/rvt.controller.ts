@@ -8,6 +8,9 @@ import {
   Post,
   Query,
   Req,
+  Delete,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Permissions } from '../../decorators';
@@ -32,6 +35,8 @@ import {
   StartRvtExecutionDto,
   UpdateRvtExecutionDto,
   UpdateRvtConfigurationDto,
+  CreateRvtMaintenanceTypeDto,
+  UpdateRvtMaintenanceTypeDto,
 } from './rvt.dto';
 import { RvtService } from './rvt.service';
 
@@ -40,6 +45,56 @@ import { RvtService } from './rvt.service';
 @RequiresActivePlan()
 export class RvtController {
   constructor(private readonly rvt: RvtService) {}
+  /* ---------------------------------------------------------------- */
+  /* Tipos de manutenção                                               */
+  /* ---------------------------------------------------------------- */
+
+  @Get('maintenance-types')
+  @Capabilities('rvt.read')
+  @Permissions('rvt.read')
+  @ApiOperation({ summary: 'Tipos de manutenção, com o roteiro de cada um' })
+  maintenanceTypes(
+    @Req() r: IdentityRequest,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    return this.rvt.listMaintenanceTypes(
+      this.actor(r),
+      includeInactive !== 'true',
+    );
+  }
+
+  @Post('maintenance-types')
+  @Capabilities('rvt.manage')
+  @Permissions('rvt.manage')
+  createMaintenanceType(
+    @Req() r: IdentityRequest,
+    @Body() i: CreateRvtMaintenanceTypeDto,
+  ) {
+    return this.rvt.createMaintenanceType(this.actor(r), i);
+  }
+
+  @Patch('maintenance-types/:id')
+  @Capabilities('rvt.manage')
+  @Permissions('rvt.manage')
+  updateMaintenanceType(
+    @Req() r: IdentityRequest,
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Body() i: UpdateRvtMaintenanceTypeDto,
+  ) {
+    return this.rvt.updateMaintenanceType(this.actor(r), id, i);
+  }
+
+  @Delete('maintenance-types/:id')
+  @Capabilities('rvt.manage')
+  @Permissions('rvt.manage')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeMaintenanceType(
+    @Req() r: IdentityRequest,
+    @Param('id', ParseUUIDv7Pipe) id: string,
+  ) {
+    return this.rvt.removeMaintenanceType(this.actor(r), id);
+  }
+
   @Post('configurations')
   @Capabilities('rvt.manage')
   @Permissions('rvt.manage')

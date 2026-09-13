@@ -1,3 +1,15 @@
+/** Um ritmo de manutenção, com o roteiro que o técnico preenche. */
+export interface RvtMaintenanceTypeReadModel {
+  id: string;
+  key: string;
+  label: string;
+  /** Cadência em dias. Exclusivo com `intervalMonths`. */
+  intervalDays: number | null;
+  /** Cadência em meses de calendário. Exclusivo com `intervalDays`. */
+  intervalMonths: number | null;
+  checklist: { id: string; name: string; version: number } | null;
+}
+
 export interface RvtPartyReadModel {
   id: string;
   name: string;
@@ -26,7 +38,13 @@ export interface RvtConfigurationReadModel {
   id: string;
   code: string;
   name: string;
-  visitType: string;
+  /**
+   * O tipo de manutenção contratado.
+   *
+   * Era `visitType`, um literal de dois valores. Nulo só em contrato antigo
+   * cujo tipo foi removido do catálogo — o cadastro exige um.
+   */
+  maintenanceType: RvtMaintenanceTypeReadModel | null;
   scheduleMode: string;
   status: string;
   coverage: { start: string; end: string | null };

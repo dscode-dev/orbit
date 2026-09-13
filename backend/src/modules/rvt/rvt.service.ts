@@ -19,6 +19,8 @@ import type {
   StartRvtExecutionDto,
   UpdateRvtConfigurationDto,
   UpdateRvtExecutionDto,
+  CreateRvtMaintenanceTypeDto,
+  UpdateRvtMaintenanceTypeDto,
 } from './rvt.dto';
 import { generateRvtOccurrences } from './rvt.domain';
 import {
@@ -44,9 +46,153 @@ export class RvtService {
     private readonly rendering: ArtifactRenderService,
   ) {}
 
+  /* ---------------------------------------------------------------- */
+  /* Tipos de manutenção                                               */
+  /* ---------------------------------------------------------------- */
+
+  async listMaintenanceTypes(actor: RvtActor, onlyActive = true) {
+    const tipos = await this.repository.listMaintenanceTypes(
+      actor.organizationId,
+      onlyActive,
+    );
+    return tipos.map((tipo) => this.mapper.maintenanceType(tipo));
+  }
+
+  async createMaintenanceType(
+    actor: RvtActor,
+    input: CreateRvtMaintenanceTypeDto,
+  ) {
+    this.assertCadence(input.intervalDays, input.intervalMonths);
+    await this.requireChecklistTemplate(
+      actor.organizationId,
+      input.checklistTemplateId,
+    );
+    const tipo = await this.repository.createMaintenanceType({
+      organizationId: actor.organizationId,
+      key: input.key.toUpperCase(),
+      label: input.label,
+      intervalDays: input.intervalDays,
+      intervalMonths: input.intervalMonths,
+      checklistTemplateId: input.checklistTemplateId,
+      sortOrder: input.sortOrder,
+    });
+    return this.mapper.maintenanceType(tipo);
+  }
+
+  async updateMaintenanceType(
+    actor: RvtActor,
+    id: string,
+    input: UpdateRvtMaintenanceTypeDto,
+  ) {
+    const atual = await this.repository.findMaintenanceType(
+      id,
+      actor.organizationId,
+    );
+    if (!atual) throw new EntityNotFoundException('RvtMaintenanceType', id);
+
+    /**
+     * Mexeu na cadência? Então ela é substituída inteira.
+     *
+     * Mesclar campo a campo com o que está gravado faria o tipo trimestral que
+     * recebe `intervalDays: 90` ficar com mês **e** dia preenchidos — recusado
+     * por `assertCadence`, e por um motivo que o usuário não teria como
+     * adivinhar. Quando o cliente toca em qualquer um dos dois, o par inteiro
+     * passa a ser o que ele mandou, e o que ele não mandou vira nulo.
+     */
+    const mexeuNaCadencia =
+      input.intervalDays !== undefined || input.intervalMonths !== undefined;
+    const dias = mexeuNaCadencia
+      ? (input.intervalDays ?? null)
+      : atual.intervalDays;
+    const meses = mexeuNaCadencia
+      ? (input.intervalMonths ?? null)
+      : atual.intervalMonths;
+    this.assertCadence(dias ?? undefined, meses ?? undefined);
+    await this.requireChecklistTemplate(
+      actor.organizationId,
+      input.checklistTemplateId ?? undefined,
+    );
+
+    const tipo = await this.repository.updateMaintenanceType(id, {
+      label: input.label,
+      ...(mexeuNaCadencia ? { intervalDays: dias, intervalMonths: meses } : {}),
+      checklistTemplateId: input.checklistTemplateId,
+      sortOrder: input.sortOrder,
+      isActive: input.isActive,
+    });
+    return this.mapper.maintenanceType(tipo);
+  }
+
+  async removeMaintenanceType(actor: RvtActor, id: string) {
+    const atual = await this.repository.findMaintenanceType(
+      id,
+      actor.organizationId,
+    );
+    if (!atual) throw new EntityNotFoundException('RvtMaintenanceType', id);
+
+    /**
+     * Um tipo em uso não sai.
+     *
+     * Contratos ativos apontam para ele e é dele que sai a cadência das
+     * próximas visitas; removê-lo deixaria o contrato sem ritmo e a próxima
+     * atualização de cobertura sem como recalcular as ocorrências.
+     */
+    const emUso = await this.repository.countConfigurationsByMaintenanceType(
+      id,
+      actor.organizationId,
+    );
+    if (emUso > 0) {
+      throw new ValidationException(
+        `This maintenance type is used by ${emUso} RVT contract(s)`,
+      );
+    }
+    await this.repository.softDeleteMaintenanceType(id);
+  }
+
+  /** Dias **ou** meses, nunca os dois nem nenhum. */
+  private assertCadence(intervalDays?: number, intervalMonths?: number) {
+    const dias = intervalDays ?? 0;
+    const meses = intervalMonths ?? 0;
+    if (dias > 0 === meses > 0) {
+      throw new ValidationException(
+        'A maintenance type must define either a day or a month interval',
+      );
+    }
+  }
+
+  /**
+   * O roteiro informado existe nesta organização?
+   *
+   * A FK não conhece inquilino: um id de outra conta seria aceito pelo banco e
+   * o técnico receberia em campo o roteiro de outra empresa.
+   */
+  private async requireChecklistTemplate(
+    organizationId: string,
+    checklistTemplateId?: string,
+  ) {
+    if (!checklistTemplateId) return;
+    const roteiro = await this.repository.findChecklistTemplate(
+      checklistTemplateId,
+      organizationId,
+    );
+    if (!roteiro) {
+      throw new EntityNotFoundException(
+        'ChecklistTemplate',
+        checklistTemplateId,
+      );
+    }
+  }
+
   async create(actor: RvtActor, input: CreateRvtConfigurationDto) {
     this.assertUnit(actor, input.businessUnitId);
-    const occurrences = generateRvtOccurrences(input);
+    const tipo = await this.requireMaintenanceType(
+      actor.organizationId,
+      input.maintenanceTypeId,
+    );
+    const occurrences = generateRvtOccurrences({
+      ...input,
+      cadence: tipo,
+    });
     try {
       const id = await this.repository.createConfiguration(
         { ...input, organizationId: actor.organizationId },
@@ -70,12 +216,39 @@ export class RvtService {
       hasNextPage: false,
     };
   }
+  /**
+   * O tipo de manutenção, conferido nesta organização.
+   *
+   * A FK não conhece inquilino: um id de outro tenant seria aceito pelo banco e
+   * a visita passaria a seguir a cadência — e o roteiro — de outra empresa.
+   *
+   * A cadência volta junto porque é ela que gera as ocorrências, e buscá-la
+   * de novo depois abriria janela para o tipo mudar no meio da criação.
+   */
+  private async requireMaintenanceType(
+    organizationId: string,
+    maintenanceTypeId: string | undefined,
+  ) {
+    if (!maintenanceTypeId) {
+      throw new ValidationException('A maintenance type is required');
+    }
+    const tipo = await this.repository.findMaintenanceType(
+      maintenanceTypeId,
+      organizationId,
+    );
+    if (!tipo) throw new ValidationException('Invalid maintenance type');
+    return tipo;
+  }
+
   async update(id: string, actor: RvtActor, input: UpdateRvtConfigurationDto) {
     const current = await this.get(id, actor);
+    const tipo = await this.requireMaintenanceType(
+      actor.organizationId,
+      input.maintenanceTypeId ?? current.maintenanceType?.id,
+    );
     const effective = {
       scheduleMode: current.scheduleMode as 'RECURRING' | 'ONE_TIME',
-      visitType: (input.visitType ?? current.visitType) as
-        'WEEKLY' | 'SEMIANNUAL',
+      cadence: tipo,
       coverageStart: input.coverageStart ?? current.coverage.start,
       coverageEnd: input.coverageEnd ?? current.coverage.end ?? undefined,
       timezone: input.timezone ?? current.timezone,

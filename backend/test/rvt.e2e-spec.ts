@@ -73,6 +73,9 @@ describe('RVT PR-30.1 closure (e2e)', () => {
   let token: string;
   let foreignToken: string;
   let organizationId: string;
+  /** Os ritmos que nascem com a organização — semeados no registro. */
+  let tipoSemanal: string;
+  let tipoSemestral: string;
   let unitId: string;
   let userId: string;
   let customerId: string;
@@ -112,7 +115,7 @@ describe('RVT PR-30.1 closure (e2e)', () => {
         customerId,
         code: `RVT-${digits(8)}`,
         name: 'Visitas preventivas',
-        visitType: 'WEEKLY',
+        maintenanceTypeId: tipoSemanal,
         scheduleMode: 'RECURRING',
         coverageStart: '2027-09-01',
         coverageEnd: '2027-09-30',
@@ -175,6 +178,14 @@ describe('RVT PR-30.1 closure (e2e)', () => {
     ).data;
     organizationId = org.id;
     unitId = org.businessUnits[0]!.id;
+
+    const tipos = await auth(
+      http().get('/api/v1/rvt/maintenance-types'),
+    ).expect(200);
+    const catalogo = (tipos.body as Envelope<{ id: string; key: string }[]>)
+      .data;
+    tipoSemanal = catalogo.find((tipo) => tipo.key === 'WEEKLY')!.id;
+    tipoSemestral = catalogo.find((tipo) => tipo.key === 'SEMIANNUAL')!.id;
     await auth(
       http().patch(`/api/v1/workforce/members/${userId}/professional-profile`),
     )
@@ -273,7 +284,7 @@ describe('RVT PR-30.1 closure (e2e)', () => {
       }),
     ).toBe(0);
     const semi = await createConfiguration({
-      visitType: 'SEMIANNUAL',
+      maintenanceTypeId: tipoSemestral,
       coverageStart: '2026-08-31',
       coverageEnd: '2027-08-31',
       timezone: 'America/New_York',
@@ -505,7 +516,7 @@ describe('RVT PR-30.1 closure (e2e)', () => {
           serialNumber: `CTX-${round}-${digits(6)}`,
         },
         name: `RVT avulso ${round}`,
-        visitType: 'WEEKLY',
+        maintenanceTypeId: tipoSemanal,
         timezone: 'America/Recife',
         serviceLocation: { city: 'Recife' },
         procedure: { items: [] },
@@ -551,7 +562,7 @@ describe('RVT PR-30.1 closure (e2e)', () => {
       businessUnitId: unitId,
       customerId,
       name: 'RVT idempotente',
-      visitType: 'WEEKLY',
+      maintenanceTypeId: tipoSemanal,
       timezone: 'America/Recife',
       serviceLocation: { city: 'Recife' },
       procedure: { items: [] },
@@ -704,7 +715,7 @@ describe('RVT PR-30.1 closure (e2e)', () => {
         businessUnitId: unitId,
         customerId,
         name: 'RVT sem assinatura do cliente',
-        visitType: 'WEEKLY',
+        maintenanceTypeId: tipoSemanal,
         timezone: 'America/Recife',
         serviceLocation: { city: 'Recife' },
         procedure: { items: [] },
@@ -807,7 +818,7 @@ describe('RVT PR-30.1 closure (e2e)', () => {
             businessUnitId: unitId,
             customer: { legalName: marker, address: { city: 'Recife' } },
             name: 'RVT fault boundary',
-            visitType: 'WEEKLY',
+            maintenanceTypeId: tipoSemanal,
             timezone: 'America/Recife',
             serviceLocation: { city: 'Recife' },
             procedure: { items: [] },

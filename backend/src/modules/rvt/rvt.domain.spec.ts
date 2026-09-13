@@ -8,7 +8,7 @@ describe('RVT V2 domain', () => {
   it('generates real weekly occurrences without a fake recurrence', () => {
     const values = generateRvtOccurrences({
       scheduleMode: 'RECURRING',
-      visitType: 'WEEKLY',
+      cadence: { intervalDays: 7, intervalMonths: null },
       coverageStart: '2027-09-01',
       coverageEnd: '2027-09-30',
       timezone: 'America/Recife',
@@ -26,7 +26,7 @@ describe('RVT V2 domain', () => {
   it('normalizes one-time as exactly occurrence 001', () => {
     const values = generateRvtOccurrences({
       scheduleMode: 'ONE_TIME',
-      visitType: 'WEEKLY',
+      cadence: { intervalDays: 7, intervalMonths: null },
       coverageStart: '2027-03-10',
       timezone: 'America/New_York',
     });
@@ -37,7 +37,7 @@ describe('RVT V2 domain', () => {
   it('clamps semiannual calendar dates and preserves local time through DST', () => {
     const values = generateRvtOccurrences({
       scheduleMode: 'RECURRING',
-      visitType: 'SEMIANNUAL',
+      cadence: { intervalDays: null, intervalMonths: 6 },
       coverageStart: '2026-08-31',
       coverageEnd: '2027-08-31',
       timezone: 'America/New_York',
@@ -74,5 +74,67 @@ describe('RVT V2 domain', () => {
         now,
       ),
     ).toBe('OVERDUE');
+  });
+});
+
+/**
+ * Cadências novas, que o literal de dois valores não permitia.
+ *
+ * Trimestral é o caso que expõe a diferença entre somar meses e somar dias:
+ * três meses a partir de 31 de janeiro cai em 30 de abril, e somar 90 dias
+ * cairia em 1º de maio.
+ */
+describe('cadências além de semanal e semestral', () => {
+  it('trimestral segue o calendário, e não noventa dias', () => {
+    const ocorrencias = generateRvtOccurrences({
+      scheduleMode: 'RECURRING',
+      cadence: { intervalDays: null, intervalMonths: 3 },
+      coverageStart: '2026-01-31',
+      coverageEnd: '2026-12-31',
+      timezone: 'America/Recife',
+    });
+
+    expect(ocorrencias.map((item) => item.localDate)).toEqual([
+      '2026-01-31',
+      '2026-04-30',
+      '2026-07-31',
+      '2026-10-31',
+    ]);
+  });
+
+  it('mensal parte sempre do início, para não encolher o dia', () => {
+    const ocorrencias = generateRvtOccurrences({
+      scheduleMode: 'RECURRING',
+      cadence: { intervalDays: null, intervalMonths: 1 },
+      coverageStart: '2026-01-31',
+      coverageEnd: '2026-05-31',
+      timezone: 'America/Recife',
+    });
+
+    /**
+     * 31 de março aparece — e é isso que prova a conta.
+     *
+     * Somando um mês de cada vez a partir do anterior, fevereiro prenderia a
+     * série em 28 e todas as visitas seguintes cairiam no dia 28.
+     */
+    expect(ocorrencias.map((item) => item.localDate)).toEqual([
+      '2026-01-31',
+      '2026-02-28',
+      '2026-03-31',
+      '2026-04-30',
+      '2026-05-31',
+    ]);
+  });
+
+  it('uma cadência sem dias nem meses é recusada', () => {
+    expect(() =>
+      generateRvtOccurrences({
+        scheduleMode: 'RECURRING',
+        cadence: { intervalDays: null, intervalMonths: null },
+        coverageStart: '2026-01-01',
+        coverageEnd: '2026-12-31',
+        timezone: 'America/Recife',
+      }),
+    ).toThrow(/day or a month interval/);
   });
 });

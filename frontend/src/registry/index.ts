@@ -67,7 +67,7 @@ export {
   OCCURRENCE_STATUS,
   RENDER_STATUS,
   SCHEDULE_MODE,
-  VISIT_TYPE,
+  cadenciaDe,
   configurationStatus,
   documentStatus as rvtDocumentStatus,
   dueState,
@@ -78,7 +78,6 @@ export {
   recurrenceLabel,
   renderStatus,
   scheduleMode,
-  visitType,
   type RvtPresentation,
   type RvtTone,
 } from "./rvt";

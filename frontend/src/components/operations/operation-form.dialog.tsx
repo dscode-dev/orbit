@@ -443,11 +443,22 @@ function OperationForm({
   );
 }
 
-/** Código sugerido: prefixo e o dia, para não nascer em branco. */
+/**
+ * Código sugerido: prefixo, o dia e um sufixo aleatório.
+ *
+ * O sufixo era `getTime() % 1000` — o milissegundo dentro do segundo. São mil
+ * valores por dia, e o aniversário cobra cedo: por volta da vigésima terceira
+ * ordem do dia a chance de repetir passa de 20%, e o servidor responde 409
+ * "conflito nos dados" sem dizer qual campo mudar. Seis dígitos sorteados
+ * empurram isso para além de mil ordens por dia.
+ *
+ * Continua sendo uma **sugestão**: o campo é editável, e quem numera por
+ * contrato próprio sobrescreve.
+ */
 function suggestedCode(): string {
-  const now = new Date();
-  const stamp = now.toISOString().slice(0, 10).replaceAll("-", "");
-  const suffix = String(now.getTime() % 1000).padStart(3, "0");
+  const stamp = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+  const [sorteado] = crypto.getRandomValues(new Uint32Array(1));
+  const suffix = String(sorteado % 1_000_000).padStart(6, "0");
   return `OS-${stamp}-${suffix}`;
 }
 

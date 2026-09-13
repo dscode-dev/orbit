@@ -23,12 +23,39 @@ export class RvtMapper {
     } as const;
   }
 
+  /**
+   * O tipo de manutenção como o cliente o lê.
+   *
+   * A linha do Prisma traz `organizationId`, `deletedAt` e a relação com o nome
+   * da coluna (`checklistTemplate`). Devolver a linha crua vazava o inquilino e
+   * entregava um campo com nome diferente do contrato — e como o serviço
+   * repassava o retorno do repositório, o compilador não tinha o que reclamar.
+   */
+  maintenanceType(source: any) {
+    return {
+      id: source.id,
+      key: source.key,
+      label: source.label,
+      intervalDays: source.intervalDays,
+      intervalMonths: source.intervalMonths,
+      checklist: source.checklistTemplate
+        ? {
+            id: source.checklistTemplate.id,
+            name: source.checklistTemplate.name,
+            version: source.checklistTemplate.version,
+          }
+        : null,
+    } as const;
+  }
+
   configuration(source: any) {
     return {
       id: source.id,
       code: source.code,
       name: source.name,
-      visitType: source.visitType,
+      maintenanceType: source.maintenanceType
+        ? this.maintenanceType(source.maintenanceType)
+        : null,
       scheduleMode: source.scheduleMode,
       status: source.status,
       coverage: {

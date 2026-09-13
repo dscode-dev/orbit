@@ -383,6 +383,20 @@ export async function provisionRvtVisit(
     }),
   );
 
+  /**
+   * O ritmo vem do catálogo da organização, não de um literal.
+   *
+   * Era `visitType: "WEEKLY"`. Os tipos de manutenção passaram a ser cadastro
+   * — cada um com a própria cadência e o próprio roteiro — e toda organização
+   * nasce com os sete. O cenário procura o desta conta em vez de fixar um
+   * código que o servidor não conhece mais.
+   */
+  const tipos = await json<{ id: string; key: string }[]>(
+    await bff(page, "get", "/api/orbit/rvt/maintenance-types"),
+  );
+  const semanal = tipos.find((tipo) => tipo.key === "WEEKLY");
+  if (!semanal) throw new Error("organização sem o tipo de manutenção semanal");
+
   const name = `Visita avulsa — ${label} ${suffix}`;
   const created = await json<{ execution: { id: string } }>(
     await bff(
@@ -393,7 +407,7 @@ export async function provisionRvtVisit(
         businessUnitId,
         customerId: customer.id,
         name,
-        visitType: "WEEKLY",
+        maintenanceTypeId: semanal.id,
         timezone: "America/Recife",
         serviceLocation: { city: "Recife" },
         procedure: { items: [] },
