@@ -6,6 +6,7 @@ import type {
   IIdentityTokenDelivery,
 } from '../domain/identity.types';
 import { IdentityTokenPurpose as Purpose } from '../domain/identity.types';
+import { identityTokenLink } from '../domain/identity-links';
 
 /**
  * Safe default until an email provider is connected. It deliberately does not
@@ -37,11 +38,9 @@ export class SmtpIdentityTokenDelivery implements IIdentityTokenDelivery {
     recipient: string,
     token: string,
   ): Promise<void> {
-    const publicUrl = new URL(this.required('IDENTITY_PUBLIC_WEB_URL'));
     const invitation = purpose === Purpose.INVITATION;
-    publicUrl.pathname = invitation ? '/convite' : '/redefinir-senha';
-    publicUrl.search = '';
-    publicUrl.searchParams.set('token', token);
+    /** O mesmo montador que o link compartilhável usa — uma rota só. */
+    const link = identityTokenLink(purpose, token);
 
     const options: SendMailOptions = {
       from: this.required('EMAIL_FROM'),
@@ -50,8 +49,8 @@ export class SmtpIdentityTokenDelivery implements IIdentityTokenDelivery {
         ? 'Você foi convidado para o Orbit'
         : 'Redefinição de senha do Orbit',
       text: invitation
-        ? `Use este link para aceitar o convite e definir sua senha:\n\n${publicUrl.toString()}\n\nSe você não esperava este convite, ignore esta mensagem.`
-        : `Use este link para redefinir sua senha:\n\n${publicUrl.toString()}\n\nSe você não solicitou a alteração, ignore esta mensagem.`,
+        ? `Use este link para aceitar o convite e definir sua senha:\n\n${link}\n\nSe você não esperava este convite, ignore esta mensagem.`
+        : `Use este link para redefinir sua senha:\n\n${link}\n\nSe você não solicitou a alteração, ignore esta mensagem.`,
     };
 
     try {

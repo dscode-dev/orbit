@@ -3,6 +3,10 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database';
 import { generateUuidV7 } from '../../../utils';
 import type { RegisterOrganizationDto } from '../presentation/dto/identity.dto';
+import {
+  ASSIGNABLE_TEAM_ROLES,
+  OWNER_ROLE_KEY,
+} from '../../organizations/team-roles';
 
 export type TenantProvisioningOptions = {
   actorUserId?: string;
@@ -85,11 +89,28 @@ export class RegistrationRepository {
       const ownerRole = await transaction.role.create({
         data: {
           organizationId,
-          key: 'OWNER',
+          key: OWNER_ROLE_KEY,
           name: 'Owner',
           description: 'Organization owner',
           permissions: ['*'],
         },
+      });
+
+      /**
+       * Os papéis de técnico nascem com a organização.
+       *
+       * Sem eles a tela de equipe abriria com um seletor de papel contendo só
+       * "Owner", e cadastrar o primeiro técnico exigiria compor permissões à
+       * mão. Criar aqui é o que torna o cadastro possível no primeiro dia.
+       */
+      await transaction.role.createMany({
+        data: ASSIGNABLE_TEAM_ROLES.map((papel) => ({
+          organizationId,
+          key: papel.key,
+          name: papel.name,
+          description: papel.description,
+          permissions: [...papel.permissions],
+        })),
       });
       await transaction.businessUnit.create({
         data: {

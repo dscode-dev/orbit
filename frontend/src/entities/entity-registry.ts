@@ -645,7 +645,7 @@ const DEFINITIONS: readonly EntityDefinition[] = [
     label: "Membro",
     labelPlural: "Equipe",
     description:
-      "Pessoas da organização: papéis, unidades, convites e carga de trabalho.",
+      "Quem faz parte, com que papel e o que cada um tem para fazer.",
     icon: UsersRound,
     color: "text-indigo-400",
     basePath: ROUTES.team,

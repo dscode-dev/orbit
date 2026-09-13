@@ -73,6 +73,36 @@ class AuthRepository {
     return OrbitUser.fromJson(data);
   }
 
+  /// Troca a própria senha.
+  ///
+  /// Exige a senha atual — é o que separa este fluxo do link de recuperação,
+  /// que existe justamente para quem **não** a tem. O backend revoga as demais
+  /// sessões e zera `mustChangePassword` na mesma transação.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _client.post<dynamic>(
+      '/identity/me/password',
+      body: {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      },
+    );
+  }
+
+  /// Pede o link de redefinição para um e-mail.
+  ///
+  /// A resposta é sempre a mesma, exista a conta ou não: o servidor não conta a
+  /// quem pergunta se aquele endereço tem cadastro.
+  Future<void> requestPasswordReset(String email) async {
+    await _client.post<dynamic>(
+      '/identity/password/forgot',
+      isPublic: true,
+      body: {'email': email.trim().toLowerCase()},
+    );
+  }
+
   /// Organização ativa; `null` quando não há contexto de tenant ou o plano
   /// está inativo (`@RequiresActivePlan` responde 403).
   Future<Organization?> loadOrganization() async {

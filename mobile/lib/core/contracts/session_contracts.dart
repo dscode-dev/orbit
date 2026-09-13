@@ -80,6 +80,7 @@ class OrbitUser {
     this.timezone,
     this.status = 'ACTIVE',
     this.mfaEnabled = false,
+    this.mustChangePassword = false,
   });
 
   factory OrbitUser.fromJson(Map<String, dynamic> json) => OrbitUser(
@@ -95,6 +96,7 @@ class OrbitUser {
     timezone: json['timezone'] as String?,
     status: json['status'] as String? ?? 'ACTIVE',
     mfaEnabled: json['mfaEnabled'] as bool? ?? false,
+    mustChangePassword: json['mustChangePassword'] as bool? ?? false,
   );
 
   final String id;
@@ -108,6 +110,14 @@ class OrbitUser {
   final String? timezone;
   final String status;
   final bool mfaEnabled;
+
+  /// A senha atual é provisória e precisa ser trocada antes de trabalhar.
+  ///
+  /// Verdadeiro quando o dono da organização cadastrou a pessoa e entregou uma
+  /// senha temporária. Enquanto for verdadeiro o roteador prende o aplicativo
+  /// na troca: o dono não deve continuar sabendo a senha do técnico, e é a
+  /// troca que encerra isso.
+  final bool mustChangePassword;
 
   String get initials {
     final parts = displayName.trim().split(RegExp(r'\s+'));

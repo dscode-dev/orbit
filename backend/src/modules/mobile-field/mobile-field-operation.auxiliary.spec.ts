@@ -91,7 +91,7 @@ function servico(status: string) {
 
   return new MobileFieldOperationService(
     repository as never,
-    { } as never,
+    {} as never,
     signatures as never,
   );
 }

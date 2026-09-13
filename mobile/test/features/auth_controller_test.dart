@@ -329,4 +329,70 @@ void main() {
 
     expect(controller.state, isA<AuthUnauthenticated>());
   });
+
+  group('troca obrigatória de senha', _trocaDeSenha);
+}
+
+/// Troca obrigatória de senha.
+///
+/// O que se prova: que o controlador **relê o perfil** depois de trocar. Sem
+/// isso `mustChangePassword` continuaria verdadeiro na sessão em memória, e o
+/// roteador devolveria a pessoa à mesma tela logo após ela ter obedecido —
+/// um laço do qual só sairia saindo do aplicativo.
+void _trocaDeSenha() {
+  late _MockAuthRepository repository;
+
+  setUp(() {
+    repository = _MockAuthRepository();
+    when(
+      () => repository.loadOrganization(),
+    ).thenAnswer((_) async => _organization);
+    when(
+      () => repository.loadEntitlements(),
+    ).thenAnswer((_) async => _entitlements);
+  });
+
+  test('a exigência some da sessão depois da troca', () async {
+    /// Primeiro perfil: senha temporária. Depois da troca: já não.
+    var trocou = false;
+    when(() => repository.loadProfile()).thenAnswer(
+      (_) async => OrbitUser(
+        id: 'user-1',
+        email: 'tecnico@acme.com',
+        displayName: 'Marina Duarte',
+        mustChangePassword: !trocou,
+      ),
+    );
+    when(
+      () => repository.readClaims(),
+    ).thenAnswer((_) async => AuthRepository.decodeClaims(fakeAccessToken()));
+    when(
+      () => repository.changePassword(
+        currentPassword: any(named: 'currentPassword'),
+        newPassword: any(named: 'newPassword'),
+      ),
+    ).thenAnswer((_) async {
+      trocou = true;
+    });
+
+    final controller = buildController(repository);
+    await controller.restore();
+
+    final antes = controller.state as AuthAuthenticated;
+    expect(
+      antes.session.user.mustChangePassword,
+      isTrue,
+      reason: 'quem entra com senha temporária precisa ser preso na troca',
+    );
+
+    await controller.changePassword(
+      currentPassword: 'ABCD-EFGH-IJKL',
+      newPassword: 'minha-senha-nova',
+    );
+
+    final depois = controller.state as AuthAuthenticated;
+    expect(depois.session.user.mustChangePassword, isFalse);
+    /// A sessão não foi recomposta do zero: organização e plano seguem lá.
+    expect(depois.session.organization?.displayName, 'Acme Industries');
+  });
 }

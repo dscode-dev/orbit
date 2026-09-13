@@ -34,6 +34,7 @@ import '../support/fakes.dart';
 import '../support/scripted_adapter.dart';
 import 'harness.dart';
 import 'package:orbit_operator/features/documents/presentation/documents_screen.dart';
+import 'package:orbit_operator/features/authentication/presentation/change_password_screen.dart';
 import 'package:orbit_operator/features/authentication/presentation/login_screen.dart';
 import 'package:orbit_operator/features/notifications/presentation/notifications_screen.dart';
 import 'package:orbit_operator/features/profile/presentation/profile_screen.dart';
@@ -713,6 +714,25 @@ void registerCaptures() {
       find.byType(MaterialApp),
       matchesGoldenFile(
         'out/${captureWidth.toInt()}_$captureScale/00_entrar.png',
+      ),
+    );
+  });
+
+  /// A troca obrigatória — três campos numa tela que não deixa sair.
+  ///
+  /// Capturada em todas as larguras porque é a **primeira** tela de quem o dono
+  /// da organização cadastrou: se ela estourar em 320px com fonte grande, a
+  /// pessoa não consegue nem começar a usar o aplicativo.
+  testWidgets('definir senha', (tester) async {
+    await carregarFontes();
+    prepararTela(tester);
+    await tester.pumpWidget(host(const {}, const ChangePasswordScreen()));
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile(
+        'out/${captureWidth.toInt()}_$captureScale/00b_definir_senha.png',
       ),
     );
   });

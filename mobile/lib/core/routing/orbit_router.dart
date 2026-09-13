@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../features/authentication/domain/session.dart';
+import '../../features/authentication/presentation/change_password_screen.dart';
 import '../../features/authentication/presentation/login_screen.dart';
 import '../../features/authentication/presentation/splash_screen.dart';
 import '../../features/field/presentation/field_dashboard_screen.dart';
@@ -37,6 +38,9 @@ import 'app_shell.dart';
 abstract final class OrbitRoutes {
   static const splash = '/';
   static const login = '/login';
+
+  /// Troca obrigatória de senha — irmã do login, fora do shell.
+  static const changePassword = '/definir-senha';
   static const home = '/inicio';
 
   /// A fila de campo — o item de trabalho canônico, não a lista
@@ -102,8 +106,23 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (auth is AuthUnauthenticated) {
         return location == OrbitRoutes.login ? null : OrbitRoutes.login;
       }
-      // Autenticado: sai da splash e do login.
-      if (location == OrbitRoutes.splash || location == OrbitRoutes.login) {
+
+      /// Senha temporária prende o aplicativo na troca.
+      ///
+      /// Antes de qualquer outra decisão de rota: quem entrou com a senha que o
+      /// dono da organização escolheu não deve abrir atendimento nem assinar
+      /// nada enquanto essa senha valer — o dono ainda a conhece.
+      if (auth is AuthAuthenticated &&
+          auth.session.user.mustChangePassword) {
+        return location == OrbitRoutes.changePassword
+            ? null
+            : OrbitRoutes.changePassword;
+      }
+
+      // Autenticado: sai da splash, do login e da troca já cumprida.
+      if (location == OrbitRoutes.splash ||
+          location == OrbitRoutes.login ||
+          location == OrbitRoutes.changePassword) {
         return OrbitRoutes.home;
       }
       return null;
@@ -116,6 +135,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: OrbitRoutes.login,
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: OrbitRoutes.changePassword,
+        builder: (context, state) => const ChangePasswordScreen(),
       ),
 
       /// A leitura de etiqueta fica **fora** do shell, e por isso é declarada

@@ -40,15 +40,30 @@ async function bff(page: Page, path: string) {
   });
 }
 
-/** Abre o primeiro registro da listagem e devolve a URL do detalhe. */
+/**
+ * Abre o primeiro **registro** da listagem e devolve a URL do detalhe.
+ *
+ * O href precisa terminar em um id, e não apenas começar com a base. Sem esse
+ * recorte, qualquer sub-rota estática da própria tela entrava na conta — foi o
+ * que aconteceu quando o PMOC ganhou um link para `/pmoc/unidades` no
+ * cabeçalho: ele vem antes das linhas no DOM, era ele o "primeiro registro", e
+ * o teste ficava esperando um detalhe que nunca ia abrir.
+ */
 async function openFirst(page: Page, base: string): Promise<string | null> {
   await page.goto(base);
   await page.waitForLoadState("networkidle").catch(() => {});
-  const link = page.locator(`a[href^="${base}/"]`).first();
-  if ((await link.count()) === 0) return null;
-  await link.click();
-  await page.waitForURL(new RegExp(`${base}/[0-9a-f-]{36}`), { timeout: 20_000 });
-  return new URL(page.url()).pathname;
+
+  const ehDetalhe = new RegExp(`^${base}/[0-9a-f-]{36}$`);
+  for (const candidato of await page.locator(`a[href^="${base}/"]`).all()) {
+    const href = (await candidato.getAttribute("href")) ?? "";
+    if (!ehDetalhe.test(href)) continue;
+    await candidato.click();
+    await page.waitForURL(new RegExp(`${base}/[0-9a-f-]{36}`), {
+      timeout: 20_000,
+    });
+    return new URL(page.url()).pathname;
+  }
+  return null;
 }
 
 test("as execuções do PMOC são vistas dentro do plano", async ({

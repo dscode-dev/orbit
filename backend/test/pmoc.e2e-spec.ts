@@ -3257,9 +3257,8 @@ describe('PMOC (e2e)', () => {
       const detalhe = await auth(
         http().get(`/api/v1/pmoc/plans/${plano.id}`),
       ).expect(200);
-      const unidades = (
-        detalhe.body as Envelope<{ units: Unidade[] }>
-      ).data.units;
+      const unidades = (detalhe.body as Envelope<{ units: Unidade[] }>).data
+        .units;
 
       expect(unidades.map((unidade) => unidade.id).sort()).toEqual(
         [comRoteiro.id, semRoteiro.id].sort(),
@@ -3324,9 +3323,7 @@ describe('PMOC (e2e)', () => {
         unitIds: [unidade.id],
       });
 
-      await auth(
-        http().delete(`/api/v1/pmoc/units/${unidade.id}`),
-      ).expect(204);
+      await auth(http().delete(`/api/v1/pmoc/units/${unidade.id}`)).expect(204);
 
       const lista = await auth(http().get('/api/v1/pmoc/units')).expect(200);
       expect(
@@ -3365,9 +3362,9 @@ describe('PMOC (e2e)', () => {
         assetIds: [assetA],
         unitIds: [unidade.id],
       });
-      await auth(
-        http().post(`/api/v1/pmoc/plans/${plano.id}/activate`),
-      ).expect(201);
+      await auth(http().post(`/api/v1/pmoc/plans/${plano.id}/activate`)).expect(
+        201,
+      );
 
       const requested = await auth(http().post('/api/v1/management-reports'))
         .send({

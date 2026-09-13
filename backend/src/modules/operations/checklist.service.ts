@@ -126,8 +126,8 @@ export class ChecklistService {
           version: template.version,
           items: [
             ...(template.items as Prisma.InputJsonValue[]),
-            ...((input.additionalItems ?? []) as unknown as
-              Prisma.InputJsonValue[]),
+            ...((input.additionalItems ??
+              []) as unknown as Prisma.InputJsonValue[]),
           ],
         },
         notes: input.notes?.trim(),

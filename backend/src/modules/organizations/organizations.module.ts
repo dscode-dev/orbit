@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SubscriptionPlansModule } from '../subscription-plans/subscription-plans.module';
+import { IdentityModule } from '../identity/identity.module';
 import { PmocModule } from '../pmoc/pmoc.module';
 import { BusinessUnitController } from './business-units/business-unit.controller';
 import { BusinessUnitRepository } from './business-units/business-unit.repository';
@@ -18,11 +19,15 @@ import { OrganizationController } from './organization.controller';
 import { OrganizationRepository } from './organization.repository';
 import { OrganizationService } from './organization.service';
 import { OrganizationReadModelMapper } from './organization.mapper';
+import { TeamController } from './team/team.controller';
+import { TeamRepository } from './team/team.repository';
+import { TeamService } from './team/team.service';
 
 @Module({
-  imports: [SubscriptionPlansModule, PmocModule],
+  imports: [SubscriptionPlansModule, PmocModule, IdentityModule],
   controllers: [
     OrganizationController,
+    TeamController,
     BusinessUnitController,
     AssetController,
     CustomerController,
@@ -30,6 +35,8 @@ import { OrganizationReadModelMapper } from './organization.mapper';
   providers: [
     OrganizationRepository,
     OrganizationService,
+    TeamRepository,
+    TeamService,
     OrganizationReadModelMapper,
     BusinessUnitRepository,
     BusinessUnitService,

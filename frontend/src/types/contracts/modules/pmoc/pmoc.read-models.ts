@@ -83,7 +83,7 @@ export interface PmocExecutionReadModel {
   performedAt: string | null;
   notes: string | null;
   completedBy: { id: string; displayName: string } | null;
-  /** A ordem de serviço que cumpriu o ciclo. */
+  /** A ordem de serviço que cumpriu a execução. */
   operation: { id: string; code: string; status: string } | null;
   /** A evidência documental — execução real, nunca fabricada. */
   artifactExecution: { id: string; code: string; status: string } | null;
@@ -190,7 +190,7 @@ export interface PmocPlanReadModel extends PmocPlanSummaryReadModel {
   coverages: readonly PmocCoverageReadModel[];
   /** As unidades que este plano atende — o detalhamento do relatório final. */
   units: readonly PmocPlanUnitReadModel[];
-  /** O ciclo aberto — a próxima manutenção prevista. */
+  /** A execução aberta — a próxima manutenção prevista. */
   currentExecution: PmocExecutionReadModel | null;
   /** As últimas execuções, da mais recente para a mais antiga. */
   recentExecutions: readonly PmocExecutionReadModel[];

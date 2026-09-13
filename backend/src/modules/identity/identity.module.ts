@@ -70,6 +70,12 @@ import { AvatarRepository } from './infrastructure/avatar.repository';
       ) => (process.env.NODE_ENV === 'production' ? smtp : noop),
     },
   ],
-  exports: [IdentityTokenService, IdentityRepository, RegistrationRepository],
+  exports: [
+    IdentityTokenService,
+    IdentityRepository,
+    RegistrationRepository,
+    /** A equipe entrega o mesmo link por e-mail quando há SMTP. */
+    IDENTITY_TOKEN_DELIVERY,
+  ],
 })
 export class IdentityModule {}

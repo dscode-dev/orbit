@@ -46,6 +46,9 @@ import type {
   UpdateRoleInput,
   UpdateSpecialtyInput,
   UpdateTeamInput,
+  CreateTeamMemberInput,
+  CreatedTeamMember,
+  TeamPasswordLink,
 } from "@/types/workforce";
 
 const INVITATIONS = "identity-invitations";
@@ -85,6 +88,46 @@ export const workforceService = {
   /* ---------------------------------------------------------------- */
   /* Papéis                                                            */
   /* ---------------------------------------------------------------- */
+
+  /* ---------------------------------------------------------------- */
+  /* Cadastro de pessoas                                                */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Cadastra alguém e recebe a senha temporária — **uma vez**.
+   *
+   * Nenhuma outra rota a devolve, e não há coluna que a guarde. Perdida a
+   * resposta, o caminho é `issuePasswordLink`.
+   */
+  createTeamMember: (
+    input: CreateTeamMemberInput,
+    options?: RequestOptions,
+  ): Promise<CreatedTeamMember> =>
+    apiClient.post<CreatedTeamMember>(`${ORG_PATH}/team/members`, input, options),
+
+  /** Um link de definição de senha, para o owner repassar. */
+  issuePasswordLink: (
+    userId: string,
+    options?: RequestOptions,
+  ): Promise<TeamPasswordLink> =>
+    apiClient.post<TeamPasswordLink>(
+      `${path(`${ORG_PATH}/team/members`, userId)}/password-link`,
+      undefined,
+      options,
+    ),
+
+  /**
+   * Desliga da organização: o vínculo sai, a pessoa e o histórico dela ficam.
+   *
+   * `dismissMember`, e não `removeTeamMember` — este último já existe e tira
+   * alguém de uma **equipe** de trabalho, que é outra coisa: continuar na
+   * organização sem estar naquela equipe é normal.
+   */
+  dismissMember: (userId: string, options?: RequestOptions): Promise<void> =>
+    apiClient.delete<void>(
+      path(`${ORG_PATH}/team/members`, userId),
+      options,
+    ),
 
   roles: (options?: RequestOptions): Promise<TeamRole[]> =>
     apiClient.get<TeamRole[]>(`${ORG_PATH}/roles`, options),

@@ -31,6 +31,15 @@ export class ProfileService {
       status: user.status,
       emailVerifiedAt: user.emailVerifiedAt,
       mfaEnabled: user.mfaFactors.length > 0,
+      /**
+       * A senha atual é provisória?
+       *
+       * Publicado porque é o **cliente** que precisa agir: web e mobile levam
+       * quem entra com senha temporária direto para a troca, antes de qualquer
+       * outra tela. Sem este campo o guard do frontend já existia e nunca
+       * disparava — lia `mustChangePassword` de um perfil que não o continha.
+       */
+      mustChangePassword: user.credential?.mustChangePassword ?? false,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

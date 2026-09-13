@@ -1534,7 +1534,8 @@ export class PmocService {
 
     return [...porUnidade.values()]
       .sort(
-        (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'pt-BR'),
+        (a, b) =>
+          a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'pt-BR'),
       )
       .map((unidade) => ({
         key: unidade.key,

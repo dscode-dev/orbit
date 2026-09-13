@@ -266,3 +266,43 @@ export interface ProfessionalEligibilityQuery {
   signedAs: ProfessionalRole;
   businessUnitId?: string;
 }
+
+/* ------------------------------------------------------------------ */
+/* Cadastro de pessoas                                                 */
+/* ------------------------------------------------------------------ */
+
+/** `POST /organizations/current/team/members`. */
+export interface CreateTeamMemberInput {
+  email: string;
+  firstName: string;
+  lastName: string;
+  /** Um papel **atribuível** da organização — `OWNER` é recusado. */
+  roleId: string;
+  /** Omitido, a pessoa entra na unidade principal. */
+  businessUnitId?: string;
+}
+
+/**
+ * A resposta do cadastro.
+ *
+ * `temporaryPassword` existe **só aqui**. Nenhuma consulta a devolve e não há
+ * onde relê-la: a tela precisa mostrá-la antes de fechar, e dizer isso.
+ */
+export interface CreatedTeamMember {
+  member: TeamMember;
+  temporaryPassword: string;
+}
+
+/**
+ * O link de definição de senha que o owner repassa.
+ *
+ * `emailSent` diz se o servidor conseguiu mandar por e-mail — quando não, é o
+ * link na mão do owner que resolve, por WhatsApp, Telegram ou o que a pessoa
+ * usar.
+ */
+export interface TeamPasswordLink {
+  link: string;
+  expiresAt: string;
+  emailSent: boolean;
+  member: TeamMember;
+}

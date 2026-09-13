@@ -15,39 +15,75 @@
  * mas que a tela **respeita** a decisão dele: cada seletor mostra o elenco do
  * seu papel, quem não tem papel não aparece, e nenhum código de contrato
  * chega ao usuário.
+ *
+ * A aba Profissionais saiu da tela de Equipe; o perfil profissional continua
+ * no detalhe de cada membro, e é por lá que estes testes o alcançam.
  */
 import { expect, test } from "@playwright/test";
 import { provisionOperation, provisionOperationWithTeam } from "./provision";
 import { assertClean, login, record, settled } from "./support";
 
-test("a aba Profissionais separa ofício de acesso", async ({ page }) => {
+test("o detalhe do membro separa ofício de acesso", async ({ page }) => {
   const recorder = record(page);
   await login(page);
   await page.goto("/equipe");
   await settled(page);
 
-  await page.getByRole("tab", { name: "Profissionais" }).click();
-  /** A aba busca dois seletores; esperar a tabela evita ler o painel anterior. */
+  /**
+   * Pelo detalhe da pessoa, e não mais por uma aba própria.
+   *
+   * A aba Profissionais saiu da tela de Equipe. O que ela mostrava — ofício,
+   * credencial e assinatura — continua inteiro em "Perfil profissional",
+   * dentro de cada membro; o que se perdeu foi a visão de elenco, não o dado.
+   *
+   * A garantia que este teste protege é a mesma de antes: **ofício e acesso são
+   * coisas diferentes**, e a tela nunca deduz um a partir do outro.
+   */
+  await page.getByRole("button", { name: "Ana Campo" }).first().click();
+
+  /**
+   * Espera o **conteúdo**, não o título da seção.
+   *
+   * O cabeçalho "Perfil profissional" aparece junto do esqueleto, então
+   * esperá-lo e ler o texto em seguida media a tela ainda carregando — a
+   * asserção reprovava por corrida, não por defeito.
+   */
   await expect(
-    page.getByRole("columnheader", { name: "Papéis" }),
+    page.getByText("Técnico em Campo").first(),
   ).toBeVisible({ timeout: 20_000 });
+
+  /// Acesso é a outra leitura, e aparece separada na mesma folha.
+  await expect(
+    page.getByText("Papel e permissões efetivas"),
+  ).toBeVisible();
+
+  await page.keyboard.press("Escape");
   await settled(page);
 
-  const body = await page.evaluate(() => document.body.innerText);
+  /**
+   * Quem não tem papel profissional é o caso comum, não um erro.
+   *
+   * Diego é do escritório: tem acesso ao sistema e nenhum ofício de campo. A
+   * folha precisa dizer isso com todas as letras, senão a ausência parece
+   * falha de carregamento.
+   */
+  await page.getByRole("button", { name: "Diego Escritorio" }).first().click();
+  await expect(
+    page.getByText(/não possui perfil profissional/i),
+  ).toBeVisible({ timeout: 20_000 });
 
-  /** Papéis com o nome do produto. */
-  expect(body).toContain("Técnico em Campo");
-  expect(body).toContain("Responsável Técnico");
-
-  /** Quem tem papel aparece; quem não tem, não. */
-  expect(body).toContain("Ana Campo");
-  expect(body).toContain("Bruno Responsavel");
-  expect(body).toContain("Carla Dupla");
-  expect(body).not.toContain("Diego Escritorio");
-  /** Perfil inativo não é oferecido como profissional ativo. */
-  expect(body).not.toContain("Elena Inativa");
-
-  assertClean(recorder, "aba Profissionais");
+  /**
+   * Gate parcial, pelo mesmo motivo de "plano inexistente é ausência neutra".
+   *
+   * Quem não tem perfil profissional faz o servidor responder **404**, e o
+   * navegador registra isso como erro de console. É o contrato: ausência de
+   * perfil é 404, e a tela o traduz em texto. Exigir console limpo aqui
+   * reprovaria o comportamento correto.
+   *
+   * Exceção e aviso de React continuam valendo — esses nunca são esperados.
+   */
+  expect(recorder.pageErrors, "exceções não tratadas").toEqual([]);
+  expect(recorder.reactWarnings, "avisos de React").toEqual([]);
 });
 
 test("o seletor de Técnico em Campo não oferece quem só é Responsável Técnico", async ({
@@ -199,9 +235,10 @@ test("nenhum código de contrato aparece na tela", async ({ page }) => {
     await page.goto(route);
     await settled(page);
     if (route === "/equipe") {
-      await page.getByRole("tab", { name: "Profissionais" }).click();
+      /// Onde o vocabulário do contrato teria a melhor chance de vazar.
+      await page.getByRole("button", { name: "Ana Campo" }).first().click();
       await expect(
-        page.getByRole("columnheader", { name: "Papéis" }),
+        page.getByText("Técnico em Campo").first(),
       ).toBeVisible({ timeout: 20_000 });
       await settled(page);
     }

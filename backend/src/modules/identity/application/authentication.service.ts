@@ -67,7 +67,10 @@ export class AuthenticationService {
       ...metadata,
     });
     await this.repository.markAuthenticated(user.id, user.credential.id);
-    return this.publicPair(pair);
+    return {
+      ...this.publicPair(pair),
+      mustChangePassword: user.credential.mustChangePassword,
+    };
   }
 
   async refresh(refreshToken: string): Promise<TokenPair> {

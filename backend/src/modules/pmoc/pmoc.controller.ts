@@ -132,10 +132,7 @@ export class PmocController {
     @Req() request: IdentityRequest,
     @Query('includeInactive') includeInactive?: string,
   ) {
-    return this.pmoc.listUnits(
-      this.actor(request),
-      includeInactive !== 'true',
-    );
+    return this.pmoc.listUnits(this.actor(request), includeInactive !== 'true');
   }
 
   @Post('units')

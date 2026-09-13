@@ -55,7 +55,7 @@ describe('execução de checklist', () => {
 
     await service.start(operationId, organizationId, actorId, {
       templateId,
-    } as never);
+    });
 
     const input = repository.createExecution.mock.calls[0]![0];
     expect(input.templateSnapshot.items).toEqual([itemDoModelo]);

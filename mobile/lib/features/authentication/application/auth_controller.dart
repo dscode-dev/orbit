@@ -124,6 +124,29 @@ class AuthController extends StateNotifier<AuthState> {
     state = AuthAuthenticated(current.session.copyWith(user: user));
   }
 
+  /// Troca a própria senha e libera o aplicativo.
+  ///
+  /// Recarrega o perfil em seguida porque é ele que carrega
+  /// `mustChangePassword`: sem isso o roteador continuaria prendendo a pessoa
+  /// na tela de troca depois de ela já ter trocado.
+  ///
+  /// O backend revoga as **outras** sessões, não esta: quem acabou de provar a
+  /// senha atual segue trabalhando sem precisar entrar de novo.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _repository.changePassword(
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+    await refreshProfile();
+  }
+
+  /// Pede o link de redefinição de senha — a tela de login usa.
+  Future<void> requestPasswordReset(String email) =>
+      _repository.requestPasswordReset(email);
+
   /// Troca a unidade ativa.
   ///
   /// O backend aceita `businessUnitId` como filtro em várias consultas, então a

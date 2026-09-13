@@ -70,6 +70,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  /// Pede o link de redefinição para o e-mail digitado.
+  ///
+  /// A confirmação é a mesma exista a conta ou não — o servidor responde 202
+  /// nos dois casos, e a tela não pode contar o que ele esconde. Falha de rede
+  /// também não vira "não existe": ela vira uma mensagem de rede.
+  Future<void> _pedirRecuperacao() async {
+    final email = _email.text.trim();
+    if (!email.contains('@')) {
+      setState(() => _error = 'Escreva seu e-mail acima para receber o link.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(authControllerProvider.notifier)
+          .requestPasswordReset(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Se houver conta com esse e-mail, o link de redefinição foi '
+            'enviado.',
+          ),
+        ),
+      );
+    } on OrbitException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.publicMessage);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
@@ -194,6 +230,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                               )
                             : const Text('Entrar'),
+                      ),
+                      const SizedBox(height: OrbitSpacing.sm),
+
+                      /// Recuperação por e-mail.
+                      ///
+                      /// Existe aqui porque é onde a pessoa descobre que não
+                      /// lembra a senha. Quem não usa e-mail no trabalho — boa
+                      /// parte de uma equipe de campo — pede ao dono da
+                      /// organização, que gera um link e repassa por mensagem.
+                      TextButton(
+                        key: const Key('login.forgot'),
+                        onPressed: _submitting ? null : _pedirRecuperacao,
+                        child: const Text('Esqueci minha senha'),
                       ),
                     ],
                   ),

@@ -49,6 +49,7 @@ import type {
   UpdateRoleInput,
   UpdateSpecialtyInput,
   UpdateTeamInput,
+  CreateTeamMemberInput,
 } from "@/types/workforce";
 
 export const WORKFORCE_REFRESH = {
@@ -382,6 +383,40 @@ export function useUpdateMember(userId: string) {
   return useApiMutation(
     (input: UpdateMemberInput) => workforceService.updateMember(userId, input),
     { onSuccess: invalidate, scope: { id: `member:${userId}` } },
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Cadastro de pessoas                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cadastra alguém da equipe.
+ *
+ * O resultado carrega a senha temporária e **não** é guardado em cache: a
+ * resposta é mostrada uma vez e some com o diálogo. Uma senha em claro num
+ * cache de consulta sobreviveria à navegação e ao devtools.
+ */
+export function useCreateTeamMember() {
+  const invalidate = useMemberInvalidation();
+  return useApiMutation(
+    (input: CreateTeamMemberInput) => workforceService.createTeamMember(input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useIssuePasswordLink() {
+  return useApiMutation((userId: string) =>
+    workforceService.issuePasswordLink(userId),
+  );
+}
+
+/** Desliga da organização — não confundir com sair de uma equipe. */
+export function useDismissMember() {
+  const invalidate = useMemberInvalidation();
+  return useApiMutation(
+    (userId: string) => workforceService.dismissMember(userId),
+    { onSuccess: invalidate },
   );
 }
 

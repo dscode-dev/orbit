@@ -1,7 +1,11 @@
 /* eslint-disable @typescript-eslint/no-base-to-string -- Prisma infere um union discriminado profundo para as três autoridades; o TypeScript valida o contrato, mas o parser type-aware do ESLint não o resolve. */
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { ForbiddenException, ConflictException, EntityNotFoundException } from '../../exceptions';
+import {
+  ForbiddenException,
+  ConflictException,
+  EntityNotFoundException,
+} from '../../exceptions';
 import { ArtifactManifestService } from '../artifact-manifests/artifact-manifest.service';
 import { ArtifactRenderService } from '../artifact-rendering/artifact-render.service';
 import type { MobileFieldActor } from './mobile-field.service';
