@@ -10,6 +10,7 @@ import {
   UserCircle,
   PanelLeftClose,
   ChevronsUpDown,
+  Library,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { OrbitLogo } from "@/components/brand/orbit-logo";
@@ -176,6 +177,11 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
   {
     group: "Administração",
     items: [
+      /*
+        A Central de Catálogos fica em Administração porque é cadastro de quem
+        administra a operação — não é uma tela de trabalho do dia.
+      */
+      { label: "Central de Catálogos", icon: Library, to: ROUTES.catalogs },
       fromEntity("team-member"),
       /*
         Notificações saiu daqui e vive no sino da topbar.

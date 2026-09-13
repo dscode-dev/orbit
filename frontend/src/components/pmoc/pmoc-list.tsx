@@ -94,7 +94,7 @@ export function PmocList({ onCreate }: { onCreate: () => void }) {
           */}
           {canManage ? (
             <Button asChild size="sm" variant="outline">
-              <Link href="/pmoc/unidades">
+              <Link href={`${ROUTES.catalogs}?secao=pmoc`}>
                 <ClipboardList className="size-3.5" />
                 Unidades
               </Link>

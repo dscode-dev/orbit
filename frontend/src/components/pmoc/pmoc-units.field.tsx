@@ -16,6 +16,7 @@
 import Link from "next/link";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { ROUTES } from "@/lib/routes";
 import { usePmocUnits } from "@/hooks/pmoc/use-pmoc";
 import type { PmocUnit } from "@/types/pmoc";
 
@@ -52,7 +53,7 @@ export function PmocUnitsField({
           reaproveitados por todos os planos.
         </p>
         <Link
-          href="/pmoc/unidades"
+          href={`${ROUTES.catalogs}?secao=pmoc`}
           className="mt-3 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Cadastrar unidades

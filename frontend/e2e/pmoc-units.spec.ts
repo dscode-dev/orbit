@@ -28,9 +28,15 @@ test("o owner cadastra a unidade e o assistente a declara no plano", async ({
   await page.goto("/pmoc");
   await settled(page);
 
-  /// O caminho para o cadastro sai da própria lista de planos.
+  /**
+   * O caminho para o cadastro sai da própria lista de planos.
+   *
+   * O destino mudou: o cadastro de unidades saiu de uma rota solta dentro de
+   * PMOC e passou a viver na Central de Catálogos, ao lado dos roteiros de
+   * atendimento — é a mesma natureza de cadastro.
+   */
   await page.getByRole("link", { name: "Unidades" }).click();
-  await page.waitForURL(/\/pmoc\/unidades$/);
+  await page.waitForURL(/\/catalogos\?secao=pmoc/);
   await settled(page);
 
   const nome = `Condensadora E2E ${Date.now()}`;

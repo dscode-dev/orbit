@@ -180,7 +180,8 @@ test.describe("navegação abaixo do desktop", () => {
 
       /** A mesma lista do menu fixo — não uma segunda navegação escrita à mão. */
       const links = drawer.getByRole("link");
-      await expect(links).toHaveCount(16);
+      /* 17 desde que a Central de Catálogos entrou em Administração. */
+      await expect(links).toHaveCount(17);
       await expect(
         drawer.getByRole("link", { name: "Execuções de artefato" }),
       ).toHaveCount(0);

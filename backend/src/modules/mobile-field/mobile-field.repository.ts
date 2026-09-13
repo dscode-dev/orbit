@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Injectable } from '@nestjs/common';
 import { RlsTransaction } from '../../database';
+import type { Prisma } from '@prisma/client';
 
 export interface MobileFieldProjectionSource {
   businessUnits: readonly any[];
@@ -442,11 +443,20 @@ export class MobileFieldRepository {
           },
         ],
       };
+      /**
+       * Tipado, e não um literal solto.
+       *
+       * Este `select` era um objeto sem tipo: quando `Operation.assetId` deu
+       * lugar à lista de equipamentos, o `tsc` passou limpo e o endpoint
+       * quebrou em runtime com `PrismaClientValidationError`. `satisfies` é o
+       * que faz o compilador apontar a próxima mudança de schema aqui.
+       */
       const operationSelect = {
         id: true,
         businessUnitId: true,
         customerId: true,
-        assetId: true,
+        customerAddressId: true,
+        sector: true,
         code: true,
         title: true,
         description: true,
@@ -465,20 +475,25 @@ export class MobileFieldRepository {
           where: { removedAt: null },
           select: { user: { select: { id: true, displayName: true } } },
         },
-        asset: {
+        assets: {
+          orderBy: { createdAt: 'asc' as const },
           select: {
-            id: true,
-            identifier: true,
-            name: true,
-            category: true,
-            manufacturer: true,
-            model: true,
-            location: true,
-            status: true,
-            qrIdentities: {
-              where: { status: 'ACTIVE', revokedAt: null },
-              take: 1,
-              select: { id: true },
+            asset: {
+              select: {
+                id: true,
+                identifier: true,
+                name: true,
+                category: true,
+                manufacturer: true,
+                model: true,
+                location: true,
+                status: true,
+                qrIdentities: {
+                  where: { status: 'ACTIVE', revokedAt: null },
+                  take: 1,
+                  select: { id: true },
+                },
+              },
             },
           },
         },
@@ -502,7 +517,7 @@ export class MobileFieldRepository {
             template: { select: { name: true } },
           },
         },
-      };
+      } satisfies Prisma.OperationSelect;
 
       let operations: any[] = [];
       if (!target || target.kind === 'SERVICE_OPERATION') {

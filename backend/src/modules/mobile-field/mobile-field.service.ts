@@ -528,9 +528,9 @@ export class MobileFieldService {
         auxiliaryTechnicians: operation.auxiliaryTechnicians.map((value: any) =>
           this.party(value.user),
         ),
-        equipmentSummary: operation.asset
-          ? [this.equipment(operation.asset)]
-          : [],
+        equipmentSummary: (operation.assets ?? []).map((link: any) =>
+          this.equipment(link.asset),
+        ),
         artifacts: operation.artifactExecutions.map((value: any) =>
           this.artifact(value),
         ),
@@ -702,7 +702,7 @@ export class MobileFieldService {
       this.has(actor, 'artifact_executions.read')
     )
       actions.push('VIEW_DOCUMENT', 'DOWNLOAD_DOCUMENT');
-    if (source.asset && this.has(actor, 'assets.read'))
+    if (source.assets?.length && this.has(actor, 'assets.read'))
       actions.push('SCAN_EQUIPMENT');
     return actions;
   }

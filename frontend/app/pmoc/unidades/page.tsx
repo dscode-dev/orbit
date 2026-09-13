@@ -1,24 +1,17 @@
-import { PmocUnitsSection } from "@/components/pmoc/pmoc-units.section";
-import { Breadcrumbs, entityCrumbs } from "@/navigation";
-import { WorkspacePage } from "@/workspace";
+import { redirect } from "next/navigation";
+
+import { ROUTES } from "@/lib/routes";
 
 /**
- * Cadastro das unidades de PMOC.
+ * O cadastro de unidades mudou de lugar.
  *
- * Rota estática antes de `[planId]`: o Next resolve o segmento literal
- * primeiro, então `/pmoc/unidades` nunca é lido como id de plano.
+ * Ele nasceu como rota solta dentro de PMOC e passou a viver na Central de
+ * Catálogos, ao lado dos roteiros de atendimento — é a mesma natureza de
+ * cadastro, feito uma vez e reaproveitado pela operação.
+ *
+ * O redirecionamento fica porque o endereço antigo já circulou: está em link
+ * dentro do assistente de PMOC e possivelmente no histórico de quem usa.
  */
-export default function PmocUnitsPage() {
-  return (
-    <WorkspacePage
-      entity="pmoc-plan"
-      title="Unidades de PMOC"
-      description="As partes do sistema que recebem manutenção — condensadora, evaporadora, dutos —, cada uma com o roteiro que o relatório descreve."
-      activeLabel="Unidades"
-      suspense={false}
-      breadcrumb={<Breadcrumbs items={entityCrumbs("pmoc-plan", "Unidades")} />}
-    >
-      <PmocUnitsSection />
-    </WorkspacePage>
-  );
+export default function LegacyPmocUnitsPage() {
+  redirect(`${ROUTES.catalogs}?secao=pmoc`);
 }

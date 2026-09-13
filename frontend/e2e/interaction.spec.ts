@@ -72,11 +72,23 @@ test("o diálogo prende o foco, fecha no Escape e devolve o foco ao gatilho", as
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
 
-  /** E voltou para quem o abriu, senão a navegação por teclado se perde. */
-  const returned = await page.evaluate(
-    () => document.activeElement?.getAttribute("aria-label") ?? "",
-  );
-  expect(returned).toMatch(/Ações da operação/i);
+  /**
+   * E voltou para quem o abriu, senão a navegação por teclado se perde.
+   *
+   * Esperado, e não lido uma vez: a devolução do foco acontece depois de o
+   * diálogo sumir, e uma leitura única no instante seguinte a `toBeHidden()`
+   * pega o `<body>` quando a máquina está carregada. Passava sozinho e
+   * reprovava na suíte inteira — corrida do teste, não defeito da tela.
+   */
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => document.activeElement?.getAttribute("aria-label") ?? "",
+        ),
+      { timeout: 5_000 },
+    )
+    .toMatch(/Ações da operação/i);
 
   assertClean(recorder, "diálogo");
 });

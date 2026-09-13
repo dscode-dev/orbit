@@ -40,12 +40,8 @@ export function PmocUnitsSection() {
   return (
     <PanelFrame
       panelId="pmoc-units"
-      title="Cadastro"
-      /*
-        Sem descrição: o cabeçalho da página já diz o que é uma unidade, e
-        repetir a mesma frase dois centímetros abaixo só ocupa a linha onde
-        deveria estar o botão.
-      */
+      title="Unidades atendidas"
+      description="As partes do sistema que recebem manutenção, e o roteiro de cada uma"
       actions={
         <Button size="sm" onClick={() => setEditando("new")}>
           <Plus className="size-3.5" />

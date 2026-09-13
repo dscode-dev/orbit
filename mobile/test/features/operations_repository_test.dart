@@ -31,12 +31,15 @@ Map<String, dynamic> _operationJson({
     'tradeName': 'Acme',
   },
   'customer': {'id': 'cus-1', 'legalName': 'Cliente Um', 'tradeName': 'Um'},
-  'asset': {
-    'id': 'ast-1',
-    'name': 'Chiller 200TR',
-    'identifier': 'CH-200',
-    'status': 'ACTIVE',
-  },
+  // O contrato publica uma lista: o técnico atende os aparelhos do endereço.
+  'assets': [
+    {
+      'id': 'ast-1',
+      'name': 'Chiller 200TR',
+      'identifier': 'CH-200',
+      'status': 'ACTIVE',
+    },
+  ],
   'users': [
     {
       'userId': 'user-1',

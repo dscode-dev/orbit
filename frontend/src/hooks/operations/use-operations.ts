@@ -12,6 +12,7 @@
  * (`RequestContextProvider`, PR-02).
  */
 import { useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { queryKeys } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
@@ -33,6 +34,8 @@ import type {
   OperationQuery,
   StartChecklistInput,
   UpdateOperationInput,
+  CreateChecklistTemplateInput,
+  UpdateChecklistTemplateInput,
 } from "@/types/operations";
 
 /**
@@ -304,6 +307,49 @@ export function useChecklistTemplates() {
       checklistTemplatesService.list({ isActive: true, limit: 100 }, { signal }),
     CACHE.stable,
   );
+}
+
+/** Um roteiro pelo id — o formulário de edição precisa dos itens. */
+export function useChecklistTemplate(id: string | null) {
+  return useApiQuery(
+    checklistTemplatesService.keys.detail(id ?? "none"),
+    ({ signal }) => checklistTemplatesService.find(id!, { signal }),
+    { ...CACHE.stable, enabled: Boolean(id) },
+  );
+}
+
+function useChecklistTemplateInvalidation() {
+  const queryClient = useQueryClient();
+  return async () => {
+    await queryClient.invalidateQueries({
+      queryKey: checklistTemplatesService.keys.module(),
+    });
+  };
+}
+
+export function useCreateChecklistTemplate() {
+  const invalidate = useChecklistTemplateInvalidation();
+  return useApiMutation(
+    (input: CreateChecklistTemplateInput) =>
+      checklistTemplatesService.create(input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useUpdateChecklistTemplate(id: string) {
+  const invalidate = useChecklistTemplateInvalidation();
+  return useApiMutation(
+    (input: UpdateChecklistTemplateInput) =>
+      checklistTemplatesService.update(id, input),
+    { onSuccess: invalidate },
+  );
+}
+
+export function useRemoveChecklistTemplate() {
+  const invalidate = useChecklistTemplateInvalidation();
+  return useApiMutation((id: string) => checklistTemplatesService.remove(id), {
+    onSuccess: invalidate,
+  });
 }
 
 /**

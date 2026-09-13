@@ -27,6 +27,8 @@ import type {
   ChecklistTemplate,
   ChecklistTemplateQuery,
   StartChecklistInput,
+  CreateChecklistTemplateInput,
+  UpdateChecklistTemplateInput,
 } from "@/types/operations";
 
 const RESOURCE = "operations";
@@ -205,10 +207,33 @@ export const checklistTemplatesService = {
       query: query as QueryParams | undefined,
     }),
 
+  find: (id: string, options?: RequestOptions): Promise<ChecklistTemplate> =>
+    apiClient.get<ChecklistTemplate>(
+      `/checklist-templates/${encodeURIComponent(id)}`,
+      options,
+    ),
+
+  create: (input: CreateChecklistTemplateInput): Promise<ChecklistTemplate> =>
+    apiClient.post<ChecklistTemplate>("/checklist-templates", input),
+
+  update: (
+    id: string,
+    input: UpdateChecklistTemplateInput,
+  ): Promise<ChecklistTemplate> =>
+    apiClient.patch<ChecklistTemplate>(
+      `/checklist-templates/${encodeURIComponent(id)}`,
+      input,
+    ),
+
+  remove: (id: string): Promise<void> =>
+    apiClient.delete<void>(`/checklist-templates/${encodeURIComponent(id)}`),
+
   keys: {
     module: (): QueryKey => queryKeys.module(CHECKLIST_TEMPLATES_RESOURCE),
     list: (query?: ChecklistTemplateQuery): QueryKey =>
       queryKeys.list(CHECKLIST_TEMPLATES_RESOURCE, asParams(query)),
+    detail: (id: string): QueryKey =>
+      queryKeys.detail(CHECKLIST_TEMPLATES_RESOURCE, id),
   },
 } as const;
 

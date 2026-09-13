@@ -8,6 +8,11 @@ import {
   parseSidebarCookie,
   SIDEBAR_COOKIE,
 } from "@/components/layout/sidebar-cookie";
+import {
+  THEME_BOOTSTRAP_SCRIPT,
+  THEME_COOKIE,
+  parseThemeCookie,
+} from "@/components/layout/theme-cookie";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const spaceGrotesk = Space_Grotesk({
@@ -47,6 +52,7 @@ export default async function RootLayout({
    * hidratação — que era exatamente o piscar a cada navegação.
    */
   const store = await cookies();
+  const theme = parseThemeCookie(store.get(THEME_COOKIE)?.value);
   const sidebarCollapsed = parseSidebarCookie(
     store.get(SIDEBAR_COOKIE)?.value,
   );
@@ -54,10 +60,29 @@ export default async function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${inter.variable} ${spaceGrotesk.variable} ${ibmPlexMono.variable}`}
+      /*
+        A classe do tema sai daqui já pintada quando a escolha é explícita: sem
+        isso a página abre clara e escurece depois da hidratação, na frente de
+        quem está olhando.
+
+        Em `system` o servidor não tem como saber — quem resolve é o script
+        abaixo, antes da primeira pintura.
+      */
+      className={`${inter.variable} ${spaceGrotesk.variable} ${ibmPlexMono.variable}${
+        theme === "dark" ? " dark" : ""
+      }`}
+      style={theme === "system" ? undefined : { colorScheme: theme }}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }}
+        />
+      </head>
       <body>
-        <Providers sidebarCollapsed={sidebarCollapsed}>{children}</Providers>
+        <Providers sidebarCollapsed={sidebarCollapsed} theme={theme}>
+          {children}
+        </Providers>
       </body>
     </html>
   );

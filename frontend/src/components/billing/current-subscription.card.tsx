@@ -31,6 +31,25 @@ interface Props {
   commandPending: boolean;
 }
 
+/**
+ * De onde vem o acesso em vigor, em palavras de produto.
+ *
+ * O servidor publica códigos (`LEGACY_UNGOVERNED`, `TRIAL`, `PLAN`) e um código
+ * cru na tela faz o leitor perguntar o que significa. O que não se reconhece
+ * aparece como "Concedido" em vez de virar o código.
+ */
+function rotuloDaOrigem(source: string): string {
+  const rotulos: Readonly<Record<string, string>> = {
+    PLAN: "Plano contratado",
+    SUBSCRIPTION: "Plano contratado",
+    TRIAL: "Avaliação",
+    TRIALING: "Avaliação",
+    LEGACY_UNGOVERNED: "Acesso anterior à cobrança",
+    GRANT: "Concedido",
+  };
+  return rotulos[source] ?? "Concedido";
+}
+
 /** Estados em que a assinatura merece um aviso, não só um selo. */
 const VARIANTE_DO_SELO: Readonly<
   Record<string, "default" | "secondary" | "destructive" | "outline">
@@ -52,7 +71,7 @@ export function CurrentSubscriptionCard({
   portalPending,
   commandPending,
 }: Props) {
-  const { subscription, catalog } = overview;
+  const { subscription, catalog, entitlements } = overview;
 
   /**
    * Sem assinatura não é erro.
@@ -67,10 +86,42 @@ export function CurrentSubscriptionCard({
         title="Plano atual"
         description="O plano em vigor nesta organização"
       >
-        <p className="text-sm text-muted-foreground">
-          Esta organização ainda não tem uma assinatura registrada. O acesso
-          atual continua valendo; escolha um plano abaixo para contratar.
-        </p>
+        {/*
+          Diz **qual** acesso está valendo, e não só que falta assinatura.
+
+          A frase anterior — "ainda não tem assinatura registrada" — era
+          verdadeira e inútil: quem abre esta aba quer saber o que tem hoje, e a
+          resposta existe. `entitlements` publica o plano em vigor, o rótulo
+          público dele e de onde ele vem.
+        */}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-display text-lg font-semibold">
+              {entitlements.label}
+            </p>
+            <Badge variant="secondary">{rotuloDaOrigem(entitlements.source)}</Badge>
+          </div>
+
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <dt className="text-xs text-muted-foreground">Período em curso</dt>
+              <dd className="mt-0.5 text-sm">
+                {`${formatDate(entitlements.window.start)} — ${formatDate(
+                  entitlements.window.end,
+                )}`}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Cobrança</dt>
+              <dd className="mt-0.5 text-sm">Sem assinatura registrada</dd>
+            </div>
+          </dl>
+
+          <p className="text-sm text-muted-foreground">
+            O acesso atual continua valendo. Escolha um plano abaixo para
+            contratar quando quiser passar para a cobrança regular.
+          </p>
+        </div>
       </PanelFrame>
     );
   }

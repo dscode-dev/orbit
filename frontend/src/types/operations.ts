@@ -293,3 +293,36 @@ export const OPERATION_HISTORY_LABELS: Readonly<Record<string, string>> = {
   CHECKLIST_CANCELLED: "Checklist cancelado",
   DELETED: "Operação removida",
 };
+
+/* ------------------------------------------------------------------ */
+/* Roteiros — o catálogo que o dono da organização mantém              */
+/* ------------------------------------------------------------------ */
+
+/** Os tipos de resposta que um item de roteiro aceita. */
+export const CHECKLIST_ITEM_TYPES = [
+  { value: "BOOLEAN", label: "Sim / Não" },
+  { value: "TEXT", label: "Texto" },
+  { value: "NUMBER", label: "Número" },
+  { value: "SELECT", label: "Escolha" },
+  { value: "PHOTO", label: "Foto" },
+  { value: "SIGNATURE", label: "Assinatura" },
+] as const;
+
+/** `POST /checklist-templates`. */
+export interface CreateChecklistTemplateInput {
+  key: string;
+  name: string;
+  description?: string;
+  /**
+   * O tipo de atendimento a que o roteiro pertence.
+   *
+   * É o que faz o formulário de nova operação achar o roteiro ao escolher o
+   * tipo. Omitido, o roteiro serve a qualquer tipo.
+   */
+  operationKind?: OperationKind;
+  items: readonly ChecklistItem[];
+  isActive?: boolean;
+}
+
+export type UpdateChecklistTemplateInput =
+  Partial<CreateChecklistTemplateInput>;

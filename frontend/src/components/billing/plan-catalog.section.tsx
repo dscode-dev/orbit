@@ -15,6 +15,7 @@ import { useState } from "react";
 import { Check, Sparkles } from "lucide-react";
 
 import { PanelFrame } from "@/components/panels";
+import { ArrowUpRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -64,7 +65,27 @@ export function PlanCatalogSection({
   onChangePlan,
   pending,
 }: Props) {
-  const { subscription, catalog, billing } = overview;
+  const { subscription, catalog, billing, entitlements } = overview;
+
+  /**
+   * Qual plano está em vigor **agora**.
+   *
+   * Não é só o da assinatura de cobrança: uma organização em avaliação, ou com
+   * plano concedido, tem plano em vigor e nenhuma assinatura — e nesse caso os
+   * quatro cartões apareciam com o mesmo peso, sem dizer em qual ela está.
+   * `entitlements.planCode` é a autoridade sobre o que vale hoje.
+   */
+  const planoVigente = subscription?.planCode ?? entitlements.planCode;
+
+  /**
+   * A ordem do catálogo é a ordem de preço, do menor para o maior.
+   *
+   * É o que permite dizer "acima do seu" sem comparar preço no cliente — e
+   * comparar preço aqui erraria assim que existir plano com desconto anual.
+   */
+  const posicaoVigente = catalog.plans.findIndex(
+    (plano) => plano.code === planoVigente,
+  );
 
   /**
    * A periodicidade começa na que a empresa já contratou.
@@ -103,12 +124,21 @@ export function PlanCatalogSection({
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {catalog.plans.map((plano) => (
+        {catalog.plans.map((plano, indice) => (
           <PlanCard
             key={plano.code}
             plano={plano}
             intervalo={intervalo}
-            atual={plano.code === subscription?.planCode}
+            atual={plano.code === planoVigente}
+            posicao={
+              posicaoVigente < 0
+                ? "indefinida"
+                : indice > posicaoVigente
+                  ? "acima"
+                  : indice < posicaoVigente
+                    ? "abaixo"
+                    : "atual"
+            }
             podeContratar={acoes.canSubscribe}
             podeTrocar={acoes.canChangePlan}
             temAssinatura={subscription !== null}
@@ -126,6 +156,7 @@ function PlanCard({
   plano,
   intervalo,
   atual,
+  posicao,
   podeContratar,
   podeTrocar,
   temAssinatura,
@@ -136,6 +167,8 @@ function PlanCard({
   plano: PlanCatalogEntry;
   intervalo: string;
   atual: boolean;
+  /** Onde este plano está em relação ao vigente. */
+  posicao: "atual" | "acima" | "abaixo" | "indefinida";
   podeContratar: boolean;
   podeTrocar: boolean;
   temAssinatura: boolean;
@@ -155,14 +188,26 @@ function PlanCard({
     <article
       className={cn(
         "flex flex-col gap-4 rounded-lg border border-border p-4",
-        atual && "border-primary bg-primary/5",
+        /* O vigente ganha moldura e anel: num painel de quatro cartões iguais,
+           a borda sozinha não chama o olho o bastante. */
+        atual && "border-primary bg-primary/5 ring-1 ring-primary/30",
       )}
       aria-label={plano.label}
     >
       <header className="space-y-1">
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-display text-base font-semibold">{plano.label}</h3>
-          {atual ? <Badge variant="secondary">Plano atual</Badge> : null}
+          {atual ? (
+            <Badge variant="secondary">Seu plano</Badge>
+          ) : posicao === "acima" ? (
+            /* Para onde dá para migrar — a pergunta que traz alguém a esta
+               tela é "o que eu ganho pagando mais", e ela não tinha resposta
+               visível. */
+            <Badge variant="outline" className="gap-1">
+              <ArrowUpRight className="size-3" aria-hidden />
+              Acima do seu
+            </Badge>
+          ) : null}
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
           {plano.description}
@@ -242,7 +287,7 @@ function PlanCard({
               onClick={onChangePlan}
               disabled={pending}
             >
-              Mudar para este plano
+              {posicao === "acima" ? "Migrar para este" : "Mudar para este"}
             </Button>
           ) : null
         ) : podeContratar ? (

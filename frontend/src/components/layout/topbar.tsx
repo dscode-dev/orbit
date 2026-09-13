@@ -1,15 +1,15 @@
 "use client";
 
-import { Search, PanelsTopLeft, LogOut, UserRound } from "lucide-react";
+import { Search, LogOut, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OrbitLogo } from "@/components/brand/orbit-logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import type { NavItem } from "@/components/layout/sidebar";
 import { useAvatar } from "@/hooks/profile/use-me-media";
 import { initialsOf } from "@/lib/formatters";
@@ -98,14 +98,14 @@ export function Topbar({
 
       {/* Contador real de não lidas — ver components/notifications/notification-bell. */}
       <NotificationBell />
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="Alternar painéis"
-        className="hidden sm:flex"
-      >
-        <PanelsTopLeft className="size-4" />
-      </Button>
+      {/*
+        Aqui havia um botão de "alternar painéis" **sem `onClick`**: um ícone
+        que existia desde o primeiro esqueleto da topbar e prometia um recurso
+        inexistente. Quem clicasse não fazia nada e concluía que estava quebrado.
+
+        O lugar passou a ser do tema, que é a troca que de fato acontece daqui.
+      */}
+      <ThemeToggle />
 
       <div className="flex items-center gap-2 pl-1">
         <Badge variant="outline" className="hidden lg:inline-flex">

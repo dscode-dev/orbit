@@ -105,9 +105,19 @@ test("cliente, endereço, setor e vários equipamentos", async ({ page }) => {
   const titulo = `Atendimento ${marca}`;
   await page.locator("#operation-title").fill(titulo);
 
+  /**
+   * A criação da ordem, e **só** ela.
+   *
+   * `includes("/operations")` casava também com
+   * `POST /operations/{id}/checklists`, que o próprio formulário dispara em
+   * seguida quando o tipo escolhido tem roteiro. Duas respostas atendiam ao
+   * predicado e a promessa resolvia com a que chegasse primeiro — a do
+   * checklist não tem `sector`, e o teste reprovava por corrida, não por
+   * defeito. Sozinho ele passava; na suíte inteira, não.
+   */
   const criacao = page.waitForResponse(
     (response) =>
-      response.url().includes("/operations") &&
+      new URL(response.url()).pathname.endsWith("/operations") &&
       response.request().method() === "POST",
   );
   await page.getByRole("button", { name: "Criar operação" }).click();

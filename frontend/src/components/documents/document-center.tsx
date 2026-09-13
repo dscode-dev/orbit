@@ -104,18 +104,23 @@ export function DocumentCenter() {
 
   return (
     <ContentContainer size="wide" className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <SearchField
-          id="documents-search"
-          value={list.searchTerm}
-          onChange={list.setSearchTerm}
-          placeholder="Código ou título da execução"
-          hint="A busca considera o código e o título do atendimento, não o conteúdo do documento."
-          className="min-w-64 flex-1"
-        />
+      {/*
+        A busca ocupa a largura inteira, como o resto da página.
 
-        <ResultSummary meta={meta} noun="execução" gender="f" />
-      </div>
+        Ela dividia a linha com o resumo de resultados: o campo parava ~120px
+        antes da borda enquanto as abas, o cartão de estado vazio e a paginação
+        iam até o fim — e `items-end` ainda encostava o resumo na linha de
+        ajuda, não no campo. O resumo desceu para a linha das filas, que é onde
+        a outra frase sobre contagem já vivia.
+      */}
+      <SearchField
+        id="documents-search"
+        value={list.searchTerm}
+        onChange={list.setSearchTerm}
+        placeholder="Código ou título da execução"
+        hint="A busca considera o código e o título do atendimento, não o conteúdo do documento."
+        className="w-full"
+      />
 
       <ListState
         isPending={executions.isPending}
@@ -134,16 +139,20 @@ export function DocumentCenter() {
             value={queue}
             onValueChange={(value) => setQueue(value as RenderStatus)}
           >
-            <TabsList>
-              {QUEUE_TABS.map((status) => (
-                <TabsTrigger key={status.id} value={status.id}>
-                  {status.label}
-                  <Badge variant="secondary" className="ml-1.5">
-                    {buckets.get(status.id)?.length ?? 0}
-                  </Badge>
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <TabsList>
+                {QUEUE_TABS.map((status) => (
+                  <TabsTrigger key={status.id} value={status.id}>
+                    {status.label}
+                    <Badge variant="secondary" className="ml-1.5">
+                      {buckets.get(status.id)?.length ?? 0}
+                    </Badge>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              <ResultSummary meta={meta} noun="execução" gender="f" />
+            </div>
 
             <p className="text-xs text-muted-foreground">
               As contagens são desta página. Ainda não é possível filtrar por

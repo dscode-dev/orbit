@@ -21,6 +21,7 @@ import {
   type OrganizationEntitlementsView,
   type ResourceEntitlement,
 } from "@/types/billing";
+import { PlanKpis } from "./plan-kpis";
 import {
   diasAte,
   faixaDeUso,
@@ -83,7 +84,15 @@ export function PlanUsageSection({
       title="Uso do plano"
       description="O que está em uso agora e o que foi consumido no período"
     >
-      <div className="grid gap-8 lg:grid-cols-2">
+      {/*
+        Os quatro tetos que travam a operação, com proporção.
+
+        Abaixo continuam todos os recursos, em texto: a faixa é o resumo do que
+        aperta, não um substituto da lista completa.
+      */}
+      <PlanKpis allocation={alocacao} usage={uso} />
+
+      <div className="mt-6 grid gap-8 border-t border-border pt-6 lg:grid-cols-2">
         <section className="space-y-3" aria-labelledby="uso-alocacao">
           <h3
             id="uso-alocacao"

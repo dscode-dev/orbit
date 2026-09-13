@@ -88,7 +88,16 @@ export class MobileFieldOperationService {
           }
         : null,
       serviceLocation: source.location ?? source.customer?.address ?? null,
-      equipment: source.asset ? [this.equipment(source.asset)] : [],
+      /**
+       * Todos os equipamentos do atendimento.
+       *
+       * O campo já era uma lista e só nunca tinha mais de um item, porque a
+       * ordem carregava um equipamento. O técnico em campo precisa ver os três
+       * aparelhos do endereço, não o primeiro deles.
+       */
+      equipment: (source.assets ?? []).map((link: any) =>
+        this.equipment(link.asset),
+      ),
       responsibleFieldTechnician: source.responsibleFieldTechnician
         ? this.party(source.responsibleFieldTechnician)
         : null,
@@ -415,7 +424,7 @@ export class MobileFieldOperationService {
       actions.push('START');
 
     /// Ler a etiqueta é consulta: identifica o equipamento, não muda nada.
-    if (source.asset && this.has(actor, 'assets.read'))
+    if (source.assets?.length && this.has(actor, 'assets.read'))
       actions.push('SCAN_EQUIPMENT');
     if (
       source.artifactExecutions.length &&
