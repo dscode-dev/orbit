@@ -48,3 +48,7 @@ app.*.map.json
 /config/local.json
 /config/staging.json
 /config/production.json
+
+# Artefatos de comparacao dos goldens: gerados quando um golden falha,
+# substituidos a cada execucao. O golden em si ja e ignorado logo acima.
+test/screenshots/failures/
