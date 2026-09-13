@@ -180,9 +180,20 @@ test.describe("navegação abaixo do desktop", () => {
 
       /** A mesma lista do menu fixo — não uma segunda navegação escrita à mão. */
       const links = drawer.getByRole("link");
-      await expect(links).toHaveCount(17);
+      await expect(links).toHaveCount(16);
       await expect(
         drawer.getByRole("link", { name: "Execuções de artefato" }),
+      ).toHaveCount(0);
+
+      /**
+       * Notificações não está aqui — nem no menu fixo.
+       *
+       * Ela vive no sino da topbar: é coisa que se consulta de passagem, não um
+       * destino que se escolhe. A rota continua existindo, e "Ver todas" leva a
+       * ela.
+       */
+      await expect(
+        drawer.getByRole("link", { name: "Notificações" }),
       ).toHaveCount(0);
       await expect(drawer.getByRole("link", { name: "Minha conta" })).toBeVisible();
       await expect(drawer.getByRole("link", { name: "Organização" })).toHaveCount(0);

@@ -38,7 +38,13 @@ export function ProfileWorkspace() {
   return (
     <ContentContainer size="wide" className="space-y-6">
       <Tabs value={section.current} onValueChange={section.go}>
-        <TabsList>
+        {/*
+          Rotulada porque não é a única lista de abas da página: a seção de
+          assinatura tem a sua. Sem nome, quem navega por leitor de tela ouve
+          "lista de abas" duas vezes e precisa entrar em cada uma para saber
+          qual é qual.
+        */}
+        <TabsList aria-label="Seções da minha conta">
           <TabsTrigger value="dados">Dados pessoais</TabsTrigger>
           <TabsTrigger value="seguranca">Segurança</TabsTrigger>
           <TabsTrigger value="preferencias">Preferências</TabsTrigger>

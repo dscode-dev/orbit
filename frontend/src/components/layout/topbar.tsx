@@ -3,13 +3,18 @@
 import { Search, PanelsTopLeft, LogOut, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import Link from "next/link";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OrbitLogo } from "@/components/brand/orbit-logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import type { NavItem } from "@/components/layout/sidebar";
+import { useAvatar } from "@/hooks/profile/use-me-media";
+import { initialsOf } from "@/lib/formatters";
+import { ROUTES } from "@/lib/routes";
+import { useOptionalSession } from "@/providers";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -34,6 +39,24 @@ export function Topbar({
   className?: string;
 }) {
   const router = useRouter();
+  const session = useOptionalSession();
+
+  /**
+   * A foto de quem está logado — que o topo simplesmente não tinha.
+   *
+   * O avatar era `OR` escrito à mão: nenhuma sessão, nenhuma consulta. Trocar a
+   * foto em Minha conta funcionava e o topo continuava igual, o que faz a
+   * pessoa trocar de novo achando que não salvou.
+   *
+   * A consulta é a mesma de Minha conta, com a mesma chave de cache: a troca já
+   * invalida essa chave, então o topo acompanha sem nada a mais. O endereço é
+   * assinado e expira — por isso `CACHE.fresh` lá, e por isso não guardamos a
+   * URL em lugar nenhum.
+   */
+  const avatar = useAvatar();
+  const foto = avatar.data?.available ? avatar.data.url : null;
+  const pessoa = session?.user?.displayName ?? null;
+  const iniciais = initialsOf(pessoa) || "?";
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -90,20 +113,30 @@ export function Topbar({
         </Badge>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <button
+              className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={pessoa ? `Conta de ${pessoa}` : "Minha conta"}
+            >
               <Avatar className="size-8 ring-1 ring-border">
+                {foto ? (
+                  <AvatarImage src={foto} alt="" />
+                ) : null}
                 <AvatarFallback className="bg-gradient-orbit text-xs font-semibold text-primary-foreground">
-                  OR
+                  {iniciais}
                 </AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuLabel>Minha conta</DropdownMenuLabel>
+            <DropdownMenuLabel className="truncate">
+              {pessoa ?? "Minha conta"}
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
-              <UserRound className="size-4" />
-              Perfil
+            <DropdownMenuItem asChild>
+              <Link href={ROUTES.profile}>
+                <UserRound className="size-4" />
+                Minha conta
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={logout}

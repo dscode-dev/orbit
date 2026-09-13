@@ -19,7 +19,9 @@
 import { useRef, useState } from "react";
 import { Trash2, Upload, UserRound } from "lucide-react";
 
+import { AvatarCropDialog } from "@/components/profile/avatar-crop.dialog";
 import { MutationError } from "@/components/artifact-studio/mutation-error";
+import { cn } from "@/lib/utils";
 import { PanelFrame, PanelState, toPanelQuery } from "@/components/panels";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,12 +34,22 @@ import {
   MAX_IMAGE_BYTES,
 } from "@/services/me-media.service";
 
-export function AvatarSection({ initials }: { initials: string }) {
+export function AvatarSection({
+  initials,
+  className,
+}: {
+  initials: string;
+  /** `h-full` quando o painel divide uma linha da grade — veja `PanelFrame`. */
+  className?: string;
+}) {
   const query = useAvatar();
   const upload = useUploadAvatar();
   const remove = useRemoveAvatar();
   const input = useRef<HTMLInputElement | null>(null);
   const [recusa, setRecusa] = useState<string | null>(null);
+
+  /** O arquivo escolhido, esperando enquadramento. */
+  const [recortando, setRecortando] = useState<File | null>(null);
 
   const escolher = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -50,12 +62,26 @@ export function AvatarSection({ initials }: { initials: string }) {
       setRecusa("Escolha uma imagem PNG, JPEG ou WEBP.");
       return;
     }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setRecusa("A imagem deve ter no máximo 2 MB.");
+
+    /**
+     * O limite de tamanho é conferido **depois** do recorte, não aqui.
+     *
+     * O recorte reencoda a 512 px, então uma foto de celular de 6 MB sai com
+     * alguns KB. Recusar antes obrigaria a pessoa a redimensionar o arquivo por
+     * fora para usar a própria foto — que é exatamente o trabalho que o recorte
+     * faz por ela.
+     */
+    setRecusa(null);
+    setRecortando(file);
+  };
+
+  const enviarRecortada = (recortada: File) => {
+    if (recortada.size > MAX_IMAGE_BYTES) {
+      setRecusa("A imagem ficou acima de 2 MB. Tente uma foto menor.");
+      setRecortando(null);
       return;
     }
-    setRecusa(null);
-    upload.mutate(file);
+    upload.mutate(recortada, { onSuccess: () => setRecortando(null) });
   };
 
   return (
@@ -63,12 +89,18 @@ export function AvatarSection({ initials }: { initials: string }) {
       panelId="profile-avatar"
       title="Foto"
       description="Aparece no topo da plataforma e nas listas da equipe"
+      /*
+        `flex-col` no cartão e `flex-1` no conteúdo: quando o painel divide a
+        linha com uma coluna mais alta, a foto fica no meio do espaço em vez de
+        boiar no topo com um vazio embaixo.
+      */
+      className={cn(className, "flex flex-col [&>*:last-child]:flex-1")}
     >
       <PanelState query={toPanelQuery(query)} loadingRows={2}>
         {(avatar) => (
-          <div className="flex flex-wrap items-center gap-5">
+          <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
             <div
-              className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted"
+              className="flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted"
               data-testid="profile-avatar-preview"
             >
               {avatar.available && avatar.url ? (
@@ -86,15 +118,15 @@ export function AvatarSection({ initials }: { initials: string }) {
               ) : (
                 <span
                   aria-hidden
-                  className="font-display text-xl font-semibold text-muted-foreground"
+                  className="font-display text-3xl font-semibold text-muted-foreground"
                 >
-                  {initials || <UserRound className="size-7" />}
+                  {initials || <UserRound className="size-10" />}
                 </span>
               )}
             </div>
 
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
+            <div className="w-full space-y-3">
+              <div className="flex flex-wrap justify-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -121,7 +153,8 @@ export function AvatarSection({ initials }: { initials: string }) {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                PNG, JPEG ou WEBP, até 2 MB. Sem foto, aparecem suas iniciais.
+                PNG, JPEG ou WEBP. Você enquadra antes de enviar. Sem foto,
+                aparecem suas iniciais.
               </p>
 
               {recusa ? (
@@ -144,6 +177,13 @@ export function AvatarSection({ initials }: { initials: string }) {
           </div>
         )}
       </PanelState>
+
+      <AvatarCropDialog
+        file={recortando}
+        isPending={upload.isPending}
+        onCancel={() => setRecortando(null)}
+        onConfirm={enviarRecortada}
+      />
     </PanelFrame>
   );
 }

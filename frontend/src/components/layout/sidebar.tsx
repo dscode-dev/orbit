@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   LayoutGrid,
-  Bell,
   FileStack,
   SlidersHorizontal,
   UserCircle,
@@ -178,7 +177,17 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
     group: "Administração",
     items: [
       fromEntity("team-member"),
-      { label: "Notificações", icon: Bell, to: ROUTES.notifications },
+      /*
+        Notificações saiu daqui e vive no sino da topbar.
+
+        Esta é a faixa das coisas que se visita para **decidir** — quem faz
+        parte, como a organização é configurada. Notificação se consulta de
+        passagem, no meio de outra tarefa, e a pergunta quase sempre é "tem algo
+        novo?". O sino responde isso sem tirar ninguém de onde está, e leva à
+        central por "Ver todas".
+
+        A rota continua existindo: ela é destino de link e de deep link de push.
+      */
       /**
        * Duas entradas, não três.
        *

@@ -11,8 +11,21 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { assertClean, login, record } from "./support";
 
-const activeTab = (page: Page) =>
-  page.locator('[role="tab"][data-state="active"]');
+/**
+ * A aba ativa de uma lista **nomeada**, não qualquer aba ativa da página.
+ *
+ * A seção de assinatura tem a própria lista de abas. Um seletor global casava
+ * com as duas e reprovava por ambiguidade assim que as duas estavam montadas ao
+ * mesmo tempo — o que passou a acontecer quando a página encurtou e a segunda
+ * lista deixou de chegar depois da asserção.
+ */
+const CONTA = "Seções da minha conta";
+const CONFIGURACOES = "Seções das configurações";
+
+const activeTab = (page: Page, lista: string = CONTA) =>
+  page
+    .getByRole("tablist", { name: lista })
+    .locator('[role="tab"][data-state="active"]');
 
 const path = (page: Page) =>
   page.url().replace(/^https?:\/\/[^/]+/, "");
@@ -42,7 +55,7 @@ test.describe("navegação da conta", () => {
     await page.waitForURL(/\/configuracoes\?secao=organizacao/, {
       timeout: 20_000,
     });
-    await expect(activeTab(page)).toHaveText("Organização");
+    await expect(activeTab(page, CONFIGURACOES)).toHaveText("Organização");
 
     assertClean(recorder, "rota antiga");
   });
@@ -51,20 +64,23 @@ test.describe("navegação da conta", () => {
     const recorder = record(page);
     await login(page);
 
-    for (const [url, esperado] of [
-      ["/configuracoes?secao=seguranca", "Segurança"],
-      ["/configuracoes?secao=integracoes", "Integrações"],
-      ["/configuracoes?secao=notificacoes", "Notificações"],
-      ["/perfil?secao=preferencias", "Preferências"],
-      ["/perfil?secao=contexto", "Contexto"],
+    /** O laço atravessa as duas telas, e cada uma tem a sua lista de abas. */
+    for (const [url, esperado, lista] of [
+      ["/configuracoes?secao=seguranca", "Segurança", CONFIGURACOES],
+      ["/configuracoes?secao=integracoes", "Integrações", CONFIGURACOES],
+      ["/configuracoes?secao=notificacoes", "Notificações", CONFIGURACOES],
+      ["/perfil?secao=preferencias", "Preferências", CONTA],
+      ["/perfil?secao=contexto", "Contexto", CONTA],
     ] as const) {
       await page.goto(url);
-      await expect(activeTab(page)).toHaveText(esperado, { timeout: 20_000 });
+      await expect(activeTab(page, lista)).toHaveText(esperado, {
+        timeout: 20_000,
+      });
     }
 
     /** Apelido que não existe mais abre a página, em vez de deixá-la vazia. */
     await page.goto("/configuracoes?secao=aba-que-saiu");
-    await expect(activeTab(page)).toHaveText("Organização");
+    await expect(activeTab(page, CONFIGURACOES)).toHaveText("Organização");
 
     assertClean(recorder, "deep links");
   });
@@ -102,7 +118,7 @@ test.describe("navegação da conta", () => {
 
     await page.goto("/configuracoes?origem=email");
     await page.getByRole("tab", { name: "Segurança" }).click();
-    await expect(activeTab(page)).toHaveText("Segurança");
+    await expect(activeTab(page, CONFIGURACOES)).toHaveText("Segurança");
     expect(path(page)).toContain("origem=email");
     expect(path(page)).toContain("secao=seguranca");
 
@@ -141,7 +157,7 @@ test.describe("domínios continuam separados", () => {
     });
 
     await page.goto("/configuracoes?secao=organizacao");
-    await expect(activeTab(page)).toHaveText("Organização");
+    await expect(activeTab(page, CONFIGURACOES)).toHaveText("Organização");
     await expect(
       page.locator('[data-panel="organization-general"]'),
     ).toBeVisible({ timeout: 20_000 });

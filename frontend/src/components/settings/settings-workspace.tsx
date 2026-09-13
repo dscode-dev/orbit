@@ -57,7 +57,7 @@ export function SettingsWorkspace() {
   return (
     <ContentContainer size="wide" className="space-y-6">
       <Tabs value={section.current} onValueChange={section.go}>
-        <TabsList>
+        <TabsList aria-label="Seções das configurações">
           <TabsTrigger value="organizacao">Organização</TabsTrigger>
           <TabsTrigger value="assinatura">Plano e assinatura</TabsTrigger>
           <TabsTrigger value="operacao">Operação</TabsTrigger>

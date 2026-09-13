@@ -53,6 +53,16 @@ test.describe("Minha conta — foto", () => {
       buffer: PNG_1X1,
     });
 
+    /**
+     * O enquadramento vem antes do envio.
+     *
+     * O avatar é redondo e aparece a 32 px: uma foto enviada crua entra
+     * deformada, e o único conserto era mandar outra. O recorte também reencoda
+     * a 512 px, que é o que faz uma foto de celular caber no limite do servidor.
+     */
+    await expect(page.getByTestId("avatar-crop-viewport")).toBeVisible();
+    await page.getByRole("button", { name: "Usar esta foto" }).click();
+
     /** A foto passa a existir — e a URL é temporária, servida pelo backend. */
     await expect(preview.locator("img")).toBeVisible({ timeout: 20_000 });
     const src = await preview.locator("img").getAttribute("src");
@@ -86,20 +96,75 @@ test.describe("Minha conta — foto", () => {
     ).toBeVisible();
   });
 
-  test("arquivo grande demais é recusado", async ({ page }) => {
+  test("foto grande de celular é aceita: o recorte a encolhe", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
     await login(page);
     await page.goto(CONTA);
     await settled(page);
 
-    await page.getByLabel("Escolher foto de perfil").setInputFiles({
-      name: "gigante.png",
-      mimeType: "image/png",
-      buffer: Buffer.alloc(3_000_000, 1),
+    /**
+     * O limite de 2 MB passou a valer **depois** do recorte.
+     *
+     * Antes, uma foto de celular era recusada de saída e a pessoa tinha de
+     * redimensionar o arquivo por fora para usar a própria foto — justamente o
+     * trabalho que o recorte faz por ela. Este teste manda uma imagem real
+     * acima do limite e prova que ela entra.
+     *
+     * A imagem é gerada **e entregue** dentro da página. Trazer ~15 MB de volta
+     * pelo `evaluate` para reenviar como buffer estourava o tempo do teste — e o
+     * que importa provar é o caminho do arquivo, não o transporte dele.
+     *
+     * O ruído é necessário: PNG comprime, e um retângulo de cor sólida de
+     * 2000×2000 sairia com poucos KB sem provar nada.
+     */
+    const tamanho = await page.evaluate(async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 2000;
+      canvas.height = 2000;
+      const contexto = canvas.getContext("2d")!;
+      const dados = contexto.createImageData(canvas.width, canvas.height);
+      for (let indice = 0; indice < dados.data.length; indice += 4) {
+        dados.data[indice] = (Math.random() * 256) | 0;
+        dados.data[indice + 1] = (Math.random() * 256) | 0;
+        dados.data[indice + 2] = (Math.random() * 256) | 0;
+        dados.data[indice + 3] = 255;
+      }
+      contexto.putImageData(dados, 0, 0);
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/png"),
+      );
+      const arquivo = new File([blob!], "celular.png", { type: "image/png" });
+
+      const campo = document.querySelector<HTMLInputElement>(
+        'input[aria-label="Escolher foto de perfil"]',
+      )!;
+      const transferencia = new DataTransfer();
+      transferencia.items.add(arquivo);
+      campo.files = transferencia.files;
+      campo.dispatchEvent(new Event("change", { bubbles: true }));
+
+      return arquivo.size;
     });
 
-    await expect(
-      page.getByRole("alert").filter({ hasText: /no máximo 2 MB/ }),
-    ).toBeVisible();
+    expect(
+      tamanho,
+      "a imagem gerada precisa passar de 2 MB para o teste valer",
+    ).toBeGreaterThan(2_000_000);
+
+    await expect(page.getByTestId("avatar-crop-viewport")).toBeVisible({
+      timeout: 30_000,
+    });
+    await page.getByRole("button", { name: "Usar esta foto" }).click();
+
+    const preview = page.getByTestId("profile-avatar-preview");
+    await expect(preview.locator("img")).toBeVisible({ timeout: 30_000 });
+
+    /** E some depois, para não deixar estado para o próximo teste. */
+    await page.getByRole("button", { name: "Remover" }).click();
+    await expect(preview.locator("img")).toHaveCount(0, { timeout: 20_000 });
   });
 });
 

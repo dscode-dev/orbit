@@ -13,6 +13,7 @@
  */
 import { expect, test } from "@playwright/test";
 
+import { bff } from "./provision";
 import { assertClean, login, record, settled } from "./support";
 
 test("cadastra o técnico, mostra a senha uma vez e força a troca", async ({
@@ -72,7 +73,31 @@ test("cadastra o técnico, mostra a senha uma vez e força a troca", async ({
   await expect(page.getByText(/uma única vez/i)).toBeVisible();
   await page.getByRole("button", { name: "Concluir" }).click();
 
-  await expect(page.getByText(emailTecnico)).toBeVisible();
+  /**
+   * A prova de que a pessoa entrou é o servidor, não a primeira página da lista.
+   *
+   * A listagem pagina por nome, 20 por vez. Procurar o recém-cadastrado ali
+   * supõe que ele caiu na página 1 — verdade nas primeiras execuções e falso
+   * depois que a organização passa de vinte pessoas, que foi como este teste
+   * reprovou. A busca da tela também não resolveria: ela filtra **a página
+   * carregada**, e a própria tela diz isso.
+   *
+   * O que importa provar é que o cadastro persistiu com o papel certo — e logo
+   * abaixo, que a senha devolvida realmente autentica.
+   */
+  const membros = await bff(
+    page,
+    "get",
+    "/api/orbit/organizations/current/members?limit=100",
+  );
+  const corpo = (await membros.json()) as {
+    data: { data: { email: string; role: { key: string } }[] };
+  };
+  const cadastrado = corpo.data.data.find(
+    (membro) => membro.email === emailTecnico,
+  );
+  expect(cadastrado, "o técnico cadastrado precisa estar na equipe").toBeTruthy();
+  expect(cadastrado?.role.key).toBe("FIELD_TECHNICIAN");
 
   /* ---------------------------------------------------------------- */
   /* A senha temporária não serve para trabalhar                       */
