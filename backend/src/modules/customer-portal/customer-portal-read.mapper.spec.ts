@@ -29,7 +29,7 @@ describe('CustomerPortalReadMapper', () => {
       completedAt: null,
       location: { street: 'Rua Azul', city: 'Recife', internalNote: 'secret' },
       businessUnit: unit,
-      asset: { id: 'asset-id', name: 'Ar-condicionado' },
+      assets: [{ asset: { id: 'asset-id', name: 'Ar-condicionado' } }],
       responsibleFieldTechnician: { displayName: 'Técnico Orbit' },
       _count: { artifactExecutions: 1 },
     } satisfies CustomerPortalOperationRecord;
@@ -63,7 +63,7 @@ describe('CustomerPortalReadMapper', () => {
       location: 'Recepção',
       status: 'ACTIVE',
       businessUnit: unit,
-      _count: { operations: 2, pmocCoverages: 1, artifactExecutions: 1 },
+      _count: { operationLinks: 2, pmocCoverages: 1, artifactExecutions: 1 },
       rvtConfigurations: 1,
     } satisfies CustomerPortalAssetRecord;
 

@@ -142,7 +142,13 @@ export class MobileSignatureRepository {
         where: { id: operationId, organizationId, deletedAt: null },
         include: {
           customer: { select: { id: true, legalName: true, tradeName: true } },
-          asset: { select: { id: true, identifier: true, name: true } },
+          /** O termo de assinatura lista todos os equipamentos atendidos. */
+          assets: {
+            orderBy: { createdAt: 'asc' as const },
+            select: {
+              asset: { select: { id: true, identifier: true, name: true } },
+            },
+          },
           auxiliaryTechnicians: {
             where: { removedAt: null },
             select: { userId: true },

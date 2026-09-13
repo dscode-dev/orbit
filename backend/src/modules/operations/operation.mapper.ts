@@ -64,7 +64,8 @@ interface OperationSource {
   organizationId: string;
   businessUnitId: string;
   customerId: string | null;
-  assetId: string | null;
+  customerAddressId: string | null;
+  sector: string | null;
   code: string;
   kind: OperationKind;
   title: string;
@@ -96,11 +97,24 @@ interface OperationSource {
     legalName: string;
     tradeName: string | null;
   } | null;
-  asset: {
+  assets: ReadonlyArray<{
+    asset: {
+      id: string;
+      name: string;
+      identifier: string | null;
+      status: string;
+    };
+  }>;
+  customerAddress: {
     id: string;
-    name: string;
-    identifier: string | null;
-    status: string;
+    label: string;
+    street: string;
+    number: string | null;
+    complement: string | null;
+    district: string | null;
+    city: string;
+    stateCode: string | null;
+    postalCode: string | null;
   } | null;
   users: readonly AssignmentSource[];
   attachments: readonly AttachmentSource[];
@@ -160,7 +174,8 @@ export class OperationReadModelMapper {
       organizationId: source.organizationId,
       businessUnitId: source.businessUnitId,
       customerId: source.customerId,
-      assetId: source.assetId,
+      customerAddressId: source.customerAddressId,
+      sector: source.sector,
       code: source.code,
       kind: source.kind,
       title: source.title,
@@ -192,7 +207,10 @@ export class OperationReadModelMapper {
       updatedAt: this.date(source.updatedAt),
       businessUnit: { ...source.businessUnit },
       customer: source.customer ? { ...source.customer } : null,
-      asset: source.asset ? { ...source.asset } : null,
+      assets: source.assets.map((link) => ({ ...link.asset })),
+      customerAddress: source.customerAddress
+        ? { ...source.customerAddress }
+        : null,
       users: source.users.map((assignment) => this.assignment(assignment)),
       attachments: source.attachments.map((attachment) =>
         this.attachment(attachment),

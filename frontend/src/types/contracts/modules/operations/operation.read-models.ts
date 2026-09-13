@@ -102,12 +102,27 @@ export interface OperationChecklistReadModel {
   updatedAt: string;
 }
 
+export interface OperationCustomerAddressReadModel {
+  id: string;
+  label: string;
+  street: string;
+  number: string | null;
+  complement: string | null;
+  district: string | null;
+  city: string;
+  stateCode: string | null;
+  postalCode: string | null;
+}
+
 export interface OperationListItemReadModel {
   id: string;
   organizationId: string;
   businessUnitId: string;
   customerId: string | null;
-  assetId: string | null;
+  /** Para onde o técnico vai — um endereço cadastrado do cliente. */
+  customerAddressId: string | null;
+  /** O ponto exato dentro do endereço: "Auditório", "Sala 2". */
+  sector: string | null;
   code: string;
   kind: OperationKind;
   title: string;
@@ -130,7 +145,14 @@ export interface OperationListItemReadModel {
   updatedAt: string;
   businessUnit: OperationBusinessUnitReadModel;
   customer: OperationCustomerReadModel | null;
-  asset: OperationAssetReadModel | null;
+  customerAddress: OperationCustomerAddressReadModel | null;
+  /**
+   * Os equipamentos do atendimento.
+   *
+   * Era `asset`, um só. Publicado como lista porque é o que o campo encontra:
+   * o técnico vai ao endereço e atende os aparelhos que estão lá.
+   */
+  assets: readonly OperationAssetReadModel[];
   users: readonly OperationAssignmentReadModel[];
   attachments: readonly OperationAttachmentReadModel[];
   checklistExecutions: readonly OperationChecklistReadModel[];

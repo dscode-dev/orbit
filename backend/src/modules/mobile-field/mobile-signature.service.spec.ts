@@ -224,7 +224,8 @@ function operationSource(): any {
     startedByUserId: actor.id,
     completedByUserId: null,
     customer: null,
-    asset: null,
+    /** Os equipamentos do atendimento — lista, não um só. */
+    assets: [],
     auxiliaryTechnicians: [],
   };
 }

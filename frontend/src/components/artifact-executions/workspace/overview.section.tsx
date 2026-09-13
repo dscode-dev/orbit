@@ -147,15 +147,12 @@ function LinkedOperation({ operationId }: { operationId: string }) {
               {operation.customer.tradeName ?? operation.customer.legalName}
             </p>
           ) : null}
-          {operation.asset ? (
+          {operation.assets.length > 0 ? (
             <p>
-              <span className="text-muted-foreground">Ativo: </span>
-              {operation.asset.name}
-              {operation.asset.identifier ? (
-                <span className="ml-1 font-mono text-xs text-muted-foreground">
-                  {operation.asset.identifier}
-                </span>
-              ) : null}
+              <span className="text-muted-foreground">
+                {operation.assets.length > 1 ? "Equipamentos: " : "Equipamento: "}
+              </span>
+              {operation.assets.map((equipamento) => equipamento.name).join(", ")}
             </p>
           ) : null}
         </div>

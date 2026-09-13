@@ -1008,7 +1008,10 @@ export class PmocRepository {
           organizationId: input.organizationId,
           businessUnitId: input.businessUnitId,
           customerId: input.customerId,
-          assetId: input.assetId,
+          /** O PMOC gera a ordem de um equipamento — a lista tem um só. */
+          assets: input.assetId
+            ? { create: [{ assetId: input.assetId }] }
+            : undefined,
           code: input.code,
           kind: input.kind,
           title: input.title,
@@ -1221,7 +1224,10 @@ export class PmocRepository {
           organizationId: input.organizationId,
           businessUnitId: input.businessUnitId,
           customerId: input.customerId,
-          assetId: input.assetId,
+          /** O PMOC gera a ordem de um equipamento — a lista tem um só. */
+          assets: input.assetId
+            ? { create: [{ assetId: input.assetId }] }
+            : undefined,
           code: input.code,
           kind: 'PMOC',
           title: input.title,

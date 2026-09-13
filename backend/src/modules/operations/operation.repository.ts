@@ -13,8 +13,33 @@ const operationInclude = {
   customer: {
     select: { id: true, legalName: true, tradeName: true },
   },
-  asset: {
-    select: { id: true, name: true, identifier: true, status: true },
+  /**
+   * Os equipamentos do atendimento.
+   *
+   * Era um só (`assetId`). Um atendimento em campo raramente toca um
+   * equipamento: o técnico vai ao endereço e atende os aparelhos que estão lá.
+   */
+  assets: {
+    orderBy: { createdAt: 'asc' as const },
+    select: {
+      assetId: true,
+      asset: {
+        select: { id: true, name: true, identifier: true, status: true },
+      },
+    },
+  },
+  customerAddress: {
+    select: {
+      id: true,
+      label: true,
+      street: true,
+      number: true,
+      complement: true,
+      district: true,
+      city: true,
+      stateCode: true,
+      postalCode: true,
+    },
   },
   responsibleFieldTechnician: {
     select: { id: true, displayName: true, avatarUrl: true },
@@ -86,7 +111,10 @@ export class OperationRepository {
       deletedAt: null,
       businessUnitId: query.businessUnitId,
       customerId: query.customerId,
-      assetId: query.assetId,
+      /** Filtrar por equipamento agora atravessa o vínculo. */
+      ...(query.assetId
+        ? { assets: { some: { assetId: query.assetId } } }
+        : {}),
       kind: query.kind,
       status: query.status,
       priority: query.priority,
@@ -143,9 +171,17 @@ export class OperationRepository {
     userId: string,
     details: Prisma.InputJsonValue,
     auxiliaryUserIds: string[] = [],
+    assetIds: readonly string[] = [],
   ) {
     return this.rls.run((transaction) =>
-      this.createWithin(transaction, data, userId, details, auxiliaryUserIds),
+      this.createWithin(
+        transaction,
+        data,
+        userId,
+        details,
+        auxiliaryUserIds,
+        assetIds,
+      ),
     );
   }
 
@@ -159,10 +195,15 @@ export class OperationRepository {
     userId: string,
     details: Prisma.InputJsonValue,
     auxiliaryUserIds: string[] = [],
+    assetIds: readonly string[] = [],
   ) {
     const operation = await transaction.operation.create({
       data: {
         ...data,
+        /** Os equipamentos entram na mesma transação da ordem. */
+        assets: assetIds.length
+          ? { create: assetIds.map((assetId) => ({ assetId })) }
+          : undefined,
         auxiliaryTechnicians: auxiliaryUserIds.length
           ? {
               create: auxiliaryUserIds.map((auxiliaryUserId) => ({
@@ -506,7 +547,7 @@ export class OperationRepository {
         priority: operation.priority,
         businessUnitId: operation.businessUnitId,
         customerId: operation.customerId,
-        assetId: operation.assetId,
+        assetIds: operation.assets.map((link) => link.assetId),
         createdById: operation.createdById,
       };
 
@@ -678,6 +719,36 @@ export class OperationRepository {
       transaction.customer.findFirst({
         where: { id, organizationId, deletedAt: null, status: 'ACTIVE' },
         select: { id: true },
+      }),
+    );
+  }
+
+  /** Os equipamentos destes ids que estão disponíveis nesta unidade. */
+  findAssets(
+    ids: readonly string[],
+    organizationId: string,
+    businessUnitId: string,
+  ) {
+    return this.rls.run((transaction) =>
+      transaction.asset.findMany({
+        where: {
+          id: { in: [...ids] },
+          organizationId,
+          businessUnitId,
+          deletedAt: null,
+          status: { not: 'RETIRED' },
+        },
+        select: { id: true, customerId: true },
+      }),
+    );
+  }
+
+  /** O endereço, com o dono — quem valida precisa saber de quem ele é. */
+  findCustomerAddress(id: string, organizationId: string) {
+    return this.rls.run((transaction) =>
+      transaction.customerAddress.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true, customerId: true },
       }),
     );
   }

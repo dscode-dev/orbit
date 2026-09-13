@@ -96,7 +96,7 @@ export interface CustomerPortalOperationListItemReadModel {
   scheduledEnd: string | null;
   completedAt: string | null;
   businessUnit: CustomerPortalBusinessUnitReadModel;
-  asset: { id: string; displayName: string } | null;
+  assets: readonly { id: string; displayName: string }[];
   responsibleTechnician: { displayName: string } | null;
   location: string | null;
   documentAvailable: boolean;

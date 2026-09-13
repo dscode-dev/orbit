@@ -245,6 +245,7 @@ model Organization {
   integrations                  Integration[]
   sessions                      Session[]
   customers                     Customer[]
+  customerAddresses             CustomerAddress[]
   categories                    ProductCategory[]
   products                      Product[]
   assets                        Asset[]
@@ -835,6 +836,7 @@ model Customer {
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   organization         Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  addresses            CustomerAddress[]
   contacts             Contact[]
   assets               Asset[]
   operations           Operation[]
@@ -859,6 +861,43 @@ model Customer {
   @@index([organizationId, status, deletedAt])
   @@index([organizationId, documentNumber])
   @@map("customers")
+}
+
+/// Um endereço de atendimento do cliente.
+///
+/// O cliente tinha **um** endereço, num campo JSON — suficiente para emitir
+/// nota, insuficiente para mandar técnico. Uma rede com três lojas era um
+/// cliente só, e o endereço do atendimento acabava digitado na descrição.
+///
+/// `Customer.address` continua existindo e continua sendo o endereço fiscal;
+/// isto aqui é para onde o técnico vai.
+model CustomerAddress {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  customerId     String    @map("customer_id") @db.Uuid
+  /// Como a equipe chama este lugar: "Matriz", "Loja Shopping", "Obra Norte".
+  label          String    @db.VarChar(120)
+  postalCode     String?   @map("postal_code") @db.VarChar(16)
+  street         String    @db.VarChar(255)
+  number         String?   @db.VarChar(30)
+  complement     String?   @db.VarChar(120)
+  district       String?   @db.VarChar(120)
+  city           String    @db.VarChar(120)
+  stateCode      String?   @map("state_code") @db.VarChar(2)
+  /// Ponto de referência, portaria, instruções de acesso.
+  notes          String?   @db.Text
+  isPrimary      Boolean   @default(false) @map("is_primary")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  operations   Operation[]
+
+  @@index([organizationId, customerId, deletedAt])
+  @@map("customer_addresses")
 }
 
 model Contact {
@@ -1085,7 +1124,7 @@ model Asset {
   organization            Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   businessUnit            BusinessUnit                   @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
   customer                Customer?                      @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  operations              Operation[]
+  operationLinks          OperationAsset[]
   schedulingEvents        SchedulingEvent[]
   schedulingAllocations   SchedulingResourceAllocation[]
   artifactExecutions      ArtifactExecution[]
@@ -1130,12 +1169,35 @@ model EquipmentQrIdentity {
 // OPERATIONS
 // -----------------------------------------------------------------------------
 
+/// Os equipamentos de um atendimento.
+///
+/// Substitui `Operation.assetId`, que era um só. Um atendimento em campo
+/// raramente toca um equipamento: o técnico vai ao endereço e atende os
+/// aparelhos que estão lá, e obrigar uma ordem por aparelho multiplicava o
+/// trabalho administrativo sem descrever melhor o serviço.
+model OperationAsset {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  operationId String   @map("operation_id") @db.Uuid
+  assetId     String   @map("asset_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  asset     Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([operationId, assetId])
+  @@index([assetId])
+  @@map("operation_assets")
+}
+
 model Operation {
   id                           String    @id @default(uuid(7)) @db.Uuid
   organizationId               String    @map("organization_id") @db.Uuid
   businessUnitId               String    @map("business_unit_id") @db.Uuid
   customerId                   String?   @map("customer_id") @db.Uuid
-  assetId                      String?   @map("asset_id") @db.Uuid
+  /// Para onde o técnico vai. Sempre um endereço do cliente do atendimento.
+  customerAddressId            String?   @map("customer_address_id") @db.Uuid
+  /// O ponto exato dentro do endereço: "Auditório", "Sala 2", "Cozinha".
+  sector                       String?   @db.VarChar(120)
   code                         String    @db.VarChar(60)
   kind                         String    @db.VarChar(60)
   title                        String    @db.VarChar(220)
@@ -1159,7 +1221,8 @@ model Operation {
   organization               Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   businessUnit               BusinessUnit                   @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
   customer                   Customer?                      @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  asset                      Asset?                         @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  customerAddress            CustomerAddress?               @relation(fields: [customerAddressId], references: [id], onDelete: SetNull)
+  assets                     OperationAsset[]
   responsibleFieldTechnician User?                          @relation("OperationResponsibleFieldTechnician", fields: [responsibleFieldTechnicianId], references: [id], onDelete: SetNull)
   startedBy                  User?                          @relation("OperationStartedBy", fields: [startedByUserId], references: [id], onDelete: SetNull)
   completedBy                User?                          @relation("OperationCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
@@ -1187,7 +1250,7 @@ model Operation {
   @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, scheduledStart])
   @@index([organizationId, customerId, createdAt])
-  @@index([organizationId, assetId])
+  @@index([organizationId, customerAddressId])
   /// Relatórios gerenciais: "tudo da organização entre duas datas".
   @@index([organizationId, createdAt])
   @@index([organizationId, completedAt])

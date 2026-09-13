@@ -1000,9 +1000,14 @@ describe('PMOC (e2e)', () => {
 
     const operation = await prisma.operation.findFirstOrThrow({
       where: { id: firstId },
-      select: { code: true, assetId: true, customerId: true, kind: true },
+      select: {
+        code: true,
+        customerId: true,
+        kind: true,
+        assets: { select: { assetId: true } },
+      },
     });
-    expect(operation.assetId).toBe(assetA);
+    expect(operation.assets.map((link) => link.assetId)).toEqual([assetA]);
     expect(operation.customerId).toBe(customerId);
     expect(operation.kind).toBe('MAINTENANCE');
     expect(operation.code).toContain(plan.code);

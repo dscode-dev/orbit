@@ -548,7 +548,6 @@ export class CustomerServiceRequestRepository {
           organizationId: actor.organizationId,
           businessUnitId: input.businessUnitId,
           customerId: current.customerId,
-          assetId: current.assetId,
           code: input.code,
           kind: input.kind,
           title: input.title,
@@ -568,6 +567,9 @@ export class CustomerServiceRequestRepository {
           sourceId: current.id,
           sourceCode: current.code,
         },
+        [],
+        /** O equipamento da solicitação entra como o único do atendimento. */
+        current.assetId ? [current.assetId] : [],
       );
       const updated = await tx.customerServiceRequest.update({
         where: { id },

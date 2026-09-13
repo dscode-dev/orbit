@@ -138,15 +138,33 @@ export class MobileFieldArtifactRepository {
                 documentNumber: true,
               },
             },
-            asset: {
+            /** Todos os equipamentos do atendimento entram no documento. */
+            assets: {
+              orderBy: { createdAt: 'asc' as const },
               select: {
-                id: true,
-                name: true,
-                manufacturer: true,
-                model: true,
-                serialNumber: true,
-                identifier: true,
-                location: true,
+                asset: {
+                  select: {
+                    id: true,
+                    name: true,
+                    manufacturer: true,
+                    model: true,
+                    serialNumber: true,
+                    identifier: true,
+                    location: true,
+                  },
+                },
+              },
+            },
+            customerAddress: {
+              select: {
+                label: true,
+                street: true,
+                number: true,
+                complement: true,
+                district: true,
+                city: true,
+                stateCode: true,
+                postalCode: true,
               },
             },
             responsibleFieldTechnician: {

@@ -62,6 +62,8 @@ describe('OperationService', () => {
       'actor-id',
       expect.any(Object),
       [],
+      /** Os equipamentos, agora uma lista — vazia quando nenhum foi escolhido. */
+      [],
     );
   });
 

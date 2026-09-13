@@ -172,7 +172,12 @@ export class EquipmentQrRepository {
   fieldContext(equipmentId: string, organizationId: string) {
     return this.rls.run(async (tx) => {
       const lastService = await tx.operation.findFirst({
-        where: { organizationId, assetId: equipmentId, deletedAt: null },
+        where: {
+          organizationId,
+          deletedAt: null,
+          /** O atendimento aponta para os equipamentos pela tabela de vínculo. */
+          assets: { some: { assetId: equipmentId } },
+        },
         orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
         select: {
           completedAt: true,

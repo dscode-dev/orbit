@@ -119,7 +119,7 @@ export class MobileFieldService {
         kind: operacao.kind,
         customerName:
           operacao.customer?.tradeName ?? operacao.customer?.legalName ?? null,
-        equipmentName: operacao.asset?.name ?? null,
+        equipmentName: operacao.assets[0]?.asset.name ?? null,
         completedAt: operacao.completedAt!.toISOString(),
       })),
       recentDocuments: documentos.map((documento) =>

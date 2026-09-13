@@ -92,9 +92,10 @@ export class CustomerPortalReadMapper {
       scheduledEnd: this.instant(value.scheduledEnd),
       completedAt: this.instant(value.completedAt),
       businessUnit: this.businessUnit(value.businessUnit),
-      asset: value.asset
-        ? { id: value.asset.id, displayName: value.asset.name }
-        : null,
+      assets: value.assets.map((link) => ({
+        id: link.asset.id,
+        displayName: link.asset.name,
+      })),
       responsibleTechnician: value.responsibleFieldTechnician
         ? { displayName: value.responsibleFieldTechnician.displayName }
         : null,
@@ -135,7 +136,7 @@ export class CustomerPortalReadMapper {
       installedOn: this.date(value.installationAt),
       warrantyUntil: this.date(value.warrantyUntil),
       related: {
-        operations: value._count.operations,
+        operations: value._count.operationLinks,
         pmocPlans: value._count.pmocCoverages,
         rvtConfigurations: value.rvtConfigurations,
         documents: value._count.artifactExecutions,

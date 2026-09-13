@@ -76,7 +76,12 @@ export interface OperationQuery {
 export interface CreateOperationInput {
   businessUnitId: string;
   customerId?: string;
-  assetId?: string;
+  /** Os equipamentos atendidos — era `assetId`, um só. */
+  assetIds?: string[];
+  /** Para onde o técnico vai: um endereço cadastrado do cliente. */
+  customerAddressId?: string;
+  /** O ponto exato dentro do endereço. */
+  sector?: string;
   code: string;
   kind: OperationKind;
   title: string;

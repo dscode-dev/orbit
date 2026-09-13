@@ -39,6 +39,8 @@ import type {
   CustomerQuery,
   UpdateContactInput,
   UpdateCustomerInput,
+  CreateCustomerAddressInput,
+  UpdateCustomerAddressInput,
 } from "@/types/customers";
 
 /**
@@ -247,5 +249,71 @@ export function useRemoveContact(customerId: string) {
     (contactId: string) =>
       customersService.removeContact(customerId, contactId),
     { onSuccess: invalidate },
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Endereços de atendimento                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Os endereços de atendimento de um cliente.
+ *
+ * Só consulta quando há cliente escolhido: sem ele a pergunta não existe, e o
+ * formulário de atendimento chama este hook antes de alguém escolher.
+ */
+export function useCustomerAddresses(
+  customerId: string | null,
+  onlyActive = false,
+) {
+  return useApiQuery(
+    customersService.keys.addresses(customerId ?? "none"),
+    ({ signal }) =>
+      customersService.addresses(customerId!, onlyActive, { signal }),
+    { ...CACHE.stable, enabled: Boolean(customerId) },
+  );
+}
+
+export function useCreateCustomerAddress(customerId: string) {
+  const queryClient = useQueryClient();
+  return useApiMutation(
+    (input: CreateCustomerAddressInput) =>
+      customersService.createAddress(customerId, input),
+    {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: customersService.keys.addresses(customerId),
+        });
+      },
+    },
+  );
+}
+
+export function useUpdateCustomerAddress(customerId: string) {
+  const queryClient = useQueryClient();
+  return useApiMutation(
+    ({ id, input }: { id: string; input: UpdateCustomerAddressInput }) =>
+      customersService.updateAddress(customerId, id, input),
+    {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: customersService.keys.addresses(customerId),
+        });
+      },
+    },
+  );
+}
+
+export function useRemoveCustomerAddress(customerId: string) {
+  const queryClient = useQueryClient();
+  return useApiMutation(
+    (id: string) => customersService.removeAddress(customerId, id),
+    {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: customersService.keys.addresses(customerId),
+        });
+      },
+    },
   );
 }

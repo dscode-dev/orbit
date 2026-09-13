@@ -71,7 +71,9 @@ import {
   type OperationListItem,
 } from "@/types/operations";
 import { operationKindLabel, operationPriorityLabel } from "./operation-badges";
+import { OperationAddressField } from "./operation-address.field";
 import { OperationChecklistField } from "./operation-checklist.field";
+import { OperationEquipmentField } from "./operation-equipment.field";
 
 /** `Select` não aceita item de valor vazio; este é o "ninguém ainda". */
 const SEM_RESPONSAVEL = "__none__";
@@ -85,7 +87,12 @@ interface FormState {
   priority: string;
   startLocal: string;
   customerId: string;
-  assetId: string;
+  /** Os equipamentos atendidos — era um só. */
+  assetIds: string[];
+  /** Para onde o técnico vai: um endereço cadastrado do cliente. */
+  customerAddressId: string;
+  /** O ponto exato dentro do endereço. Opcional. */
+  sector: string;
   responsibleId: string;
   auxiliaryIds: string[];
   /// Itens acrescentados só para este atendimento.
@@ -175,7 +182,7 @@ function OperationForm({
         editing?.customer?.tradeName ??
         editing?.customer?.legalName ??
         prefill?.customerLabel,
-      asset: editing?.asset?.name ?? prefill?.assetLabel,
+      asset: editing?.assets?.[0]?.name ?? prefill?.assetLabel,
     }),
   );
 
@@ -276,25 +283,6 @@ function OperationForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="operation-unit">Unidade</Label>
-          <Select
-            value={form.businessUnitId}
-            onValueChange={(value) => edit({ businessUnitId: value })}
-          >
-            <SelectTrigger id="operation-unit">
-              <SelectValue placeholder="Selecione" />
-            </SelectTrigger>
-            <SelectContent>
-              {session.businessUnits.map((unit) => (
-                <SelectItem key={unit.id} value={unit.id}>
-                  {unit.tradeName ?? unit.legalName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
           <Label htmlFor="operation-priority">Prioridade</Label>
           <Select
             value={form.priority}
@@ -332,6 +320,15 @@ function OperationForm({
           />
         </div>
 
+        {/*
+          O cliente comanda o resto.
+
+          A unidade de negócio saiu do formulário: ela é de quem atende, não de
+          onde o serviço acontece, e vinha do escopo ativo de qualquer jeito —
+          um seletor que quase ninguém tinha motivo para mexer ocupava o lugar
+          do campo que realmente importa. Trocar de cliente limpa endereço e
+          equipamentos, porque os dois pertencem a ele.
+        */}
         <ReferencePicker
           id="operation-customer"
           label="Cliente"
@@ -347,31 +344,42 @@ function OperationForm({
             label: customer.tradeName ?? customer.legalName,
           })}
           onChange={(customerId, label) => {
-            edit({ customerId: customerId ?? "" });
+            edit({
+              customerId: customerId ?? "",
+              customerAddressId: "",
+              assetIds: [],
+            });
             setLabels((current) => ({ ...current, customer: label }));
           }}
         />
 
-        <ReferencePicker
-          id="operation-asset"
-          label="Equipamento"
-          placeholder="Sem equipamento"
-          value={form.assetId || undefined}
-          selectedLabel={labels.asset}
-          queryKey={schedulingReferencesService.keys.assets}
-          fetcher={(search, options) =>
-            schedulingReferencesService.assets(search, options)
-          }
-          toOption={(asset) => ({
-            id: asset.id,
-            label: asset.name,
-            hint: asset.identifier,
-          })}
-          onChange={(assetId, label) => {
-            edit({ assetId: assetId ?? "" });
-            setLabels((current) => ({ ...current, asset: label }));
-          }}
+        <OperationAddressField
+          customerId={form.customerId}
+          value={form.customerAddressId}
+          onChange={(customerAddressId) => edit({ customerAddressId })}
         />
+
+        <div className="space-y-2">
+          <Label htmlFor="operation-sector">Setor</Label>
+          <Input
+            id="operation-sector"
+            value={form.sector}
+            onChange={(event) => edit({ sector: event.target.value })}
+            placeholder="Auditório, Sala 2, Cozinha…"
+            maxLength={120}
+          />
+          <p className="text-xs text-muted-foreground">
+            Opcional — o ponto exato dentro do endereço.
+          </p>
+        </div>
+
+        <div className="sm:col-span-2">
+          <OperationEquipmentField
+            customerId={form.customerId}
+            selectedIds={form.assetIds}
+            onChange={(assetIds) => edit({ assetIds: [...assetIds] })}
+          />
+        </div>
 
         {/*
           Quem executa e quem acompanha.
@@ -484,7 +492,9 @@ function initialState(
         (item) => item.userId,
       ),
       customerId: editing.customerId ?? "",
-      assetId: editing.assetId ?? "",
+      assetIds: (editing.assets ?? []).map((equipamento) => equipamento.id),
+      customerAddressId: editing.customerAddressId ?? "",
+      sector: editing.sector ?? "",
     };
   }
 
@@ -513,7 +523,9 @@ function initialState(
     auxiliaryIds: [],
     checklistExtras: [],
     customerId: prefill?.customerId ?? "",
-    assetId: prefill?.assetId ?? "",
+    assetIds: prefill?.assetId ? [prefill.assetId] : [],
+    customerAddressId: "",
+    sector: "",
   };
 }
 
@@ -530,7 +542,9 @@ function buildPayload(form: FormState, timeZone: string): CreateOperationInput {
     auxiliaryTechnicianIds:
       form.auxiliaryIds.length > 0 ? form.auxiliaryIds : undefined,
     customerId: form.customerId || undefined,
-    assetId: form.assetId || undefined,
+    assetIds: form.assetIds.length > 0 ? form.assetIds : undefined,
+    customerAddressId: form.customerAddressId || undefined,
+    sector: form.sector.trim() || undefined,
   };
 }
 

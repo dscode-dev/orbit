@@ -104,10 +104,35 @@ export class CreateOperationDto {
   @IsUUIDv7()
   customerId?: string;
 
+  /**
+   * Os equipamentos atendidos.
+   *
+   * Era `assetId`, um só. Um atendimento em campo raramente toca um
+   * equipamento: o técnico vai ao endereço e atende os aparelhos que estão lá,
+   * e uma ordem por aparelho multiplicava o trabalho administrativo sem
+   * descrever melhor o serviço.
+   */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ArrayUnique()
+  @IsUUIDv7({ each: true })
+  assetIds?: string[];
+
+  /** Para onde o técnico vai — um endereço cadastrado do cliente. */
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUIDv7()
-  assetId?: string;
+  customerAddressId?: string;
+
+  /** O ponto exato dentro do endereço. Opcional: nem todo lugar tem setor. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(120)
+  sector?: string;
 
   @ApiProperty()
   @Transform(trim)

@@ -140,7 +140,12 @@ export class MobileFieldRepository {
           customer: {
             select: { id: true, legalName: true, tradeName: true },
           },
-          asset: { select: { name: true } },
+          /** Só o primeiro nome: o cartão do histórico tem uma linha. */
+          assets: {
+            orderBy: { createdAt: 'asc' as const },
+            take: 1,
+            select: { asset: { select: { name: true } } },
+          },
         },
       }),
     );

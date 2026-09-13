@@ -55,11 +55,13 @@ export class OperationService {
     input: CreateOperationDto,
   ) {
     this.validateSchedule(input.scheduledStart, input.scheduledEnd);
+    const assetIds = [...new Set(input.assetIds ?? [])];
     const references = await this.validateReferences(
       organizationId,
       input.businessUnitId,
       input.customerId,
-      input.assetId,
+      assetIds,
+      input.customerAddressId,
     );
     await this.validateTechnicianAssignments(
       organizationId,
@@ -96,7 +98,8 @@ export class OperationService {
               organizationId,
               businessUnitId: input.businessUnitId,
               customerId: input.customerId ?? references.assetCustomerId,
-              assetId: input.assetId,
+              customerAddressId: input.customerAddressId,
+              sector: input.sector,
               code: input.code.trim().toUpperCase(),
               kind: input.kind,
               title: input.title,
@@ -115,6 +118,7 @@ export class OperationService {
             actorId,
             this.json({ code: input.code, title: input.title }),
             auxiliares,
+            assetIds,
           ),
       );
       const recipients = [
@@ -145,7 +149,10 @@ export class OperationService {
     const current = await this.get(id, organizationId);
     const businessUnitId = input.businessUnitId ?? current.businessUnitId;
     const customerId = input.customerId ?? current.customerId ?? undefined;
-    const assetId = input.assetId ?? current.assetId ?? undefined;
+    const assetIds =
+      input.assetIds ?? current.assets.map((link) => link.asset.id);
+    const customerAddressId =
+      input.customerAddressId ?? current.customerAddressId ?? undefined;
     this.validateSchedule(
       input.scheduledStart ?? current.scheduledStart ?? undefined,
       input.scheduledEnd ?? current.scheduledEnd ?? undefined,
@@ -154,7 +161,8 @@ export class OperationService {
       organizationId,
       businessUnitId,
       customerId,
-      assetId,
+      assetIds,
+      customerAddressId,
     );
     try {
       return await this.repository.update(
@@ -166,7 +174,10 @@ export class OperationService {
           customer: input.customerId
             ? { connect: { id: input.customerId } }
             : undefined,
-          asset: input.assetId ? { connect: { id: input.assetId } } : undefined,
+          customerAddress: input.customerAddressId
+            ? { connect: { id: input.customerAddressId } }
+            : undefined,
+          sector: input.sector,
           code: input.code?.trim().toUpperCase(),
           kind: input.kind,
           title: input.title,
@@ -520,11 +531,27 @@ export class OperationService {
     await this.repository.softDelete(id, actorId);
   }
 
+  /**
+   * Confere unidade, cliente, endereço e equipamentos — e a coerência entre eles.
+   *
+   * ## O equipamento tem de ser do cliente do atendimento
+   *
+   * A regra já existia para um equipamento; com a lista ela vale para cada um.
+   * Um atendimento que mistura aparelhos de dois clientes mandaria o técnico ao
+   * endereço de um para mexer no aparelho do outro.
+   *
+   * ## O endereço também
+   *
+   * Endereço é cadastro do cliente. Aceitar o endereço de outro cliente deixaria
+   * o técnico com a rota errada e o relatório citando um lugar onde ninguém
+   * esteve.
+   */
   private async validateReferences(
     organizationId: string,
     businessUnitId: string,
     customerId?: string,
-    assetId?: string,
+    assetIds: readonly string[] = [],
+    customerAddressId?: string,
   ) {
     const unit = await this.repository.findBusinessUnit(
       businessUnitId,
@@ -538,18 +565,60 @@ export class OperationService {
       );
       if (!customer) throw new ValidationException('Invalid customer');
     }
-    const asset = assetId
-      ? await this.repository.findAsset(assetId, organizationId, businessUnitId)
-      : null;
-    if (assetId && !asset) {
+
+    if (customerAddressId) {
+      if (!customerId) {
+        throw new ValidationException(
+          'A service address requires the customer it belongs to',
+        );
+      }
+      const address = await this.repository.findCustomerAddress(
+        customerAddressId,
+        organizationId,
+      );
+      if (!address || address.customerId !== customerId) {
+        throw new ValidationException(
+          'The service address must belong to the operation customer',
+        );
+      }
+    }
+
+    const unicos = [...new Set(assetIds)];
+    if (unicos.length === 0) return { assetCustomerId: undefined };
+
+    const assets = await this.repository.findAssets(
+      unicos,
+      organizationId,
+      businessUnitId,
+    );
+    if (assets.length !== unicos.length) {
       throw new ValidationException(
-        'Asset is not available in the operation business unit',
+        'Every equipment must be available in the operation business unit',
       );
     }
-    if (asset?.customerId && customerId && asset.customerId !== customerId) {
-      throw new ValidationException('Asset belongs to another customer');
+    if (customerId) {
+      const alheio = assets.find(
+        (asset) => asset.customerId && asset.customerId !== customerId,
+      );
+      if (alheio) {
+        throw new ValidationException('Equipment belongs to another customer');
+      }
     }
-    return { assetCustomerId: asset?.customerId };
+
+    /**
+     * Sem cliente informado, o do primeiro equipamento vale — desde que todos
+     * concordem. Equipamentos de clientes diferentes num atendimento sem
+     * cliente não têm dono possível, e adivinhar um seria escolher por sorteio.
+     */
+    const donos = new Set(
+      assets.flatMap((asset) => (asset.customerId ? [asset.customerId] : [])),
+    );
+    if (!customerId && donos.size > 1) {
+      throw new ValidationException(
+        'Equipment from different customers requires an explicit customer',
+      );
+    }
+    return { assetCustomerId: [...donos][0] };
   }
 
   private validateSchedule(start?: Date, end?: Date) {

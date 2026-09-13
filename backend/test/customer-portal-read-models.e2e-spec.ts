@@ -485,7 +485,7 @@ describe('Customer Portal operational Read Models (e2e)', () => {
         organizationId: input.organizationId,
         businessUnitId: input.businessUnitId,
         customerId: input.customerId,
-        assetId: asset.id,
+        assets: { create: [{ assetId: asset.id }] },
         code: `OS-${input.marker}-${randomUUID()}`,
         kind: 'SERVICE_ORDER',
         title: `Atendimento Portal ${input.marker}`,

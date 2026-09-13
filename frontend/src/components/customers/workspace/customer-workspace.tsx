@@ -69,6 +69,7 @@ import {
   OverviewSection,
 } from "./panels";
 import { CustomerQuotesTab } from "./tabs/quotes.tab";
+import { AddressesTab } from "./tabs/addresses.tab";
 import { EquipmentTab } from "./tabs/equipment.tab";
 import { HistoryTab } from "./tabs/history.tab";
 import {
@@ -199,6 +200,7 @@ function WorkspaceBody({
               {customer.counts.assets}
             </Badge>
           </TabsTrigger>
+          <TabsTrigger value="enderecos">Endereços</TabsTrigger>
           <TabsTrigger value="operacoes">
             Operações
             <Badge variant="secondary" className="ml-1.5">
@@ -247,6 +249,18 @@ function WorkspaceBody({
         <TabsContent value="equipamentos">
           <TabBoundary id="customer-equipment" label="os equipamentos">
             <EquipmentTab customerId={customer.id} />
+          </TabBoundary>
+        </TabsContent>
+
+        {/*
+          Onde o técnico é atendido, e não onde a nota é emitida.
+
+          A aba existe porque o endereço deixou de ser um campo do cadastro: um
+          cliente pode ter várias lojas, e o atendimento precisa dizer em qual.
+        */}
+        <TabsContent value="enderecos">
+          <TabBoundary id="customer-addresses" label="os endereços">
+            <AddressesTab customerId={customer.id} />
           </TabBoundary>
         </TabsContent>
 

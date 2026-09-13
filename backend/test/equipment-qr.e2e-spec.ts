@@ -245,7 +245,7 @@ describe('Equipment QR Identity PR-31 (e2e)', () => {
 
   it('prepares an OS without creating an Operation', async () => {
     const before = await prisma.operation.count({
-      where: { organizationId, assetId: equipmentId },
+      where: { organizationId, assets: { some: { assetId: equipmentId } } },
     });
     const response = await auth(
       http().get(`/api/v1/assets/${equipmentId}/service-order-preparation`),
@@ -256,7 +256,7 @@ describe('Equipment QR Identity PR-31 (e2e)', () => {
     ).toBe(false);
     expect(
       await prisma.operation.count({
-        where: { organizationId, assetId: equipmentId },
+        where: { organizationId, assets: { some: { assetId: equipmentId } } },
       }),
     ).toBe(before);
   });

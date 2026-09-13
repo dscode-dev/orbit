@@ -7,9 +7,11 @@ import {
 } from '../../../../exceptions';
 import type {
   CreateContactDto,
+  CreateCustomerAddressDto,
   CreateCustomerDto,
   CustomerQueryDto,
   UpdateContactDto,
+  UpdateCustomerAddressDto,
   UpdateCustomerDto,
 } from './customer.dto';
 import {
@@ -87,6 +89,78 @@ export class CustomerService {
   async remove(id: string, organizationId: string): Promise<void> {
     await this.get(id, organizationId);
     await this.repository.softDelete(id);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Endereços de atendimento                                          */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Os endereços de atendimento do cliente.
+   *
+   * `Customer.address` continua sendo o endereço **fiscal** — o que vai na nota.
+   * Isto aqui é para onde o técnico vai, e uma rede com três lojas tem três.
+   */
+  async listAddresses(
+    customerId: string,
+    organizationId: string,
+    onlyActive = false,
+  ) {
+    await this.get(customerId, organizationId);
+    return this.repository.listAddresses(customerId, onlyActive);
+  }
+
+  async createAddress(
+    customerId: string,
+    organizationId: string,
+    input: CreateCustomerAddressDto,
+  ) {
+    await this.get(customerId, organizationId);
+    return this.repository.createAddress({
+      organizationId,
+      customerId,
+      label: input.label,
+      street: input.street,
+      city: input.city,
+      number: input.number,
+      complement: input.complement,
+      district: input.district,
+      stateCode: input.stateCode?.toUpperCase(),
+      postalCode: input.postalCode?.replace(/\D/g, ''),
+      notes: input.notes,
+      isPrimary: input.isPrimary,
+    });
+  }
+
+  async updateAddress(
+    id: string,
+    customerId: string,
+    organizationId: string,
+    input: UpdateCustomerAddressDto,
+  ) {
+    await this.get(customerId, organizationId);
+    const atual = await this.repository.findAddress(id, customerId);
+    if (!atual) throw new EntityNotFoundException('CustomerAddress', id);
+    return this.repository.updateAddress(id, customerId, {
+      label: input.label,
+      street: input.street,
+      city: input.city,
+      number: input.number,
+      complement: input.complement,
+      district: input.district,
+      stateCode: input.stateCode?.toUpperCase(),
+      postalCode: input.postalCode?.replace(/\D/g, ''),
+      notes: input.notes,
+      isPrimary: input.isPrimary,
+      isActive: input.isActive,
+    });
+  }
+
+  async removeAddress(id: string, customerId: string, organizationId: string) {
+    await this.get(customerId, organizationId);
+    const atual = await this.repository.findAddress(id, customerId);
+    if (!atual) throw new EntityNotFoundException('CustomerAddress', id);
+    await this.repository.softDeleteAddress(id);
   }
 
   async listContacts(customerId: string, organizationId: string) {

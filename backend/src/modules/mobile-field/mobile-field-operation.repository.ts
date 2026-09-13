@@ -55,21 +55,41 @@ export class MobileFieldOperationRepository {
               },
             },
           },
-          asset: {
+          /** Os equipamentos do atendimento, na ordem em que foram vinculados. */
+          assets: {
+            orderBy: { createdAt: 'asc' },
+            select: {
+              asset: {
+                select: {
+                  id: true,
+                  identifier: true,
+                  name: true,
+                  category: true,
+                  manufacturer: true,
+                  model: true,
+                  location: true,
+                  status: true,
+                  qrIdentities: {
+                    where: { status: 'ACTIVE', revokedAt: null },
+                    take: 1,
+                    select: { id: true },
+                  },
+                },
+              },
+            },
+          },
+          customerAddress: {
             select: {
               id: true,
-              identifier: true,
-              name: true,
-              category: true,
-              manufacturer: true,
-              model: true,
-              location: true,
-              status: true,
-              qrIdentities: {
-                where: { status: 'ACTIVE', revokedAt: null },
-                take: 1,
-                select: { id: true },
-              },
+              label: true,
+              street: true,
+              number: true,
+              complement: true,
+              district: true,
+              city: true,
+              stateCode: true,
+              postalCode: true,
+              notes: true,
             },
           },
           responsibleFieldTechnician: {
@@ -241,6 +261,8 @@ export class MobileFieldOperationRepository {
       const updated = await tx.operation.findUniqueOrThrow({
         where: { id: operation.id },
         include: {
+          /** O evento de domínio publica os equipamentos tocados. */
+          assets: { select: { assetId: true } },
           responsibleFieldTechnician: {
             select: { id: true, displayName: true },
           },
@@ -267,7 +289,7 @@ export class MobileFieldOperationRepository {
         priority: updated.priority,
         businessUnitId: updated.businessUnitId,
         customerId: updated.customerId,
-        assetId: updated.assetId,
+        assetIds: updated.assets.map((link) => link.assetId),
         createdById: updated.createdById,
       };
       await this.events.emit(tx, {

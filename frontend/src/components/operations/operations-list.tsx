@@ -278,11 +278,17 @@ function OperationRow({
               {operation.customer.tradeName ?? operation.customer.legalName}
             </EntityLink>
           ) : null}
-          {operation.asset ? (
-            <EntityLink entity="asset" id={operation.asset.id}>
-              {operation.asset.name}
+          {/*
+            Um link por equipamento.
+
+            Era um só. Juntar os nomes num texto tiraria o caminho para cada
+            ficha — e é a ficha que diz o histórico daquele aparelho.
+          */}
+          {operation.assets.map((equipamento) => (
+            <EntityLink key={equipamento.id} entity="asset" id={equipamento.id}>
+              {equipamento.name}
             </EntityLink>
-          ) : null}
+          ))}
           {operation.checklistExecutions.length > 0 ? (
             <span className="text-muted-foreground">
               {operation.checklistExecutions.length} checklist(s)

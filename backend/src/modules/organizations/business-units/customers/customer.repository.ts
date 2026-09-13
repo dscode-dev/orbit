@@ -97,6 +97,114 @@ export class CustomerRepository {
       .then(() => undefined);
   }
 
+  /* ---------------------------------------------------------------- */
+  /* Endereços de atendimento                                          */
+  /* ---------------------------------------------------------------- */
+
+  listAddresses(customerId: string, onlyActive = false) {
+    return this.rls.run((transaction) =>
+      transaction.customerAddress.findMany({
+        where: {
+          customerId,
+          deletedAt: null,
+          ...(onlyActive ? { isActive: true } : {}),
+        },
+        orderBy: [{ isPrimary: 'desc' }, { label: 'asc' }],
+      }),
+    );
+  }
+
+  findAddress(id: string, customerId: string) {
+    return this.rls.run((transaction) =>
+      transaction.customerAddress.findFirst({
+        where: { id, customerId, deletedAt: null },
+      }),
+    );
+  }
+
+  /**
+   * Cria o endereço e, quando ele é o principal, tira o posto do anterior.
+   *
+   * Dois endereços marcados como principal deixariam a escolha do padrão ao
+   * acaso da ordenação — e é justamente o padrão que o formulário de
+   * atendimento usa quando ninguém escolhe.
+   */
+  createAddress(data: {
+    organizationId: string;
+    customerId: string;
+    label: string;
+    street: string;
+    city: string;
+    number?: string;
+    complement?: string;
+    district?: string;
+    stateCode?: string;
+    postalCode?: string;
+    notes?: string;
+    isPrimary?: boolean;
+  }) {
+    return this.rls.run(async (transaction) => {
+      const primeiro =
+        (await transaction.customerAddress.count({
+          where: { customerId: data.customerId, deletedAt: null },
+        })) === 0;
+      const principal = data.isPrimary ?? primeiro;
+
+      if (principal) {
+        await transaction.customerAddress.updateMany({
+          where: { customerId: data.customerId, isPrimary: true },
+          data: { isPrimary: false },
+        });
+      }
+      return transaction.customerAddress.create({
+        data: { ...data, isPrimary: principal },
+      });
+    });
+  }
+
+  updateAddress(
+    id: string,
+    customerId: string,
+    data: {
+      label?: string;
+      street?: string;
+      city?: string;
+      number?: string;
+      complement?: string;
+      district?: string;
+      stateCode?: string;
+      postalCode?: string;
+      notes?: string;
+      isPrimary?: boolean;
+      isActive?: boolean;
+    },
+  ) {
+    return this.rls.run(async (transaction) => {
+      if (data.isPrimary) {
+        await transaction.customerAddress.updateMany({
+          where: { customerId, isPrimary: true, id: { not: id } },
+          data: { isPrimary: false },
+        });
+      }
+      return transaction.customerAddress.update({ where: { id }, data });
+    });
+  }
+
+  /**
+   * Remoção é lógica.
+   *
+   * Atendimentos passados apontam para o endereço, e um relatório de período
+   * anterior precisa continuar dizendo onde o técnico esteve.
+   */
+  softDeleteAddress(id: string) {
+    return this.rls.run((transaction) =>
+      transaction.customerAddress.update({
+        where: { id },
+        data: { deletedAt: new Date(), isActive: false, isPrimary: false },
+      }),
+    );
+  }
+
   listContacts(customerId: string) {
     return this.rls.run((transaction) =>
       transaction.contact.findMany({

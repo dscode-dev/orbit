@@ -48,7 +48,11 @@ const operationSelect = {
   businessUnit: {
     select: { id: true, legalName: true, tradeName: true, timezone: true },
   },
-  asset: { select: { id: true, name: true } },
+  /** Os equipamentos do atendimento; o portal lista todos, não o primeiro. */
+  assets: {
+    orderBy: { createdAt: 'asc' as const },
+    select: { asset: { select: { id: true, name: true } } },
+  },
   responsibleFieldTechnician: { select: { displayName: true } },
   _count: {
     select: {
@@ -86,7 +90,8 @@ const assetSelect = {
   },
   _count: {
     select: {
-      operations: { where: { deletedAt: null } },
+      /** Quantos atendimentos tocaram este equipamento. */
+      operationLinks: { where: { operation: { deletedAt: null } } },
       pmocCoverages: { where: { deletedAt: null } },
       artifactExecutions: {
         where: {

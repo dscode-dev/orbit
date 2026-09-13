@@ -338,6 +338,28 @@ export class MobileFieldArtifactService {
           Início: this.date(operation.startedAt),
           Conclusão: this.date(operation.completedAt),
           Local: operation.location,
+          /** O endereço do atendimento, quando declarado. */
+          Endereço: operation.customerAddress
+            ? [
+                operation.customerAddress.label,
+                [
+                  operation.customerAddress.street,
+                  operation.customerAddress.number,
+                ]
+                  .filter(Boolean)
+                  .join(', '),
+                operation.customerAddress.district,
+                [
+                  operation.customerAddress.city,
+                  operation.customerAddress.stateCode,
+                ]
+                  .filter(Boolean)
+                  .join('/'),
+              ]
+                .filter(Boolean)
+                .join(' — ')
+            : undefined,
+          Setor: operation.sector ?? undefined,
         }),
         this.section('cliente', 'Cliente e unidade', 2, {
           Cliente:
@@ -361,7 +383,27 @@ export class MobileFieldArtifactService {
             (item) => item.user.displayName,
           ),
         }),
-        this.section('equipamento', 'Equipamento', 4, operation.asset ?? {}),
+        /**
+         * Uma seção com todos os equipamentos.
+         *
+         * Era um só. O documento agora lista o que foi atendido no endereço —
+         * e quem lê precisa ver os três aparelhos, não o primeiro deles.
+         */
+        this.section(
+          'equipamento',
+          operation.assets.length > 1 ? 'Equipamentos' : 'Equipamento',
+          4,
+          {
+            Equipamentos: operation.assets.map((link) => ({
+              nome: link.asset.name,
+              fabricante: link.asset.manufacturer,
+              modelo: link.asset.model,
+              serie: link.asset.serialNumber,
+              identificador: link.asset.identifier,
+              local: link.asset.location,
+            })),
+          },
+        ),
         this.section('materiais', 'Materiais utilizados', 5, {
           Materiais: operation.inventoryMovements.map((item) => ({
             produto: item.catalogItem.name,
@@ -469,7 +511,13 @@ export class MobileFieldArtifactService {
         businessUnitId: value.businessUnitId,
         operationId: value.id,
         customerId: value.customerId,
-        assetId: value.assetId,
+        /**
+         * A execução de artefato ainda aponta para **um** equipamento.
+         *
+         * O primeiro vinculado é o que vai: é o que o documento usa como
+         * âncora, e a seção de equipamentos lista todos.
+         */
+        assetId: value.assets[0]?.asset.id ?? null,
         responsibleUserId: source.signatoryId,
         code: `OS-${value.code}`,
         title: `Ordem de Serviço — ${value.code}`,

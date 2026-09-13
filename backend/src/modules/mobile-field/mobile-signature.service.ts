@@ -367,15 +367,18 @@ export class MobileSignatureService {
             name: operation.customer.tradeName ?? operation.customer.legalName,
           }
         : null,
-      equipment: operation.asset
-        ? [
-            {
-              id: operation.asset.id,
-              code: operation.asset.identifier ?? operation.asset.id,
-              name: operation.asset.name,
-            },
-          ]
-        : [],
+      /**
+       * Todos os equipamentos, e não o primeiro.
+       *
+       * O campo já era uma lista — só nunca tinha mais de um item porque a
+       * ordem carregava um equipamento. Quem assina precisa ver o que foi
+       * atendido, e assinar por baixo é o que invalida o termo.
+       */
+      equipment: operation.assets.map((link) => ({
+        id: link.asset.id,
+        code: link.asset.identifier ?? link.asset.id,
+        name: link.asset.name,
+      })),
       serviceSummary: operation.description?.trim() || operation.title,
       performedAt:
         operation.completedAt?.toISOString() ??
