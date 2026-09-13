@@ -137,8 +137,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                         decoration: InputDecoration(
                           labelText: 'Nova senha',
                           prefixIcon: const Icon(Icons.lock_outline),
-                          helperText:
-                              'No mínimo $_tamanhoMinimo caracteres',
+                          helperText: 'No mínimo $_tamanhoMinimo caracteres',
                           suffixIcon: IconButton(
                             onPressed: () =>
                                 setState(() => _obscure = !_obscure),
@@ -147,8 +146,9 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                                   ? Icons.visibility_outlined
                                   : Icons.visibility_off_outlined,
                             ),
-                            tooltip:
-                                _obscure ? 'Mostrar senha' : 'Ocultar senha',
+                            tooltip: _obscure
+                                ? 'Mostrar senha'
+                                : 'Ocultar senha',
                           ),
                         ),
                         validator: (value) {

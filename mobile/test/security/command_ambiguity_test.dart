@@ -18,19 +18,17 @@ import 'package:orbit_operator/core/network/orbit_interceptors.dart';
 
 import 'public_error_guard.dart';
 
-OrbitException falhaDe(
-  DioExceptionType tipo, {
-  Response<dynamic>? resposta,
-}) => ErrorMappingInterceptor(destination: '10.0.2.2:6001').map(
-  DioException(
-    requestOptions: RequestOptions(
-      path: '/mobile/field/operations/op-1/commands/complete',
-      baseUrl: 'http://10.0.2.2:6001/api/v1',
-    ),
-    type: tipo,
-    response: resposta,
-  ),
-);
+OrbitException falhaDe(DioExceptionType tipo, {Response<dynamic>? resposta}) =>
+    ErrorMappingInterceptor(destination: '10.0.2.2:6001').map(
+      DioException(
+        requestOptions: RequestOptions(
+          path: '/mobile/field/operations/op-1/commands/complete',
+          baseUrl: 'http://10.0.2.2:6001/api/v1',
+        ),
+        type: tipo,
+        response: resposta,
+      ),
+    );
 
 void main() {
   group('nada saiu do aparelho', () {

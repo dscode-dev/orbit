@@ -14,10 +14,7 @@ void main() {
   });
 
   test('documento disponível abre a lista de documentos', () {
-    expect(
-      routeForDeepLink('/field/artifacts/abc-123'),
-      OrbitRoutes.documents,
-    );
+    expect(routeForDeepLink('/field/artifacts/abc-123'), OrbitRoutes.documents);
   });
 
   test('pendência de sincronização abre o centro de sincronização', () {

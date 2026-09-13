@@ -439,6 +439,7 @@ void main() {
         markTestSkipped('API indisponível em $smokeApiUrl');
         return;
       }
+
       /// Sem alvo é **falha**, não ausência: a execução é provisionada por
       /// esta suíte, e não conseguir criá-la é defeito de provisionamento.
       if (rvtTarget == null) {
@@ -485,65 +486,61 @@ void main() {
   });
 
   group('limite do alvo', () {
-    test(
-      'atingido o limite, o servidor recusa a próxima',
-      () async {
-        if (skip()) return;
+    test('atingido o limite, o servidor recusa a próxima', () async {
+      if (skip()) return;
 
-        /// Um alvo só para este teste, saturado aqui mesmo. Depender de um
-        /// atendimento que ficou cheio por acaso tornaria o gate refém do que
-        /// outra execução deixou para trás.
-        final own = await provisioner.operation(suite: 'FL06LIM');
-        final limitTarget = FieldEvidenceTargetRef(
-          type: FieldEvidenceTarget.operation,
-          id: own.operationId,
-        );
+      /// Um alvo só para este teste, saturado aqui mesmo. Depender de um
+      /// atendimento que ficou cheio por acaso tornaria o gate refém do que
+      /// outra execução deixou para trás.
+      final own = await provisioner.operation(suite: 'FL06LIM');
+      final limitTarget = FieldEvidenceTargetRef(
+        type: FieldEvidenceTarget.operation,
+        id: own.operationId,
+      );
 
-        /// 20 por atendimento (`operationMaximumFiles`).
-        const maximum = 20;
-        for (var index = 0; index < maximum; index += 1) {
-          await upload(uniquePng(), into: limitTarget);
-        }
-        expect(await evidence.list(target: limitTarget), hasLength(maximum));
+      /// 20 por atendimento (`operationMaximumFiles`).
+      const maximum = 20;
+      for (var index = 0; index < maximum; index += 1) {
+        await upload(uniquePng(), into: limitTarget);
+      }
+      expect(await evidence.list(target: limitTarget), hasLength(maximum));
 
-        /// A reserva passa: o limite não é contado ali. É no `finalize`, sob
-        /// `pg_advisory_xact_lock` do alvo, que a contagem acontece — e é isso
-        /// que torna segura a disputa de dois aparelhos pela última vaga.
-        final bytes = uniquePng();
-        final id = newLocalMediaId();
-        final intent = await evidence.reserve(
-          EvidenceUploadIntentRequest(
-            target: limitTarget,
-            filename: 'limite-$id.png',
-            declaredMimeType: 'image/png',
-            declaredSize: bytes.length,
-            idempotencyKey: 'evidence:$id',
-            localMediaId: id,
-            expectedSha256: sha256OfBytes(bytes),
-          ),
-        );
-        await evidence.putBytes(
-          url: intent.uploadUrl!,
-          headers: intent.requiredHeaders,
-          bytes: bytes,
-        );
+      /// A reserva passa: o limite não é contado ali. É no `finalize`, sob
+      /// `pg_advisory_xact_lock` do alvo, que a contagem acontece — e é isso
+      /// que torna segura a disputa de dois aparelhos pela última vaga.
+      final bytes = uniquePng();
+      final id = newLocalMediaId();
+      final intent = await evidence.reserve(
+        EvidenceUploadIntentRequest(
+          target: limitTarget,
+          filename: 'limite-$id.png',
+          declaredMimeType: 'image/png',
+          declaredSize: bytes.length,
+          idempotencyKey: 'evidence:$id',
+          localMediaId: id,
+          expectedSha256: sha256OfBytes(bytes),
+        ),
+      );
+      await evidence.putBytes(
+        url: intent.uploadUrl!,
+        headers: intent.requiredHeaders,
+        bytes: bytes,
+      );
 
-        await expectLater(
-          evidence.finalize(
-            intent.uploadId,
-            expectedSha256: sha256OfBytes(bytes),
-          ),
-          throwsA(
-            isA<OrbitException>()
-                .having((e) => e.status, 'status', 409)
-                .having((e) => e.code, 'code', 'EVIDENCE_LIMIT_REACHED'),
-          ),
-        );
+      await expectLater(
+        evidence.finalize(
+          intent.uploadId,
+          expectedSha256: sha256OfBytes(bytes),
+        ),
+        throwsA(
+          isA<OrbitException>()
+              .having((e) => e.status, 'status', 409)
+              .having((e) => e.code, 'code', 'EVIDENCE_LIMIT_REACHED'),
+        ),
+      );
 
-        /// E a contagem confirmada não passa do teto.
-        expect(await evidence.list(target: limitTarget), hasLength(maximum));
-      },
-      timeout: const Timeout(Duration(minutes: 3)),
-    );
+      /// E a contagem confirmada não passa do teto.
+      expect(await evidence.list(target: limitTarget), hasLength(maximum));
+    }, timeout: const Timeout(Duration(minutes: 3)));
   });
 }

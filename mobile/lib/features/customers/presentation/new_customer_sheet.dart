@@ -26,9 +26,7 @@ Future<bool> showNewCustomerSheet(BuildContext context) async {
     showDragHandle: true,
     backgroundColor: context.orbit.background,
     builder: (context) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: const _Folha(),
     ),
   );

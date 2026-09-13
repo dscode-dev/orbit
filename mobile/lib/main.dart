@@ -82,9 +82,7 @@ class _OrbitOperatorAppState extends ConsumerState<OrbitOperatorApp> {
 
     /// Caminho desconhecido leva à caixa de avisos, nunca a um palpite: uma
     /// tela errada passa por defeito, quando só chegou um tipo novo de aviso.
-    ref
-        .read(routerProvider)
-        .go(destino ?? OrbitRoutes.notifications);
+    ref.read(routerProvider).go(destino ?? OrbitRoutes.notifications);
   }
 
   /// Liga e desliga o registro conforme a sessão.
@@ -108,6 +106,7 @@ class _OrbitOperatorAppState extends ConsumerState<OrbitOperatorApp> {
       title: 'Orbit Operator',
       debugShowCheckedModeBanner: false,
       theme: OrbitTheme.light(),
+
       /// Só o claro nesta rodada. A paleta é uma `ThemeExtension`: ligar o
       /// escuro no futuro é acrescentar uma segunda paleta aqui, sem tocar em
       /// tela nenhuma.

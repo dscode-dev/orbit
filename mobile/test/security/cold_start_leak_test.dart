@@ -204,12 +204,7 @@ void main() {
     Map<String, dynamic> homeComTrabalho() => {
       'dashboard': {
         'next': null,
-        'counters': {
-          'today': 1,
-          'overdue': 0,
-          'inProgress': 0,
-          'upcoming': 0,
-        },
+        'counters': {'today': 1, 'overdue': 0, 'inProgress': 0, 'upcoming': 0},
         'today': [
           {
             'id': 'SERVICE_OPERATION:1',
@@ -225,19 +220,13 @@ void main() {
             'auxiliaryTechnicians': <dynamic>[],
             'equipmentSummary': <dynamic>[],
             'allowedActions': <String>['VIEW'],
-            'navigationContext': {
-              'kind': 'SERVICE_OPERATION',
-              'sourceId': '1',
-            },
+            'navigationContext': {'kind': 'SERVICE_OPERATION', 'sourceId': '1'},
             'updatedAt': '2026-09-01T12:00:00.000Z',
           },
         ],
         'overdue': <dynamic>[],
         'inProgress': <dynamic>[],
-        'capabilities': {
-          'canScanEquipment': false,
-          'canCreateAdHocRvt': false,
-        },
+        'capabilities': {'canScanEquipment': false, 'canCreateAdHocRvt': false},
       },
       'recentDocuments': <dynamic>[],
       'recentAppointments': <dynamic>[],
@@ -318,9 +307,7 @@ void main() {
 
     for (final entrada in telas.entries) {
       testWidgets('${entrada.key} falha em segurança', (tester) async {
-        await tester.pumpWidget(
-          host(entrada.value, FalhaDeTransporte.timeout),
-        );
+        await tester.pumpWidget(host(entrada.value, FalhaDeTransporte.timeout));
         await tester.pumpAndSettle();
 
         expectSafePublicErrorAll(textosVisiveis(tester), onde: entrada.key);

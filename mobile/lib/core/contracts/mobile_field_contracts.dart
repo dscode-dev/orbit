@@ -744,22 +744,19 @@ class MobileFieldCustomerContract {
     this.nextServiceAt,
   });
 
-  factory MobileFieldCustomerContract.fromJson(Map<String, dynamic> json) =>
-      MobileFieldCustomerContract(
-        id: json['id'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        legalName: json['legalName'] as String? ?? json['name'] as String? ?? '',
-        documentNumber: json['documentNumber'] as String?,
-        status: json['status'] as String? ?? 'ACTIVE',
-        openCount: (json['openCount'] as num?)?.toInt() ?? 0,
-        completedCount: (json['completedCount'] as num?)?.toInt() ?? 0,
-        lastServiceAt: DateTime.tryParse(
-          json['lastServiceAt'] as String? ?? '',
-        ),
-        nextServiceAt: DateTime.tryParse(
-          json['nextServiceAt'] as String? ?? '',
-        ),
-      );
+  factory MobileFieldCustomerContract.fromJson(
+    Map<String, dynamic> json,
+  ) => MobileFieldCustomerContract(
+    id: json['id'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    legalName: json['legalName'] as String? ?? json['name'] as String? ?? '',
+    documentNumber: json['documentNumber'] as String?,
+    status: json['status'] as String? ?? 'ACTIVE',
+    openCount: (json['openCount'] as num?)?.toInt() ?? 0,
+    completedCount: (json['completedCount'] as num?)?.toInt() ?? 0,
+    lastServiceAt: DateTime.tryParse(json['lastServiceAt'] as String? ?? ''),
+    nextServiceAt: DateTime.tryParse(json['nextServiceAt'] as String? ?? ''),
+  );
 
   final String id;
 

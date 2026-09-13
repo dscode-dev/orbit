@@ -82,7 +82,10 @@ final _ipv4 = RegExp(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b');
 final _url = RegExp(r'https?://', caseSensitive: false);
 
 /// `host:porta` — o formato exato do vazamento original.
-final _hostPorta = RegExp(r'\b[a-z0-9.-]+\.[a-z]{2,}:\d{2,5}\b', caseSensitive: false);
+final _hostPorta = RegExp(
+  r'\b[a-z0-9.-]+\.[a-z]{2,}:\d{2,5}\b',
+  caseSensitive: false,
+);
 
 /// Falha o teste se [texto] contiver qualquer marca de infraestrutura.
 ///
@@ -117,10 +120,7 @@ void expectSafePublicError(String texto, {String onde = 'mensagem pública'}) {
 }
 
 /// O mesmo, para tudo o que uma tela está mostrando.
-void expectSafePublicErrorAll(
-  Iterable<String> textos, {
-  String onde = 'tela',
-}) {
+void expectSafePublicErrorAll(Iterable<String> textos, {String onde = 'tela'}) {
   for (final texto in textos) {
     expectSafePublicError(texto, onde: onde);
   }

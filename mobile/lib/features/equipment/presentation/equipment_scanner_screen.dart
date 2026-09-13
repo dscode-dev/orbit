@@ -158,7 +158,9 @@ class _EquipmentScannerScreenState
 
           /// O resultado ocupa a metade de baixo, onde o polegar alcança.
           if (token != null)
-            Expanded(child: _Resultado(token: token, onFechar: _limpar))
+            Expanded(
+              child: _Resultado(token: token, onFechar: _limpar),
+            )
           else
             const _EntradaManualBotao(),
         ],

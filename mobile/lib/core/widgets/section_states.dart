@@ -85,9 +85,7 @@ class SectionBlock extends StatelessWidget {
                   /// de tela recebe "SUBSTITUIR ASSINATURA" e alguns motores
                   /// soletram maiúsculas letra a letra.
                   semanticsLabel: title,
-                  style: OrbitType.eyebrow.copyWith(
-                    color: palette.inkSubtle,
-                  ),
+                  style: OrbitType.eyebrow.copyWith(color: palette.inkSubtle),
                 ),
                 if (subtitle != null)
                   Padding(

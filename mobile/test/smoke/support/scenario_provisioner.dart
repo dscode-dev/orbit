@@ -101,8 +101,7 @@ final class RvtScenario {
   final String suite;
   final String executionId;
 
-  String describe() =>
-      'RVT $scenarioId · suíte $suite · execução $executionId';
+  String describe() => 'RVT $scenarioId · suíte $suite · execução $executionId';
 }
 
 /// Falha no meio da provisão, com o que já foi criado.
@@ -243,9 +242,7 @@ class ScenarioProvisioner {
               'Criado pelo harness de smoke do aplicativo. Cenário '
               '$scenarioId.',
           'scheduledStart': agora.toIso8601String(),
-          'scheduledEnd': agora
-              .add(const Duration(hours: 1))
-              .toIso8601String(),
+          'scheduledEnd': agora.add(const Duration(hours: 1)).toIso8601String(),
         },
       );
       final operationId = operation['id']! as String;
@@ -342,9 +339,9 @@ class ScenarioProvisioner {
     /// procura o desta conta em vez de fixar um código que o servidor não
     /// conhece mais.
     final tipos = await client.get<List<dynamic>>('/rvt/maintenance-types');
-    final semanal = tipos
-        .cast<Map<String, dynamic>>()
-        .firstWhere((tipo) => tipo['key'] == 'WEEKLY');
+    final semanal = tipos.cast<Map<String, dynamic>>().firstWhere(
+      (tipo) => tipo['key'] == 'WEEKLY',
+    );
     final maintenanceTypeId = semanal['id'] as String;
 
     step = 'criar execução de RVT avulsa';
@@ -380,7 +377,9 @@ class ScenarioProvisioner {
       final execution = response['execution'] as Map<String, dynamic>?;
       final executionId = execution?['id'] as String?;
       if (executionId == null) {
-        throw StateError('A resposta da RVT avulsa não trouxe o id da execução');
+        throw StateError(
+          'A resposta da RVT avulsa não trouxe o id da execução',
+        );
       }
       created.add('execução de RVT $executionId');
       createdRvtExecutions += 1;

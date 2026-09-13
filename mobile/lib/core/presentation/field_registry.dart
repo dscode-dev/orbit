@@ -597,7 +597,6 @@ const equipmentFieldActionLabels = <EquipmentFieldAction, FieldLabel>{
 String equipmentFieldActionLabel(EquipmentFieldAction action) =>
     equipmentFieldActionLabels[action]?.label ?? '';
 
-
 /// O nome público de um tipo de documento.
 ///
 /// Mesma regra do status e da natureza: código sem tradução devolve `null` e

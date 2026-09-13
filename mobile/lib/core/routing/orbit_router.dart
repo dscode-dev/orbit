@@ -112,8 +112,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       /// Antes de qualquer outra decisão de rota: quem entrou com a senha que o
       /// dono da organização escolheu não deve abrir atendimento nem assinar
       /// nada enquanto essa senha valer — o dono ainda a conhece.
-      if (auth is AuthAuthenticated &&
-          auth.session.user.mustChangePassword) {
+      if (auth is AuthAuthenticated && auth.session.user.mustChangePassword) {
         return location == OrbitRoutes.changePassword
             ? null
             : OrbitRoutes.changePassword;
@@ -158,6 +157,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ).returnsToken,
         ),
       ),
+
       /// A caixa de avisos é um destino, não uma aba: abre por cima do shell
       /// e volta para onde estava. Por isso é **irmã** dele, e não filha —
       /// uma sub-rota direta de `ShellRoute` não pode carregar a chave do

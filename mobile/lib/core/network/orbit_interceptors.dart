@@ -294,15 +294,14 @@ class ErrorMappingInterceptor extends Interceptor {
         diagnostics: diagnostics,
       ),
 
-      DioExceptionType.connectionError || DioExceptionType.unknown
-          when err.response == null =>
-        OrbitException(
-          kind: OrbitErrorKind.network,
-          publicMessage: OrbitPublicCopy.offline,
-          code: 'NETWORK',
-          requestId: requestId,
-          diagnostics: diagnostics,
-        ),
+      DioExceptionType.connectionError ||
+      DioExceptionType.unknown when err.response == null => OrbitException(
+        kind: OrbitErrorKind.network,
+        publicMessage: OrbitPublicCopy.offline,
+        code: 'NETWORK',
+        requestId: requestId,
+        diagnostics: diagnostics,
+      ),
 
       _ => OrbitException.fromEnvelope(
         status: err.response?.statusCode ?? 0,

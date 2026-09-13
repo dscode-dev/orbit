@@ -124,9 +124,7 @@ class _Lista extends StatelessWidget {
       children: [
         if (novos.isNotEmpty) ...[
           _Titulo(
-            novos.length == 1
-                ? '1 não lido'
-                : '${novos.length} não lidos',
+            novos.length == 1 ? '1 não lido' : '${novos.length} não lidos',
           ),
           _Grupo(avisos: novos),
         ],
@@ -219,9 +217,7 @@ class _AvisoRow extends ConsumerWidget {
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: aviso.isUnread
-                        ? palette.accent
-                        : Colors.transparent,
+                    color: aviso.isUnread ? palette.accent : Colors.transparent,
                     shape: BoxShape.circle,
                   ),
                 ),

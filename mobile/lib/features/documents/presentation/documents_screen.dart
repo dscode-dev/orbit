@@ -130,11 +130,8 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                     ),
                   ],
                 ),
-                data: (data) => _Lista(
-                  scroll: _scroll,
-                  state: data,
-                  agora: widget.now,
-                ),
+                data: (data) =>
+                    _Lista(scroll: _scroll, state: data, agora: widget.now),
               ),
             ),
           ),
@@ -803,6 +800,7 @@ class _DocumentRowState extends ConsumerState<DocumentRow> {
                 ),
               ),
               const SizedBox(width: OrbitSpacing.sm),
+
               /// A caixa tem largura fixa nos dois casos. Sem isso a coluna
               /// das horas dança meia dezena de pixels entre a linha que tem
               /// botão e a que tem só a seta.

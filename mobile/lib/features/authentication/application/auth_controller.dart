@@ -63,9 +63,7 @@ class AuthController extends StateNotifier<AuthState> {
       //
       // A sessão guardada **não** é apagada: o problema é chegar ao servidor,
       // não o token. Entrar de novo, ou uma rede que volte, resolve.
-      state = AuthUnauthenticated(
-        reason: error.publicMessage,
-      );
+      state = AuthUnauthenticated(reason: error.publicMessage);
     } catch (_) {
       // Nada justifica ficar preso na abertura: o que não se sabe explicar
       // ainda assim leva ao login, onde há o que fazer.

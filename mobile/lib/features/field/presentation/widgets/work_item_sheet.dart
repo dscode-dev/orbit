@@ -113,10 +113,7 @@ class _Folha extends StatelessWidget {
             children: [
               _Dado(rotulo: 'Quando', valor: scheduleText(item)),
               const OrbitRowDivider(),
-              _Dado(
-                rotulo: 'Natureza',
-                valor: workItemKindLabel(item.kind),
-              ),
+              _Dado(rotulo: 'Natureza', valor: workItemKindLabel(item.kind)),
               if (locationText(item) case final local?
                   when local.isNotEmpty) ...[
                 const OrbitRowDivider(),
@@ -166,8 +163,7 @@ class _Folha extends StatelessWidget {
                     /// na tela é o mesmo vazamento de código que a agenda
                     /// tinha.
                     title:
-                        artifactDocumentTypeLabel(artefato.type) ??
-                        'Documento',
+                        artifactDocumentTypeLabel(artefato.type) ?? 'Documento',
                     subtitle: 'Pronto para baixar',
                     trailing: Icon(
                       Icons.download_rounded,

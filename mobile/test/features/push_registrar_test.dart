@@ -212,10 +212,7 @@ void main() {
     await registrar.stop();
     await registrar.start();
 
-    expect(
-      backend.chamadas.where((c) => c.method == 'POST'),
-      hasLength(2),
-    );
+    expect(backend.chamadas.where((c) => c.method == 'POST'), hasLength(2));
   });
 
   test('falha ao registrar não sobe para a tela', () async {

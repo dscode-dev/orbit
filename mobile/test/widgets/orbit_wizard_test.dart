@@ -9,7 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit_operator/core/design/orbit_wizard.dart';
 import 'package:orbit_operator/core/theme/orbit_theme.dart';
 
-Widget host(List<OrbitWizardStep> steps, {
+Widget host(
+  List<OrbitWizardStep> steps, {
   double textScale = 1.0,
   double width = 390,
   Widget? footer,
@@ -129,10 +130,10 @@ void main() {
 
   testWidgets('o rodapé acompanha a etapa', (tester) async {
     await tester.pumpWidget(
-      host(
-        [step('Preparação'), step('Finalização')],
-        footer: const Text('ação do domínio'),
-      ),
+      host([
+        step('Preparação'),
+        step('Finalização'),
+      ], footer: const Text('ação do domínio')),
     );
 
     expect(find.text('ação do domínio'), findsOneWidget);
@@ -159,11 +160,7 @@ void main() {
     );
   });
 
-  for (final (largura, escala) in [
-    (320.0, 1.0),
-    (375.0, 1.3),
-    (430.0, 2.0),
-  ]) {
+  for (final (largura, escala) in [(320.0, 1.0), (375.0, 1.3), (430.0, 2.0)]) {
     testWidgets('cabe em ${largura.toInt()}px com texto ${escala}x', (
       tester,
     ) async {

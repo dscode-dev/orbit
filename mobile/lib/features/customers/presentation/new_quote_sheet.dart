@@ -31,9 +31,7 @@ Future<bool> showNewQuoteSheet(
     showDragHandle: true,
     backgroundColor: context.orbit.background,
     builder: (context) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: _Folha(cliente: cliente),
     ),
   );
@@ -251,9 +249,7 @@ class _FolhaState extends ConsumerState<_Folha> {
                 children: [
                   Text(
                     'Total ',
-                    style: OrbitType.caption.copyWith(
-                      color: palette.inkSubtle,
-                    ),
+                    style: OrbitType.caption.copyWith(color: palette.inkSubtle),
                   ),
                   Text(
                     OrbitFormat.currency(_total),

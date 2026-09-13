@@ -310,15 +310,13 @@ void main() {
      */
     final state = controller.state;
     expect(state, isA<AuthUnauthenticated>());
+
     /// O motivo é a mensagem **pública** da falha, atravessada sem reescrita.
     ///
     /// Antes o controlador montava a própria frase quando a falha era de rede,
     /// e a do transporte era descartada. Hoje há uma frase só, e ela vem de
     /// onde a falha foi classificada.
-    expect(
-      (state as AuthUnauthenticated).reason,
-      'sem rede',
-    );
+    expect((state as AuthUnauthenticated).reason, 'sem rede');
   });
 
   test('falha inesperada na restauração também sai da splash', () async {
@@ -392,6 +390,7 @@ void _trocaDeSenha() {
 
     final depois = controller.state as AuthAuthenticated;
     expect(depois.session.user.mustChangePassword, isFalse);
+
     /// A sessão não foi recomposta do zero: organização e plano seguem lá.
     expect(depois.session.organization?.displayName, 'Acme Industries');
   });

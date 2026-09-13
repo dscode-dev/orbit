@@ -153,7 +153,8 @@ void main() {
           kind: OrbitErrorKind.http,
           status: 413,
           code: 'PAYLOAD_TOO_LARGE',
-          publicMessage: 'Arquivo acima do limite de 20 MB aceito pelo servidor.',
+          publicMessage:
+              'Arquivo acima do limite de 20 MB aceito pelo servidor.',
         );
       },
     );

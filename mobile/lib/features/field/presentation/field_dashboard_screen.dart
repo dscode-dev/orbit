@@ -563,9 +563,7 @@ class _KpiTile extends StatelessWidget {
                 Text(
                   data.value,
                   style: OrbitType.metric.copyWith(
-                    color: data.tone == OrbitTone.neutral
-                        ? palette.ink
-                        : forte,
+                    color: data.tone == OrbitTone.neutral ? palette.ink : forte,
                   ),
                 ),
               ],
@@ -847,11 +845,7 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          OrbitAvatar(
-            initials: _iniciais(userName),
-            url: avatarUrl,
-            size: 46,
-          ),
+          OrbitAvatar(initials: _iniciais(userName), url: avatarUrl, size: 46),
           const SizedBox(width: OrbitSpacing.ms),
           Expanded(
             child: Column(
@@ -869,8 +863,10 @@ class _Header extends StatelessWidget {
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  [todayShort(agora), if (unitName != null) unitName!]
-                      .join(' · '),
+                  [
+                    todayShort(agora),
+                    if (unitName != null) unitName!,
+                  ].join(' · '),
                   style: OrbitType.caption.copyWith(color: palette.inkSubtle),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -994,9 +990,8 @@ String todayLabel(DateTime now) => OrbitFormat.weekdayAndDay(now);
 /// "terça-feira, 08 de setembro · Unidade Recife" não cabe em 390 pixels, e o
 /// que some na reticência é justamente a unidade — o dado que diz de onde as
 /// ações vão sair.
-String todayShort(DateTime now) => DateFormat('E, d MMM', 'pt_BR')
-    .format(now)
-    .replaceAll('.', '');
+String todayShort(DateTime now) =>
+    DateFormat('E, d MMM', 'pt_BR').format(now).replaceAll('.', '');
 
 class _QuickActions extends StatelessWidget {
   const _QuickActions({required this.dashboard});
@@ -1062,6 +1057,7 @@ class _QuickActions extends StatelessWidget {
     );
   }
 }
+
 class _Rows extends StatelessWidget {
   const _Rows({required this.children});
 
@@ -1094,6 +1090,7 @@ class _DocumentRow extends StatelessWidget {
     onTap: () => context.go(OrbitRoutes.documents),
   );
 }
+
 class _RefreshFailedNotice extends StatelessWidget {
   const _RefreshFailedNotice();
 

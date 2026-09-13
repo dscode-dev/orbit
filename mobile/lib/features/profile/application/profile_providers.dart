@@ -43,6 +43,7 @@ class ProfileEditController extends StateNotifier<AsyncValue<void>> {
             phone: phone,
           );
       _ref.read(authControllerProvider.notifier).applyUser(user);
+
       /// `mounted` antes de escrever: o provedor é `autoDispose`, e a folha
       /// pode ter sido fechada enquanto a requisição estava no ar.
       if (mounted) state = const AsyncValue.data(null);
@@ -81,6 +82,7 @@ class ProfileEditController extends StateNotifier<AsyncValue<void>> {
       /// O endereço da foto é assinado e temporário, e não vem no `PUT`.
       /// Recompor a sessão é o caminho que já sabe buscá-lo.
       await _ref.read(authControllerProvider.notifier).refreshProfile();
+
       /// `mounted` antes de escrever: o provedor é `autoDispose`, e a folha
       /// pode ter sido fechada enquanto a requisição estava no ar.
       if (mounted) state = const AsyncValue.data(null);
@@ -96,6 +98,7 @@ class ProfileEditController extends StateNotifier<AsyncValue<void>> {
     try {
       await _ref.read(profileRepositoryProvider).removeAvatar();
       await _ref.read(authControllerProvider.notifier).refreshProfile();
+
       /// `mounted` antes de escrever: o provedor é `autoDispose`, e a folha
       /// pode ter sido fechada enquanto a requisição estava no ar.
       if (mounted) state = const AsyncValue.data(null);

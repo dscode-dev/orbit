@@ -161,7 +161,7 @@ export function RvtMaintenanceTypesTab() {
         title="Remover tipo de manutenção"
         body={
           removendo
-            ? `"${removendo.label}" sai da lista dos contratos novos. Se algum contrato ainda usa este tipo, o servidor recusa a remoção — troque o tipo desses contratos antes.`
+            ? `"${removendo.label}" sai da lista dos contratos novos. Se algum contrato ainda usa este tipo, troque o tipo desses contratos antes de removê-lo.`
             : undefined
         }
         confirmLabel="Remover"

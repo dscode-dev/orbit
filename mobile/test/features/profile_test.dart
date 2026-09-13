@@ -137,9 +137,7 @@ void main() {
       /// que nunca foi tocado faria a pessoa acreditar que não recebe avisos
       /// que recebe.
       final container = containerCom(Backend());
-      final mapa = await container.read(
-        notificationPreferencesProvider.future,
-      );
+      final mapa = await container.read(notificationPreferencesProvider.future);
 
       expect(mapa['WORK_ASSIGNED']?.enabled, isTrue);
       expect(mapa['SYNC_ATTENTION_REQUIRED']?.enabled, isFalse);

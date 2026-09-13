@@ -473,10 +473,7 @@ void main() {
         envelope(
           1,
           type: OfflineCommandType.customerAcknowledgement,
-          payload: const {
-            'signerName': 'Maria Zeladora',
-            'contentHash': 'abc',
-          },
+          payload: const {'signerName': 'Maria Zeladora', 'contentHash': 'abc'},
         ),
       );
 

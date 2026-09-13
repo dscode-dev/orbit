@@ -120,9 +120,7 @@ class _EditProfileSheetState extends ConsumerState<EditProfileSheet> {
     final erro = ref.read(profileEditControllerProvider).error;
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
-        content: Text(
-          OrbitException.publicCopyForAny(erro, prefixo: prefixo),
-        ),
+        content: Text(OrbitException.publicCopyForAny(erro, prefixo: prefixo)),
       ),
     );
   }
@@ -149,6 +147,7 @@ class _EditProfileSheetState extends ConsumerState<EditProfileSheet> {
           OrbitSpacing.ml,
           0,
           OrbitSpacing.ml,
+
           /// O teclado empurra a folha: sem isto o campo em foco fica
           /// embaixo dele e a pessoa digita às cegas.
           MediaQuery.viewInsetsOf(context).bottom + OrbitSpacing.ml,
@@ -185,8 +184,7 @@ class _EditProfileSheetState extends ConsumerState<EditProfileSheet> {
                                 TextButton.icon(
                                   onPressed: ocupado
                                       ? null
-                                      : () =>
-                                            _trocarFoto(ImageSource.gallery),
+                                      : () => _trocarFoto(ImageSource.gallery),
                                   icon: const Icon(
                                     Icons.photo_library_outlined,
                                     size: 17,
@@ -225,8 +223,7 @@ class _EditProfileSheetState extends ConsumerState<EditProfileSheet> {
                           labelText: 'Como quer ser chamado',
                           helperText: 'É o nome que aparece nos documentos',
                         ),
-                        validator: (valor) =>
-                            (valor ?? '').trim().isEmpty
+                        validator: (valor) => (valor ?? '').trim().isEmpty
                             ? 'Informe um nome'
                             : null,
                       ),

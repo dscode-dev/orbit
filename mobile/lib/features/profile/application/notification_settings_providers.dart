@@ -30,10 +30,7 @@ class NotificationSettingsController extends StateNotifier<AsyncValue<void>> {
   /// Desligar apaga **todos** os canais daquele tipo, e não só o push: um
   /// interruptor rotulado "Novo atendimento" que continuasse mandando
   /// e-mail seria um interruptor quebrado.
-  Future<bool> toggle({
-    required String type,
-    required bool enabled,
-  }) async {
+  Future<bool> toggle({required String type, required bool enabled}) async {
     state = const AsyncValue.loading();
     try {
       await _ref

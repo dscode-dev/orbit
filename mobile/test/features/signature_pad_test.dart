@@ -53,10 +53,7 @@ void main() {
   group('exportação', () {
     test('pad vazio não produz imagem', () async {
       expect(await exportarAssinaturaPng(const []), isNull);
-      expect(
-        await exportarAssinaturaPng(traco(const [Offset(5, 5)])),
-        isNull,
-      );
+      expect(await exportarAssinaturaPng(traco(const [Offset(5, 5)])), isNull);
     });
 
     test('o traço vira um PNG de verdade', () async {
@@ -68,10 +65,7 @@ void main() {
 
       /// Assinatura PNG nos primeiros oito bytes — é o que o servidor confere,
       /// e o que separa um arquivo de verdade de um blob com extensão certa.
-      expect(
-        bytes!.sublist(0, 8),
-        const [137, 80, 78, 71, 13, 10, 26, 10],
-      );
+      expect(bytes!.sublist(0, 8), const [137, 80, 78, 71, 13, 10, 26, 10]);
     });
 
     test('a imagem é recortada nos limites do traço', () async {

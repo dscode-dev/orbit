@@ -37,9 +37,10 @@ class DocumentQuery {
   final DateTime? to;
 
   /// A busca não conta: ela tem campo próprio e visível.
-  int get activeCount => [filter != DocumentFilter.todos, from != null || to != null]
-      .where((ativo) => ativo)
-      .length;
+  int get activeCount => [
+    filter != DocumentFilter.todos,
+    from != null || to != null,
+  ].where((ativo) => ativo).length;
 
   DocumentQuery copyWith({
     DocumentFilter? filter,

@@ -186,15 +186,16 @@ final workQueueFilterProvider = StateProvider.autoDispose<WorkQueueFilter>(
 final customerSearchProvider = StateProvider.autoDispose<String>((ref) => '');
 
 /// Uma página da base de clientes, pelo termo atual.
-final fieldCustomersProvider = FutureProvider.autoDispose<
-  CachedResult<MobileFieldCustomerPageContract>
->((ref) {
-  final scope = fieldScopeKey(ref);
-  final termo = ref.watch(customerSearchProvider);
-  return ref
-      .watch(fieldRepositoryProvider)
-      .customers(scopeKey: scope, search: termo.isEmpty ? null : termo);
-});
+final fieldCustomersProvider =
+    FutureProvider.autoDispose<CachedResult<MobileFieldCustomerPageContract>>((
+      ref,
+    ) {
+      final scope = fieldScopeKey(ref);
+      final termo = ref.watch(customerSearchProvider);
+      return ref
+          .watch(fieldRepositoryProvider)
+          .customers(scopeKey: scope, search: termo.isEmpty ? null : termo);
+    });
 
 /// Os clientes que aparecem na fila desta pessoa.
 ///

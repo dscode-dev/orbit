@@ -452,6 +452,7 @@ Widget host(
     overrides: [
       apiClientProvider.overrideWithValue(client),
       readCacheProvider.overrideWithValue(InMemoryReadCache()),
+
       /// A sessão é sobreposta sempre que a tela depende dela.
       ///
       /// A condição antiga listava duas telas pelo nome, e qualquer tela nova
@@ -502,6 +503,7 @@ Widget host(
       ),
       home: Scaffold(
         body: tela,
+
         /// As abas vêm do produto, não de uma cópia.
         ///
         /// Enquanto a lista vivia duplicada aqui, a captura mostrava uma

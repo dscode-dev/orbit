@@ -41,8 +41,10 @@ const cnpj = () => {
     const rest =
       value
         .split('')
-        .reduce((sum, digit, index) => sum + Number(digit) * weights[index]!, 0) %
-      11;
+        .reduce(
+          (sum, digit, index) => sum + Number(digit) * weights[index]!,
+          0,
+        ) % 11;
     return rest < 2 ? 0 : 11 - rest;
   };
   const first = check(base);

@@ -8,6 +8,7 @@
  * Sem isso, a primeira operação que precisasse de um item adicional
  * reescreveria o padrão de todas as seguintes.
  */
+import { Prisma } from '@prisma/client';
 import { ChecklistService } from './checklist.service';
 
 const organizationId = '01900000-0000-7000-8000-000000000001';
@@ -23,17 +24,24 @@ const itemDoModelo = {
 };
 
 function harness() {
+  const template = {
+    id: templateId,
+    key: 'MANUTENCAO',
+    name: 'Manutenção preventiva',
+    version: 3,
+    isActive: true,
+    operationKind: 'MAINTENANCE',
+    items: [itemDoModelo],
+  };
+  const createdInputs: Prisma.ChecklistExecutionUncheckedCreateInput[] = [];
   const repository = {
-    findTemplate: jest.fn().mockResolvedValue({
-      id: templateId,
-      key: 'MANUTENCAO',
-      name: 'Manutenção preventiva',
-      version: 3,
-      isActive: true,
-      operationKind: 'MAINTENANCE',
-      items: [itemDoModelo],
-    }),
-    createExecution: jest.fn().mockImplementation((input) => input),
+    findTemplate: jest.fn().mockResolvedValue(template),
+    createExecution: jest.fn(
+      (input: Prisma.ChecklistExecutionUncheckedCreateInput) => {
+        createdInputs.push(input);
+        return Promise.resolve(input);
+      },
+    ),
     listTemplates: jest.fn(),
   };
   const operations = {
@@ -46,26 +54,27 @@ function harness() {
     repository as never,
     operations as never,
   );
-  return { service, repository };
+  return { service, repository, template, createdInputs };
 }
 
 describe('execução de checklist', () => {
   it('sem extras, o snapshot é o do modelo', async () => {
-    const { service, repository } = harness();
+    const { service, createdInputs } = harness();
 
     await service.start(operationId, organizationId, actorId, {
       templateId,
     });
 
-    const input = repository.createExecution.mock.calls[0]![0];
-    expect(input.templateSnapshot.items).toEqual([itemDoModelo]);
+    const input = createdInputs[0]!;
+    const snapshot = input.templateSnapshot as { items: unknown[] };
+    expect(snapshot.items).toEqual([itemDoModelo]);
     expect(input.templateVersion).toBe(3);
   });
 
   it('os extras entram ao lado dos herdados, nesta ordem', async () => {
     /// Herdados primeiro: quem responde em campo espera o roteiro conhecido
     /// antes do que foi pedido só para este atendimento.
-    const { service, repository } = harness();
+    const { service, createdInputs } = harness();
     const extra = {
       key: 'EXTRA_VAZAMENTO',
       label: 'Conferir vazamento no duto novo',
@@ -77,21 +86,22 @@ describe('execução de checklist', () => {
       additionalItems: [extra],
     } as never);
 
-    const input = repository.createExecution.mock.calls[0]![0];
-    expect(input.templateSnapshot.items).toEqual([itemDoModelo, extra]);
+    const snapshot = createdInputs[0]!.templateSnapshot as {
+      items: unknown[];
+    };
+    expect(snapshot.items).toEqual([itemDoModelo, extra]);
   });
 
   it('o modelo não é reescrito para acomodar o extra', async () => {
     /// O objeto do modelo devolvido pelo repositório continua com um item
     /// só: o extra foi para o snapshot, não para o catálogo.
-    const { service, repository } = harness();
+    const { service, template } = harness();
 
     await service.start(operationId, organizationId, actorId, {
       templateId,
       additionalItems: [{ key: 'X', label: 'X', type: 'TEXT' }],
     } as never);
 
-    const modelo = await repository.findTemplate.mock.results[0]!.value;
-    expect(modelo.items).toEqual([itemDoModelo]);
+    expect(template.items).toEqual([itemDoModelo]);
   });
 });

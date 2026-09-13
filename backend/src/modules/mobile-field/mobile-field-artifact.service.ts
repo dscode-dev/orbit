@@ -123,12 +123,12 @@ export class MobileFieldArtifactService {
    * Só vale para atendimento: RVT e PMOC têm outros donos e outro fluxo, e
    * dizer "não" para eles preserva o comportamento que já existia.
    */
-  private isAuxiliaryOnly(source: any, actor: MobileFieldActor): boolean {
+  private isAuxiliaryOnly(source: Source, actor: MobileFieldActor): boolean {
     if (source.kind !== 'OPERATION') return false;
     const operation = source.source;
-    if (operation?.responsibleFieldTechnicianId === actor.id) return false;
-    return (operation?.auxiliaryTechnicians ?? []).some(
-      (item: any) => (item.userId ?? item.user?.id) === actor.id,
+    if (operation.responsibleFieldTechnicianId === actor.id) return false;
+    return operation.auxiliaryTechnicians.some(
+      (item) => item.userId === actor.id,
     );
   }
 

@@ -298,8 +298,9 @@ class OrbitException implements Exception {
     404 => 'Este registro não está disponível.',
     409 => 'Os dados foram alterados. Atualize e tente novamente.',
     429 => 'Muitas tentativas. Tente novamente em alguns instantes.',
-    >= 500 => 'Não foi possível acessar o Orbit agora. '
-        'Tente novamente em alguns instantes.',
+    >= 500 =>
+      'Não foi possível acessar o Orbit agora. '
+          'Tente novamente em alguns instantes.',
     _ => 'Não foi possível concluir esta ação. Tente novamente.',
   };
 

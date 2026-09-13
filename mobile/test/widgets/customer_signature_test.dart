@@ -12,7 +12,6 @@
 /// — e é isso que se verifica aqui.
 library;
 
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,10 +97,9 @@ class Backend {
 
     if (path == 'POST /mobile/field/offline/sync/push') {
       final body = options.data as Map<String, dynamic>? ?? const {};
-      final comandos =
-          (body['commands'] as List<dynamic>? ?? const [])
-              .whereType<Map<String, dynamic>>()
-              .toList();
+      final comandos = (body['commands'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
       for (final comando in comandos) {
         acknowledgements.add(
           Map<String, dynamic>.from(

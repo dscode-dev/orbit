@@ -98,7 +98,9 @@ class _FieldActionsSectionState extends ConsumerState<FieldActionsSection> {
       messenger.showSnackBar(
         SnackBar(content: Text(error.publicMessageForCommand)),
       );
-      if (error.mayHaveBeenApplied) invalidateOperation(ref, widget.operation.id);
+      if (error.mayHaveBeenApplied) {
+        invalidateOperation(ref, widget.operation.id);
+      }
     } finally {
       if (mounted) setState(() => _submitting = null);
     }

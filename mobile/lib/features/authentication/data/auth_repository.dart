@@ -84,10 +84,7 @@ class AuthRepository {
   }) async {
     await _client.post<dynamic>(
       '/identity/me/password',
-      body: {
-        'currentPassword': currentPassword,
-        'newPassword': newPassword,
-      },
+      body: {'currentPassword': currentPassword, 'newPassword': newPassword},
     );
   }
 

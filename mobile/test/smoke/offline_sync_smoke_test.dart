@@ -62,7 +62,6 @@ void main() {
 
   late String operationId;
   late String version;
-  late String workItemId;
 
   setUpAll(() async {
     available = await smokeApiIsUp();
@@ -77,7 +76,6 @@ void main() {
     /// ela usava. Agora o cenário é dela.
     scenario = await provisioner.operation(suite: 'FL05');
     operationId = scenario.operationId;
-    workItemId = scenario.workItemId;
     version = scenario.version!;
   });
 

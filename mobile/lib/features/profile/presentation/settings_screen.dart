@@ -52,8 +52,7 @@ class SettingsScreen extends ConsumerWidget {
             loading: () => const SectionLoading(lines: 3),
             error: (error, _) => SectionError(
               error: error,
-              onRetry: () =>
-                  ref.invalidate(notificationPreferencesProvider),
+              onRetry: () => ref.invalidate(notificationPreferencesProvider),
             ),
             data: (mapa) => OrbitSettingsGroup(
               title: 'Avisos',
@@ -101,7 +100,9 @@ class _LinhaDeAviso extends ConsumerWidget {
     final codigo = mobileNoticeCodes[tipo]!;
     final (rotulo, descricao) = mobileNoticeLabels[tipo]!;
     final ligado = escolhas[codigo]?.enabled ?? true;
-    final salvando = ref.watch(notificationSettingsControllerProvider).isLoading;
+    final salvando = ref
+        .watch(notificationSettingsControllerProvider)
+        .isLoading;
 
     return OrbitSettingsRow(
       icon: switch (tipo) {

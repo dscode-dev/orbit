@@ -62,8 +62,7 @@ class WorkQueueFilterBar extends ConsumerStatefulWidget {
   final int resultCount;
 
   @override
-  ConsumerState<WorkQueueFilterBar> createState() =>
-      _WorkQueueFilterBarState();
+  ConsumerState<WorkQueueFilterBar> createState() => _WorkQueueFilterBarState();
 }
 
 class _WorkQueueFilterBarState extends ConsumerState<WorkQueueFilterBar> {
@@ -219,11 +218,12 @@ class _WorkQueueFilterBarState extends ConsumerState<WorkQueueFilterBar> {
                       ),
                     TextButton(
                       onPressed: () =>
-                          ref.read(workQueueFilterProvider.notifier).state =
-                              WorkQueueFilter(
-                                view: filter.view,
-                                search: filter.search,
-                              ),
+                          ref
+                              .read(workQueueFilterProvider.notifier)
+                              .state = WorkQueueFilter(
+                            view: filter.view,
+                            search: filter.search,
+                          ),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
                           horizontal: OrbitSpacing.sm,
@@ -268,6 +268,7 @@ class _Chip extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
+
         /// Sem `alignment`: um `Container` alinhado **estica** até o limite
         /// quando a largura não está restrita, e dentro de um `Wrap` isso
         /// vira um chip por linha ocupando a tela toda. O padding e o texto
@@ -280,9 +281,7 @@ class _Chip extends StatelessWidget {
           decoration: BoxDecoration(
             color: ativo ? palette.accent : palette.surface,
             borderRadius: OrbitRadius.pill,
-            border: Border.all(
-              color: ativo ? palette.accent : palette.border,
-            ),
+            border: Border.all(color: ativo ? palette.accent : palette.border),
           ),
           child: Text(
             rotulo,
@@ -686,9 +685,7 @@ class _LinhaDeCliente extends StatelessWidget {
     final palette = context.orbit;
     return ListTile(
       dense: true,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: OrbitSpacing.ml,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: OrbitSpacing.ml),
       onTap: onTap,
       title: Text(
         nome,

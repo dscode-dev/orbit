@@ -94,7 +94,10 @@ class DocumentDownloader {
 
       /// O nome publicado pelo servidor vence; o construído é reserva para
       /// quando o cabeçalho não vem.
-      final path = await _files.write(result.fileName ?? fileName, result.bytes);
+      final path = await _files.write(
+        result.fileName ?? fileName,
+        result.bytes,
+      );
       yield DownloadState(phase: DownloadPhase.availableLocally, path: path);
     } on Object catch (error) {
       /// O download falhou; o documento no servidor continua o que era.

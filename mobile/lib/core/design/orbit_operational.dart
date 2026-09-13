@@ -169,6 +169,7 @@ class OrbitBottomNav extends StatelessWidget {
     required this.selected,
     required this.onSelect,
   });
+
   /// `label` é o que a barra desenha; `fullLabel`, o que o leitor de tela
   /// anuncia e o tooltip mostra. São diferentes de propósito: "Atend." cabe
   /// em 78 pixels, e quem ouve a tela precisa de "Atendimentos".

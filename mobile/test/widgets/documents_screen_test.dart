@@ -201,11 +201,7 @@ void main() {
     );
   });
 
-  for (final (largura, escala) in [
-    (320.0, 1.0),
-    (375.0, 1.3),
-    (430.0, 2.0),
-  ]) {
+  for (final (largura, escala) in [(320.0, 1.0), (375.0, 1.3), (430.0, 2.0)]) {
     testWidgets('cabe em ${largura.toInt()}px com texto ${escala}x', (
       tester,
     ) async {

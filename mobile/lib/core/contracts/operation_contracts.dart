@@ -341,6 +341,7 @@ class Operation {
       completedAt: DateTime.tryParse(json['completedAt'] as String? ?? ''),
       businessUnit: ref('businessUnit', 'tradeName'),
       customer: ref('customer', 'tradeName'),
+
       /// O primeiro equipamento do atendimento.
       ///
       /// O contrato publicava `asset`, um só, e passou a publicar `assets`,

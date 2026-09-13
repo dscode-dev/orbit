@@ -168,10 +168,11 @@ void main() {
         final raiz = Directory(diretorio);
         if (!raiz.existsSync()) continue;
 
-        for (final arquivo in raiz
-            .listSync(recursive: true)
-            .whereType<File>()
-            .where((f) => f.path.endsWith('.dart'))) {
+        for (final arquivo
+            in raiz
+                .listSync(recursive: true)
+                .whereType<File>()
+                .where((f) => f.path.endsWith('.dart'))) {
           for (final literal in literaisDeTexto(arquivo.readAsStringSync())) {
             if (!pareceFrase(literal)) continue;
             for (final proibido in literaisProibidos) {
@@ -199,10 +200,11 @@ void main() {
         final raiz = Directory(diretorio);
         if (!raiz.existsSync()) continue;
 
-        for (final arquivo in raiz
-            .listSync(recursive: true)
-            .whereType<File>()
-            .where((f) => f.path.endsWith('.dart'))) {
+        for (final arquivo
+            in raiz
+                .listSync(recursive: true)
+                .whereType<File>()
+                .where((f) => f.path.endsWith('.dart'))) {
           if (arquivo.readAsStringSync().contains("package:dio")) {
             ofensores.add(arquivo.path);
           }
@@ -235,10 +237,11 @@ void main() {
         final raiz = Directory(diretorio);
         if (!raiz.existsSync()) continue;
 
-        for (final arquivo in raiz
-            .listSync(recursive: true)
-            .whereType<File>()
-            .where((f) => f.path.endsWith('.dart'))) {
+        for (final arquivo
+            in raiz
+                .listSync(recursive: true)
+                .whereType<File>()
+                .where((f) => f.path.endsWith('.dart'))) {
           for (final literal in literaisDeTexto(arquivo.readAsStringSync())) {
             if (interpolacao.hasMatch(literal)) {
               ofensores.add('${arquivo.path}: "$literal"');

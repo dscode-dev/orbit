@@ -47,8 +47,7 @@ DioException dioErro(
 
   /// A mensagem do Dio, tal como ele a monta. É exatamente esta string que
   /// vazou para a tela do técnico.
-  message:
-      'The request connectionTimeout was exceeded, uri: $uriDoIncidente',
+  message: 'The request connectionTimeout was exceeded, uri: $uriDoIncidente',
 );
 
 Response<dynamic> resposta(int status, Object? corpo) => Response<dynamic>(
@@ -287,10 +286,10 @@ void main() {
         ),
       );
       expect(falha.validationMessages, ['Informe um e-mail válido.']);
-      expectSafePublicErrorAll(
-        [falha.publicMessage, ...falha.validationMessages],
-        onde: '422',
-      );
+      expectSafePublicErrorAll([
+        falha.publicMessage,
+        ...falha.validationMessages,
+      ], onde: '422');
     });
   });
 

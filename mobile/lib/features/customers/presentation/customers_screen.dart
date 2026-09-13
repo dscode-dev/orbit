@@ -120,8 +120,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                         const SizedBox(height: OrbitSpacing.ms),
                     itemBuilder: (context, indice) => _LinhaDeCliente(
                       cliente: visiveis[indice],
-                      onTap: () =>
-                          showCustomerSheet(context, visiveis[indice]),
+                      onTap: () => showCustomerSheet(context, visiveis[indice]),
                     ),
                   ),
                 (final List<MobileFieldCustomerContract> _, _) => ListView(

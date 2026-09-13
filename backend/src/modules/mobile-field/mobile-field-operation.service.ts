@@ -29,6 +29,10 @@ import type {
 } from './mobile-field-operation.read-models';
 import { MobileSignatureRepository } from './mobile-signature.repository';
 
+type OperationPreparation = NonNullable<
+  Awaited<ReturnType<MobileFieldOperationRepository['preparation']>>
+>;
+
 @Injectable()
 export class MobileFieldOperationService {
   private readonly logger = new Logger(MobileFieldOperationService.name);
@@ -345,7 +349,7 @@ export class MobileFieldOperationService {
   private async requireVisible(
     actor: MobileFieldActor,
     operationId: string,
-  ): Promise<any> {
+  ): Promise<OperationPreparation> {
     const source = await this.repository.preparation(
       operationId,
       actor.organizationId,
@@ -384,10 +388,13 @@ export class MobileFieldOperationService {
    * O responsável não atribuído a nada continua sem ações: `requireVisible`
    * já recusa quem não está em nenhuma das duas listas.
    */
-  private isAuxiliaryOnly(source: any, actor: MobileFieldActor): boolean {
+  private isAuxiliaryOnly(
+    source: OperationPreparation,
+    actor: MobileFieldActor,
+  ): boolean {
     if (source.responsibleFieldTechnicianId === actor.id) return false;
     return source.auxiliaryTechnicians.some(
-      (item: any) => item.user.id === actor.id,
+      (item) => item.user.id === actor.id,
     );
   }
 

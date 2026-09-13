@@ -22,7 +22,6 @@ import 'widgets/work_item_row.dart';
 import 'widgets/work_item_sheet.dart';
 import 'widgets/work_queue_filters.dart';
 
-
 class WorkQueueScreen extends ConsumerStatefulWidget {
   const WorkQueueScreen({super.key});
 
@@ -103,6 +102,7 @@ class _WorkQueueScreenState extends ConsumerState<WorkQueueScreen> {
     );
   }
 }
+
 class _Queue extends StatelessWidget {
   const _Queue({
     required this.state,

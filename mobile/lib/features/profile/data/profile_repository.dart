@@ -103,8 +103,8 @@ class ProfileRepository {
     headers: {'content-type': mimeType, ...ticket.headers},
   );
 
-  Future<void> activateAvatar(String storageObjectId) => _client
-      .put<Map<String, dynamic>>(
+  Future<void> activateAvatar(String storageObjectId) =>
+      _client.put<Map<String, dynamic>>(
         '/identity/me/avatar',
         body: {'storageObjectId': storageObjectId},
       );
