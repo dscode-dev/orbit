@@ -19,6 +19,7 @@ const ROLE_VIEW = {
   name: true,
   description: true,
   permissions: true,
+  allowedSurfaces: true,
   isSystem: true,
   organizationId: true,
   _count: { select: { organizationMemberships: true } },

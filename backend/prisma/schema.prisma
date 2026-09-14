@@ -446,16 +446,29 @@ model BusinessUnitMembership {
 }
 
 model Role {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String?   @map("organization_id") @db.Uuid
-  key            String    @db.VarChar(80)
-  name           String    @db.VarChar(120)
-  description    String?   @db.Text
-  permissions    String[]  @default([]) @db.VarChar(160)
-  isSystem       Boolean   @default(false) @map("is_system")
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  key            String   @db.VarChar(80)
+  name           String   @db.VarChar(120)
+  description    String?  @db.Text
+  permissions    String[] @default([]) @db.VarChar(160)
+
+  /// Onde este papel pode entrar: `WEB`, `MOBILE`, `API`.
+  ///
+  /// O técnico operacional e o auxiliar existem para o aplicativo de campo —
+  /// o painel web é da administração da operação. Antes disso não havia nada
+  /// separando as duas superfícies: quem recebia uma senha temporária para o
+  /// celular entrava no painel e enxergava a organização inteira.
+  ///
+  /// É coluna do papel, e não uma lista de chaves no código, porque o dono
+  /// cria papéis próprios: uma constante com `FIELD_TECHNICIAN` dentro deixaria
+  /// passar o "Ajudante" que ele cadastrar amanhã.
+  allowedSurfaces String[] @default(["WEB", "MOBILE"]) @map("allowed_surfaces") @db.VarChar(10)
+
+  isSystem  Boolean   @default(false) @map("is_system")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   organization            Organization?            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationMemberships OrganizationMembership[]
@@ -3765,9 +3778,9 @@ model RvtConfiguration {
   updatedAt                           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt                           DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  equipment            RvtConfigurationEquipment[]
-  occurrences          RvtOccurrence[]
-  maintenanceType      RvtMaintenanceType?         @relation(fields: [maintenanceTypeId], references: [id], onDelete: SetNull)
+  equipment       RvtConfigurationEquipment[]
+  occurrences     RvtOccurrence[]
+  maintenanceType RvtMaintenanceType?         @relation(fields: [maintenanceTypeId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, code])
   @@index([organizationId, businessUnitId, status])
@@ -3844,11 +3857,11 @@ model RvtExecution {
   evidence             RvtExecutionEvidence[]
   fieldEvidenceUploads FieldEvidenceUpload[]
   fieldEvidence        FieldEvidence[]
+  checklistExecutions  ChecklistExecution[]
 
   @@index([organizationId, businessUnitId, status])
   @@index([organizationId, responsibleFieldTechnicianId, status])
   @@map("rvt_executions")
-  checklistExecutions ChecklistExecution[]
 }
 
 model RvtExecutionEquipment {

@@ -101,6 +101,13 @@ export interface CreateRoleInput {
   name: string;
   description?: string;
   permissions?: string[];
+  /**
+   * Onde o papel entra: `WEB`, `MOBILE`, `API`.
+   *
+   * Omitido, o backend concede os dois — o padrão de todo papel antes de a
+   * separação existir. Ao menos uma superfície, ou a criação é recusada.
+   */
+  allowedSurfaces?: string[];
 }
 
 export type UpdateRoleInput = Partial<CreateRoleInput>;

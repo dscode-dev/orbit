@@ -95,6 +95,7 @@ interface RoleSource {
   name: string;
   description: string | null;
   permissions: readonly string[];
+  allowedSurfaces: readonly string[];
   isSystem: boolean;
   organizationId: string | null;
   _count: { organizationMemberships: number };
@@ -216,6 +217,7 @@ export class OrganizationReadModelMapper {
       name: source.name,
       description: source.description,
       permissions: [...source.permissions],
+      allowedSurfaces: [...source.allowedSurfaces],
       isSystem: source.isSystem,
       isOrganizationOwned: source.organizationId !== null,
       memberCount: source._count.organizationMemberships,

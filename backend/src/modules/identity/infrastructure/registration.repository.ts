@@ -128,6 +128,7 @@ export class RegistrationRepository {
           name: papel.name,
           description: papel.description,
           permissions: [...papel.permissions],
+          allowedSurfaces: [...papel.allowedSurfaces],
         })),
       });
       await transaction.businessUnit.create({

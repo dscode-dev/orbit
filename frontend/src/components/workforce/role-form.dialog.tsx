@@ -26,6 +26,7 @@ import { Plus, X } from "lucide-react";
 
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -88,6 +89,29 @@ function Body({
   const [draft, setDraft] = useState("");
 
   /**
+   * Onde o papel entra.
+   *
+   * Um papel novo nasce podendo os dois, que é o que todo papel podia antes de
+   * a coluna existir. Marcar só o aplicativo é o que separa quem trabalha em
+   * campo de quem administra a operação — e é uma decisão que precisa estar
+   * visível no cadastro, não escondida numa lista de chaves no código.
+   */
+  const [superficies, setSuperficies] = useState<string[]>(
+    role ? [...role.allowedSurfaces] : ["WEB", "MOBILE"],
+  );
+
+  const alternarSuperficie = (valor: string, marcada: boolean) => {
+    setSuperficies((atual) => {
+      const proximo = marcada
+        ? [...new Set([...atual, valor])]
+        : atual.filter((item) => item !== valor);
+      /* Sem nenhuma superfície ninguém entra em lugar algum — e o servidor
+         recusa. A última marcada não se desmarca. */
+      return proximo.length === 0 ? atual : proximo;
+    });
+  };
+
+  /**
    * Permissões conhecidas: as que já existem em algum papel da organização.
    *
    * É o mais próximo de um catálogo que o contrato permite — e envelhece
@@ -118,6 +142,7 @@ function Body({
         name: name.trim(),
         description: description.trim() || undefined,
         permissions,
+        allowedSurfaces: superficies,
       },
       { onSuccess: () => onOpenChange(false) },
     );
@@ -158,6 +183,48 @@ function Body({
             rows={2}
           />
         </div>
+
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Onde este papel entra</legend>
+          <p className="text-xs text-muted-foreground">
+            O painel web é da administração da operação; o aplicativo é de quem
+            trabalha em campo. Quem tiver um papel só de aplicativo é recusado
+            no painel mesmo com a senha certa.
+          </p>
+          <div className="space-y-2 pt-1">
+            {[
+              {
+                valor: "WEB",
+                rotulo: "Painel web",
+                ajuda: "Clientes, contratos, equipe e assinatura.",
+              },
+              {
+                valor: "MOBILE",
+                rotulo: "Aplicativo de campo",
+                ajuda: "Fila de trabalho, checklist, evidência e assinatura.",
+              },
+            ].map((item) => (
+              <label
+                key={item.valor}
+                className="flex items-start gap-2.5 text-sm"
+              >
+                <Checkbox
+                  checked={superficies.includes(item.valor)}
+                  onCheckedChange={(marcada) =>
+                    alternarSuperficie(item.valor, marcada === true)
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">{item.rotulo}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {item.ajuda}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <div className="space-y-2">
           <Label>Permissões concedidas</Label>

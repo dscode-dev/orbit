@@ -11,6 +11,11 @@ import {
   IdentityRepository,
   type IdentityUser,
 } from '../infrastructure/identity.repository';
+import {
+  SurfaceNotAllowedException,
+  allowsSurface,
+  normalizeSurface,
+} from '../domain/surface-access';
 import { IdentityTokenService } from './token.service';
 import { MfaService } from './mfa.service';
 
@@ -54,6 +59,17 @@ export class AuthenticationService {
     const factor = user.mfaFactors[0];
     if (factor) await this.mfa.verifyFactor(factor, mfaCode);
 
+    /**
+     * A superfície, depois da senha e do segundo fator.
+     *
+     * Nesta ordem de propósito: recusar antes de conferir a credencial diria a
+     * quem tentasse que aquele endereço existe e é de campo. Quem chega aqui já
+     * provou quem é — a recusa passa a ser sobre **onde**, e pode explicar.
+     */
+    if (!allowsSurface(user, metadata.client)) {
+      throw new SurfaceNotAllowedException(normalizeSurface(metadata.client));
+    }
+
     const sessionId = this.uuids.generate();
     const identity = this.toIdentity(user, sessionId);
     const pair = await this.tokens.issue(identity);
@@ -87,6 +103,19 @@ export class AuthenticationService {
     if (!user || user.deletedAt || user.status !== 'ACTIVE') {
       await this.repository.revokeSession(session.id);
       throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    /**
+     * A superfície é reconferida a cada renovação, e a sessão morre se mudou.
+     *
+     * Só barrar o login deixaria de pé tudo o que já foi emitido: a sessão web
+     * de um técnico criada antes desta regra seguiria se renovando por dias. E
+     * o mesmo vale quando o dono muda o papel de alguém — a mudança tem de
+     * alcançar quem já está dentro, não só a próxima entrada.
+     */
+    if (!allowsSurface(user, session.client)) {
+      await this.repository.revokeSession(session.id);
+      throw new SurfaceNotAllowedException(normalizeSurface(session.client));
     }
     const pair = await this.tokens.issue(
       this.toIdentity(user, session.id as UUID),

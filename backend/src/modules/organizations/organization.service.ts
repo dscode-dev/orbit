@@ -11,6 +11,7 @@ import type {
   UpdateOrganizationDto,
 } from './dto/organization.dto';
 import { OrganizationRepository } from './organization.repository';
+import { DEFAULT_ROLE_SURFACES } from './team-roles';
 
 @Injectable()
 export class OrganizationService {
@@ -127,7 +128,12 @@ export class OrganizationService {
 
   async createRole(
     organizationId: string,
-    input: { name: string; description?: string; permissions?: string[] },
+    input: {
+      name: string;
+      description?: string;
+      permissions?: string[];
+      allowedSurfaces?: string[];
+    },
   ) {
     await this.getCurrent(organizationId);
     try {
@@ -137,6 +143,8 @@ export class OrganizationService {
         name: input.name,
         description: input.description,
         permissions: input.permissions ?? [],
+        /** Omitido, o papel nasce podendo os dois — como todo papel podia. */
+        allowedSurfaces: input.allowedSurfaces ?? [...DEFAULT_ROLE_SURFACES],
         /** Papel criado pela organização nunca é de sistema. */
         isSystem: false,
       });
@@ -148,7 +156,12 @@ export class OrganizationService {
   async updateRole(
     id: string,
     organizationId: string,
-    input: { name?: string; description?: string; permissions?: string[] },
+    input: {
+      name?: string;
+      description?: string;
+      permissions?: string[];
+      allowedSurfaces?: string[];
+    },
   ) {
     const role = await this.requireRole(id, organizationId);
 
@@ -167,6 +180,7 @@ export class OrganizationService {
         name: input.name,
         description: input.description,
         permissions: input.permissions,
+        allowedSurfaces: input.allowedSurfaces,
         ...(input.name ? { key: this.roleKey(input.name) } : {}),
       });
     } catch (error) {

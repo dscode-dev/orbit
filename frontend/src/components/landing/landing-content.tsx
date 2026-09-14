@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 
+import { AllblueSignature } from "@/components/brand/allblue-signature";
 import { OrbitLogo } from "@/components/brand/orbit-logo";
 import { PricingPlans } from "@/components/pricing/pricing-plans";
 import { Button } from "@/components/ui/button";
@@ -256,6 +257,129 @@ function CartaoExemplo() {
         </p>
       </div>
     </figure>
+  );
+}
+
+/**
+ * O rodapé.
+ *
+ * ## Só destinos que existem
+ *
+ * Um rodapé de SaaS costuma listar Documentação, Status, Blog, Carreiras e
+ * Imprensa porque o molde pede — e metade cai em 404. Aqui cada link vai para
+ * uma página ou âncora que existe hoje. Quando houver central de ajuda e
+ * página de status, elas entram; até lá, prometer é pior que omitir.
+ *
+ * ## O suporte aponta para a AllBlue
+ *
+ * Não há e-mail nem telefone de suporte publicado no produto, e inventar um
+ * endereço num rodapé é garantir que alguém escreva para o vazio. Enquanto o
+ * canal oficial não existir, quem precisa falar com alguém chega à empresa que
+ * faz o Orbit.
+ */
+const COLUNAS: {
+  titulo: string;
+  itens: { rotulo: string; href: string; externo?: boolean }[];
+}[] = [
+  {
+    titulo: "Produto",
+    itens: [
+      { rotulo: "Como funciona", href: "#operacao" },
+      { rotulo: "Módulos", href: "#modulos" },
+      { rotulo: "Planos e preços", href: ROUTES.plans },
+      { rotulo: "A plataforma", href: "/plataforma" },
+    ],
+  },
+  {
+    titulo: "Operação",
+    itens: [
+      { rotulo: "Ordens de serviço", href: "#modulos" },
+      { rotulo: "PMOC e visitas técnicas", href: "#modulos" },
+      { rotulo: "Orçamentos", href: "#modulos" },
+      { rotulo: "Documentos e relatórios", href: "#modulos" },
+    ],
+  },
+  {
+    titulo: "Conta",
+    itens: [
+      { rotulo: "Entrar", href: "/login" },
+      { rotulo: "Criar organização", href: "/cadastro" },
+      { rotulo: "Recuperar senha", href: "/recuperar-senha" },
+    ],
+  },
+  {
+    titulo: "Suporte",
+    itens: [
+      {
+        rotulo: "Falar com a AllBlue Labs",
+        href: "https://allblue-labs.com",
+        externo: true,
+      },
+    ],
+  },
+];
+
+function Rodape() {
+  return (
+    <footer className="border-t border-border bg-muted/20">
+      <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
+        <div className="grid gap-10 lg:grid-cols-[1.4fr_repeat(4,1fr)]">
+          <div className="max-w-xs">
+            <OrbitLogo />
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              O ERP de operações para quem faz manutenção em campo: ordem de
+              serviço, PMOC e visita técnica no mesmo cadastro.
+            </p>
+          </div>
+
+          {COLUNAS.map((coluna) => (
+            <nav key={coluna.titulo} aria-label={coluna.titulo}>
+              <p className="font-mono text-xs tracking-[0.12em] text-foreground uppercase">
+                {coluna.titulo}
+              </p>
+              <ul className="mt-4 space-y-2.5">
+                {coluna.itens.map((item) => (
+                  <li key={item.rotulo}>
+                    {item.externo ? (
+                      <a
+                        href={item.href}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        {item.rotulo}
+                      </a>
+                    ) : item.href.startsWith("#") ? (
+                      <a
+                        href={item.href}
+                        className="text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        {item.rotulo}
+                      </a>
+                    ) : (
+                      <Link
+                        href={item.href}
+                        className="text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        {item.rotulo}
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
+        </div>
+
+        <div className="mt-12 flex flex-col-reverse items-start justify-between gap-4 border-t border-border pt-6 sm:flex-row sm:items-center">
+          <p className="text-xs text-muted-foreground">
+            © {new Date().getFullYear()} Orbit Operations ERP · Todos os
+            direitos reservados
+          </p>
+          <AllblueSignature />
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -573,15 +697,7 @@ export function LandingContent({ catalog }: { catalog: PlanCatalog }) {
         </section>
       </main>
 
-      <footer className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
-          <OrbitLogo />
-          <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Orbit Operations ERP. Todos os direitos
-            reservados.
-          </p>
-        </div>
-      </footer>
+      <Rodape />
     </div>
   );
 }

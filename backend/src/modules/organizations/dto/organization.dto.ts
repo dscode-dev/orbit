@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayNotEmpty,
   IsArray,
   IsBoolean,
   IsEmail,
@@ -17,6 +18,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { BusinessUnitType } from '../../../contracts';
+import { ROLE_SURFACES } from '../team-roles';
 import { IsDocument, IsUUIDv7 } from '../../../validators';
 
 const trim = ({ value }: { value: unknown }): unknown =>
@@ -237,6 +239,20 @@ export class CreateRoleDto {
   @IsString({ each: true })
   @MaxLength(160, { each: true })
   permissions?: string[];
+
+  /**
+   * Onde o papel entra: `WEB`, `MOBILE`, `API`.
+   *
+   * Omitido, o papel nasce podendo os dois — que é o que todo papel podia
+   * antes desta coluna existir. Quem cria um papel de campo declara `MOBILE`
+   * e o painel web passa a recusar a entrada, com a credencial certa e tudo.
+   */
+  @ApiPropertyOptional({ type: [String], enum: ROLE_SURFACES })
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsIn([...ROLE_SURFACES], { each: true })
+  allowedSurfaces?: string[];
 }
 
 export class UpdateRoleDto extends PartialType(CreateRoleDto) {}

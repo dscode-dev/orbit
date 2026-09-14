@@ -27,6 +27,19 @@ const entries = [
     HttpStatus.FORBIDDEN,
     'Você não tem permissão para realizar esta ação.',
   ],
+  /**
+   * A credencial está certa; o lugar é que não.
+   *
+   * Precisa de código próprio porque a tela reage diferente: um `FORBIDDEN`
+   * genérico na entrada faz a pessoa tentar a senha de novo, e a senha não tem
+   * nada de errado. A mensagem diz onde a conta funciona, que é a única coisa
+   * útil a fazer — e não vaza nada, porque quem a lê já se autenticou.
+   */
+  [
+    'SURFACE_NOT_ALLOWED',
+    HttpStatus.FORBIDDEN,
+    'Esta conta é do aplicativo Orbit de campo e não acessa o painel web.',
+  ],
   [
     'ENTITY_NOT_FOUND',
     HttpStatus.NOT_FOUND,

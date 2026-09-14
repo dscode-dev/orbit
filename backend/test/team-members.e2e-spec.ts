@@ -28,6 +28,10 @@ interface Envelope<T> {
   data: T;
 }
 
+interface ErrorEnvelope {
+  error: { code: string; message: string };
+}
+
 interface Membro {
   userId: string;
   displayName: string;
@@ -40,6 +44,7 @@ interface Papel {
   key: string;
   name: string;
   permissions: string[];
+  allowedSurfaces: string[];
 }
 
 const digits = (length: number) =>
@@ -202,7 +207,11 @@ describe('Team members, temporary password and recovery (e2e)', () => {
 
     const entrada = await http()
       .post('/api/v1/identity/login')
-      .send({ email: criado.data.member.email, password: senha })
+      .send({
+        email: criado.data.member.email,
+        password: senha,
+        client: 'MOBILE',
+      })
       .expect(200);
     const sessao = (
       entrada.body as Envelope<{
@@ -230,7 +239,11 @@ describe('Team members, temporary password and recovery (e2e)', () => {
 
     const depois = await http()
       .post('/api/v1/identity/login')
-      .send({ email: criado.data.member.email, password: nova })
+      .send({
+        email: criado.data.member.email,
+        password: nova,
+        client: 'MOBILE',
+      })
       .expect(200);
     expect(
       (depois.body as Envelope<{ mustChangePassword: boolean }>).data
@@ -240,7 +253,11 @@ describe('Team members, temporary password and recovery (e2e)', () => {
     /** A senha que o dono conhecia deixa de abrir a conta. */
     await http()
       .post('/api/v1/identity/login')
-      .send({ email: criado.data.member.email, password: senha })
+      .send({
+        email: criado.data.member.email,
+        password: senha,
+        client: 'MOBILE',
+      })
       .expect(401);
   });
 
@@ -264,7 +281,11 @@ describe('Team members, temporary password and recovery (e2e)', () => {
       .expect(204);
     await http()
       .post('/api/v1/identity/login')
-      .send({ email: criado.data.member.email, password: senha })
+      .send({
+        email: criado.data.member.email,
+        password: senha,
+        client: 'MOBILE',
+      })
       .expect(200);
 
     /** Um link usado é um link gasto. */
@@ -371,6 +392,117 @@ describe('Team members, temporary password and recovery (e2e)', () => {
     );
   });
 
+  /* ---------------------------------------------------------------- */
+  /* Superfície: o campo é do aplicativo, o painel é da administração   */
+  /* ---------------------------------------------------------------- */
+
+  it('os papéis de campo nascem só para o aplicativo', async () => {
+    const roles = await auth(
+      http().get('/api/v1/organizations/current/roles'),
+    ).expect(200);
+    const lista = (roles.body as Envelope<Papel[]>).data;
+
+    const dono = lista.find((papel) => papel.key === 'OWNER')!;
+    expect([...dono.allowedSurfaces].sort()).toEqual(['MOBILE', 'WEB']);
+
+    for (const chave of ['FIELD_TECHNICIAN', 'ASSISTANT_TECHNICIAN']) {
+      const papel = lista.find((item) => item.key === chave)!;
+      expect(papel.allowedSurfaces).toEqual(['MOBILE']);
+    }
+  });
+
+  it('o técnico entra no aplicativo e é recusado no painel web', async () => {
+    const criado = await criarMembro();
+    const credencial = {
+      email: criado.data.member.email,
+      password: criado.data.temporaryPassword,
+    };
+
+    await http()
+      .post('/api/v1/identity/login')
+      .send({ ...credencial, client: 'MOBILE' })
+      .expect(200);
+
+    /**
+     * A regressão que este teste tranca.
+     *
+     * O login não olhava `client` para nada além de registrar a sessão. Um
+     * técnico recém-cadastrado entrava no painel e lia a organização inteira —
+     * clientes, contratos, financeiro — com a senha temporária que o dono
+     * acabara de lhe passar.
+     */
+    const recusa = await http()
+      .post('/api/v1/identity/login')
+      .send({ ...credencial, client: 'WEB' })
+      .expect(403);
+
+    /**
+     * Código próprio, e não um `FORBIDDEN` genérico.
+     *
+     * A tela precisa dizer onde a conta funciona. Um erro genérico faz a
+     * pessoa tentar a senha de novo, e a senha não tem nada de errado.
+     */
+    expect((recusa.body as ErrorEnvelope).error.code).toBe(
+      'SURFACE_NOT_ALLOWED',
+    );
+  });
+
+  it('a senha errada continua sendo 401, e não denuncia a superfície', async () => {
+    const criado = await criarMembro();
+
+    /**
+     * A ordem importa: superfície **depois** da credencial.
+     *
+     * Recusar por superfície antes de conferir a senha diria a quem tentasse
+     * que aquele endereço existe e é de campo — um oráculo de enumeração de
+     * contas com outro nome.
+     */
+    await http()
+      .post('/api/v1/identity/login')
+      .send({
+        email: criado.data.member.email,
+        password: 'senha-que-nao-e-a-dele',
+        client: 'WEB',
+      })
+      .expect(401);
+  });
+
+  it('a sessão web já emitida morre na renovação', async () => {
+    const criado = await criarMembro();
+
+    /**
+     * Uma sessão web de técnico só existe de antes desta regra — o login não a
+     * emite mais. O teste a fabrica pelo caminho permitido e troca a
+     * superfície da linha, que é o estado em que o banco de um cliente
+     * atualizado se encontra: sessões abertas antes da migração.
+     */
+    const entrada = await http()
+      .post('/api/v1/identity/login')
+      .send({
+        email: criado.data.member.email,
+        password: criado.data.temporaryPassword,
+        client: 'MOBILE',
+      })
+      .expect(200);
+    const par = (entrada.body as Envelope<{ refreshToken: string }>).data;
+
+    await prisma.session.updateMany({
+      where: { userId: criado.data.member.userId, revokedAt: null },
+      data: { client: 'WEB' },
+    });
+
+    await http()
+      .post('/api/v1/identity/refresh')
+      .send({ refreshToken: par.refreshToken })
+      .expect(403);
+
+    /** E a sessão não fica pendurada: ela é revogada na recusa. */
+    const viva = await prisma.session.count({
+      where: { userId: criado.data.member.userId, revokedAt: null },
+    });
+    expect(viva).toBe(0);
+  });
+
   it('desligar tira o acesso agora, inclusive da sessão já aberta', async () => {
     const criado = await criarMembro({ roleId: auxiliar.id });
     const entrada = await http()
@@ -378,6 +510,7 @@ describe('Team members, temporary password and recovery (e2e)', () => {
       .send({
         email: criado.data.member.email,
         password: criado.data.temporaryPassword,
+        client: 'MOBILE',
       })
       .expect(200);
     const token = (entrada.body as Envelope<{ accessToken: string }>).data

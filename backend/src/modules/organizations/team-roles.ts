@@ -68,11 +68,35 @@ const EXECUCAO_DE_CAMPO = [
   'reports.render',
 ] as const;
 
+/**
+ * Onde um papel pode entrar.
+ *
+ * `API` existe para integração e não é oferecido na tela de equipe — quem
+ * precisa dela declara explicitamente.
+ */
+export const ROLE_SURFACES = ['WEB', 'MOBILE', 'API'] as const;
+export type RoleSurface = (typeof ROLE_SURFACES)[number];
+
+/** O padrão de um papel novo: administra pela web e acompanha pelo app. */
+export const DEFAULT_ROLE_SURFACES: readonly RoleSurface[] = ['WEB', 'MOBILE'];
+
+/** Os dois papéis de campo: o trabalho deles é no aplicativo. */
+export const FIELD_ONLY_SURFACES: readonly RoleSurface[] = ['MOBILE'];
+
 export interface TeamRoleSeed {
   key: string;
   name: string;
   description: string;
   permissions: readonly string[];
+  /**
+   * As superfícies em que o papel entra.
+   *
+   * O painel web é da administração da operação — cliente, contrato, plano,
+   * equipe. O técnico operacional e o auxiliar não têm trabalho lá, e deixá-los
+   * entrar dava a quem recebeu uma senha temporária para o celular a visão da
+   * organização inteira.
+   */
+  allowedSurfaces: readonly RoleSurface[];
 }
 
 export const OWNER_ROLE_KEY = 'OWNER';
@@ -93,6 +117,7 @@ export const ASSIGNABLE_TEAM_ROLES: readonly TeamRoleSeed[] = [
     description:
       'Executa o atendimento em campo: abre, preenche o checklist, registra material, emite e fecha.',
     permissions: [...LEITURA_DE_CAMPO, ...EXECUCAO_DE_CAMPO],
+    allowedSurfaces: FIELD_ONLY_SURFACES,
   },
   {
     key: ASSISTANT_TECHNICIAN_ROLE_KEY,
@@ -100,5 +125,6 @@ export const ASSIGNABLE_TEAM_ROLES: readonly TeamRoleSeed[] = [
     description:
       'Acompanha o atendimento: vê o que foi atribuído, abre a rota e compartilha o documento já emitido. Não executa nem emite.',
     permissions: [...LEITURA_DE_CAMPO],
+    allowedSurfaces: FIELD_ONLY_SURFACES,
   },
 ];

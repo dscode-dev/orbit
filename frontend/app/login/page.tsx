@@ -279,30 +279,48 @@ function LoginView() {
           Orbit Operations ERP
         </p>
 
+        {/*
+          O que o produto faz, e não um depoimento.
+
+          Aqui havia uma citação de "Marina Duarte, Diretora de Operações da
+          Acme Industries" — nome de fixture de teste — creditando ao Orbit uma
+          redução de 38% no retrabalho, ao lado de "12k+ ordens/mês" e "99,9%
+          de uptime". Nenhum dos quatro tem origem: não existe essa pessoa, não
+          existe esse cliente, não há medição e não há SLA publicado. Atribuir
+          uma frase a alguém que não a disse é o tipo de coisa que se explica
+          mal depois, e número inventado numa tela de login é promessa que a
+          operação vai cobrar.
+
+          O que ficou é verificável lendo o produto: os três módulos existem, o
+          aplicativo funciona offline, e o documento sai da execução.
+        */}
         <div className="relative max-w-md">
-          <blockquote className="font-display text-3xl leading-snug font-semibold text-primary-foreground">
-            “Colocamos toda a operação em uma única órbita — e reduzimos o
-            retrabalho em 38%.”
-          </blockquote>
-          <p className="mt-6 text-sm text-primary-foreground/80">
-            Marina Duarte · Diretora de Operações, Acme Industries
+          <p className="font-display text-3xl leading-snug font-semibold text-primary-foreground">
+            A operação inteira gira em torno de um cadastro só.
+          </p>
+          <p className="mt-6 text-sm leading-relaxed text-primary-foreground/80">
+            Ordem de serviço, PMOC e visita técnica dividem o mesmo cliente, o
+            mesmo parque de equipamentos e a mesma equipe. O que o técnico
+            preenche em campo é o que sai no documento — sem planilha no meio.
           </p>
         </div>
 
         <div className="relative grid grid-cols-3 gap-4">
           {[
-            { v: "12k+", l: "ordens/mês" },
-            { v: "99,9%", l: "uptime" },
-            { v: "24/7", l: "suporte" },
-          ].map((s) => (
+            { t: "OS · PMOC · RVT", d: "no mesmo cadastro" },
+            { t: "Campo offline", d: "sincroniza ao voltar" },
+            { t: "Documento", d: "emitido da execução" },
+          ].map((item) => (
             <div
-              key={s.l}
+              key={item.t}
               className="rounded-xl bg-primary-foreground/10 p-4 backdrop-blur-sm"
             >
-              <p className="font-display text-xl font-bold text-primary-foreground">
-                {s.v}
+              <p className="font-display text-sm font-bold text-primary-foreground">
+                {item.t}
               </p>
-              <p className="text-xs text-primary-foreground/75">{s.l}</p>
+              <p className="mt-0.5 text-xs text-primary-foreground/75">
+                {item.d}
+              </p>
             </div>
           ))}
         </div>

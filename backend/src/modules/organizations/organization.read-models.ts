@@ -86,6 +86,14 @@ export interface OrganizationRoleReadModel {
   name: string;
   description: string | null;
   permissions: readonly string[];
+  /**
+   * Onde este papel entra: `WEB`, `MOBILE`, `API`.
+   *
+   * O painel web é da administração da operação. Os papéis de campo nascem só
+   * com `MOBILE` — quem os tem entra pelo aplicativo, e o backend recusa a
+   * entrada na web mesmo com a senha certa.
+   */
+  allowedSurfaces: readonly string[];
   /** `true` para papéis de plataforma, que a organização não edita. */
   isSystem: boolean;
   /** `false` quando o papel é global, compartilhado por todas as organizações. */
