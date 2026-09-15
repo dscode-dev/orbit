@@ -122,54 +122,56 @@ export function DocumentCenter() {
         className="w-full"
       />
 
-      <ListState
-        isPending={executions.isPending}
-        error={executions.error}
-        onRetry={() => void executions.refetch()}
-        items={items}
-        empty={{
-          icon: <FileStack className="size-5" />,
-          title: "Nenhum documento nesta unidade",
-          description:
-            "Os documentos aparecem aqui depois que uma execução é submetida e renderizada.",
-        }}
-      >
-        {() => (
-          <Tabs
-            value={queue}
-            onValueChange={(value) => setQueue(value as RenderStatus)}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <TabsList>
-                {QUEUE_TABS.map((status) => (
-                  <TabsTrigger key={status.id} value={status.id}>
-                    {status.label}
-                    <Badge variant="secondary" className="ml-1.5">
-                      {buckets.get(status.id)?.length ?? 0}
-                    </Badge>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+      <div data-testid="documents-results">
+        <ListState
+          isPending={executions.isPending}
+          error={executions.error}
+          onRetry={() => void executions.refetch()}
+          items={items}
+          empty={{
+            icon: <FileStack className="size-5" />,
+            title: "Nenhum documento nesta unidade",
+            description:
+              "Os documentos aparecem aqui depois que uma execução é submetida e renderizada.",
+          }}
+        >
+          {() => (
+            <Tabs
+              value={queue}
+              onValueChange={(value) => setQueue(value as RenderStatus)}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <TabsList>
+                  {QUEUE_TABS.map((status) => (
+                    <TabsTrigger key={status.id} value={status.id}>
+                      {status.label}
+                      <Badge variant="secondary" className="ml-1.5">
+                        {buckets.get(status.id)?.length ?? 0}
+                      </Badge>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
 
-              <ResultSummary meta={meta} noun="execução" gender="f" />
-            </div>
+                <ResultSummary meta={meta} noun="execução" gender="f" />
+              </div>
 
-            <p className="text-xs text-muted-foreground">
-              As contagens são desta página. Ainda não é possível filtrar por
-              situação de emissão.
-            </p>
+              <p className="text-xs text-muted-foreground">
+                As contagens são desta página. Ainda não é possível filtrar por
+                situação de emissão.
+              </p>
 
-            {QUEUES.map((status) => (
-              <TabsContent key={status} value={status}>
-                <DocumentList
-                  executions={buckets.get(status) ?? []}
-                  onOpen={setSelected}
-                />
-              </TabsContent>
-            ))}
-          </Tabs>
-        )}
-      </ListState>
+              {QUEUES.map((status) => (
+                <TabsContent key={status} value={status}>
+                  <DocumentList
+                    executions={buckets.get(status) ?? []}
+                    onOpen={setSelected}
+                  />
+                </TabsContent>
+              ))}
+            </Tabs>
+          )}
+        </ListState>
+      </div>
 
       <Pagination
         meta={meta}

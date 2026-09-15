@@ -97,7 +97,10 @@ void main() {
 
   test('a sessão composta carrega a troca obrigatória', () async {
     final controlador = construir();
-    await controlador.login(email: 'tecnico@exemplo.com', password: 'provisoria');
+    await controlador.login(
+      email: 'tecnico@exemplo.com',
+      password: 'provisoria',
+    );
 
     final estado = controlador.state;
     expect(estado, isA<AuthAuthenticated>());
@@ -112,7 +115,10 @@ void main() {
     tester,
   ) async {
     final controlador = construir();
-    await controlador.login(email: 'tecnico@exemplo.com', password: 'provisoria');
+    await controlador.login(
+      email: 'tecnico@exemplo.com',
+      password: 'provisoria',
+    );
 
     final container = ProviderContainer(
       overrides: [authControllerProvider.overrideWith((ref) => controlador)],
@@ -138,13 +144,18 @@ void main() {
 
   testWidgets('trocada a senha, o roteador libera a home', (tester) async {
     final controlador = construir();
-    await controlador.login(email: 'tecnico@exemplo.com', password: 'provisoria');
+    await controlador.login(
+      email: 'tecnico@exemplo.com',
+      password: 'provisoria',
+    );
 
     /* O backend zera o campo; o app recarrega o perfil. */
-    when(() => repositorio.changePassword(
-          currentPassword: any(named: 'currentPassword'),
-          newPassword: any(named: 'newPassword'),
-        )).thenAnswer((_) async {});
+    when(
+      () => repositorio.changePassword(
+        currentPassword: any(named: 'currentPassword'),
+        newPassword: any(named: 'newPassword'),
+      ),
+    ).thenAnswer((_) async {});
     when(() => repositorio.loadProfile()).thenAnswer(
       (_) async => const OrbitUser(
         id: 'user-tec',

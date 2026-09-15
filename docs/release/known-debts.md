@@ -38,12 +38,28 @@
   store distribuído e configurar proxy/IP confiável.
 - A rota raiz histórica (`Hello World!`) permanece por compatibilidade; probes
   operacionais usam exclusivamente `/health/live` e `/health/ready`.
+- A suíte Playwright completa ainda requer o tenant E2E provisionado para
+  cenários legados com PMOC, RVT, profissionais, roteiros e modelos nomeados.
+  O smoke de ambiente limpo permanece separado e não recebe dados demo.
+- O `format:check` global do frontend encontra 256 arquivos legados fora do
+  padrão atual. Arquivos tocados pelo gate são formatados; uma reescrita
+  mecânica de todo o portal não foi misturada ao release gate.
+- O audit completo do frontend contém duas vulnerabilidades moderadas somente
+  no toolchain Vitest 3; o audit de produção está limpo. A correção disponível
+  exige a major Vitest 4 e fica para upgrade dedicado.
 
 ## Must fix before release
 
-Esta seção deve estar vazia para declarar `READY FOR PRODUCTION`. Todo achado de
-migration, isolamento, high/critical alcançável, restore não exercitado, três
-E2E globais não verdes ou provenance divergente entra aqui e bloqueia a decisão.
+Esta seção deve estar vazia para declarar `READY FOR PRODUCTION`.
+
+- concluir duas rodadas completas do Web E2E no código final;
+- concluir três rodadas globais backend consecutivas no HEAD final;
+- reconstruir e registrar Android/iOS e imagens com o SHA do commit final;
+- concluir SBOM/CVE das imagens finais e restore conjunto de banco + storage.
+
+Esses gates foram interrompidos por decisão do owner em 15/09/2026. Os
+resultados já obtidos continuam registrados, mas não são promovidos a sucesso
+completo.
 
 ## Post-release / deferred
 

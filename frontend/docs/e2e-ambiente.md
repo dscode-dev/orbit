@@ -56,3 +56,20 @@ npx playwright test
   endpoints reais, os mesmos que a tela usa.
 - **Não procuram "o primeiro registro que casar".** Cada cenário cria o que vai
   usar e guarda o identificador — ver `e2e/provision.ts`.
+
+## Baseline de referência ainda necessário
+
+A regra acima já vale para os cenários novos, mas a suíte completa ainda possui
+cenários legados que procuram dados nomeados do tenant de referência, entre
+eles `PMOC-2026-001`, perfis profissionais, roteiros e modelos publicados.
+Portanto, hoje existem dois gates diferentes:
+
+- o smoke de ambiente limpo, que começa somente com migrations, catálogo de
+  planos e `seed:owner` manual;
+- a suíte Playwright completa, que exige o tenant E2E provisionado.
+
+Rodar a suíte completa contra um banco vazio é útil para revelar dependências,
+mas não é evidência de regressão do produto quando a falha declara que a fixture
+nomeada não existe. Eliminar esse baseline histórico — provisionando cada
+cenário pela API — permanece dívida explícita; nunca copie dados de produção
+para satisfazê-lo.

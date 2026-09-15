@@ -46,6 +46,8 @@ import * as argon2 from 'argon2';
 import { config } from 'dotenv';
 import { resolve } from 'node:path';
 import { generateUuidV7 } from '../utils';
+import { ASSIGNABLE_TEAM_ROLES } from '../modules/organizations/team-roles';
+import { RVT_MAINTENANCE_TYPE_SEEDS } from '../modules/rvt/rvt-maintenance-types.seed';
 
 config({ path: resolve(process.cwd(), '.env'), quiet: true });
 config({ path: resolve(process.cwd(), '../.env'), quiet: true });
@@ -313,6 +315,59 @@ async function seed(): Promise<void> {
       select: { id: true },
     });
 
+    /**
+     * O tenant manual precisa dos mesmos dados estruturais do cadastro real.
+     * São papéis e cadências do produto, não pessoas/atendimentos de demo.
+     */
+    for (const role of ASSIGNABLE_TEAM_ROLES) {
+      await tx.role.upsert({
+        where: {
+          organizationId_key: { organizationId, key: role.key },
+        },
+        create: {
+          organizationId,
+          key: role.key,
+          name: role.name,
+          description: role.description,
+          permissions: [...role.permissions],
+          allowedSurfaces: [...role.allowedSurfaces],
+        },
+        update: {
+          name: role.name,
+          description: role.description,
+          permissions: [...role.permissions],
+          allowedSurfaces: [...role.allowedSurfaces],
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+    }
+
+    for (const type of RVT_MAINTENANCE_TYPE_SEEDS) {
+      await tx.rvtMaintenanceType.upsert({
+        where: {
+          organizationId_key: { organizationId, key: type.key },
+        },
+        create: {
+          organizationId,
+          key: type.key,
+          label: type.label,
+          intervalDays: type.intervalDays,
+          intervalMonths: type.intervalMonths,
+          sortOrder: type.sortOrder,
+        },
+        update: {
+          label: type.label,
+          intervalDays: type.intervalDays,
+          intervalMonths: type.intervalMonths,
+          sortOrder: type.sortOrder,
+          isActive: true,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+    }
+
     const organizationMembership = await tx.organizationMembership.findFirst({
       where: { organizationId, userId },
       select: { id: true },
@@ -342,6 +397,35 @@ async function seed(): Promise<void> {
         data: { organizationId, businessUnitId, userId, roleId },
       });
     }
+
+    /**
+     * A conta de referência exercita os dois papéis profissionais.
+     *
+     * `OWNER_FULL_ACCESS` libera RBAC/capabilities, mas isso nao transforma a
+     * pessoa em profissional: o aggregate exige um perfil ativo separado. Sem
+     * este seed, a suíte Web só passava em bancos antigos que por acaso já
+     * tinham esse perfil, e falhava num deploy realmente fresco ao consultar a
+     * assinatura. O perfil continua sendo requisito de domínio; apenas o
+     * inquilino interno de teste nasce completo e reproduzível.
+     */
+    await tx.professionalProfile.upsert({
+      where: {
+        organizationId_userId: { organizationId, userId },
+      },
+      create: {
+        organizationId,
+        userId,
+        fieldTechnicianEnabled: true,
+        technicalResponsibleEnabled: true,
+        active: true,
+      },
+      update: {
+        fieldTechnicianEnabled: true,
+        technicalResponsibleEnabled: true,
+        active: true,
+      },
+      select: { id: true },
+    });
 
     return {
       userId,

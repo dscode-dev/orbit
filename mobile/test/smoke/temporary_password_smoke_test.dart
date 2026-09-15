@@ -76,60 +76,65 @@ void main() {
     logger: const OrbitLogger(isProduction: false),
   );
 
-  test('a senha temporária chega ao aplicativo como troca obrigatória', () async {
-    if (!available) {
-      markTestSkipped('API indisponível em $_baseUrl');
-      return;
-    }
+  test(
+    'a senha temporária chega ao aplicativo como troca obrigatória',
+    () async {
+      if (!available) {
+        markTestSkipped('API indisponível em $_baseUrl');
+        return;
+      }
 
-    /* O dono, para cadastrar o técnico. */
-    final donoStorage = _MemoryTokenStorage();
-    final dono = novoCliente(donoStorage);
-    final entrada = await dono.post<Map<String, dynamic>>(
-      '/identity/login',
-      body: {'email': _email, 'password': _password},
-      isPublic: true,
-    );
-    await donoStorage.write(TokenPair.fromJson(entrada));
+      /* O dono, para cadastrar o técnico. */
+      final donoStorage = _MemoryTokenStorage();
+      final dono = novoCliente(donoStorage);
+      final entrada = await dono.post<Map<String, dynamic>>(
+        '/identity/login',
+        body: {'email': _email, 'password': _password},
+        isPublic: true,
+      );
+      await donoStorage.write(TokenPair.fromJson(entrada));
 
-    /* O envelope já vem desembrulhado pelo cliente: `data` é a lista. */
-    final papeis = await dono.get<List<dynamic>>('/organizations/current/roles');
-    final lista = papeis.cast<Map<String, dynamic>>();
-    final tecnico = lista.firstWhere((p) => p['key'] == 'FIELD_TECHNICIAN');
+      /* O envelope já vem desembrulhado pelo cliente: `data` é a lista. */
+      final papeis = await dono.get<List<dynamic>>(
+        '/organizations/current/roles',
+      );
+      final lista = papeis.cast<Map<String, dynamic>>();
+      final tecnico = lista.firstWhere((p) => p['key'] == 'FIELD_TECHNICIAN');
 
-    final sufixo = DateTime.now().microsecondsSinceEpoch.toString();
-    final emailTecnico = 'smoke.senha.$sufixo@orbit.local';
-    final criado = await dono.post<Map<String, dynamic>>(
-      '/organizations/current/team/members',
-      body: {
-        'firstName': 'Smoke',
-        'lastName': 'Senha',
-        'email': emailTecnico,
-        'roleId': tecnico['id'],
-      },
-    );
-    final temporaria = criado['temporaryPassword'] as String?;
-    expect(
-      temporaria,
-      isNotNull,
-      reason: 'o cadastro precisa devolver a senha provisória uma vez',
-    );
+      final sufixo = DateTime.now().microsecondsSinceEpoch.toString();
+      final emailTecnico = 'smoke.senha.$sufixo@orbit.local';
+      final criado = await dono.post<Map<String, dynamic>>(
+        '/organizations/current/team/members',
+        body: {
+          'firstName': 'Smoke',
+          'lastName': 'Senha',
+          'email': emailTecnico,
+          'roleId': tecnico['id'],
+        },
+      );
+      final temporaria = criado['temporaryPassword'] as String?;
+      expect(
+        temporaria,
+        isNotNull,
+        reason: 'o cadastro precisa devolver a senha provisória uma vez',
+      );
 
-    /* O técnico, pelo repositório que o aplicativo usa de verdade. */
-    final tecnicoStorage = _MemoryTokenStorage();
-    final repositorio = AuthRepository(
-      client: novoCliente(tecnicoStorage),
-      storage: tecnicoStorage,
-    );
-    await repositorio.login(email: emailTecnico, password: temporaria!);
+      /* O técnico, pelo repositório que o aplicativo usa de verdade. */
+      final tecnicoStorage = _MemoryTokenStorage();
+      final repositorio = AuthRepository(
+        client: novoCliente(tecnicoStorage),
+        storage: tecnicoStorage,
+      );
+      await repositorio.login(email: emailTecnico, password: temporaria!);
 
-    final perfil = await repositorio.loadProfile();
-    expect(
-      perfil.mustChangePassword,
-      isTrue,
-      reason:
-          'o roteador prende na troca por este campo; falso aqui significa '
-          'que o técnico entra direto com a senha que o dono escolheu',
-    );
-  });
+      final perfil = await repositorio.loadProfile();
+      expect(
+        perfil.mustChangePassword,
+        isTrue,
+        reason:
+            'o roteador prende na troca por este campo; falso aqui significa '
+            'que o técnico entra direto com a senha que o dono escolheu',
+      );
+    },
+  );
 }

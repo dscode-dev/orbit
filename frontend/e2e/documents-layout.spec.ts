@@ -31,7 +31,8 @@ for (const largura of [1440, 1024]) {
       };
       return {
         busca: direita("#documents-search"),
-        conteudo: direita('[role="tabpanel"] > div'),
+        /** Existe tanto com filas preenchidas quanto no primeiro deploy vazio. */
+        conteudo: direita('[data-testid="documents-results"]'),
       };
     });
 
