@@ -40,6 +40,17 @@ const entries = [
     HttpStatus.FORBIDDEN,
     'Esta conta é do aplicativo Orbit de campo e não acessa o painel web.',
   ],
+  /**
+   * O período acabou; a permissão nunca foi o problema.
+   *
+   * Código próprio para que a tela ofereça a ação que resolve — escolher um
+   * plano — em vez de mandar a pessoa procurar um administrador.
+   */
+  [
+    'SUBSCRIPTION_EXPIRED',
+    HttpStatus.PAYMENT_REQUIRED,
+    'Sua assinatura está vencida. Escolha um plano para voltar a usar o Orbit.',
+  ],
   [
     'ENTITY_NOT_FOUND',
     HttpStatus.NOT_FOUND,

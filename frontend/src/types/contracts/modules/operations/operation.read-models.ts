@@ -135,6 +135,16 @@ export interface OperationListItemReadModel {
   completedAt: string | null;
   responsibleFieldTechnicianId: string | null;
   responsibleFieldTechnician: OperationUserReadModel | null;
+  /**
+   * Quando a atribuição foi autorizada, e por quem.
+   *
+   * Só tem significado nas organizações que exigem autorização — nelas, um
+   * atendimento sem carimbo não chega ao técnico. Nas demais o carimbo é
+   * aplicado na própria atribuição, para que ligar a exigência amanhã não
+   * esconda o que já está nas mãos de alguém.
+   */
+  authorizedAt: string | null;
+  authorizedBy: OperationUserReadModel | null;
   auxiliaryTechnicians: readonly OperationTechnicianAssignmentReadModel[];
   startedBy: OperationUserReadModel | null;
   completedBy: OperationUserReadModel | null;

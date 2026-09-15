@@ -710,7 +710,15 @@ describe('Subscription lifecycle, billing periods and trial (e2e)', () => {
             PlanCapability.OPERATIONS,
           ),
         ),
-      ).rejects.toMatchObject({ code: 'SUBSCRIPTION_NOT_ACTIVE' });
+        /**
+         * `SUBSCRIPTION_EXPIRED`, e não `SUBSCRIPTION_NOT_ACTIVE`.
+         *
+         * O código foi unificado com o que os guardas devolvem, e o status saiu
+         * de `403` para `402`: a permissão existe — o que acabou foi o período.
+         * Com `403` a interface só sabia dizer "sem permissão" e mandava a
+         * pessoa procurar um administrador em vez de escolher um plano.
+         */
+      ).rejects.toMatchObject({ code: 'SUBSCRIPTION_EXPIRED' });
 
       /** Nada foi destruído: a organização e a unidade continuam lá. */
       const organizacao = await prisma.organization.findUnique({

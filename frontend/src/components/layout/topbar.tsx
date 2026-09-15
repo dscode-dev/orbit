@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { SubscriptionBadge } from "@/components/billing/subscription-badge";
 import { OrbitLogo } from "@/components/brand/orbit-logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -95,6 +96,15 @@ export function Topbar({
           ⌘K
         </kbd>
       </button>
+
+      {/*
+        O estado da assinatura, quando há o que dizer.
+
+        Antes do sino de propósito: o vencimento muda o que a pessoa consegue
+        fazer em toda tela, e um aviso disso não deve ficar atrás de um
+        contador de notificações.
+      */}
+      <SubscriptionBadge />
 
       {/* Contador real de não lidas — ver components/notifications/notification-bell. */}
       <NotificationBell />

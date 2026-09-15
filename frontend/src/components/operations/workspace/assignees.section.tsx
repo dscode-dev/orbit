@@ -15,11 +15,24 @@
  */
 import { PanelFrame, PanelState, type PanelQuery } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
+import { readRequiresAuthorization } from "@/components/operations/authorization.section";
+import { OperationAuthorizationPanel } from "@/components/operations/operation-authorization.panel";
+import { useOrganization } from "@/hooks/organization/use-organization";
 import type { Operation } from "@/types/operations";
 import { OperationTeamPanel } from "../operation-team.panel";
 
 export function AssigneesSection({ query }: { query: PanelQuery<Operation> }) {
   const operation = query.data;
+  /**
+   * A exigência é da organização, e a decisão é por atendimento.
+   *
+   * Lida aqui e passada adiante: `useOrganization` é cache compartilhado, e a
+   * mesma leitura serve a aba de Autorização e a de Configurações.
+   */
+  const organization = useOrganization();
+  const exigeAutorizacao = readRequiresAuthorization(
+    organization.data?.settings,
+  );
   /** Responsável conta como pessoa na equipe, não só os auxiliares. */
   const size = operation
     ? (operation.responsibleFieldTechnician ? 1 : 0) +
@@ -34,7 +47,15 @@ export function AssigneesSection({ query }: { query: PanelQuery<Operation> }) {
       actions={size === null ? null : <Badge variant="secondary">{size}</Badge>}
     >
       <PanelState query={query} loadingRows={3}>
-        {(current) => <OperationTeamPanel operation={current} />}
+        {(current) => (
+          <div className="space-y-4">
+            <OperationAuthorizationPanel
+              operation={current}
+              required={exigeAutorizacao}
+            />
+            <OperationTeamPanel operation={current} />
+          </div>
+        )}
       </PanelState>
     </PanelFrame>
   );

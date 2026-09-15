@@ -145,7 +145,15 @@ test("o cadastro de organização também preenche pelo CEP", async ({ page }) =
    * o que se prova é o preenchimento, e submeter criaria uma organização nova
    * no tenant a cada execução.
    */
-  await page.getByRole("button", { name: /^Starter/ }).click();
+  /*
+    "Essencial", e não "Starter".
+
+    O passo de plano lia `GET /plans` — a tabela inteira, com os planos que as
+    suítes de direitos criam e os internos. O `STARTER` estava entre eles, a
+    R$ 0,00 e rotulado "Gratuito". Agora a tela lê o catálogo comercial, que
+    tem os quatro planos de verdade.
+  */
+  await page.getByRole("button", { name: /^Essencial/ }).click();
   await continuar.click();
 
   await page.getByLabel("Nome", { exact: true }).fill("Ana");

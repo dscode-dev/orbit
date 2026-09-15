@@ -203,6 +203,49 @@ export class OperationController {
     );
   }
 
+  /**
+   * Autoriza a atribuição, liberando o atendimento para quem executa.
+   *
+   * Mesma permissão de atribuir (`operations.assign`): quem escolhe o técnico
+   * é quem responde por liberar o trabalho. Uma permissão separada criaria um
+   * segundo papel que nenhuma organização pediu.
+   */
+  @Post(':id/authorization')
+  @Capabilities('operations.manage')
+  @Permissions('operations.assign')
+  async authorize(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.readModels.details(
+      await this.operations.setAuthorization(
+        id,
+        this.organizationId(request),
+        request.identity!.id,
+        true,
+      ),
+      this.actor(request),
+    );
+  }
+
+  @Delete(':id/authorization')
+  @Capabilities('operations.manage')
+  @Permissions('operations.assign')
+  async revokeAuthorization(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.readModels.details(
+      await this.operations.setAuthorization(
+        id,
+        this.organizationId(request),
+        request.identity!.id,
+        false,
+      ),
+      this.actor(request),
+    );
+  }
+
   @Delete(':id/assignments/:userId')
   @Capabilities('operations.manage')
   @Permissions('operations.assign')

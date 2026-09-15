@@ -14,6 +14,7 @@ import {
   type PlanTenantAccess,
   SubscriptionPlanRepository,
 } from './subscription-plan.repository';
+import { SubscriptionExpiredException } from './subscription-expired.exception';
 
 export interface OrganizationEntitlements {
   planKey: string;
@@ -102,15 +103,24 @@ export class SubscriptionPlanService {
    * transações interativas antes de o handler começar. Ver `plan-access.ts`.
    */
   assertActiveOn(entitlements: OrganizationEntitlements): void {
+    if (!this.grantsAccess(entitlements)) {
+      throw new SubscriptionExpiredException();
+    }
+  }
+
+  /** A assinatura autoriza usar o produto agora? */
+  grantsAccess(entitlements: OrganizationEntitlements): boolean {
     if (
       !SubscriptionPlanService.ALLOWED_STATUSES.has(
         entitlements.subscriptionStatus,
-      ) ||
-      (entitlements.currentPeriodEnd &&
-        entitlements.currentPeriodEnd.getTime() <= Date.now())
+      )
     ) {
-      throw new ForbiddenException('An active subscription is required');
+      return false;
     }
+    return !(
+      entitlements.currentPeriodEnd &&
+      entitlements.currentPeriodEnd.getTime() <= Date.now()
+    );
   }
 
   async assertPlan(

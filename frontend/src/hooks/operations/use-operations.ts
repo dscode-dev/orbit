@@ -210,6 +210,19 @@ export function useAssignOperationUser(id: string) {
   );
 }
 
+/**
+ * Autoriza a atribuição, liberando o atendimento para quem executa.
+ *
+ * Invalida as mesmas chaves da atribuição: a fila do técnico muda junto, e
+ * quem acabou de autorizar precisa ver o estado novo sem recarregar.
+ */
+export function useSetOperationAuthorization(id: string) {
+  return useApiMutation(
+    (autorizar: boolean) => operationsService.setAuthorization(id, autorizar),
+    { invalidate: affectedKeys(id) },
+  );
+}
+
 export function useUnassignOperationUser(id: string) {
   return useApiMutation(
     (userId: string) => operationsService.unassign(id, userId),

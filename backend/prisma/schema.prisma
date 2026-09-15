@@ -46,6 +46,7 @@ model User {
   responsibleFieldOperations         Operation[]                    @relation("OperationResponsibleFieldTechnician")
   startedOperations                  Operation[]                    @relation("OperationStartedBy")
   completedOperations                Operation[]                    @relation("OperationCompletedBy")
+  authorizedOperations               Operation[]                    @relation("OperationAuthorizedBy")
   auxiliaryOperationAssignments      OperationAuxiliaryTechnician[] @relation("OperationAuxiliaryUser")
   auxiliaryAssignmentsCreated        OperationAuxiliaryTechnician[] @relation("OperationAuxiliaryAssignedBy")
   auxiliaryAssignmentsRemoved        OperationAuxiliaryTechnician[] @relation("OperationAuxiliaryRemovedBy")
@@ -1226,11 +1227,24 @@ model Operation {
   data                         Json?     @db.JsonB
   createdById                  String?   @map("created_by_id") @db.Uuid
   responsibleFieldTechnicianId String?   @map("responsible_field_technician_id") @db.Uuid
-  startedByUserId              String?   @map("started_by_user_id") @db.Uuid
-  completedByUserId            String?   @map("completed_by_user_id") @db.Uuid
-  createdAt                    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt                    DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  /// Quando a atribuição foi autorizada, e por quem.
+  ///
+  /// Só importa nas organizações que ligaram
+  /// `settings.operations.requireAssignmentAuthorization`. Nelas, um
+  /// atendimento atribuído mas **não** autorizado não chega ao técnico: não
+  /// aparece na fila do aplicativo nem responde às rotas de campo.
+  ///
+  /// Nulo é o estado de quem nunca precisou disso — e é por isso que a
+  /// migração marca como autorizado tudo o que já existia: ligar a chave não
+  /// pode esconder retroativamente o trabalho do dia.
+  authorizedAt      DateTime? @map("authorized_at") @db.Timestamptz(3)
+  authorizedById    String?   @map("authorized_by_id") @db.Uuid
+  startedByUserId   String?   @map("started_by_user_id") @db.Uuid
+  completedByUserId String?   @map("completed_by_user_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   organization               Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   businessUnit               BusinessUnit                   @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
@@ -1238,6 +1252,7 @@ model Operation {
   customerAddress            CustomerAddress?               @relation(fields: [customerAddressId], references: [id], onDelete: SetNull)
   assets                     OperationAsset[]
   responsibleFieldTechnician User?                          @relation("OperationResponsibleFieldTechnician", fields: [responsibleFieldTechnicianId], references: [id], onDelete: SetNull)
+  authorizedBy               User?                          @relation("OperationAuthorizedBy", fields: [authorizedById], references: [id], onDelete: SetNull)
   startedBy                  User?                          @relation("OperationStartedBy", fields: [startedByUserId], references: [id], onDelete: SetNull)
   completedBy                User?                          @relation("OperationCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
   auxiliaryTechnicians       OperationAuxiliaryTechnician[]
@@ -1269,6 +1284,8 @@ model Operation {
   @@index([organizationId, createdAt])
   @@index([organizationId, completedAt])
   @@index([organizationId, responsibleFieldTechnicianId, status, scheduledStart])
+  /// A fila do técnico filtra por autorização quando a organização a exige.
+  @@index([organizationId, authorizedAt])
   @@map("operations")
 }
 

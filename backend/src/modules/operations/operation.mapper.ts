@@ -78,6 +78,8 @@ interface OperationSource {
   completedAt: DateValue | null;
   responsibleFieldTechnicianId?: string | null;
   responsibleFieldTechnician?: UserSource | null;
+  authorizedAt?: Date | string | null;
+  authorizedBy?: UserSource | null;
   auxiliaryTechnicians?: ReadonlyArray<{
     userId: string;
     assignedById: string | null;
@@ -190,6 +192,16 @@ export class OperationReadModelMapper {
       responsibleFieldTechnician: source.responsibleFieldTechnician
         ? this.user(source.responsibleFieldTechnician)
         : null,
+      /**
+       * A autorização da atribuição.
+       *
+       * Publicada mesmo quando a organização não exige — o campo diz quando
+       * foi carimbado, e é a tela que sabe se aquilo importa ali. Publicar
+       * "exige ou não" por atendimento repetiria a preferência da organização
+       * em cada linha da lista.
+       */
+      authorizedAt: this.nullableDate(source.authorizedAt ?? null),
+      authorizedBy: source.authorizedBy ? this.user(source.authorizedBy) : null,
       auxiliaryTechnicians: (source.auxiliaryTechnicians ?? []).map(
         (assignment) => ({
           userId: assignment.userId,

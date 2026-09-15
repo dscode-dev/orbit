@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Sidebar, type NavItem } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette, useCommandPalette } from "@/components/navigation/command-palette";
+import { SubscriptionExpiredNotice } from "@/components/billing/subscription-expired.notice";
 
 /**
  * Application shell: sidebar + topbar + command palette + main content slot.
@@ -36,6 +37,15 @@ export function AppShell({
         <main className="flex-1">{children}</main>
       </div>
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+
+      {/*
+        O aviso mora no shell, e não numa página.
+
+        O vencimento vale para a conta inteira: pendurá-lo no painel faria com
+        que quem entrasse por um link direto para um atendimento nunca o visse,
+        e descobrisse o estado só ao receber um erro ao salvar.
+      */}
+      <SubscriptionExpiredNotice />
     </div>
   );
 }

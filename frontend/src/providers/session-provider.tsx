@@ -57,6 +57,8 @@ export interface SessionContextValue {
   isLoading: boolean;
   isPlatformAdmin: boolean;
   subscriptionActive: boolean;
+  /** Fim do período vigente, em ISO — para dizer **quando** venceu. */
+  subscriptionEndsAt: string | null;
   requiresPasswordChange: boolean;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
@@ -142,6 +144,7 @@ export function SessionProvider({
       isLoading: query.isPending,
       isPlatformAdmin: authenticated?.isPlatformAdmin ?? false,
       subscriptionActive: authenticated?.subscriptionActive ?? false,
+      subscriptionEndsAt: authenticated?.subscriptionEndsAt ?? null,
       requiresPasswordChange: authenticated?.requiresPasswordChange ?? false,
       hasPermission: (permission: string) =>
         wildcard || permissions.includes(permission),

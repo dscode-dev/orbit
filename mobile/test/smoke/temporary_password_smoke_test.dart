@@ -15,7 +15,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit_operator/core/config/environment.dart';
-import 'package:orbit_operator/core/contracts/session_contracts.dart';
 import 'package:orbit_operator/core/network/orbit_api_client.dart';
 import 'package:orbit_operator/core/observability/orbit_logger.dart';
 import 'package:orbit_operator/core/storage/token_storage.dart';
@@ -110,8 +109,6 @@ void main() {
       },
     );
     final temporaria = criado['temporaryPassword'] as String?;
-    // ignore: avoid_print
-    print('resposta do cadastro: ${criado.keys.join(', ')}');
     expect(
       temporaria,
       isNotNull,

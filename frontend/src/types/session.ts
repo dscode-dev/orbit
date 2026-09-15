@@ -98,6 +98,13 @@ export interface AuthenticatedSession {
   isPlatformAdmin: boolean;
   /** Assinatura em estado que libera o produto (`TRIALING`/`ACTIVE`/`PAST_DUE`). */
   subscriptionActive: boolean;
+  /**
+   * Fim do período vigente, em ISO. `null` quando não há período definido.
+   *
+   * Serve para dizer **quando** venceu, que é a diferença entre "sua
+   * assinatura está vencida" e um aviso que a pessoa consegue situar.
+   */
+  subscriptionEndsAt: string | null;
   /** Exige definir nova senha antes de usar a plataforma. */
   requiresPasswordChange: boolean;
 }

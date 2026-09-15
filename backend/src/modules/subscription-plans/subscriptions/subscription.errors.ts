@@ -19,14 +19,25 @@ export class SubscriptionNotFoundException extends BaseException {
   }
 }
 
+/**
+ * A assinatura não autoriza usar o produto agora.
+ *
+ * `402`, e não `403`: a permissão existe — o que acabou foi o período. Era
+ * `403`, e com ele a interface só sabia dizer "sem permissão", mandando a
+ * pessoa procurar um administrador em vez de escolher um plano.
+ *
+ * O mesmo código de `SubscriptionExpiredException`, que é o caminho pelo qual
+ * os guardas recusam: dois lugares chegam à mesma conclusão e a tela não
+ * deveria precisar saber por qual deles passou.
+ */
 export class SubscriptionNotActiveException extends BaseException {
   constructor(status: string) {
     super(
       {
-        code: 'SUBSCRIPTION_NOT_ACTIVE',
+        code: 'SUBSCRIPTION_EXPIRED',
         message: `Subscription does not grant product access: ${status}`,
       },
-      HttpStatus.FORBIDDEN,
+      HttpStatus.PAYMENT_REQUIRED,
     );
   }
 }

@@ -140,6 +140,8 @@ describe('AppController (e2e)', () => {
             }),
         ),
         assertActiveOn: jest.fn(),
+        /* O guarda passou a perguntar isto antes de decidir por verbo. */
+        grantsAccess: jest.fn(() => true),
         assertPlanOn: jest.fn(),
         assertCapabilitiesOn: jest.fn(
           (entitlements: { capabilities: string[] }, required: string[]) => {

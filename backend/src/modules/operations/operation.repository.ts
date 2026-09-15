@@ -44,6 +44,7 @@ const operationInclude = {
   responsibleFieldTechnician: {
     select: { id: true, displayName: true, avatarUrl: true },
   },
+  authorizedBy: { select: { id: true, displayName: true, avatarUrl: true } },
   startedBy: { select: { id: true, displayName: true, avatarUrl: true } },
   completedBy: { select: { id: true, displayName: true, avatarUrl: true } },
   auxiliaryTechnicians: {
@@ -329,6 +330,103 @@ export class OperationRepository {
         entityId: id,
         payload: details,
       });
+      return operation;
+    });
+  }
+
+  /**
+   * Carimba (ou retira) a autorização da atribuição.
+   *
+   * Um comando só para os dois sentidos: autorizar e revogar diferem apenas
+   * pelo carimbo, e separá-los duplicaria a trilha e o evento por nada.
+   *
+   * Fica no histórico e na auditoria porque é decisão de quem administra
+   * sobre o trabalho de outra pessoa — quando a fila do técnico muda, precisa
+   * haver onde ler por quê.
+   */
+  /**
+   * A preferência da organização, lida do campo livre `settings`.
+   *
+   * Uma consulta enxuta: só o JSON, sem arrastar a organização inteira para
+   * decidir um booleano que a fila de campo consulta a cada abertura.
+   */
+  async organizationSettings(organizationId: string): Promise<unknown> {
+    return this.rls.run(async (tx) => {
+      const organizacao = await tx.organization.findUnique({
+        where: { id: organizationId },
+        select: { settings: true },
+      });
+      return organizacao?.settings ?? null;
+    });
+  }
+
+  setAuthorization(
+    id: string,
+    organizationId: string,
+    actorId: string,
+    autorizar: boolean,
+    /**
+     * Registrar na trilha?
+     *
+     * Falso para o carimbo **implícito** — aquele que a atribuição aplica
+     * quando a organização não exige autorização. Ninguém decidiu nada ali, e
+     * uma linha de "atribuição autorizada" no histórico faria parecer que
+     * existe uma etapa que essa organização não pratica.
+     */
+    registrarTrilha = true,
+  ) {
+    return this.rls.run(async (tx) => {
+      const anterior = await tx.operation.findUniqueOrThrow({
+        where: { id },
+        select: { authorizedAt: true },
+      });
+      const authorizedAt = autorizar ? new Date() : null;
+      const operation = await tx.operation.update({
+        where: { id },
+        data: { authorizedAt, authorizedById: autorizar ? actorId : null },
+        include: operationInclude,
+      });
+      const details = {
+        authorizedAt: authorizedAt?.toISOString() ?? null,
+        previousAuthorizedAt: anterior.authorizedAt?.toISOString() ?? null,
+      };
+      if (registrarTrilha) {
+        await tx.operationHistory.create({
+          data: {
+            operationId: id,
+            userId: actorId,
+            action: autorizar
+              ? 'ASSIGNMENT_AUTHORIZED'
+              : 'ASSIGNMENT_AUTHORIZATION_REVOKED',
+            details,
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            organizationId,
+            businessUnitId: operation.businessUnitId,
+            userId: actorId,
+            action: autorizar
+              ? 'operation.assignment.authorized'
+              : 'operation.assignment.authorization_revoked',
+            entityType: 'OPERATION',
+            entityId: id,
+            before: { authorizedAt: details.previousAuthorizedAt },
+            after: { authorizedAt: details.authorizedAt },
+          },
+        });
+        await this.events.emit(tx, {
+          type: autorizar
+            ? 'operation.assignment.authorized'
+            : 'operation.assignment.authorization_revoked',
+          organizationId,
+          businessUnitId: operation.businessUnitId,
+          actorId,
+          entityType: 'OPERATION',
+          entityId: id,
+          payload: details,
+        });
+      }
       return operation;
     });
   }

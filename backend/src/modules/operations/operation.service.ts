@@ -15,6 +15,7 @@ import type {
   UpdateOperationDto,
 } from './dto/operation.dto';
 import { OperationRepository } from './operation.repository';
+import { requiresAssignmentAuthorization } from './operation-authorization';
 import { OperationStorageService } from './operation-storage.service';
 import { OperationStateMachine } from './operation-state-machine';
 import { WorkforceRepository } from '../workforce/workforce.repository';
@@ -282,14 +283,89 @@ export class OperationService {
       operation.businessUnitId,
       input.userId,
     );
-    return operation.responsibleFieldTechnicianId
-      ? this.addAuxiliaryTechnician(id, organizationId, actorId, input.userId)
-      : this.replaceResponsibleFieldTechnician(
+    const resultado = operation.responsibleFieldTechnicianId
+      ? await this.addAuxiliaryTechnician(
+          id,
+          organizationId,
+          actorId,
+          input.userId,
+        )
+      : await this.replaceResponsibleFieldTechnician(
           id,
           organizationId,
           actorId,
           input.userId,
         );
+
+    /**
+     * Sem exigência, atribuir **é** autorizar.
+     *
+     * Sem este carimbo o recurso teria uma bomba-relógio: um atendimento
+     * atribuído hoje, com a chave desligada, nasceria sem autorização — e
+     * sumiria da fila do técnico no dia em que alguém ligasse a chave. A
+     * organização veria trabalho já distribuído desaparecer sem ninguém ter
+     * tocado nele.
+     *
+     * A migração carimbou o passado pela mesma razão. Isto mantém a promessa
+     * daqui para frente: ligar a exigência vale para o que for atribuído
+     * **depois**, nunca para o que já estava nas mãos de alguém.
+     */
+    if (
+      resultado.authorizedAt === null &&
+      !(await this.requiresAuthorization(organizationId))
+    ) {
+      return this.repository.setAuthorization(
+        id,
+        organizationId,
+        actorId,
+        true,
+        /* Sem trilha: não foi decisão, foi a política da organização. */
+        false,
+      );
+    }
+    return resultado;
+  }
+
+  /**
+   * Autoriza a atribuição — ou retira a autorização.
+   *
+   * ## Só faz sentido onde a organização exige
+   *
+   * Carimbar um atendimento numa organização que não liga a chave não muda
+   * nada e confundiria a trilha: alguém leria "autorizado por" e concluiria
+   * que existe uma etapa que ninguém cumpre. A recusa é explícita.
+   *
+   * ## Revogar tira da fila de quem já a tinha
+   *
+   * É o ponto do recurso: o dono errou a atribuição, revoga, e o atendimento
+   * some do aplicativo do técnico. O que já foi executado fica — revogar não
+   * apaga trabalho, só interrompe o que ainda não começou.
+   */
+  async setAuthorization(
+    id: string,
+    organizationId: string,
+    actorId: string,
+    autorizar: boolean,
+  ) {
+    await this.get(id, organizationId);
+    if (!(await this.requiresAuthorization(organizationId))) {
+      throw new ValidationException(
+        'This organization does not require assignment authorization',
+      );
+    }
+    return this.repository.setAuthorization(
+      id,
+      organizationId,
+      actorId,
+      autorizar,
+    );
+  }
+
+  /** A organização exige autorização depois da atribuição? */
+  async requiresAuthorization(organizationId: string): Promise<boolean> {
+    return requiresAssignmentAuthorization(
+      await this.repository.organizationSettings(organizationId),
+    );
   }
 
   async unassign(

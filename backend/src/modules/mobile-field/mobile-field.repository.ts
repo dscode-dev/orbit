@@ -2,6 +2,10 @@
 import { Injectable } from '@nestjs/common';
 import { RlsTransaction } from '../../database';
 import type { Prisma } from '@prisma/client';
+import {
+  fieldVisibilityFilter,
+  requiresAssignmentAuthorization,
+} from '../operations/operation-authorization';
 
 export interface MobileFieldProjectionSource {
   businessUnits: readonly any[];
@@ -428,11 +432,31 @@ export class MobileFieldRepository {
             }
           : {};
 
+      /**
+       * A autorização da atribuição, quando a organização a exige.
+       *
+       * Aqui é onde a preferência deixa de ser decorativa: até a PR-36 ela era
+       * gravada em `settings` e **nenhuma consulta a lia**, então ligá-la não
+       * escondia nada — o técnico continuava vendo tudo pelo aplicativo.
+       *
+       * Fica no `where` compartilhado pela mesma razão do recorte de cliente:
+       * os buckets existem para ordenar por urgência, e repetir a regra em
+       * quatro lugares é como um deles fica para trás.
+       */
+      const organizacao = await tx.organization.findUnique({
+        where: { id: organizationId },
+        select: { settings: true },
+      });
+      const recorteDeAutorizacao = fieldVisibilityFilter(
+        requiresAssignmentAuthorization(organizacao?.settings ?? null),
+      );
+
       const operationWhere = {
         organizationId,
         businessUnitId: { in: scopedIds },
         deletedAt: null,
         ...recorteDeCliente,
+        ...recorteDeAutorizacao,
         ...janela,
         OR: [
           { responsibleFieldTechnicianId: actorId },

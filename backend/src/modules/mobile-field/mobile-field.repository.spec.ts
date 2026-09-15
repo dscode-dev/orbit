@@ -14,6 +14,11 @@ describe('MobileFieldRepository projection bounds', () => {
           },
         ]),
       },
+      /* A fila consulta a preferência de autorização da organização antes de
+         montar o `where` — sem este duplo o repositório quebra no acesso. */
+      organization: {
+        findUnique: jest.fn().mockResolvedValue({ settings: null }),
+      },
       operation: { findMany: jest.fn().mockResolvedValue([]) },
       pmocExecution: { findMany: jest.fn().mockResolvedValue([]) },
       rvtOccurrence: { findMany: jest.fn().mockResolvedValue([]) },
@@ -61,6 +66,11 @@ describe('MobileFieldRepository projection bounds', () => {
             timezone: 'America/Recife',
           },
         ]),
+      },
+      /* A fila consulta a preferência de autorização da organização antes de
+         montar o `where` — sem este duplo o repositório quebra no acesso. */
+      organization: {
+        findUnique: jest.fn().mockResolvedValue({ settings: null }),
       },
       operation: { findMany: jest.fn().mockResolvedValue([]) },
       customer: { findMany: jest.fn().mockResolvedValue([]) },

@@ -129,6 +129,16 @@ export interface OperationListItemReadModel {
   completedAt: string | null;
   responsibleFieldTechnicianId: string | null;
   responsibleFieldTechnician: OperationUserReadModel | null;
+  /**
+   * Quando a atribuição foi autorizada, e por quem.
+   *
+   * Só tem significado nas organizações que ligaram
+   * `settings.operations.requireAssignmentAuthorization`. Nelas, um
+   * atendimento sem carimbo não chega ao técnico — nem na fila do aplicativo,
+   * nem pelas rotas de campo.
+   */
+  authorizedAt: string | null;
+  authorizedBy: OperationUserReadModel | null;
   auxiliaryTechnicians: readonly OperationTechnicianAssignmentReadModel[];
   startedBy: OperationUserReadModel | null;
   completedBy: OperationUserReadModel | null;

@@ -96,6 +96,17 @@ export const operationsService = {
   assign: (id: string, input: AssignOperationUserInput): Promise<Operation> =>
     apiClient.post<Operation>(`${item(id)}/assignments`, input),
 
+  /**
+   * Autoriza — ou retira a autorização — da atribuição.
+   *
+   * Só vale nas organizações que exigem autorização; nas demais o servidor
+   * recusa, porque carimbar onde a etapa não existe confundiria a trilha.
+   */
+  setAuthorization: (id: string, autorizar: boolean): Promise<Operation> =>
+    autorizar
+      ? apiClient.post<Operation>(`${item(id)}/authorization`, {})
+      : apiClient.delete<Operation>(`${item(id)}/authorization`),
+
   /* ---------------------------------------------------------------- */
   /* Equipe do atendimento (PR-28)                                     */
   /* ---------------------------------------------------------------- */

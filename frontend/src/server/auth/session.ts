@@ -21,7 +21,6 @@ import type {
   TokenPair,
 } from "@/types/session";
 import {
-  ACTIVE_SUBSCRIPTION_STATUSES,
   ANONYMOUS_SESSION,
   PLATFORM_ADMIN_ROLE,
 } from "@/types/session";
@@ -32,6 +31,7 @@ import {
   clearSessionCookies,
   writeSessionCookies,
 } from "./cookies";
+import { assinaturaVigente } from "@/components/billing/subscription-status";
 import { claimList, decodeAccessToken, expiresAtIso, isExpired } from "./jwt";
 import { refreshTokens } from "./refresh";
 
@@ -141,6 +141,7 @@ export async function buildSessionState(
     const subscriptionStatus =
       entitlements?.subscriptionStatus ?? organization?.subscriptionStatus;
 
+
     const session: AuthenticatedSession = {
       authenticated: true,
       user,
@@ -167,15 +168,18 @@ export async function buildSessionState(
           ]
         : [],
       isPlatformAdmin,
-      subscriptionActive: subscriptionStatus
-        ? ACTIVE_SUBSCRIPTION_STATUSES.includes(subscriptionStatus)
-        : isPlatformAdmin,
       /**
-       * `Credential.mustChangePassword` existe no schema mas ainda não é
-       * exposto por `GET /identity/me`. A leitura opcional mantém o fluxo
-       * pronto: no dia em que o backend devolver o campo, ele passa a valer
-       * sem mudança no frontend.
+       * A mesma conta que o backend faz, e não uma aproximação — ver
+       * `assinaturaVigente`. Sem sessão de organização, quem responde é o
+       * papel de plataforma.
        */
+      subscriptionActive: subscriptionStatus
+        ? assinaturaVigente(
+            subscriptionStatus,
+            organization?.currentPeriodEnd ?? null,
+          )
+        : isPlatformAdmin,
+      subscriptionEndsAt: organization?.currentPeriodEnd ?? null,
       requiresPasswordChange: user.mustChangePassword === true,
     };
     return session;

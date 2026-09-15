@@ -9,6 +9,10 @@ import {
   SIDEBAR_COOKIE,
 } from "@/components/layout/sidebar-cookie";
 import {
+  AVISO_COOKIE,
+  avisoFoiDispensado,
+} from "@/components/billing/subscription-notice-cookie";
+import {
   THEME_BOOTSTRAP_SCRIPT,
   THEME_COOKIE,
   parseThemeCookie,
@@ -64,6 +68,9 @@ export default async function RootLayout({
   const sidebarCollapsed = parseSidebarCookie(
     store.get(SIDEBAR_COOKIE)?.value,
   );
+  /* Pela mesma razão: saber antes de pintar evita o aviso de assinatura
+     aparecer e sumir na frente de quem já o fechou. */
+  const avisoDispensado = avisoFoiDispensado(store.get(AVISO_COOKIE)?.value);
 
   return (
     <html
@@ -88,7 +95,11 @@ export default async function RootLayout({
         />
       </head>
       <body>
-        <Providers sidebarCollapsed={sidebarCollapsed} theme={theme}>
+        <Providers
+          sidebarCollapsed={sidebarCollapsed}
+          theme={theme}
+          avisoAssinaturaDispensado={avisoDispensado}
+        >
           {children}
         </Providers>
       </body>

@@ -3,13 +3,18 @@
  *
  * ## O que se prova
  *
- * Que o owner cadastra um técnico sem convite, recebe uma senha temporária que
- * aparece **uma vez**, e que essa senha não serve para trabalhar: quem entra
- * com ela é levado para a troca e não sai de lá até trocar.
+ * Que o owner cadastra um técnico sem convite e recebe uma senha temporária
+ * que aparece **uma vez** — e que essa senha não abre o painel web.
  *
- * A última parte é a que mais importa. O guard de troca obrigatória existia no
- * frontend desde antes, lendo um campo que o backend **não publicava** — ele
- * nunca disparava, e ninguém tinha como perceber pela tela.
+ * A última parte é a que mais importa, e mudou. O técnico operacional existe
+ * para o aplicativo de campo; entrar no painel lhe dava a organização inteira,
+ * e nada no backend o impedia. Hoje a recusa é por superfície do papel
+ * (`roles.allowed_surfaces`), feita pelo servidor e depois de conferir a
+ * credencial.
+ *
+ * A troca forçada de senha na web continua existindo para quem tem acesso ao
+ * painel; o técnico a faz pelo aplicativo, e isso é coberto em
+ * `mobile/test/features/forced_password_change_test.dart`.
  */
 import { expect, test } from "@playwright/test";
 
@@ -99,8 +104,18 @@ test("cadastra o técnico, mostra a senha uma vez e força a troca", async ({
   expect(cadastrado, "o técnico cadastrado precisa estar na equipe").toBeTruthy();
   expect(cadastrado?.role.key).toBe("FIELD_TECHNICIAN");
 
+  /**
+   * O portão de console fecha aqui.
+   *
+   * O que vem a seguir é uma recusa **deliberada**: o servidor responde `403`
+   * e o navegador registra isso como erro de console, como faria com qualquer
+   * status de erro. Manter `assertClean` depois disso transformaria a prova de
+   * que a regra funciona numa reprovação.
+   */
+  assertClean(recorder, "cadastro de equipe");
+
   /* ---------------------------------------------------------------- */
-  /* A senha temporária não serve para trabalhar                       */
+  /* O técnico não entra pelo painel — nem com a senha certa            */
   /* ---------------------------------------------------------------- */
 
   /**
@@ -120,37 +135,30 @@ test("cadastra o técnico, mostra a senha uma vez e força a troca", async ({
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
 
   /**
-   * Levado para a troca, e preso nela.
+   * A regressão que esta parte tranca.
    *
-   * Não basta chegar: tentar ir para o painel tem de trazer de volta, senão o
-   * "forçado" seria só uma sugestão que some ao digitar outra URL.
+   * Antes, a senha temporária levava o técnico à troca obrigatória **na web** —
+   * e, trocada a senha, ele entrava no painel e enxergava a organização
+   * inteira: clientes, contratos, financeiro. O papel dele existe para o
+   * aplicativo de campo, e nada no backend o impedia.
+   *
+   * Agora o servidor recusa a entrada por superfície (`SURFACE_NOT_ALLOWED`),
+   * e a recusa acontece **depois** de conferir a senha: antes disso seria um
+   * oráculo dizendo quais endereços existem e são de campo.
    */
-  await page.waitForURL(/\/redefinir-senha/, { timeout: 30_000 });
-  await page.goto("/dashboard");
-  await page.waitForURL(/\/redefinir-senha/, { timeout: 30_000 });
+  await expect(
+    page.getByText(/aplicativo Orbit de campo/i),
+  ).toBeVisible({ timeout: 20_000 });
 
-  /* ---------------------------------------------------------------- */
-  /* E a troca é possível aqui, sem e-mail                             */
-  /* ---------------------------------------------------------------- */
+  /** E continua no login: nenhuma sessão foi criada. */
+  await expect(page).toHaveURL(/\/login/);
 
   /**
-   * Esta parte tranca uma regressão específica.
+   * Nem por URL direta.
    *
-   * A tela mandava pedir um link por e-mail. Quem passa pela troca obrigatória
-   * é justamente o técnico que o dono cadastrou — muitas vezes sem e-mail de
-   * trabalho —, e ele ficava autenticado, sem nenhuma tela acessível e sem o
-   * e-mail que a página exigia.
+   * Sem sessão, qualquer rota do produto devolve ao login — é o que garante
+   * que a recusa não seja só a ausência de um botão.
    */
-  const novaSenha = `Tecnico#E2E${carimbo}`;
-  await page.locator("#currentPassword").fill(senha);
-  await page.locator("#newPassword").fill(novaSenha);
-  await page.locator("#confirmPassword").fill(novaSenha);
-  await page.getByRole("button", { name: "Salvar e continuar" }).click();
-
-  /// Trocada, o guard solta: a pessoa chega ao sistema.
-  await page.waitForURL((url) => !url.pathname.includes("redefinir-senha"), {
-    timeout: 30_000,
-  });
-
-  assertClean(recorder, "cadastro de equipe");
+  await page.goto("/dashboard");
+  await page.waitForURL(/\/login/, { timeout: 30_000 });
 });
