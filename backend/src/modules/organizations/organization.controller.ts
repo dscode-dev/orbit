@@ -12,7 +12,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Permissions } from '../../decorators';
+import { Permissions, Surfaces } from '../../decorators';
 import { PaginationHelper } from '../../database/helpers/database.helpers';
 import { ForbiddenException } from '../../exceptions';
 import { ParseUUIDv7Pipe } from '../../pipes';
@@ -48,6 +48,7 @@ export class OrganizationController {
   }
 
   @Get('current')
+  @Surfaces('WEB', 'MOBILE', 'API')
   @RequiresActivePlan()
   async getCurrent(@Req() request: IdentityRequest) {
     return this.readModels.context(
@@ -95,12 +96,18 @@ export class OrganizationController {
     @Req() request: IdentityRequest,
     @Body() input: UpdateMemberDto,
   ) {
-    const { member, ownerUserId } = await this.organizations.updateMember(
-      this.organizationId(request),
-      userId,
-      input,
+    const { member, ownerUserId, unitMemberships } =
+      await this.organizations.updateMember(
+        this.organizationId(request),
+        userId,
+        input,
+        request.identity!,
+      );
+    return this.readModels.member(
+      member,
+      ownerUserId,
+      unitMemberships.map((item) => item.businessUnit),
     );
-    return this.readModels.member(member, ownerUserId);
   }
 
   /**
@@ -120,6 +127,13 @@ export class OrganizationController {
     );
   }
 
+  @Get('current/access-catalog')
+  @RequiresActivePlan()
+  @Permissions('organization.members.update')
+  accessCatalog() {
+    return this.organizations.accessCatalog();
+  }
+
   @Post('current/roles')
   @RequiresActivePlan()
   @Permissions('organization.roles.manage')
@@ -128,7 +142,11 @@ export class OrganizationController {
     @Body() input: CreateRoleDto,
   ) {
     return this.readModels.role(
-      await this.organizations.createRole(this.organizationId(request), input),
+      await this.organizations.createRole(
+        this.organizationId(request),
+        input,
+        request.identity!,
+      ),
     );
   }
 
@@ -145,6 +163,7 @@ export class OrganizationController {
         id,
         this.organizationId(request),
         input,
+        request.identity!,
       ),
     );
   }

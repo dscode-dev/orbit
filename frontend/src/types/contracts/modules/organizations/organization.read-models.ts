@@ -77,6 +77,12 @@ export interface OrganizationMemberReadModel {
   joinedAt: string;
   /** `true` para o dono da organização. */
   isOwner: boolean;
+  /** Effective access after applying an optional member override. */
+  access: {
+    useRoleDefaults: boolean;
+    permissions: readonly string[];
+    allowedSurfaces: readonly string[];
+  };
 }
 
 /**
@@ -96,7 +102,8 @@ export interface OrganizationRoleReadModel {
    * Onde este papel entra: `WEB`, `MOBILE`, `API`.
    *
    * O painel web é da administração da operação. Os papéis de campo nascem só
-   * com `MOBILE`, e o backend recusa a entrada na web mesmo com a senha certa.
+   * com `MOBILE` — quem os tem entra pelo aplicativo, e o backend recusa a
+   * entrada na web mesmo com a senha certa.
    */
   allowedSurfaces: readonly string[];
   /** `true` para papéis de plataforma, que a organização não edita. */
@@ -124,4 +131,13 @@ export interface OrganizationContextReadModel {
   updatedAt: string;
   plan: OrganizationPlanReadModel;
   businessUnits: readonly BusinessUnitReadModel[];
+}
+
+export interface OrganizationAccessCatalogReadModel {
+  surfaces: readonly { code: string; label: string }[];
+  permissionGroups: readonly {
+    key: string;
+    label: string;
+    permissions: readonly { code: string; label: string }[];
+  }[];
 }

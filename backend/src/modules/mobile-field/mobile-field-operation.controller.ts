@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ForbiddenException } from '../../exceptions';
+import { Surfaces } from '../../decorators';
 import { ParseUUIDv7Pipe } from '../../pipes';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import { RequiresActivePlan } from '../subscription-plans/plan-access';
@@ -25,6 +26,7 @@ import type { MobileFieldActor } from './mobile-field.service';
 
 @ApiTags('Mobile Field Operations')
 @Controller('mobile/field/operations')
+@Surfaces('MOBILE')
 @RequiresActivePlan()
 export class MobileFieldOperationController {
   constructor(private readonly service: MobileFieldOperationService) {}

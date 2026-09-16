@@ -170,6 +170,10 @@ class AuthController extends StateNotifier<AuthState> {
         _repository.loadEntitlements()
       else
         Future<Entitlements?>.value(),
+      if (claims.organizationId != null)
+        _repository.loadProductAccess()
+      else
+        Future<ProductAccess?>.value(),
     ]);
 
     return OrbitSession(
@@ -177,6 +181,7 @@ class AuthController extends StateNotifier<AuthState> {
       claims: claims,
       organization: results[1] as Organization?,
       entitlements: results[2] as Entitlements?,
+      productAccess: results[3] as ProductAccess?,
     );
   }
 

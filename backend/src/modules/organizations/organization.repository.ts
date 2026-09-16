@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService, RlsTransaction } from '../../database';
 import { generateUuidV7 } from '../../utils';
 import type { CreateOrganizationDto } from './dto/organization.dto';
+import { ASSIGNABLE_TEAM_ROLES } from './team-roles';
 
 const organizationView = {
   plan: true,
@@ -79,7 +80,9 @@ export class OrganizationRepository {
           key: 'OWNER',
           name: 'Owner',
           description: 'Organization owner',
-          permissions: ['*'],
+          permissions: [],
+          allowedSurfaces: ['WEB', 'MOBILE'],
+          isSystem: true,
         },
       });
       await transaction.businessUnit.create({
@@ -105,6 +108,17 @@ export class OrganizationRepository {
       });
       await transaction.organizationMembership.create({
         data: { organizationId, userId: ownerUserId, roleId: ownerRole.id },
+      });
+      await transaction.role.createMany({
+        data: ASSIGNABLE_TEAM_ROLES.map((role) => ({
+          organizationId,
+          key: role.key,
+          name: role.name,
+          description: role.description,
+          permissions: [...role.permissions],
+          allowedSurfaces: [...role.allowedSurfaces],
+          isSystem: true,
+        })),
       });
       await transaction.businessUnitMembership.create({
         data: {
@@ -149,7 +163,11 @@ export class OrganizationRepository {
   listRoles(organizationId: string) {
     return this.rls.run((transaction) =>
       transaction.role.findMany({
-        where: { organizationId, deletedAt: null },
+        where: {
+          organizationId,
+          deletedAt: null,
+          key: { not: 'OWNER' },
+        },
         select: ROLE_VIEW,
         orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
       }),
@@ -166,7 +184,7 @@ export class OrganizationRepository {
   listBusinessUnitMemberships(organizationId: string) {
     return this.rls.run((transaction) =>
       transaction.businessUnitMembership.findMany({
-        where: { organizationId, deletedAt: null },
+        where: { organizationId, status: 'ACTIVE', deletedAt: null },
         select: {
           userId: true,
           businessUnit: {
@@ -203,7 +221,18 @@ export class OrganizationRepository {
               status: true,
             },
           },
-          role: { select: { id: true, key: true, name: true } },
+          usesCustomAccess: true,
+          customPermissions: true,
+          customAllowedSurfaces: true,
+          role: {
+            select: {
+              id: true,
+              key: true,
+              name: true,
+              permissions: true,
+              allowedSurfaces: true,
+            },
+          },
         },
       }),
     );
@@ -215,6 +244,138 @@ export class OrganizationRepository {
         where: { id, organizationId, deletedAt: null },
       }),
     );
+  }
+
+  findBusinessUnits(organizationId: string, ids: readonly string[]) {
+    return this.rls.run((transaction) =>
+      transaction.businessUnit.findMany({
+        where: {
+          organizationId,
+          id: { in: [...ids] },
+          status: 'ACTIVE',
+          deletedAt: null,
+        },
+        select: { id: true },
+      }),
+    );
+  }
+
+  updateMemberAccess(
+    organizationId: string,
+    membershipId: string,
+    userId: string,
+    actorId: string,
+    data: {
+      roleId?: string;
+      status?: string;
+      usesCustomAccess?: boolean;
+      customPermissions?: string[];
+      customAllowedSurfaces?: string[];
+      businessUnitIds?: readonly string[];
+    },
+  ) {
+    return this.rls.runAmbient(async (transaction) => {
+      const updated = await transaction.organizationMembership.update({
+        where: { id: membershipId },
+        data: {
+          roleId: data.roleId,
+          status: data.status,
+          usesCustomAccess: data.usesCustomAccess,
+          customPermissions: data.customPermissions,
+          customAllowedSurfaces: data.customAllowedSurfaces,
+        },
+        select: {
+          userId: true,
+          status: true,
+          joinedAt: true,
+          usesCustomAccess: true,
+          customPermissions: true,
+          customAllowedSurfaces: true,
+          user: {
+            select: {
+              id: true,
+              displayName: true,
+              email: true,
+              avatarUrl: true,
+              status: true,
+            },
+          },
+          role: {
+            select: {
+              id: true,
+              key: true,
+              name: true,
+              permissions: true,
+              allowedSurfaces: true,
+            },
+          },
+        },
+      });
+      if (data.roleId) {
+        await transaction.businessUnitMembership.updateMany({
+          where: { organizationId, userId, deletedAt: null },
+          data: { roleId: data.roleId },
+        });
+      }
+      if (data.businessUnitIds) {
+        await transaction.businessUnitMembership.updateMany({
+          where: {
+            organizationId,
+            userId,
+            deletedAt: null,
+            businessUnitId: { notIn: [...data.businessUnitIds] },
+          },
+          data: { status: 'INACTIVE', deletedAt: new Date() },
+        });
+        for (const businessUnitId of data.businessUnitIds) {
+          await transaction.businessUnitMembership.upsert({
+            where: { businessUnitId_userId: { businessUnitId, userId } },
+            create: {
+              organizationId,
+              businessUnitId,
+              userId,
+              roleId: updated.role.id,
+            },
+            update: {
+              roleId: updated.role.id,
+              status: 'ACTIVE',
+              deletedAt: null,
+            },
+          });
+        }
+      }
+      await transaction.session.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await transaction.auditLog.create({
+        data: {
+          organizationId,
+          userId: actorId,
+          action: 'ORGANIZATION_MEMBER_ACCESS_UPDATED',
+          entityType: 'ORGANIZATION_MEMBERSHIP',
+          entityId: membershipId,
+          metadata: {
+            targetUserId: userId,
+            roleChanged: Boolean(data.roleId),
+            customAccessChanged: data.usesCustomAccess !== undefined,
+            unitScopeChanged: data.businessUnitIds !== undefined,
+            roleId: data.roleId ?? null,
+            status: data.status ?? null,
+            useRoleDefaults:
+              data.usesCustomAccess === undefined
+                ? null
+                : !data.usesCustomAccess,
+            allowedSurfaces: data.customAllowedSurfaces ?? null,
+            businessUnitIds: data.businessUnitIds
+              ? [...data.businessUnitIds]
+              : null,
+            permissionCount: data.customPermissions?.length ?? null,
+          },
+        },
+      });
+      return updated;
+    });
   }
 
   createRole(data: Prisma.RoleUncheckedCreateInput) {
@@ -285,7 +446,18 @@ export class OrganizationRepository {
               status: true,
             },
           },
-          role: { select: { id: true, key: true, name: true } },
+          usesCustomAccess: true,
+          customPermissions: true,
+          customAllowedSurfaces: true,
+          role: {
+            select: {
+              id: true,
+              key: true,
+              name: true,
+              permissions: true,
+              allowedSurfaces: true,
+            },
+          },
         },
         orderBy: { user: { displayName: 'asc' } },
       }),

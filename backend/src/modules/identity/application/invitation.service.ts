@@ -17,6 +17,8 @@ import {
 } from '../../subscription-plans/entitlements';
 import { IdentityRepository } from '../infrastructure/identity.repository';
 import { IdentityTokenService } from './token.service';
+import { AuthorizationService } from '../../../common';
+import { ForbiddenException } from '../../../exceptions';
 
 @Injectable()
 export class InvitationService {
@@ -27,6 +29,7 @@ export class InvitationService {
     @Inject(IDENTITY_TOKEN_DELIVERY)
     private readonly delivery: IIdentityTokenDelivery,
     private readonly entitlements: EntitlementService,
+    private readonly authorization: AuthorizationService,
   ) {}
 
   async create(input: {
@@ -35,6 +38,10 @@ export class InvitationService {
     roleId: string;
     invitedById: string;
     email: string;
+    actorPermissions: readonly string[];
+    actorSurfaces: readonly string[];
+    actorUnitIds: readonly string[];
+    isOrganizationOwner: boolean;
   }): Promise<{ id: string; expiresAt: Date }> {
     /**
      * Aviso antecipado, não a autoridade.
@@ -47,6 +54,39 @@ export class InvitationService {
       input.organizationId,
       AllocationResource.PLATFORM_USERS,
     );
+    const role = await this.repository.findDelegatedRole(
+      input.organizationId,
+      input.roleId,
+      input.invitedById,
+      input.actorUnitIds,
+    );
+    if (!role || role.key === 'OWNER' || role.permissions.includes('*'))
+      throw new ValidationException('Invalid role');
+    if (
+      !this.authorization.canDelegate(
+        {
+          permissions: input.actorPermissions,
+          allowedSurfaces: input.actorSurfaces,
+          isOrganizationOwner: input.isOrganizationOwner,
+        },
+        role.permissions,
+        role.allowedSurfaces,
+      )
+    )
+      throw new ForbiddenException(
+        'Access cannot exceed the current actor authority',
+      );
+    if (
+      input.businessUnitId &&
+      !this.authorization.canAccessUnit(
+        {
+          businessUnitIds: input.actorUnitIds,
+          isOrganizationOwner: input.isOrganizationOwner,
+        },
+        input.businessUnitId,
+      )
+    )
+      throw new ForbiddenException('Business unit is outside actor scope');
     const token = this.tokens.generateOpaqueToken();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60_000);
     let invitation: Awaited<ReturnType<IdentityRepository['createInvitation']>>;

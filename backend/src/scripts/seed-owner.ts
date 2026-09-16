@@ -295,7 +295,7 @@ async function seed(): Promise<void> {
       select: { id: true },
     });
 
-    /** O papel do dono: `['*']` é o que o `PermissionsGuard` reconhece. */
+    /** Ownership authority comes from Organization.ownerUserId. */
     const ownerRole = await tx.role.findFirst({
       where: { organizationId, key: 'OWNER', deletedAt: null },
       select: { id: true },
@@ -309,9 +309,16 @@ async function seed(): Promise<void> {
         key: 'OWNER',
         name: 'Owner',
         description: 'Organization owner',
-        permissions: ['*'],
+        permissions: [],
+        allowedSurfaces: ['WEB', 'MOBILE'],
+        isSystem: true,
       },
-      update: { permissions: ['*'], deletedAt: null },
+      update: {
+        permissions: [],
+        allowedSurfaces: ['WEB', 'MOBILE'],
+        isSystem: true,
+        deletedAt: null,
+      },
       select: { id: true },
     });
 
@@ -331,12 +338,14 @@ async function seed(): Promise<void> {
           description: role.description,
           permissions: [...role.permissions],
           allowedSurfaces: [...role.allowedSurfaces],
+          isSystem: true,
         },
         update: {
           name: role.name,
           description: role.description,
           permissions: [...role.permissions],
           allowedSurfaces: [...role.allowedSurfaces],
+          isSystem: true,
           deletedAt: null,
         },
         select: { id: true },

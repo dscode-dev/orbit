@@ -85,6 +85,19 @@ export interface MemberQuery {
 export interface UpdateMemberInput {
   roleId?: string;
   status?: MembershipStatus;
+  businessUnitIds?: string[];
+  useRoleDefaults?: boolean;
+  permissions?: string[];
+  allowedSurfaces?: string[];
+}
+
+export interface AccessCatalog {
+  surfaces: readonly { code: string; label: string }[];
+  permissionGroups: readonly {
+    key: string;
+    label: string;
+    permissions: readonly { code: string; label: string }[];
+  }[];
 }
 
 /** Situação de uma associação, como o backend a define. */
@@ -287,6 +300,13 @@ export interface CreateTeamMemberInput {
   roleId: string;
   /** Omitido, a pessoa entra na unidade principal. */
   businessUnitId?: string;
+  /** Escopo operacional explícito. Ao menos uma unidade é obrigatória na UI. */
+  businessUnitIds?: string[];
+  /** Mantém o acesso sincronizado com o papel escolhido. */
+  useRoleDefaults?: boolean;
+  /** Override opcional; sempre validado e limitado pelo servidor. */
+  permissions?: string[];
+  allowedSurfaces?: string[];
 }
 
 /**

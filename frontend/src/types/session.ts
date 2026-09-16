@@ -30,6 +30,8 @@ export interface AccessTokenClaims {
   businessUnitIds: readonly string[];
   roles: readonly string[];
   permissions: readonly string[];
+  allowedSurfaces?: readonly string[];
+  isOrganizationOwner?: boolean;
   type: "access";
   exp?: number;
   iat?: number;
@@ -69,6 +71,19 @@ export interface SessionEntitlements {
   currentPeriodEnd: string | null;
 }
 
+export interface SessionAccess {
+  isOwner: boolean;
+  roles: readonly string[];
+  permissions: readonly string[];
+  surfaceAccess: readonly string[];
+  unitIds: readonly string[];
+}
+
+export interface SessionProductAccess {
+  capabilities: readonly string[];
+  featureAvailability: Readonly<Record<string, boolean>>;
+}
+
 /** Organização acessível pela sessão. */
 export interface SessionOrganizationRef {
   id: string;
@@ -83,6 +98,8 @@ export interface AuthenticatedSession {
   scope: SessionScope;
   roles: readonly string[];
   permissions: readonly string[];
+  isOwner: boolean;
+  surfaceAccess: readonly string[];
   sessionId: string;
   expiresAt: string | null;
   /** `null` para o Platform Administrator, que não pertence a um tenant. */
@@ -90,6 +107,7 @@ export interface AuthenticatedSession {
   businessUnits: readonly SessionBusinessUnit[];
   /** `null` quando não há contexto de organização ou o plano não respondeu. */
   entitlements: SessionEntitlements | null;
+  productAccess: SessionProductAccess | null;
   /**
    * Organizações acessíveis. Hoje o backend deriva uma única organização das
    * claims do token; a lista existe para a troca de organização multi-tenant.

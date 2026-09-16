@@ -78,6 +78,7 @@ import { EventFormDialog } from "./event-form.dialog";
 import { AvailabilityPanel } from "./panels/availability.panel";
 import { ConflictsPanel } from "./panels/conflicts.panel";
 import { IntelligencePanel } from "./panels/intelligence.panel";
+import { PRODUCT_CAPABILITY, PRODUCT_FEATURE } from "@/registry/product-access";
 import {
   SchedulingFilters,
   type SchedulingFiltersValue,
@@ -118,7 +119,13 @@ export function SchedulingWorkspace({
   /** Exigências declaradas no Action Registry, não repetidas aqui. */
   const canManage = useAction("scheduling-event.create").allowed;
   const canSeeIntelligence =
-    showAnalysisPanels && session.hasCapability("scheduling.intelligence");
+    showAnalysisPanels &&
+    session.hasPermission("scheduling.intelligence.read") &&
+    session.hasCapability("scheduling.intelligence") &&
+    session.canUseProductFeature(
+      PRODUCT_CAPABILITY.ORBIT_INTELLIGENCE,
+      PRODUCT_FEATURE.SCHEDULING_INTELLIGENCE,
+    );
 
   const window = useMemo(
     () => buildViewWindow(view, reference, timeZone),

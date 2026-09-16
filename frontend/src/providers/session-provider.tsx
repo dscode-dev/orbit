@@ -53,6 +53,10 @@ export interface SessionContextValue {
   entitlements: SessionEntitlements | null;
   /** Módulos habilitados pelo plano (capabilities do backend). */
   capabilities: readonly string[];
+  /** Structural organization ownership, separate from assignable roles. */
+  isOwner: boolean;
+  surfaceAccess: readonly string[];
+  productCapabilities: readonly string[];
   isAuthenticated: boolean;
   isLoading: boolean;
   isPlatformAdmin: boolean;
@@ -64,6 +68,9 @@ export interface SessionContextValue {
   hasRole: (role: string) => boolean;
   /** Um módulo está habilitado quando o plano concede a capability. */
   hasCapability: (capability: string) => boolean;
+  hasProductCapability: (capability: string) => boolean;
+  hasFeature: (feature: string) => boolean;
+  canUseProductFeature: (capability: string, feature?: string) => boolean;
   /** Rebusca a sessão (após trocar unidade, aceitar convite etc.). */
   refresh: () => Promise<void>;
   /** Limpa o estado local — o logout de fato ocorre em `/api/auth/logout`. */
@@ -129,6 +136,11 @@ export function SessionProvider({
      * as demais telas de módulo renderizavam a tela de plano insuficiente.
      */
     const capabilityWildcard = capabilities.includes(WILDCARD_PERMISSION);
+    const productCapabilities =
+      authenticated?.productAccess?.capabilities ?? [];
+    const featureAvailability =
+      authenticated?.productAccess?.featureAvailability ?? {};
+    const isOwner = authenticated?.isOwner ?? false;
     return {
       session,
       user: authenticated?.user ?? null,
@@ -140,6 +152,9 @@ export function SessionProvider({
       organizations: authenticated?.organizations ?? [],
       entitlements: authenticated?.entitlements ?? null,
       capabilities,
+      isOwner,
+      surfaceAccess: authenticated?.surfaceAccess ?? [],
+      productCapabilities,
       isAuthenticated: Boolean(authenticated),
       isLoading: query.isPending,
       isPlatformAdmin: authenticated?.isPlatformAdmin ?? false,
@@ -147,10 +162,17 @@ export function SessionProvider({
       subscriptionEndsAt: authenticated?.subscriptionEndsAt ?? null,
       requiresPasswordChange: authenticated?.requiresPasswordChange ?? false,
       hasPermission: (permission: string) =>
-        wildcard || permissions.includes(permission),
-      hasRole: (role: string) => roles.includes(role),
+        isOwner || wildcard || permissions.includes(permission),
+      hasRole: (role: string) =>
+        (isOwner && role !== "PLATFORM_ADMIN") || roles.includes(role),
       hasCapability: (capability: string) =>
         capabilityWildcard || capabilities.includes(capability),
+      hasProductCapability: (capability: string) =>
+        productCapabilities.includes(capability),
+      hasFeature: (feature: string) => featureAvailability[feature] === true,
+      canUseProductFeature: (capability: string, feature = capability) =>
+        productCapabilities.includes(capability) &&
+        featureAvailability[feature] === true,
       refresh,
       clear,
     };

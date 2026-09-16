@@ -18,12 +18,8 @@
  * papel (`roles.allowed_surfaces`), visível no cadastro e escolhida por quem
  * cria o papel.
  *
- * ## Por que a união, e não a interseção
- *
- * Uma pessoa pode ter papel na organização e papéis por unidade. Quem é
- * administrador na matriz **e** técnico numa filial precisa do painel — negar
- * porque um dos papéis é de campo trancaria quem tem mais acesso, não menos.
- * O papel mais permissivo é o que responde.
+ * BusinessUnitMembership é somente escopo. Permissões e superfícies vêm do
+ * papel da organização ou do override explícito do membro.
  */
 import { ForbiddenException } from '../../../exceptions';
 import type { IdentityUser } from '../infrastructure/identity.repository';
@@ -37,21 +33,21 @@ export function normalizeSurface(client: string | undefined): string {
 /**
  * As superfícies que os papéis desta pessoa abrem.
  *
- * Vazio significa "nenhum papel" — quem não tem papel nenhum não é barrado
- * aqui: isso é assunto de autorização, e trancar a entrada por ausência de
- * papel produziria uma conta impossível de diagnosticar. Ausência devolve o
- * conjunto vazio, e quem chama decide.
+ * Vazio significa nenhum acesso. A decisão final é fail-closed.
  */
 export function surfacesOf(user: IdentityUser): ReadonlySet<string> {
+  if (user.isOrganizationOwner) return new Set(['WEB', 'MOBILE', 'API']);
   const superficies = new Set<string>();
-  for (const papel of [
-    ...user.organizationMemberships.map((m) => m.role),
-    ...user.businessUnitMemberships.map((m) => m.role),
-    ...user.platformRoleAssignments.map((a) => a.role),
-  ]) {
+  for (const papel of [...user.platformRoleAssignments.map((a) => a.role)]) {
     for (const superficie of papel?.allowedSurfaces ?? []) {
       superficies.add(superficie.toUpperCase());
     }
+  }
+  for (const membership of user.organizationMemberships) {
+    const granted = membership.usesCustomAccess
+      ? membership.customAllowedSurfaces
+      : membership.role.allowedSurfaces;
+    granted.forEach((surface) => superficies.add(surface.toUpperCase()));
   }
   return superficies;
 }
@@ -59,13 +55,10 @@ export function surfacesOf(user: IdentityUser): ReadonlySet<string> {
 /**
  * Esta conta pode entrar por aqui?
  *
- * Sem papel algum, sim: a restrição existe para separar campo de escritório,
- * e não para ser um segundo portão de autorização. Com papéis, ao menos um
- * deles precisa abrir a superfície pedida.
+ * Ao menos uma concessão server-owned precisa abrir a superfície pedida.
  */
 export function allowsSurface(user: IdentityUser, client: string | undefined) {
   const superficies = surfacesOf(user);
-  if (superficies.size === 0) return true;
   return superficies.has(normalizeSurface(client));
 }
 

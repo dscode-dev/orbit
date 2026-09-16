@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Permissions, Public, Roles } from '../../decorators';
+import { Permissions, Public, Roles, Surfaces } from '../../decorators';
 import { ForbiddenException } from '../../exceptions';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import { ParseUUIDv7Pipe } from '../../pipes';
@@ -20,6 +20,7 @@ import {
 } from './subscriptions/subscription.dto';
 import { UsageService } from './usage.service';
 import { RequiresActivePlan } from './plan-access';
+import { ProductAccessService } from './product-access';
 
 @ApiTags('Plans')
 @Controller()
@@ -30,6 +31,7 @@ export class SubscriptionPlanController {
     private readonly entitlements: EntitlementService,
     private readonly subscriptions: SubscriptionService,
     private readonly subscriptionMapper: SubscriptionMapper,
+    private readonly productAccess: ProductAccessService,
   ) {}
 
   @Public()
@@ -67,6 +69,7 @@ export class SubscriptionPlanController {
   }
 
   @Get('organizations/current/subscription')
+  @Surfaces('WEB', 'MOBILE', 'API')
   getSubscription(@Req() request: IdentityRequest) {
     return this.plans.getEntitlements(this.organizationId(request));
   }
@@ -91,6 +94,13 @@ export class SubscriptionPlanController {
   @Permissions('usage.read')
   currentEntitlements(@Req() request: IdentityRequest) {
     return this.entitlements.describe(this.organizationId(request));
+  }
+
+  /** Product contract for clients; separate from route capabilities/RBAC. */
+  @Get('organizations/current/product-access')
+  @Surfaces('WEB', 'MOBILE', 'API')
+  productAccessState(@Req() request: IdentityRequest) {
+    return this.productAccess.describe(this.organizationId(request));
   }
 
   /**

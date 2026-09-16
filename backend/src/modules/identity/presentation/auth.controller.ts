@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiPublicErrors } from '../../../common/public-errors';
-import { Public } from '../../../decorators';
+import { Public, Surfaces } from '../../../decorators';
 import { AuthenticationService } from '../application/authentication.service';
 import { PasswordRecoveryService } from '../application/password-recovery.service';
 import { RegistrationService } from '../application/registration.service';
@@ -78,6 +78,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @Surfaces('WEB', 'MOBILE', 'API')
   @HttpCode(HttpStatus.NO_CONTENT)
   logout(@Body() input: LogoutDto, @Req() request: IdentityRequest) {
     return this.authentication.logout(

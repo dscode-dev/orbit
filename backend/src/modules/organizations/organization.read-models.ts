@@ -71,6 +71,12 @@ export interface OrganizationMemberReadModel {
   joinedAt: string;
   /** `true` para o dono da organização. */
   isOwner: boolean;
+  /** Effective access after applying an optional member override. */
+  access: {
+    useRoleDefaults: boolean;
+    permissions: readonly string[];
+    allowedSurfaces: readonly string[];
+  };
 }
 
 /**
@@ -119,4 +125,13 @@ export interface OrganizationContextReadModel {
   updatedAt: string;
   plan: OrganizationPlanReadModel;
   businessUnits: readonly BusinessUnitReadModel[];
+}
+
+export interface OrganizationAccessCatalogReadModel {
+  surfaces: readonly { code: string; label: string }[];
+  permissionGroups: readonly {
+    key: string;
+    label: string;
+    permissions: readonly { code: string; label: string }[];
+  }[];
 }

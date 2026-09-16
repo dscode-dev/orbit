@@ -14,6 +14,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ForbiddenException } from '../../exceptions';
+import { Surfaces } from '../../decorators';
 import { ParseUUIDv7Pipe } from '../../pipes';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import { RequiresActivePlan } from '../subscription-plans/plan-access';
@@ -28,6 +29,7 @@ import { MobileSignatureService } from './mobile-signature.service';
 
 @ApiTags('Mobile Field Signatures')
 @Controller('mobile/field')
+@Surfaces('MOBILE')
 @RequiresActivePlan()
 export class MobileSignatureController {
   constructor(private readonly service: MobileSignatureService) {}
@@ -117,6 +119,7 @@ export class MobileSignatureController {
       organizationId: identity.organizationId,
       businessUnitIds: identity.businessUnitIds,
       permissions: identity.permissions,
+      isOrganizationOwner: identity.isOrganizationOwner,
     };
   }
 }

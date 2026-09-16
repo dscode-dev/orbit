@@ -37,6 +37,12 @@ interface Membro {
   displayName: string;
   email: string;
   role: { id: string; key: string; name: string };
+  businessUnits: { id: string; legalName: string; tradeName: string | null }[];
+  access: {
+    useRoleDefaults: boolean;
+    permissions: string[];
+    allowedSurfaces: string[];
+  };
 }
 
 interface Papel {
@@ -77,6 +83,8 @@ describe('Team members, temporary password and recovery (e2e)', () => {
   let ownerToken: string;
   let neighbourToken: string;
   let ownerUserId: string;
+  let ownerOrganizationId: string;
+  let secondBusinessUnitId: string;
   let operacional: Papel;
   let auxiliar: Papel;
 
@@ -100,6 +108,7 @@ describe('Team members, temporary password and recovery (e2e)', () => {
         city: 'Recife',
         street: 'Rua do Sol',
         stateCode: 'PE',
+        planKey: 'ENTERPRISE_UNLIMITED',
       })
       .expect(201);
     return {
@@ -159,6 +168,28 @@ describe('Team members, temporary password and recovery (e2e)', () => {
       })
     ).id;
 
+    const organization = await auth(
+      http().get('/api/v1/organizations/current'),
+    ).expect(200);
+    ownerOrganizationId = (organization.body as Envelope<{ id: string }>).data
+      .id;
+    const secondUnit = await auth(
+      http().post('/api/v1/organizations/current/business-units'),
+    )
+      .send({
+        legalName: `Team Filial ${digits(6)} LTDA`,
+        tradeName: 'Filial Norte',
+        type: 'BRANCH',
+        documentType: 'CNPJ',
+        documentNumber: cnpj(),
+        city: 'Olinda',
+        street: 'Rua da Filial',
+        stateCode: 'PE',
+      })
+      .expect(201);
+    secondBusinessUnitId = (secondUnit.body as Envelope<{ id: string }>).data
+      .id;
+
     const roles = await auth(
       http().get('/api/v1/organizations/current/roles'),
     ).expect(200);
@@ -188,6 +219,177 @@ describe('Team members, temporary password and recovery (e2e)', () => {
     expect(auxiliar.permissions).not.toContain('artifact_manifests.issue');
     expect(operacional.permissions).toContain('checklists.execute');
     expect(operacional.permissions).toContain('artifact_manifests.issue');
+  });
+
+  it('publica todos os presets atribuíveis sem transformar Owner em opção', async () => {
+    const response = await auth(
+      http().get('/api/v1/organizations/current/roles'),
+    ).expect(200);
+    const keys = (response.body as Envelope<Papel[]>).data.map(
+      (role) => role.key,
+    );
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        'ADMINISTRATOR',
+        'FIELD_TECHNICIAN',
+        'ASSISTANT_TECHNICIAN',
+        'TECHNICAL_RESPONSIBLE',
+        'CUSTOMER_SERVICE',
+        'FINANCIAL',
+        'VIEWER',
+      ]),
+    );
+    expect(keys).not.toContain('OWNER');
+  });
+
+  it('deriva Owner da organização, sem wildcard persistido, e inclui unidade futura', async () => {
+    const ownerRole = await prisma.role.findFirstOrThrow({
+      where: { organizationId: ownerOrganizationId, key: 'OWNER' },
+      select: { permissions: true },
+    });
+    expect(ownerRole.permissions).toEqual([]);
+
+    const response = await auth(
+      http().get('/api/v1/identity/me/access'),
+    ).expect(200);
+    const access = (
+      response.body as Envelope<{
+        isOwner: boolean;
+        permissions: string[];
+        surfaceAccess: string[];
+        unitIds: string[];
+      }>
+    ).data;
+    expect(access.isOwner).toBe(true);
+    expect(access.surfaceAccess).toEqual(
+      expect.arrayContaining(['WEB', 'MOBILE', 'API']),
+    );
+    expect(access.unitIds).toContain(secondBusinessUnitId);
+  });
+
+  it('permite ao Owner ler e iniciar a própria assinatura sem perfil RBAC artificial', async () => {
+    const response = await auth(
+      http().get('/api/v1/identity/me/signature'),
+    ).expect(200);
+    expect(
+      (response.body as Envelope<{ signatureAvailable: boolean }>).data
+        .signatureAvailable,
+    ).toBe(false);
+
+    const upload = await auth(
+      http().post('/api/v1/identity/me/signature/uploads'),
+    )
+      .send({
+        fileName: 'assinatura-owner.png',
+        mimeType: 'image/png',
+        sizeBytes: 128,
+      })
+      .expect(201);
+    expect(
+      (upload.body as Envelope<{ fileId: string; upload: { method: string } }>)
+        .data,
+    ).toMatchObject({ upload: { method: 'PUT' } });
+  });
+
+  it('cadastra acesso personalizado em múltiplas unidades e publica o efetivo', async () => {
+    const organization = await auth(
+      http().get('/api/v1/organizations/current'),
+    ).expect(200);
+    const primaryUnitId = (
+      organization.body as Envelope<{ businessUnits: { id: string }[] }>
+    ).data.businessUnits.find((unit) => unit.id !== secondBusinessUnitId)!.id;
+
+    const created = await criarMembro({
+      businessUnitIds: [primaryUnitId, secondBusinessUnitId],
+      useRoleDefaults: false,
+      permissions: ['operations.read'],
+      allowedSurfaces: ['MOBILE'],
+    });
+    expect(
+      created.data.member.businessUnits.map((unit) => unit.id).sort(),
+    ).toEqual([primaryUnitId, secondBusinessUnitId].sort());
+    expect(created.data.member.access).toEqual({
+      useRoleDefaults: false,
+      permissions: ['operations.read'],
+      allowedSurfaces: ['MOBILE'],
+    });
+  });
+
+  it('nega uma rota mobile diretamente para uma conta somente Web', async () => {
+    const created = await criarMembro({
+      useRoleDefaults: false,
+      permissions: ['operations.read'],
+      allowedSurfaces: ['WEB'],
+    });
+    const login = await http()
+      .post('/api/v1/identity/login')
+      .send({
+        email: created.data.member.email,
+        password: created.data.temporaryPassword,
+        client: 'WEB',
+      })
+      .expect(200);
+    const token = (login.body as Envelope<{ accessToken: string }>).data
+      .accessToken;
+
+    await auth(http().get('/api/v1/mobile/field/home'), token).expect(403);
+  });
+
+  it('impede autoconcessão e delegação acima da autoridade do gestor', async () => {
+    const roleResponse = await auth(
+      http().post('/api/v1/organizations/current/roles'),
+    )
+      .send({
+        name: `Gestor limitado ${digits(5)}`,
+        permissions: ['organization.members.update'],
+        allowedSurfaces: ['WEB'],
+      })
+      .expect(201);
+    const role = (roleResponse.body as Envelope<Papel>).data;
+    const manager = await criarMembro({ roleId: role.id });
+    const login = await http()
+      .post('/api/v1/identity/login')
+      .send({
+        email: manager.data.member.email,
+        password: manager.data.temporaryPassword,
+        client: 'WEB',
+      })
+      .expect(200);
+    const token = (login.body as Envelope<{ accessToken: string }>).data
+      .accessToken;
+    const accessResponse = await auth(
+      http().get('/api/v1/identity/me/access'),
+      token,
+    ).expect(200);
+    const managerAccess = (
+      accessResponse.body as Envelope<{
+        permissions: string[];
+        unitIds: string[];
+      }>
+    ).data;
+    expect(managerAccess.permissions).toContain('organization.members.update');
+    expect(managerAccess.unitIds).not.toHaveLength(0);
+
+    await auth(
+      http().patch(
+        `/api/v1/organizations/current/members/${manager.data.member.userId}`,
+      ),
+      token,
+    )
+      .send({ allowedSurfaces: ['WEB', 'MOBILE'] })
+      .expect(400);
+
+    const denial = await criarMembro(
+      {
+        roleId: auxiliar.id,
+        useRoleDefaults: false,
+        permissions: ['organization.members.update', 'financial.manage'],
+        allowedSurfaces: ['WEB'],
+      },
+      token,
+      403,
+    );
+    expect((denial as unknown as ErrorEnvelope).error.code).toBe('FORBIDDEN');
   });
 
   it('a senha temporária sai uma vez, obriga a troca e morre na troca', async () => {
@@ -352,12 +554,10 @@ describe('Team members, temporary password and recovery (e2e)', () => {
   });
 
   it('nenhum papel com curinga é atribuível pela equipe', async () => {
-    const roles = await auth(
-      http().get('/api/v1/organizations/current/roles'),
-    ).expect(200);
-    const dono = (roles.body as Envelope<Papel[]>).data.find(
-      (papel) => papel.key === 'OWNER',
-    )!;
+    const dono = await prisma.role.findFirstOrThrow({
+      where: { organizationId: ownerOrganizationId, key: 'OWNER' },
+      select: { id: true },
+    });
 
     await criarMembro({ roleId: dono.id }, ownerToken, 400);
 
@@ -368,13 +568,9 @@ describe('Team members, temporary password and recovery (e2e)', () => {
      * teria passado enquanto a recusa olhava só para a chave `OWNER` — e quem o
      * recebesse poderia remover quem o cadastrou.
      */
-    const sobMedida = await auth(
-      http().post('/api/v1/organizations/current/roles'),
-    )
+    await auth(http().post('/api/v1/organizations/current/roles'))
       .send({ name: `Faz tudo ${digits(4)}`, permissions: ['*'] })
-      .expect(201);
-    const curinga = (sobMedida.body as Envelope<Papel>).data;
-    await criarMembro({ roleId: curinga.id }, ownerToken, 400);
+      .expect(400);
 
     /** Um papel sob medida **sem** curinga continua atribuível. */
     const restrito = await auth(
@@ -402,8 +598,7 @@ describe('Team members, temporary password and recovery (e2e)', () => {
     ).expect(200);
     const lista = (roles.body as Envelope<Papel[]>).data;
 
-    const dono = lista.find((papel) => papel.key === 'OWNER')!;
-    expect([...dono.allowedSurfaces].sort()).toEqual(['MOBILE', 'WEB']);
+    expect(lista.find((papel) => papel.key === 'OWNER')).toBeUndefined();
 
     for (const chave of ['FIELD_TECHNICIAN', 'ASSISTANT_TECHNICIAN']) {
       const papel = lista.find((item) => item.key === chave)!;

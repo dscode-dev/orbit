@@ -17,6 +17,7 @@ import type { QueryParams, RequestOptions } from "@/types/api";
 import type { PaginatedResult } from "@/types/api";
 import type {
   AddTeamMemberInput,
+  AccessCatalog,
   EligibleProfessional,
   ProfessionalEligibility,
   ProfessionalEligibilityQuery,
@@ -103,7 +104,11 @@ export const workforceService = {
     input: CreateTeamMemberInput,
     options?: RequestOptions,
   ): Promise<CreatedTeamMember> =>
-    apiClient.post<CreatedTeamMember>(`${ORG_PATH}/team/members`, input, options),
+    apiClient.post<CreatedTeamMember>(
+      `${ORG_PATH}/team/members`,
+      input,
+      options,
+    ),
 
   /** Um link de definição de senha, para o owner repassar. */
   issuePasswordLink: (
@@ -124,13 +129,13 @@ export const workforceService = {
    * organização sem estar naquela equipe é normal.
    */
   dismissMember: (userId: string, options?: RequestOptions): Promise<void> =>
-    apiClient.delete<void>(
-      path(`${ORG_PATH}/team/members`, userId),
-      options,
-    ),
+    apiClient.delete<void>(path(`${ORG_PATH}/team/members`, userId), options),
 
   roles: (options?: RequestOptions): Promise<TeamRole[]> =>
     apiClient.get<TeamRole[]>(`${ORG_PATH}/roles`, options),
+
+  accessCatalog: (options?: RequestOptions): Promise<AccessCatalog> =>
+    apiClient.get<AccessCatalog>(`${ORG_PATH}/access-catalog`, options),
 
   createRole: (input: CreateRoleInput): Promise<TeamRole> =>
     apiClient.post<TeamRole>(`${ORG_PATH}/roles`, input),
@@ -351,6 +356,8 @@ export const workforceService = {
         ? queryKeys.list("organizations-members", query as QueryParams)
         : organizationService.keys.members(),
     roles: (): QueryKey => queryKeys.query("organizations", "roles"),
+    accessCatalog: (): QueryKey =>
+      queryKeys.query("organizations", "access-catalog"),
 
     invitationsModule: (): QueryKey => queryKeys.module(INVITATIONS),
     invitations: (query?: InvitationQuery): QueryKey =>

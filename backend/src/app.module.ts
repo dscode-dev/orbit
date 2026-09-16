@@ -36,13 +36,17 @@ import { MobileFieldModule } from './modules/mobile-field/mobile-field.module';
 import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
 import { CustomerServiceRequestModule } from './modules/customer-service-requests/customer-service-request.module';
 import { BillingModule } from './modules/billing/billing.module';
-import { PermissionGuard, RoleGuard } from './guards';
+import { PermissionGuard, RoleGuard, SurfaceGuard } from './guards';
 import { JwtAuthenticationGuard } from './modules/identity/infrastructure/jwt-authentication.guard';
 import {
   ActivePlanGuard,
   CapabilityGuard,
   RequiredPlanGuard,
 } from './modules/subscription-plans/plan-access';
+import {
+  ProductCapabilityGuard,
+  ProductFeatureGuard,
+} from './modules/subscription-plans/product-access';
 
 @Module({
   imports: [
@@ -92,11 +96,14 @@ import {
      * entitlements podem consultar o contexto estabelecido pelo JWT.
      */
     { provide: APP_GUARD, useClass: JwtAuthenticationGuard },
+    { provide: APP_GUARD, useClass: SurfaceGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: RoleGuard },
     { provide: APP_GUARD, useClass: ActivePlanGuard },
     { provide: APP_GUARD, useClass: RequiredPlanGuard },
     { provide: APP_GUARD, useClass: CapabilityGuard },
+    { provide: APP_GUARD, useClass: ProductCapabilityGuard },
+    { provide: APP_GUARD, useClass: ProductFeatureGuard },
   ],
 })
 export class AppModule {}

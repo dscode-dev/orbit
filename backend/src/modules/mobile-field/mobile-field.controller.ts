@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ForbiddenException } from '../../exceptions';
+import { Surfaces } from '../../decorators';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import { RequiresActivePlan } from '../subscription-plans/plan-access';
 import {
@@ -15,6 +16,7 @@ import {
 
 @ApiTags('Mobile Field')
 @Controller('mobile/field')
+@Surfaces('MOBILE')
 @RequiresActivePlan()
 export class MobileFieldController {
   constructor(private readonly service: MobileFieldService) {}

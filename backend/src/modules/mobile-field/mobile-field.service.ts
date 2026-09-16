@@ -72,6 +72,8 @@ export interface MobileFieldActor {
   organizationId: string;
   businessUnitIds: readonly string[];
   permissions: readonly string[];
+  /** Structural owner; relevant to self-service access, never product gates. */
+  isOrganizationOwner?: boolean;
 }
 
 @Injectable()

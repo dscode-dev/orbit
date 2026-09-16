@@ -120,6 +120,7 @@ describe('Plans, entitlements and monthly usage limits (e2e)', () => {
 
   /** Inquilinos de catálogo, para capacidades. */
   const catalogo = new Map<string, string>();
+  const catalogTokens = new Map<string, string>();
 
   const auth = (test: request.Test, bearer = token) =>
     test.set('Authorization', `Bearer ${bearer}`);
@@ -267,6 +268,7 @@ describe('Plans, entitlements and monthly usage limits (e2e)', () => {
         select: { id: true },
       });
       catalogo.set(chave, organizacao.id);
+      catalogTokens.set(chave, conta.token);
     }
   });
 
@@ -407,6 +409,35 @@ describe('Plans, entitlements and monthly usage limits (e2e)', () => {
         ),
       ).rejects.toMatchObject({ code: 'PLAN_CAPABILITY_NOT_AVAILABLE' });
     });
+
+    it.each(['ESSENTIAL', 'PROFESSIONAL'])(
+      'nega a API de IA diretamente no plano %s, inclusive para Owner',
+      async (plan) => {
+        const response = await auth(
+          http().get('/api/v1/ai-agents'),
+          catalogTokens.get(plan),
+        ).expect(403);
+        expect((response.body as ErrorBody).error.code).toBe('FORBIDDEN');
+      },
+    );
+
+    it.each(['PROFESSIONAL_INTELLIGENCE', 'ENTERPRISE_UNLIMITED'])(
+      'libera somente a Intelligence implementada no plano %s',
+      async (plan) => {
+        await auth(
+          http().get('/api/v1/ai-agents'),
+          catalogTokens.get(plan),
+        ).expect(200);
+        await auth(
+          http().get('/api/v1/analytics/intelligence'),
+          catalogTokens.get(plan),
+        ).expect(200);
+        await auth(
+          http().get('/api/v1/scheduling/intelligence'),
+          catalogTokens.get(plan),
+        ).expect(403);
+      },
+    );
   });
 
   /* ---------------------------------------------------------------- */

@@ -8,6 +8,8 @@ export interface AccessTokenClaims {
   businessUnitIds: readonly UUID[];
   roles: readonly string[];
   permissions: readonly string[];
+  allowedSurfaces: readonly string[];
+  isOrganizationOwner: boolean;
   type: 'access';
 }
 
@@ -19,6 +21,8 @@ export interface AuthenticatedIdentity {
   businessUnitIds: readonly UUID[];
   roles: readonly string[];
   permissions: readonly string[];
+  allowedSurfaces: readonly string[];
+  isOrganizationOwner: boolean;
 }
 
 export interface SessionMetadata {

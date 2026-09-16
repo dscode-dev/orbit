@@ -19,6 +19,7 @@ function usuario(options: {
   organizacao?: Papel;
   unidades?: Papel[];
   plataforma?: Papel[];
+  owner?: boolean;
 }): IdentityUser {
   return {
     organizationMemberships: options.organizacao
@@ -28,6 +29,7 @@ function usuario(options: {
     platformRoleAssignments: (options.plataforma ?? []).map((role) => ({
       role,
     })),
+    isOrganizationOwner: options.owner ?? false,
   } as unknown as IdentityUser;
 }
 
@@ -53,12 +55,12 @@ describe('normalizeSurface', () => {
 });
 
 describe('surfacesOf', () => {
-  it('reúne as superfícies de todos os papéis da pessoa', () => {
+  it('usa o papel organizacional e mantém papel de unidade somente como escopo', () => {
     const pessoa = usuario({
       organizacao: { allowedSurfaces: ['MOBILE'] },
       unidades: [{ allowedSurfaces: ['WEB'] }],
     });
-    expect([...surfacesOf(pessoa)].sort()).toEqual(['MOBILE', 'WEB']);
+    expect([...surfacesOf(pessoa)]).toEqual(['MOBILE']);
   });
 
   it('normaliza a caixa do que está gravado', () => {
@@ -80,7 +82,8 @@ describe('allowsSurface', () => {
 
   it('o dono entra nos dois', () => {
     const dono = usuario({
-      organizacao: { allowedSurfaces: ['WEB', 'MOBILE'] },
+      organizacao: { allowedSurfaces: [] },
+      owner: true,
     });
     expect(allowsSurface(dono, 'WEB')).toBe(true);
     expect(allowsSurface(dono, 'MOBILE')).toBe(true);
@@ -101,16 +104,8 @@ describe('allowsSurface', () => {
     expect(allowsSurface(pessoa, 'WEB')).toBe(true);
   });
 
-  /**
-   * Sem papel nenhum a restrição não opina.
-   *
-   * Ela existe para separar campo de escritório, não para ser um segundo
-   * portão de autorização. Trancar por ausência de papel produziria uma conta
-   * impossível de diagnosticar — entra e não faz nada é um problema de
-   * permissão, e é lá que ele deve aparecer.
-   */
-  it('quem não tem papel algum não é barrado aqui', () => {
-    expect(allowsSurface(usuario({}), 'WEB')).toBe(true);
+  it('quem não tem concessão explícita é recusado de forma fail-closed', () => {
+    expect(allowsSurface(usuario({}), 'WEB')).toBe(false);
   });
 
   it('o administrador de plataforma entra pelo papel global', () => {

@@ -47,7 +47,7 @@ export class MobileSignatureService {
       signatureAvailable: Boolean(signature),
       version: signature?.version ?? null,
       updatedAt: signature?.updatedAt.toISOString() ?? null,
-      roles: this.roles(context.profile!),
+      roles: this.roles(context.profile),
       preview: signature
         ? this.preview(actor, signature.storageObject, signature.sha256)
         : null,
@@ -107,7 +107,7 @@ export class MobileSignatureService {
       signatureAvailable: true,
       version: replaced.signature.version,
       updatedAt: replaced.signature.updatedAt.toISOString(),
-      roles: this.roles(context.profile!),
+      roles: this.roles(context.profile),
       preview: this.preview(actor, file, file.sha256),
       replacedVersion: replaced.replacedVersion,
     };
@@ -151,7 +151,7 @@ export class MobileSignatureService {
       signatureAvailable: false,
       version: null,
       updatedAt: null,
-      roles: this.roles(context.profile!),
+      roles: this.roles(context.profile),
       preview: null,
     };
   }
@@ -322,8 +322,8 @@ export class MobileSignatureService {
     );
     if (
       !context.membership ||
-      !context.profile?.active ||
-      this.roles(context.profile).length === 0
+      (!actor.isOrganizationOwner &&
+        (!context.profile?.active || this.roles(context.profile).length === 0))
     )
       throw new ForbiddenException(
         'Perfil profissional ativo é obrigatório para cadastrar assinatura',
@@ -392,11 +392,17 @@ export class MobileSignatureService {
     };
   }
 
-  private roles(profile: {
-    fieldTechnicianEnabled: boolean;
-    technicalResponsibleEnabled: boolean;
-  }): MobileProfessionalRole[] {
+  private roles(
+    profile:
+      | {
+          fieldTechnicianEnabled: boolean;
+          technicalResponsibleEnabled: boolean;
+        }
+      | null
+      | undefined,
+  ): MobileProfessionalRole[] {
     const roles: MobileProfessionalRole[] = [];
+    if (!profile) return roles;
     if (profile.fieldTechnicianEnabled) roles.push('FIELD_TECHNICIAN');
     if (profile.technicalResponsibleEnabled)
       roles.push('TECHNICAL_RESPONSIBLE');

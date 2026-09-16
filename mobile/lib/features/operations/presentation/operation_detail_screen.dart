@@ -20,6 +20,7 @@ import 'widgets/field_actions.dart';
 import 'widgets/intelligence_section.dart';
 import 'widgets/location_section.dart';
 import 'widgets/status_badge.dart';
+import '../../../app/providers.dart';
 
 class OperationDetailScreen extends ConsumerWidget {
   const OperationDetailScreen({super.key, required this.operationId});
@@ -29,6 +30,16 @@ class OperationDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(operationDetailProvider(operationId));
+    final session = ref.watch(sessionProvider);
+    const intelligenceCapability = 'ORBIT_INTELLIGENCE';
+    final canUseIntelligence =
+        session?.hasPermission('ai.executions.read') == true &&
+        session?.hasCapability('ai.executions.read') == true &&
+        session?.canUseProductFeature(
+              intelligenceCapability,
+              intelligenceCapability,
+            ) ==
+            true;
 
     return Scaffold(
       appBar: AppBar(
@@ -85,8 +96,10 @@ class OperationDetailScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: OrbitSpacing.md),
-            IntelligenceSection(operationId: operationId),
-            const SizedBox(height: OrbitSpacing.md),
+            if (canUseIntelligence) ...[
+              IntelligenceSection(operationId: operationId),
+              const SizedBox(height: OrbitSpacing.md),
+            ],
             _ChecklistsSection(operationId: operationId),
             const SizedBox(height: OrbitSpacing.md),
             _TimelineSection(operationId: operationId),

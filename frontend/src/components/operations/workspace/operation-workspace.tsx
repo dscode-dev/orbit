@@ -44,13 +44,26 @@ import { IntelligenceSection } from "./intelligence.section";
 import { MaterialsSection } from "./materials.section";
 import { StatusSection } from "./status.section";
 import { HistorySection, TimelineSection } from "./timeline.section";
+import { useSession } from "@/providers/session-provider";
+import { PRODUCT_CAPABILITY, PRODUCT_FEATURE } from "@/registry/product-access";
 
 export function OperationWorkspace({ operationId }: { operationId: string }) {
+  const session = useSession();
+  const canUseIntelligence =
+    session.hasPermission("ai.executions.read") &&
+    session.hasCapability("ai.executions.read") &&
+    session.canUseProductFeature(
+      PRODUCT_CAPABILITY.ORBIT_INTELLIGENCE,
+      PRODUCT_FEATURE.ORBIT_INTELLIGENCE,
+    );
   const operation = useOperation(operationId);
   const timeline = useOperationTimeline(operationId);
   const history = useOperationHistory(operationId);
   const checklists = useOperationChecklists(operationId);
-  const intelligence = useOperationIntelligence(operationId);
+  const intelligence = useOperationIntelligence(
+    operationId,
+    canUseIntelligence,
+  );
 
   const operationQuery = toPanelQuery(operation);
 
@@ -97,7 +110,7 @@ export function OperationWorkspace({ operationId }: { operationId: string }) {
             void timeline.refetch();
             void history.refetch();
             void checklists.refetch();
-            void intelligence.refetch();
+            if (canUseIntelligence) void intelligence.refetch();
           }}
         >
           <RefreshCw className="size-4" />
@@ -116,7 +129,9 @@ export function OperationWorkspace({ operationId }: { operationId: string }) {
             "o que foi feito em campo".
           */}
           <MaterialsSection operation={operationQuery.data} />
-          <IntelligenceSection query={toPanelQuery(intelligence)} />
+          {canUseIntelligence ? (
+            <IntelligenceSection query={toPanelQuery(intelligence)} />
+          ) : null}
           <AdditionalDataSection query={operationQuery} />
         </div>
 

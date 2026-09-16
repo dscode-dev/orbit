@@ -28,8 +28,12 @@ export class TeamRepository {
   createMember(
     input: {
       organizationId: string;
-      businessUnitId: string;
+      businessUnitIds: readonly string[];
       roleId: string;
+      usesCustomAccess: boolean;
+      customPermissions: string[];
+      customAllowedSurfaces: string[];
+      actorId: string;
       email: string;
       normalizedEmail: string;
       firstName: string;
@@ -47,7 +51,7 @@ export class TeamRepository {
       await this.setLocal(
         transaction,
         'app.business_unit_ids',
-        input.businessUnitId,
+        input.businessUnitIds.join(','),
       );
 
       const existente = await transaction.user.findUnique({
@@ -88,14 +92,32 @@ export class TeamRepository {
           organizationId: input.organizationId,
           userId: user.id,
           roleId: input.roleId,
+          usesCustomAccess: input.usesCustomAccess,
+          customPermissions: input.customPermissions,
+          customAllowedSurfaces: input.customAllowedSurfaces,
         },
       });
-      await transaction.businessUnitMembership.create({
-        data: {
+      await transaction.businessUnitMembership.createMany({
+        data: input.businessUnitIds.map((businessUnitId) => ({
           organizationId: input.organizationId,
-          businessUnitId: input.businessUnitId,
+          businessUnitId,
           userId: user.id,
           roleId: input.roleId,
+        })),
+      });
+      await transaction.auditLog.create({
+        data: {
+          organizationId: input.organizationId,
+          userId: input.actorId,
+          action: 'ORGANIZATION_MEMBER_CREATED',
+          entityType: 'ORGANIZATION_MEMBERSHIP',
+          entityId: user.id,
+          metadata: {
+            targetUserId: user.id,
+            roleId: input.roleId,
+            unitCount: input.businessUnitIds.length,
+            usesCustomAccess: input.usesCustomAccess,
+          },
         },
       });
 
@@ -113,6 +135,9 @@ export class TeamRepository {
           userId: true,
           status: true,
           joinedAt: true,
+          usesCustomAccess: true,
+          customPermissions: true,
+          customAllowedSurfaces: true,
           user: {
             select: {
               id: true,
@@ -122,7 +147,15 @@ export class TeamRepository {
               status: true,
             },
           },
-          role: { select: { id: true, key: true, name: true } },
+          role: {
+            select: {
+              id: true,
+              key: true,
+              name: true,
+              permissions: true,
+              allowedSurfaces: true,
+            },
+          },
         },
       }),
     );

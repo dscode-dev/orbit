@@ -38,7 +38,7 @@ import {
   useMemberExecutions,
   useMemberOperations,
   useMemberSchedule,
-  useTeamRoles,
+  useAccessCatalog,
 } from "@/hooks/workforce/use-workforce";
 import { formatDateTime } from "@/lib/formatters";
 import { ROUTES } from "@/lib/routes";
@@ -80,8 +80,14 @@ export function MemberSheet({
 }
 
 function Body({ member, onEdit }: { member: TeamMember; onEdit?: () => void }) {
-  const roles = useTeamRoles();
-  const role = roles.data?.find((item) => item.id === member.role.id);
+  const catalog = useAccessCatalog();
+  const permissionLabels = new Map(
+    (catalog.data?.permissionGroups ?? []).flatMap((group) =>
+      group.permissions.map(
+        (permission) => [permission.code, permission.label] as const,
+      ),
+    ),
+  );
 
   return (
     <>
@@ -121,33 +127,34 @@ function Body({ member, onEdit }: { member: TeamMember; onEdit?: () => void }) {
               </span>
             </p>
 
-            {roles.isPending ? (
+            {catalog.isPending ? (
               <Skeleton className="mt-3 h-16 w-full" />
-            ) : role ? (
+            ) : (
               <>
-                {role.description ? (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {role.description}
-                  </p>
-                ) : null}
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {member.access.useRoleDefaults
+                    ? "Usa as permissões recomendadas pelo papel."
+                    : "Possui um conjunto de permissões personalizado."}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {member.access.allowedSurfaces.map((surface) => (
+                    <Badge key={surface} variant="secondary">
+                      {catalog.data?.surfaces.find(
+                        (item) => item.code === surface,
+                      )?.label ?? surface}
+                    </Badge>
+                  ))}
+                </div>
                 <ul className="mt-3 flex flex-wrap gap-1.5">
-                  {role.permissions.map((permission) => (
+                  {member.access.permissions.map((permission) => (
                     <li key={permission}>
-                      <span className="rounded-md bg-surface-strong px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-                        {permission}
+                      <span className="rounded-md bg-surface-strong px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {permissionLabels.get(permission) ?? "Acesso legado"}
                       </span>
                     </li>
                   ))}
                 </ul>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Estas são as permissões concedidas a este papel.
-                </p>
               </>
-            ) : (
-              <p className="mt-2 text-sm text-muted-foreground">
-                O papel não está na lista da organização — pode ser um papel de
-                plataforma.
-              </p>
             )}
           </div>
         </section>

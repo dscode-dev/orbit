@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ForbiddenException } from '../../exceptions';
+import { Surfaces } from '../../decorators';
 import { ParseUUIDv7Pipe } from '../../pipes';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import {
@@ -18,6 +19,7 @@ import type { MobileFieldActor } from './mobile-field.service';
 
 @ApiTags('Mobile Field Artifacts')
 @Controller('mobile/field/artifacts')
+@Surfaces('MOBILE')
 @RequiresActivePlan()
 export class MobileFieldArtifactController {
   constructor(private readonly service: MobileFieldArtifactService) {}

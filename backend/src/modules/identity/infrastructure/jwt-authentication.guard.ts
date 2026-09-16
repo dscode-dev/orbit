@@ -18,6 +18,8 @@ import type { AuthenticatedIdentity } from '../domain/identity.types';
 import { redactSensitivePath } from '../../../common/redact-sensitive-path';
 import { IdentityRepository } from './identity.repository';
 import { IdentityTokenService } from '../application/token.service';
+import { toAuthenticatedIdentity } from '../application/authentication.service';
+import { allowsSurface } from '../domain/surface-access';
 
 export interface IdentityRequest extends Request {
   actorType?: 'INTERNAL_USER';
@@ -26,6 +28,9 @@ export interface IdentityRequest extends Request {
     id: UUID;
     roles: readonly string[];
     permissions: readonly string[];
+    businessUnitIds: readonly UUID[];
+    allowedSurfaces: readonly string[];
+    isOrganizationOwner: boolean;
   };
   organizationId?: UUID;
   businessUnitId?: UUID;
@@ -80,21 +85,27 @@ export class JwtAuthenticationGuard implements CanActivate {
         await this.repository.revokeSession(session.id);
         throw new UnauthorizedException('Platform access was revoked');
       }
-      const identity: AuthenticatedIdentity = {
-        id: claims.sub,
-        sessionId: claims.sid,
-        organizationId: claims.organizationId,
-        businessUnitId: claims.businessUnitId,
-        businessUnitIds: claims.businessUnitIds,
-        roles: claims.roles,
-        permissions: claims.permissions,
-      };
+      const user = await this.repository.findById(claims.sub);
+      if (!user || user.deletedAt || user.status !== 'ACTIVE') {
+        await this.repository.revokeSession(session.id);
+        throw new UnauthorizedException();
+      }
+      // RBAC, scope and ownership are resolved from current server state on
+      // every request. A still-signed token cannot preserve revoked access.
+      const identity = toAuthenticatedIdentity(user, claims.sid);
+      if (!allowsSurface(user, session.client)) {
+        await this.repository.revokeSession(session.id);
+        throw new UnauthorizedException('Client surface access was revoked');
+      }
       request.identity = identity;
       request.actorType = 'INTERNAL_USER';
       request.user = {
         id: identity.id,
         roles: identity.roles,
         permissions: identity.permissions,
+        businessUnitIds: identity.businessUnitIds,
+        allowedSurfaces: identity.allowedSurfaces,
+        isOrganizationOwner: identity.isOrganizationOwner,
       };
       request.organizationId = identity.organizationId ?? undefined;
       request.businessUnitId = identity.businessUnitId ?? undefined;

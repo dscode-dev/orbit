@@ -54,6 +54,7 @@ import { useCustomer } from "@/hooks/customers/use-customers";
 import { formatDateTime } from "@/lib/formatters";
 import { ROUTES } from "@/lib/routes";
 import { useSession } from "@/providers/session-provider";
+import { PRODUCT_CAPABILITY, PRODUCT_FEATURE } from "@/registry/product-access";
 import type { Customer } from "@/types/customers";
 import { TabBoundary } from "@/workspace";
 import { CustomerFormDialog } from "../customer-form.dialog";
@@ -124,7 +125,13 @@ function WorkspaceBody({
 }) {
   const session = useSession();
   const { definition } = useEntityAccess("customer");
-  const canReadIntelligence = session.hasCapability("ai.executions.read");
+  const canReadIntelligence =
+    session.hasPermission("ai.executions.read") &&
+    session.hasCapability("ai.executions.read") &&
+    session.canUseProductFeature(
+      PRODUCT_CAPABILITY.ORBIT_INTELLIGENCE,
+      PRODUCT_FEATURE.ORBIT_INTELLIGENCE,
+    );
 
   /**
    * Uma autoridade só para editar.
@@ -172,7 +179,11 @@ function WorkspaceBody({
 
         <div className="flex flex-wrap items-center gap-2">
           {edit.allowed ? (
-            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditOpen(true)}
+            >
               <Pencil className="size-4" />
               {edit.label}
             </Button>
@@ -237,10 +248,9 @@ function WorkspaceBody({
               </div>
               <div className="min-w-0 space-y-6">
                 <IndicatorsSection customer={customer} />
-                <IntelligenceSection
-                  customerId={customer.id}
-                  enabled={canReadIntelligence}
-                />
+                {canReadIntelligence ? (
+                  <IntelligenceSection customerId={customer.id} enabled />
+                ) : null}
               </div>
             </div>
           </TabBoundary>

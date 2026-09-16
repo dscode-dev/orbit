@@ -58,6 +58,7 @@ import { StatusSection } from "./status.section";
 import { TeamSection } from "./team.section";
 import { HistorySection, TimelineSection } from "./timeline.section";
 import { useExecutionEditability } from "./use-execution-editability";
+import { PRODUCT_CAPABILITY, PRODUCT_FEATURE } from "@/registry/product-access";
 
 export function ExecutionWorkspace({ executionId }: { executionId: string }) {
   const query = useArtifactExecution(executionId);
@@ -109,6 +110,10 @@ function WorkspaceBody({
   const canExecute =
     session.hasPermission("artifact_executions.execute") &&
     session.hasCapability("artifact_executions.execute");
+  const canUseIntelligence = session.canUseProductFeature(
+    PRODUCT_CAPABILITY.ORBIT_INTELLIGENCE,
+    PRODUCT_FEATURE.ARTIFACT_INTELLIGENCE,
+  );
 
   const saveResponse = useSaveArtifactResponse(execution.id);
   const changeStatus = useChangeArtifactExecutionStatus(execution.id);
@@ -220,7 +225,9 @@ function WorkspaceBody({
             error={registerAttachment.error}
             onRegister={onRegisterAttachment}
           />
-          <IntelligenceSection execution={execution} />
+          {canUseIntelligence ? (
+            <IntelligenceSection execution={execution} />
+          ) : null}
           <TimelineSection execution={execution} />
           <HistorySection />
         </div>

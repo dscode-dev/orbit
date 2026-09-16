@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiPublicErrors } from '../../../common/public-errors';
+import { Surfaces } from '../../../decorators';
 import { ForbiddenException } from '../../../exceptions';
 import { ParseUUIDv7Pipe } from '../../../pipes';
 import { AuthenticationService } from '../application/authentication.service';
@@ -32,6 +33,7 @@ import {
 @ApiTags('Identity Profile')
 @ApiPublicErrors()
 @Controller('identity/me')
+@Surfaces('WEB', 'MOBILE', 'API')
 export class ProfileController {
   constructor(
     private readonly profiles: ProfileService,
@@ -46,6 +48,19 @@ export class ProfileController {
     return this.readModels.profile(
       await this.profiles.get(request.identity!.id),
     );
+  }
+
+  /** Current server-resolved access; no token or credential material. */
+  @Get('access')
+  access(@Req() request: IdentityRequest) {
+    const identity = request.identity!;
+    return {
+      isOwner: identity.isOrganizationOwner,
+      roles: identity.roles,
+      permissions: identity.permissions,
+      surfaceAccess: identity.allowedSurfaces,
+      unitIds: identity.businessUnitIds,
+    };
   }
 
   @Patch()

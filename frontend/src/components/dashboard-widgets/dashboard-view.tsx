@@ -40,6 +40,7 @@ import {
 import { formatDateTime } from "@/lib/formatters";
 import { PanelError, toPanelQuery } from "@/components/panels";
 import { resolveWidgets, type WidgetDataSources } from "./widget-registry";
+import { PRODUCT_CAPABILITY, PRODUCT_FEATURE } from "@/registry/product-access";
 import { ehEstreito, organizarPainel } from "./dashboard-layout";
 
 export function DashboardView() {
@@ -47,6 +48,10 @@ export function DashboardView() {
   const session = useSession();
   const scope = useActiveScope();
   const analyticsQuery = useAnalyticsQuery(range);
+  const canUseIntelligence = session.canUseProductFeature(
+    PRODUCT_CAPABILITY.ORBIT_INTELLIGENCE,
+    PRODUCT_FEATURE.ORBIT_INTELLIGENCE,
+  );
   /**
    * Fuso da unidade ativa.
    *
@@ -72,7 +77,9 @@ export function DashboardView() {
       query: analyticsQuery,
       dashboard: toPanelQuery(useAnalyticsDashboard(analyticsQuery)),
       health: toPanelQuery(useAnalyticsHealth(analyticsQuery)),
-      intelligence: toPanelQuery(useOrbitIntelligence(analyticsQuery)),
+      intelligence: toPanelQuery(
+        useOrbitIntelligence(analyticsQuery, canUseIntelligence),
+      ),
       environmentalImpact: toPanelQuery(useEnvironmentalImpact()),
     },
     scheduling: {
@@ -165,7 +172,8 @@ export function DashboardView() {
               void layout.refetch();
               void sources.analytics.dashboard.refetch();
               void sources.analytics.health.refetch();
-              void sources.analytics.intelligence.refetch();
+              if (canUseIntelligence)
+                void sources.analytics.intelligence.refetch();
               void sources.scheduling.agenda.refetch();
               void sources.comparison.current.refetch();
               void sources.comparison.previous.refetch();

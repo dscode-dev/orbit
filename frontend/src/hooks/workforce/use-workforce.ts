@@ -149,6 +149,14 @@ export function useTeamRoles() {
   );
 }
 
+export function useAccessCatalog() {
+  return useApiQuery(
+    workforceService.keys.accessCatalog(),
+    ({ signal }) => workforceService.accessCatalog({ signal }),
+    WORKFORCE_REFRESH.roles,
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Workforce — especialidades, certificações, equipes, geolocalização   */
 /* ------------------------------------------------------------------ */

@@ -93,7 +93,9 @@ export class RegistrationRepository {
           key: OWNER_ROLE_KEY,
           name: 'Owner',
           description: 'Organization owner',
-          permissions: ['*'],
+          permissions: [],
+          allowedSurfaces: ['WEB', 'MOBILE'],
+          isSystem: true,
         },
       });
 
@@ -129,6 +131,7 @@ export class RegistrationRepository {
           description: papel.description,
           permissions: [...papel.permissions],
           allowedSurfaces: [...papel.allowedSurfaces],
+          isSystem: true,
         })),
       });
       await transaction.businessUnit.create({

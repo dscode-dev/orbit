@@ -10,7 +10,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Permissions } from '../../decorators';
+import { Permissions, Surfaces } from '../../decorators';
 import { ForbiddenException } from '../../exceptions';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import {
@@ -22,6 +22,7 @@ import { MobileDeviceService } from './mobile-device.service';
 
 @ApiTags('Mobile Device Registry')
 @Controller('mobile/devices')
+@Surfaces('MOBILE')
 @RequiresActivePlan()
 @Capabilities('notifications.read')
 @Permissions('notifications.read')

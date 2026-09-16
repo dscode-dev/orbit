@@ -93,6 +93,7 @@ export class ProfessionalSignatureController {
       organizationId: identity.organizationId,
       businessUnitIds: identity.businessUnitIds,
       permissions: identity.permissions,
+      isOrganizationOwner: identity.isOrganizationOwner,
     };
   }
 }

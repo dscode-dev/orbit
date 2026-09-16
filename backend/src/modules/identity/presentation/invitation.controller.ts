@@ -71,6 +71,10 @@ export class InvitationController {
       roleId: input.roleId,
       invitedById: identity.id,
       email: input.email,
+      actorPermissions: identity.permissions,
+      actorSurfaces: identity.allowedSurfaces,
+      actorUnitIds: identity.businessUnitIds,
+      isOrganizationOwner: identity.isOrganizationOwner,
     });
   }
 

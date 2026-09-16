@@ -126,6 +126,18 @@ class AuthRepository {
     }
   }
 
+  Future<ProductAccess?> loadProductAccess() async {
+    try {
+      final data = await _client.get<Map<String, dynamic>>(
+        '/organizations/current/product-access',
+      );
+      return ProductAccess.fromJson(data);
+    } on OrbitException catch (error) {
+      if (error.isForbidden || error.isNotFound) return null;
+      rethrow;
+    }
+  }
+
   Future<TokenPair?> storedTokens() => _storage.read();
 
   /// Lê as claims do access token guardado.

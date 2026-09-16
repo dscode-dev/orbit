@@ -57,6 +57,8 @@ import {
   AssetOperationsSection,
   AssetScheduleSection,
 } from "./related.sections";
+import { useSession } from "@/providers/session-provider";
+import { PRODUCT_CAPABILITY, PRODUCT_FEATURE } from "@/registry/product-access";
 
 export function AssetWorkspace({ assetId }: { assetId: string }) {
   const query = useAsset(assetId);
@@ -99,6 +101,11 @@ function WorkspaceBody({
   asset: Asset;
   onRefresh: () => void;
 }) {
+  const session = useSession();
+  const canUseIntelligence = session.canUseProductFeature(
+    PRODUCT_CAPABILITY.ORBIT_INTELLIGENCE,
+    PRODUCT_FEATURE.ASSET_INTELLIGENCE,
+  );
   const { definition } = useEntityAccess("asset");
   const edit = useAction("asset.update");
   const activate = useAction("asset.activate");
@@ -182,7 +189,11 @@ function WorkspaceBody({
           ) : null}
 
           {edit.allowed ? (
-            <Button variant="outline" size="sm" onClick={() => setFormOpen(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFormOpen(true)}
+            >
               <edit.definition.icon className="size-4" />
               {edit.label}
             </Button>
@@ -226,7 +237,7 @@ function WorkspaceBody({
           <IdentifierSection asset={asset} />
           <IndicatorsSection assetId={asset.id} />
           <HealthSection />
-          <IntelligenceSection />
+          {canUseIntelligence ? <IntelligenceSection /> : null}
         </div>
       </div>
 

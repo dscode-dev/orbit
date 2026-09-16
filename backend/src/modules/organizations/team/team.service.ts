@@ -4,6 +4,7 @@ import { HASH_PROVIDER } from '../../../providers';
 import {
   ConflictException,
   EntityNotFoundException,
+  ForbiddenException,
   ValidationException,
 } from '../../../exceptions';
 import { identityTokenLink } from '../../identity/domain/identity-links';
@@ -21,6 +22,8 @@ import {
 import { OrganizationRepository } from '../organization.repository';
 import { TeamRepository } from './team.repository';
 import { generateTemporaryPassword } from './temporary-password';
+import { AuthorizationService } from '../../../common';
+import { isKnownPermission, ROLE_SURFACES } from '../team-roles';
 
 /** Quanto tempo o link de definição de senha vale. */
 const VALIDADE_DO_LINK_MS = 24 * 60 * 60_000;
@@ -28,6 +31,10 @@ const VALIDADE_DO_LINK_MS = 24 * 60 * 60_000;
 export interface TeamActor {
   organizationId: string;
   userId: string;
+  permissions: readonly string[];
+  allowedSurfaces: readonly string[];
+  businessUnitIds: readonly string[];
+  isOrganizationOwner: boolean;
 }
 
 @Injectable()
@@ -40,6 +47,7 @@ export class TeamService {
     private readonly identity: IdentityRepository,
     private readonly tokens: IdentityTokenService,
     private readonly entitlements: EntitlementService,
+    private readonly authorization: AuthorizationService,
     @Inject(HASH_PROVIDER) private readonly hashes: IHashProvider,
     @Inject(IDENTITY_TOKEN_DELIVERY)
     private readonly delivery: IIdentityTokenDelivery,
@@ -70,6 +78,10 @@ export class TeamService {
       lastName: string;
       roleId: string;
       businessUnitId?: string;
+      businessUnitIds?: string[];
+      useRoleDefaults?: boolean;
+      permissions?: string[];
+      allowedSurfaces?: string[];
     },
   ) {
     const organizacao = await this.organizations.findCurrent(
@@ -81,17 +93,43 @@ export class TeamService {
       actor.organizationId,
       input.roleId,
     );
-    const businessUnitId = this.requireBusinessUnit(
-      input.businessUnitId,
+    const businessUnitIds = this.requireBusinessUnits(
+      input.businessUnitIds ??
+        (input.businessUnitId ? [input.businessUnitId] : undefined),
       organizacao.businessUnits,
     );
+    if (
+      businessUnitIds.some(
+        (unitId) => !this.authorization.canAccessUnit(actor, unitId),
+      )
+    )
+      throw new ForbiddenException('Business unit is outside actor scope');
+    const usesCustomAccess =
+      input.useRoleDefaults === false ||
+      input.permissions !== undefined ||
+      input.allowedSurfaces !== undefined;
+    const permissions = usesCustomAccess
+      ? (input.permissions ?? papel.permissions)
+      : papel.permissions;
+    const allowedSurfaces = usesCustomAccess
+      ? (input.allowedSurfaces ?? papel.allowedSurfaces)
+      : papel.allowedSurfaces;
+    this.validateAccess(permissions, allowedSurfaces);
+    if (!this.authorization.canDelegate(actor, permissions, allowedSurfaces))
+      throw new ForbiddenException(
+        'Access cannot exceed the current actor authority',
+      );
 
     const senha = generateTemporaryPassword();
     const resultado = await this.team.createMember(
       {
         organizationId: actor.organizationId,
-        businessUnitId,
+        businessUnitIds,
         roleId: papel.id,
+        usesCustomAccess,
+        customPermissions: usesCustomAccess ? [...permissions] : [],
+        customAllowedSurfaces: usesCustomAccess ? [...allowedSurfaces] : [],
+        actorId: actor.userId,
         email: input.email.trim(),
         normalizedEmail: input.email.trim().toLowerCase(),
         firstName: input.firstName.trim(),
@@ -121,8 +159,11 @@ export class TeamService {
       resultado.userId,
     );
     if (!membro) throw new EntityNotFoundException('Member', resultado.userId);
+    const unitMemberships = (
+      await this.organizations.listBusinessUnitMemberships(actor.organizationId)
+    ).filter((item) => item.userId === resultado.userId);
 
-    return { member: membro, temporaryPassword: senha };
+    return { member: membro, temporaryPassword: senha, unitMemberships };
   }
 
   /**
@@ -142,6 +183,7 @@ export class TeamService {
   async issuePasswordLink(actor: TeamActor, userId: string) {
     const membro = await this.team.findMember(actor.organizationId, userId);
     if (!membro) throw new EntityNotFoundException('Member', userId);
+    await this.assertMemberInActorScope(actor, userId);
 
     const organizacao = await this.organizations.findCurrent(
       actor.organizationId,
@@ -209,6 +251,7 @@ export class TeamService {
     }
     const membro = await this.team.findMember(actor.organizationId, userId);
     if (!membro) throw new EntityNotFoundException('Member', userId);
+    await this.assertMemberInActorScope(actor, userId);
 
     await this.team.removeMember(actor.organizationId, userId);
   }
@@ -235,7 +278,7 @@ export class TeamService {
   private async requireAssignableRole(organizationId: string, roleId: string) {
     const papel = await this.organizations.findRole(roleId, organizationId);
     if (!papel) throw new ValidationException('Invalid role');
-    if (papel.permissions.includes('*')) {
+    if (papel.key === 'OWNER' || papel.permissions.includes('*')) {
       throw new ValidationException(
         'A role granting every permission cannot be assigned from the team screen',
       );
@@ -243,11 +286,11 @@ export class TeamService {
     return papel;
   }
 
-  private requireBusinessUnit(
-    informada: string | undefined,
+  private requireBusinessUnits(
+    informadas: readonly string[] | undefined,
     unidades: readonly { id: string; isPrimary?: boolean }[],
-  ): string {
-    if (!informada) {
+  ): string[] {
+    if (!informadas?.length) {
       const principal =
         unidades.find((unidade) => unidade.isPrimary) ?? unidades[0];
       if (!principal) {
@@ -255,10 +298,55 @@ export class TeamService {
           'The organization has no business unit to assign',
         );
       }
-      return principal.id;
+      return [principal.id];
     }
-    const pertence = unidades.some((unidade) => unidade.id === informada);
-    if (!pertence) throw new ValidationException('Invalid business unit');
-    return informada;
+    const unique = [...new Set(informadas)];
+    if (
+      unique.some(
+        (businessUnitId) =>
+          !unidades.some((unidade) => unidade.id === businessUnitId),
+      )
+    )
+      throw new ValidationException('Invalid business unit');
+    return unique;
+  }
+
+  private validateAccess(
+    permissions: readonly string[],
+    allowedSurfaces: readonly string[],
+  ): void {
+    if (
+      permissions.includes('*') ||
+      permissions.some((item) => !isKnownPermission(item))
+    )
+      throw new ValidationException('Unknown or non-delegable permission');
+    if (
+      allowedSurfaces.length === 0 ||
+      allowedSurfaces.some(
+        (surface) =>
+          !ROLE_SURFACES.includes(surface as (typeof ROLE_SURFACES)[number]),
+      )
+    )
+      throw new ValidationException('Invalid access surface');
+  }
+
+  private async assertMemberInActorScope(
+    actor: TeamActor,
+    userId: string,
+  ): Promise<void> {
+    if (actor.isOrganizationOwner) return;
+    const targetUnits = (
+      await this.organizations.listBusinessUnitMemberships(actor.organizationId)
+    )
+      .filter((membership) => membership.userId === userId)
+      .map((membership) => membership.businessUnit.id);
+    if (
+      targetUnits.length === 0 ||
+      targetUnits.some(
+        (unitId) => !this.authorization.canAccessUnit(actor, unitId),
+      )
+    ) {
+      throw new ForbiddenException('Member is outside actor scope');
+    }
   }
 }

@@ -70,6 +70,8 @@ export class RequestContextInterceptor implements NestInterceptor {
         (request.businessUnitId ? [request.businessUnitId] : []),
       roles: request.user?.roles ?? [],
       permissions: request.user?.permissions ?? [],
+      allowedSurfaces: request.user?.allowedSurfaces ?? [],
+      isOrganizationOwner: request.user?.isOrganizationOwner ?? false,
       ip: request.ip ?? null,
       userAgent: request.header('user-agent') ?? null,
       locale: request.acceptsLanguages()[0] ?? 'pt-BR',

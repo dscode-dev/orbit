@@ -138,10 +138,10 @@ export interface OperationListItemReadModel {
   /**
    * Quando a atribuição foi autorizada, e por quem.
    *
-   * Só tem significado nas organizações que exigem autorização — nelas, um
-   * atendimento sem carimbo não chega ao técnico. Nas demais o carimbo é
-   * aplicado na própria atribuição, para que ligar a exigência amanhã não
-   * esconda o que já está nas mãos de alguém.
+   * Só tem significado nas organizações que ligaram
+   * `settings.operations.requireAssignmentAuthorization`. Nelas, um
+   * atendimento sem carimbo não chega ao técnico — nem na fila do aplicativo,
+   * nem pelas rotas de campo.
    */
   authorizedAt: string | null;
   authorizedBy: OperationUserReadModel | null;

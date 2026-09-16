@@ -136,12 +136,12 @@ export function useOperationArtifactExecutions(operationId: string) {
   );
 }
 
-export function useOperationIntelligence(operationId: string) {
+export function useOperationIntelligence(operationId: string, enabled = true) {
   return useApiQuery(
     operationIntelligenceService.keys.byOperation(operationId),
     ({ signal }) =>
       operationIntelligenceService.list({ operationId }, { signal }),
-    OPERATIONS_REFRESH.intelligence,
+    { ...OPERATIONS_REFRESH.intelligence, enabled },
   );
 }
 
@@ -317,7 +317,10 @@ export function useChecklistTemplates() {
   return useApiQuery(
     checklistTemplatesService.keys.list({ isActive: true, limit: 100 }),
     ({ signal }) =>
-      checklistTemplatesService.list({ isActive: true, limit: 100 }, { signal }),
+      checklistTemplatesService.list(
+        { isActive: true, limit: 100 },
+        { signal },
+      ),
     CACHE.stable,
   );
 }

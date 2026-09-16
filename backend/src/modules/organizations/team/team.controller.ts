@@ -46,12 +46,14 @@ export class TeamController {
     @Body() input: CreateTeamMemberDto,
   ) {
     const actor = this.actor(request);
-    const { member, temporaryPassword } = await this.team.createMember(
-      actor,
-      input,
-    );
+    const { member, temporaryPassword, unitMemberships } =
+      await this.team.createMember(actor, input);
     return {
-      member: this.readModels.member(member, ''),
+      member: this.readModels.member(
+        member,
+        '',
+        unitMemberships.map((item) => item.businessUnit),
+      ),
       /**
        * A senha em texto claro sai **só aqui**.
        *
@@ -103,6 +105,13 @@ export class TeamController {
     if (!organizationId || !userId) {
       throw new ForbiddenException('Organization context is required');
     }
-    return { organizationId, userId };
+    return {
+      organizationId,
+      userId,
+      permissions: request.identity!.permissions,
+      allowedSurfaces: request.identity!.allowedSurfaces,
+      businessUnitIds: request.identity!.businessUnitIds,
+      isOrganizationOwner: request.identity!.isOrganizationOwner,
+    };
   }
 }

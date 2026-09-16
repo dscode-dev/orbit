@@ -35,6 +35,8 @@ class AccessTokenClaims {
     this.businessUnitIds = const [],
     this.roles = const [],
     this.permissions = const [],
+    this.allowedSurfaces = const [],
+    this.isOrganizationOwner = false,
     this.expiresAt,
   });
 
@@ -47,6 +49,8 @@ class AccessTokenClaims {
         businessUnitIds: _stringList(json['businessUnitIds']),
         roles: _stringList(json['roles']),
         permissions: _stringList(json['permissions']),
+        allowedSurfaces: _stringList(json['allowedSurfaces']),
+        isOrganizationOwner: json['isOrganizationOwner'] as bool? ?? false,
         expiresAt: json['exp'] is num
             ? DateTime.fromMillisecondsSinceEpoch(
                 (json['exp'] as num).toInt() * 1000,
@@ -61,6 +65,8 @@ class AccessTokenClaims {
   final List<String> businessUnitIds;
   final List<String> roles;
   final List<String> permissions;
+  final List<String> allowedSurfaces;
+  final bool isOrganizationOwner;
   final DateTime? expiresAt;
 
   bool get isPlatformAdmin => roles.contains(platformAdminRole);
@@ -232,6 +238,28 @@ class Entitlements {
   final List<String> capabilities;
 
   bool get isActive => activeSubscriptionStatuses.contains(subscriptionStatus);
+}
+
+/// Canonical product entitlement + implementation availability.
+class ProductAccess {
+  const ProductAccess({
+    this.capabilities = const [],
+    this.featureAvailability = const {},
+  });
+
+  factory ProductAccess.fromJson(Map<String, dynamic> json) => ProductAccess(
+    capabilities: _stringList(json['capabilities']),
+    featureAvailability:
+        (json['featureAvailability'] as Map<String, dynamic>? ?? const {}).map(
+          (key, value) => MapEntry(key, value == true),
+        ),
+  );
+
+  final List<String> capabilities;
+  final Map<String, bool> featureAvailability;
+
+  bool hasCapability(String code) => capabilities.contains(code);
+  bool hasFeature(String code) => featureAvailability[code] == true;
 }
 
 List<String> _stringList(Object? value) => value is List

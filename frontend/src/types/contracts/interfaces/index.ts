@@ -31,6 +31,9 @@ export interface IAuthenticatedUser {
   id: UUID;
   roles: readonly string[];
   permissions: readonly string[];
+  businessUnitIds: readonly UUID[];
+  allowedSurfaces: readonly string[];
+  isOrganizationOwner: boolean;
 }
 
 export type ActorType =
@@ -51,6 +54,8 @@ export interface IRequestContext {
   businessUnitIds: readonly UUID[];
   roles: readonly string[];
   permissions: readonly string[];
+  allowedSurfaces: readonly string[];
+  isOrganizationOwner: boolean;
   ip: Nullable<string>;
   userAgent: Nullable<string>;
   locale: string;

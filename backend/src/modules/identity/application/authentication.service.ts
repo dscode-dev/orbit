@@ -19,6 +19,52 @@ import {
 import { IdentityTokenService } from './token.service';
 import { MfaService } from './mfa.service';
 
+/** Pure, shared resolution used at issuance and at every authenticated call. */
+export function toAuthenticatedIdentity(
+  user: IdentityUser,
+  sessionId: UUID,
+): AuthenticatedIdentity {
+  const organization = user.organizationMemberships[0] ?? null;
+  const roles = new Set<string>();
+  const permissions = new Set<string>();
+  const allowedSurfaces = new Set<string>();
+  user.platformRoleAssignments.forEach((assignment) => {
+    roles.add(assignment.role.key);
+    assignment.role.permissions.forEach((item) => permissions.add(item));
+    assignment.role.allowedSurfaces.forEach((item) =>
+      allowedSurfaces.add(item),
+    );
+  });
+  if (organization) {
+    roles.add(organization.role.key);
+    const accessPermissions = organization.usesCustomAccess
+      ? organization.customPermissions
+      : organization.role.permissions;
+    const accessSurfaces = organization.usesCustomAccess
+      ? organization.customAllowedSurfaces
+      : organization.role.allowedSurfaces;
+    accessPermissions.forEach((item) => permissions.add(item));
+    accessSurfaces.forEach((item) => allowedSurfaces.add(item));
+  }
+  if (user.isOrganizationOwner) {
+    // Runtime compatibility only. OWNER no longer persists this wildcard.
+    permissions.add('*');
+    ['WEB', 'MOBILE', 'API'].forEach((item) => allowedSurfaces.add(item));
+  }
+  const unitIds = user.effectiveBusinessUnitIds;
+  return {
+    id: user.id as UUID,
+    sessionId,
+    organizationId: (organization?.organizationId as UUID) ?? null,
+    businessUnitId: (unitIds[0] as UUID) ?? null,
+    businessUnitIds: unitIds.map((unit) => unit as UUID),
+    roles: [...roles],
+    permissions: [...permissions],
+    allowedSurfaces: [...allowedSurfaces],
+    isOrganizationOwner: user.isOrganizationOwner,
+  };
+}
+
 @Injectable()
 export class AuthenticationService {
   private static readonly MAX_FAILED_ATTEMPTS = 5;
@@ -71,7 +117,7 @@ export class AuthenticationService {
     }
 
     const sessionId = this.uuids.generate();
-    const identity = this.toIdentity(user, sessionId);
+    const identity = toAuthenticatedIdentity(user, sessionId);
     const pair = await this.tokens.issue(identity);
     await this.repository.createSession({
       id: sessionId,
@@ -118,7 +164,7 @@ export class AuthenticationService {
       throw new SurfaceNotAllowedException(normalizeSurface(session.client));
     }
     const pair = await this.tokens.issue(
-      this.toIdentity(user, session.id as UUID),
+      toAuthenticatedIdentity(user, session.id as UUID),
     );
     await this.repository.rotateSession(
       session.id,
@@ -163,41 +209,6 @@ export class AuthenticationService {
       attempts,
       lockedUntil,
     );
-  }
-
-  private toIdentity(
-    user: IdentityUser,
-    sessionId: UUID,
-  ): AuthenticatedIdentity {
-    const organization = user.organizationMemberships[0] ?? null;
-    const units = user.businessUnitMemberships.filter(
-      (membership) =>
-        !organization ||
-        membership.organizationId === organization.organizationId,
-    );
-    const roles = new Set<string>();
-    const permissions = new Set<string>();
-    user.platformRoleAssignments.forEach((assignment) => {
-      roles.add(assignment.role.key);
-      assignment.role.permissions.forEach((item) => permissions.add(item));
-    });
-    if (organization) {
-      roles.add(organization.role.key);
-      organization.role.permissions.forEach((item) => permissions.add(item));
-    }
-    units.forEach((membership) => {
-      roles.add(membership.role.key);
-      membership.role.permissions.forEach((item) => permissions.add(item));
-    });
-    return {
-      id: user.id as UUID,
-      sessionId,
-      organizationId: (organization?.organizationId as UUID) ?? null,
-      businessUnitId: (units[0]?.businessUnitId as UUID) ?? null,
-      businessUnitIds: units.map((unit) => unit.businessUnitId as UUID),
-      roles: [...roles],
-      permissions: [...permissions],
-    };
   }
 
   private publicPair(

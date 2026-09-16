@@ -210,6 +210,32 @@ export class UpdateMemberDto {
   @IsOptional()
   @IsIn(Object.values(MembershipStatus))
   status?: MembershipStatus;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsUUIDv7({ each: true })
+  businessUnitIds?: string[];
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  useRoleDefaults?: boolean;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(160, { each: true })
+  permissions?: string[];
+
+  @ApiPropertyOptional({ type: [String], enum: ROLE_SURFACES })
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsIn([...ROLE_SURFACES], { each: true })
+  allowedSurfaces?: string[];
 }
 
 export class CreateRoleDto {

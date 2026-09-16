@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ForbiddenException } from '../../exceptions';
+import { Surfaces } from '../../decorators';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import { RequiresActivePlan } from '../subscription-plans/plan-access';
 import {
@@ -13,6 +14,7 @@ import type { MobileFieldActor } from './mobile-field.service';
 
 @ApiTags('Mobile Field Offline Sync')
 @Controller('mobile/field/offline')
+@Surfaces('MOBILE')
 @RequiresActivePlan()
 export class MobileOfflineSyncController {
   constructor(private readonly service: MobileOfflineSyncService) {}

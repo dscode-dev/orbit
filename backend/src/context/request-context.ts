@@ -11,6 +11,8 @@ export class RequestContext implements IRequestContext {
   readonly businessUnitIds: IRequestContext['businessUnitIds'];
   readonly roles: IRequestContext['roles'];
   readonly permissions: IRequestContext['permissions'];
+  readonly allowedSurfaces: IRequestContext['allowedSurfaces'];
+  readonly isOrganizationOwner: IRequestContext['isOrganizationOwner'];
   readonly ip: IRequestContext['ip'];
   readonly userAgent: IRequestContext['userAgent'];
   readonly locale: IRequestContext['locale'];
@@ -18,10 +20,21 @@ export class RequestContext implements IRequestContext {
   constructor(
     values: Omit<
       IRequestContext,
-      'actorType' | 'portalIdentityId' | 'customerId'
+      | 'actorType'
+      | 'portalIdentityId'
+      | 'customerId'
+      | 'allowedSurfaces'
+      | 'isOrganizationOwner'
     > &
       Partial<
-        Pick<IRequestContext, 'actorType' | 'portalIdentityId' | 'customerId'>
+        Pick<
+          IRequestContext,
+          | 'actorType'
+          | 'portalIdentityId'
+          | 'customerId'
+          | 'allowedSurfaces'
+          | 'isOrganizationOwner'
+        >
       >,
   ) {
     this.requestId = values.requestId;
@@ -35,6 +48,8 @@ export class RequestContext implements IRequestContext {
     this.businessUnitIds = Object.freeze([...values.businessUnitIds]);
     this.roles = Object.freeze([...values.roles]);
     this.permissions = Object.freeze([...values.permissions]);
+    this.allowedSurfaces = Object.freeze([...(values.allowedSurfaces ?? [])]);
+    this.isOrganizationOwner = values.isOrganizationOwner ?? false;
     this.ip = values.ip;
     this.userAgent = values.userAgent;
     this.locale = values.locale;

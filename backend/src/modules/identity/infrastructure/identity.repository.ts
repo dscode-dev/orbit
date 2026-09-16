@@ -22,7 +22,10 @@ const identityInclude = {
 
 export type IdentityUser = Prisma.UserGetPayload<{
   include: typeof identityInclude;
-}>;
+}> & {
+  readonly isOrganizationOwner: boolean;
+  readonly effectiveBusinessUnitIds: readonly string[];
+};
 
 @Injectable()
 export class IdentityRepository {
@@ -74,24 +77,47 @@ export class IdentityRepository {
         'app.organization_id',
         organization?.organizationId ?? '',
       );
-      const units = await transaction.businessUnitMembership.findMany({
-        where: {
-          userId: id,
-          organizationId: organization?.organizationId,
-          status: 'ACTIVE',
-          deletedAt: null,
-        },
-        select: { businessUnitId: true },
-      });
+      const organizationRow = organization
+        ? await transaction.organization.findUnique({
+            where: { id: organization.organizationId },
+            select: { ownerUserId: true },
+          })
+        : null;
+      const isOrganizationOwner = organizationRow?.ownerUserId === id;
+      const units = isOrganizationOwner
+        ? await transaction.businessUnit.findMany({
+            where: {
+              organizationId: organization?.organizationId,
+              status: 'ACTIVE',
+              deletedAt: null,
+            },
+            select: { id: true },
+            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          })
+        : await transaction.businessUnitMembership.findMany({
+            where: {
+              userId: id,
+              organizationId: organization?.organizationId,
+              status: 'ACTIVE',
+              deletedAt: null,
+            },
+            select: { businessUnitId: true },
+          });
+      const unitIds = units.map((unit) =>
+        'businessUnitId' in unit ? unit.businessUnitId : unit.id,
+      );
       await this.setLocal(
         transaction,
         'app.business_unit_ids',
-        units.map((unit) => unit.businessUnitId).join(','),
+        unitIds.join(','),
       );
-      return transaction.user.findUnique({
+      const user = await transaction.user.findUnique({
         where: { id },
         include: identityInclude,
       });
+      return user
+        ? { ...user, isOrganizationOwner, effectiveBusinessUnitIds: unitIds }
+        : null;
     });
   }
 
@@ -205,6 +231,26 @@ export class IdentityRepository {
         data: { revokedAt: new Date() },
       })
       .then(() => undefined);
+  }
+
+  findDelegatedRole(
+    organizationId: string,
+    roleId: string,
+    actorId: string,
+    businessUnitIds: readonly string[],
+  ) {
+    return this.prisma.$transaction(async (transaction) => {
+      await this.setLocal(transaction, 'app.user_id', actorId);
+      await this.setLocal(transaction, 'app.organization_id', organizationId);
+      await this.setLocal(
+        transaction,
+        'app.business_unit_ids',
+        businessUnitIds.join(','),
+      );
+      return transaction.role.findFirst({
+        where: { id: roleId, organizationId, deletedAt: null },
+      });
+    });
   }
 
   listSessions(userId: string) {

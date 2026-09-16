@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AuthorizationService } from '../../common';
+import type { AuthenticatedIdentity } from '../identity/domain/identity.types';
 import {
   ConflictException,
   EntityNotFoundException,
+  ForbiddenException,
   ValidationException,
 } from '../../exceptions';
 import { SlugHelper } from '../../helpers';
@@ -11,11 +14,28 @@ import type {
   UpdateOrganizationDto,
 } from './dto/organization.dto';
 import { OrganizationRepository } from './organization.repository';
-import { DEFAULT_ROLE_SURFACES } from './team-roles';
+import {
+  DEFAULT_ROLE_SURFACES,
+  PERMISSION_GROUPS,
+  ROLE_SURFACES,
+  isKnownPermission,
+} from './team-roles';
+
+type AccessActor = Pick<
+  AuthenticatedIdentity,
+  | 'id'
+  | 'permissions'
+  | 'allowedSurfaces'
+  | 'businessUnitIds'
+  | 'isOrganizationOwner'
+>;
 
 @Injectable()
 export class OrganizationService {
-  constructor(private readonly repository: OrganizationRepository) {}
+  constructor(
+    private readonly repository: OrganizationRepository,
+    private readonly authorization: AuthorizationService,
+  ) {}
 
   async create(ownerUserId: string, input: CreateOrganizationDto) {
     const slug = SlugHelper.create(input.displayName);
@@ -93,14 +113,36 @@ export class OrganizationService {
   async updateMember(
     organizationId: string,
     userId: string,
-    input: { roleId?: string; status?: string },
+    input: {
+      roleId?: string;
+      status?: string;
+      businessUnitIds?: string[];
+      useRoleDefaults?: boolean;
+      permissions?: string[];
+      allowedSurfaces?: string[];
+    },
+    actor: AccessActor,
   ) {
     const organization = await this.getCurrent(organizationId);
+
+    if (
+      input.roleId === undefined &&
+      input.status === undefined &&
+      input.businessUnitIds === undefined &&
+      input.useRoleDefaults === undefined &&
+      input.permissions === undefined &&
+      input.allowedSurfaces === undefined
+    ) {
+      throw new ValidationException('No member access changes provided');
+    }
 
     if (userId === organization.ownerUserId) {
       throw new ValidationException(
         'The organization owner cannot be modified here',
       );
+    }
+    if (userId === actor.id) {
+      throw new ValidationException('You cannot change your own access');
     }
 
     const membership = await this.repository.findMembership(
@@ -108,17 +150,80 @@ export class OrganizationService {
       userId,
     );
     if (!membership) throw new EntityNotFoundException('Member', userId);
+    await this.assertMemberInActorScope(actor, organizationId, userId);
 
-    if (input.roleId) {
-      const role = await this.repository.findRole(input.roleId, organizationId);
-      if (!role) throw new ValidationException('Invalid role');
-    }
+    const role = await this.repository.findRole(
+      input.roleId ?? membership.roleId,
+      organizationId,
+    );
+    if (!role || role.key === 'OWNER')
+      throw new ValidationException('Invalid role');
 
-    const updated = await this.repository.updateMembership(membership.id, {
-      roleId: input.roleId,
-      status: input.status,
-    });
-    return { member: updated, ownerUserId: organization.ownerUserId };
+    const explicitCustom =
+      input.useRoleDefaults === false ||
+      input.permissions !== undefined ||
+      input.allowedSurfaces !== undefined;
+    const usesCustomAccess =
+      input.useRoleDefaults !== undefined
+        ? !input.useRoleDefaults
+        : input.roleId
+          ? explicitCustom
+          : membership.usesCustomAccess || explicitCustom;
+    const accessChanged =
+      input.roleId !== undefined ||
+      input.useRoleDefaults !== undefined ||
+      input.permissions !== undefined ||
+      input.allowedSurfaces !== undefined;
+    const currentPermissions = membership.usesCustomAccess
+      ? membership.customPermissions
+      : role.permissions;
+    const currentSurfaces = membership.usesCustomAccess
+      ? membership.customAllowedSurfaces
+      : role.allowedSurfaces;
+    const permissions = usesCustomAccess
+      ? (input.permissions ?? currentPermissions)
+      : role.permissions;
+    const allowedSurfaces = usesCustomAccess
+      ? (input.allowedSurfaces ?? currentSurfaces)
+      : role.allowedSurfaces;
+    this.validateAccess(permissions, allowedSurfaces);
+    this.assertDelegable(actor, permissions, allowedSurfaces);
+
+    const unitIds = input.businessUnitIds
+      ? [...new Set(input.businessUnitIds)]
+      : undefined;
+    if (unitIds) await this.assertUnits(actor, organizationId, unitIds);
+
+    const updated = await this.repository.updateMemberAccess(
+      organizationId,
+      membership.id,
+      userId,
+      actor.id,
+      {
+        roleId: input.roleId,
+        status: input.status,
+        usesCustomAccess: accessChanged ? usesCustomAccess : undefined,
+        customPermissions: accessChanged
+          ? usesCustomAccess
+            ? [...permissions]
+            : []
+          : undefined,
+        customAllowedSurfaces: accessChanged
+          ? usesCustomAccess
+            ? [...allowedSurfaces]
+            : []
+          : undefined,
+        businessUnitIds: unitIds,
+      },
+    );
+    const unitMemberships = (
+      await this.repository.listBusinessUnitMemberships(organizationId)
+    ).filter((item) => item.userId === userId);
+    return {
+      member: updated,
+      ownerUserId: organization.ownerUserId,
+      unitMemberships,
+    };
   }
 
   async listRoles(organizationId: string) {
@@ -134,17 +239,22 @@ export class OrganizationService {
       permissions?: string[];
       allowedSurfaces?: string[];
     },
+    actor: AccessActor,
   ) {
     await this.getCurrent(organizationId);
+    const permissions = input.permissions ?? [];
+    const allowedSurfaces = input.allowedSurfaces ?? [...DEFAULT_ROLE_SURFACES];
+    this.validateAccess(permissions, allowedSurfaces);
+    this.assertDelegable(actor, permissions, allowedSurfaces);
     try {
       return await this.repository.createRole({
         organizationId,
         key: this.roleKey(input.name),
         name: input.name,
         description: input.description,
-        permissions: input.permissions ?? [],
+        permissions,
         /** Omitido, o papel nasce podendo os dois — como todo papel podia. */
-        allowedSurfaces: input.allowedSurfaces ?? [...DEFAULT_ROLE_SURFACES],
+        allowedSurfaces,
         /** Papel criado pela organização nunca é de sistema. */
         isSystem: false,
       });
@@ -162,6 +272,7 @@ export class OrganizationService {
       permissions?: string[];
       allowedSurfaces?: string[];
     },
+    actor: AccessActor,
   ) {
     const role = await this.requireRole(id, organizationId);
 
@@ -174,6 +285,10 @@ export class OrganizationService {
     if (role.isSystem) {
       throw new ValidationException('System roles cannot be modified');
     }
+    const permissions = input.permissions ?? role.permissions;
+    const allowedSurfaces = input.allowedSurfaces ?? role.allowedSurfaces;
+    this.validateAccess(permissions, allowedSurfaces);
+    this.assertDelegable(actor, permissions, allowedSurfaces);
 
     try {
       return await this.repository.updateRole(id, {
@@ -185,6 +300,95 @@ export class OrganizationService {
       });
     } catch (error) {
       this.rethrowRoleConflict(error);
+    }
+  }
+
+  accessCatalog() {
+    return {
+      surfaces: ROLE_SURFACES.filter((surface) => surface !== 'API').map(
+        (surface) => ({
+          code: surface,
+          label: surface === 'WEB' ? 'Plataforma Web' : 'Aplicativo mobile',
+        }),
+      ),
+      permissionGroups: PERMISSION_GROUPS.map((group) => ({
+        key: group.key,
+        label: group.label,
+        permissions: group.permissions.map((permission) => ({ ...permission })),
+      })),
+    };
+  }
+
+  private validateAccess(
+    permissions: readonly string[],
+    allowedSurfaces: readonly string[],
+  ): void {
+    if (
+      permissions.includes('*') ||
+      permissions.some((permission) => !isKnownPermission(permission))
+    ) {
+      throw new ValidationException('Unknown or non-delegable permission');
+    }
+    if (
+      allowedSurfaces.length === 0 ||
+      allowedSurfaces.some(
+        (surface) =>
+          !ROLE_SURFACES.includes(surface as (typeof ROLE_SURFACES)[number]),
+      )
+    ) {
+      throw new ValidationException('Invalid access surface');
+    }
+  }
+
+  private assertDelegable(
+    actor: AccessActor,
+    permissions: readonly string[],
+    surfaces: readonly string[],
+  ): void {
+    if (!this.authorization.canDelegate(actor, permissions, surfaces)) {
+      throw new ForbiddenException(
+        'Access cannot exceed the current actor authority',
+      );
+    }
+  }
+
+  private async assertUnits(
+    actor: AccessActor,
+    organizationId: string,
+    unitIds: readonly string[],
+  ): Promise<void> {
+    if (unitIds.length === 0)
+      throw new ValidationException('At least one business unit is required');
+    if (
+      unitIds.some((unitId) => !this.authorization.canAccessUnit(actor, unitId))
+    )
+      throw new ForbiddenException('Business unit is outside actor scope');
+    const existing = await this.repository.findBusinessUnits(
+      organizationId,
+      unitIds,
+    );
+    if (existing.length !== unitIds.length)
+      throw new ValidationException('Invalid business unit scope');
+  }
+
+  private async assertMemberInActorScope(
+    actor: AccessActor,
+    organizationId: string,
+    userId: string,
+  ): Promise<void> {
+    if (actor.isOrganizationOwner) return;
+    const targetUnits = (
+      await this.repository.listBusinessUnitMemberships(organizationId)
+    )
+      .filter((membership) => membership.userId === userId)
+      .map((membership) => membership.businessUnit.id);
+    if (
+      targetUnits.length === 0 ||
+      targetUnits.some(
+        (unitId) => !this.authorization.canAccessUnit(actor, unitId),
+      )
+    ) {
+      throw new ForbiddenException('Member is outside actor scope');
     }
   }
 

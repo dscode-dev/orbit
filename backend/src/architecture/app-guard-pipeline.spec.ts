@@ -8,11 +8,14 @@ describe('global application guard pipeline', () => {
   it('keeps authentication before RBAC and product entitlements', () => {
     const orderedGuards = [
       'JwtAuthenticationGuard',
+      'SurfaceGuard',
       'PermissionGuard',
       'RoleGuard',
       'ActivePlanGuard',
       'RequiredPlanGuard',
       'CapabilityGuard',
+      'ProductCapabilityGuard',
+      'ProductFeatureGuard',
     ];
     const positions = orderedGuards.map((guard) =>
       appModule.indexOf(`provide: APP_GUARD, useClass: ${guard}`),

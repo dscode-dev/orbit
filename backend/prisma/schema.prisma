@@ -417,6 +417,12 @@ model OrganizationMembership {
   joinedAt       DateTime  @default(now()) @map("joined_at") @db.Timestamptz(3)
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
+  /// Optional access override for one member. BusinessUnitMembership remains
+  /// scope-only; it never grants permissions or surfaces.
+  usesCustomAccess      Boolean  @default(false) @map("uses_custom_access")
+  customPermissions    String[] @default([]) @map("custom_permissions") @db.VarChar(160)
+  customAllowedSurfaces String[] @default([]) @map("custom_allowed_surfaces") @db.VarChar(10)
+
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   role         Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)

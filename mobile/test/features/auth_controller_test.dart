@@ -44,6 +44,15 @@ final _entitlements = Entitlements.fromJson(const {
   'capabilities': ['operations.read', 'scheduling.read'],
 });
 
+final _productAccess = ProductAccess.fromJson(const {
+  'capabilities': ['ORBIT_INTELLIGENCE', 'AI_ASSISTANTS'],
+  'featureAvailability': {
+    'ORBIT_INTELLIGENCE': true,
+    'AI_ASSISTANTS': true,
+    'SCHEDULING_INTELLIGENCE': false,
+  },
+});
+
 AuthController buildController(
   AuthRepository repository, {
   SessionAuthenticator? authenticator,
@@ -73,6 +82,9 @@ void main() {
     when(
       () => repository.loadEntitlements(),
     ).thenAnswer((_) async => _entitlements);
+    when(
+      () => repository.loadProductAccess(),
+    ).thenAnswer((_) async => _productAccess);
   });
 
   test('sem token guardado, o app abre desautenticado', () async {
@@ -234,6 +246,41 @@ void main() {
   });
 
   group('perfil derivado das permissões', () {
+    test('Owner usa authority estrutural mesmo sem wildcard', () async {
+      when(() => repository.readClaims()).thenAnswer(
+        (_) async => AuthRepository.decodeClaims(
+          fakeAccessToken(permissions: const [], isOrganizationOwner: true),
+        ),
+      );
+
+      final controller = buildController(repository);
+      await controller.restore();
+
+      final session = (controller.state as AuthAuthenticated).session;
+      expect(session.hasPermission('future.permission'), isTrue);
+      expect(session.hasRole('ADMINISTRATOR'), isTrue);
+      expect(session.hasRole(platformAdminRole), isFalse);
+    });
+
+    test('Intelligence exige entitlement e feature publicada', () async {
+      when(
+        () => repository.readClaims(),
+      ).thenAnswer((_) async => AuthRepository.decodeClaims(fakeAccessToken()));
+
+      final controller = buildController(repository);
+      await controller.restore();
+
+      final session = (controller.state as AuthAuthenticated).session;
+      expect(session.canUseProductFeature('ORBIT_INTELLIGENCE'), isTrue);
+      expect(
+        session.canUseProductFeature(
+          'ORBIT_INTELLIGENCE',
+          'SCHEDULING_INTELLIGENCE',
+        ),
+        isFalse,
+      );
+    });
+
     test('quem gerencia operações usa a experiência de gestão', () async {
       when(() => repository.readClaims()).thenAnswer(
         (_) async => AuthRepository.decodeClaims(
@@ -348,6 +395,9 @@ void _trocaDeSenha() {
     when(
       () => repository.loadEntitlements(),
     ).thenAnswer((_) async => _entitlements);
+    when(
+      () => repository.loadProductAccess(),
+    ).thenAnswer((_) async => _productAccess);
   });
 
   test('a exigência some da sessão depois da troca', () async {

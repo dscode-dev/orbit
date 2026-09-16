@@ -31,12 +31,14 @@ const LARGURA_RECOLHIDA = 84;
 const LARGURA_ABERTA = 276;
 import { useActiveScope } from "@/providers/use-active-scope";
 import { useSession } from "@/providers/session-provider";
+import { allowsAccess, type AccessRequirement } from "@/registry/access";
 
 export type NavItem = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   to?: string;
   badge?: string;
+  access?: AccessRequirement;
 };
 
 /**
@@ -47,12 +49,16 @@ export type NavItem = {
  * desatualizado e, pior, quebraria o realce do item ativo, que compara o
  * rótulo do menu com o `activeLabel` da página (também vindo do registry).
  */
-const fromEntity = (id: EntityId): NavItem => {
+const fromEntity = (id: EntityId, access?: AccessRequirement): NavItem => {
   const entity = getEntity(id);
   return {
     label: entity.labelPlural,
     icon: entity.icon,
     to: entity.basePath,
+    access: access ?? {
+      permission: entity.permissions.read,
+      capability: entity.capability.read,
+    },
   };
 };
 
@@ -94,7 +100,15 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
     /** Sem rótulo: é a porta de entrada, não uma categoria. */
     group: "",
     items: [
-      { label: "Visão geral", icon: LayoutGrid, to: ROUTES.dashboard },
+      {
+        label: "Visão geral",
+        icon: LayoutGrid,
+        to: ROUTES.dashboard,
+        access: {
+          permission: "dashboard.read",
+          capability: "dashboard.read",
+        },
+      },
       fromEntity("scheduling-event"),
     ],
   },
@@ -169,6 +183,10 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
         label: "Documentos emitidos",
         icon: FileStack,
         to: ROUTES.documents,
+        access: {
+          permission: "artifact_manifests.read",
+          capability: "artifact_manifests.read",
+        },
       },
       fromEntity("management-report"),
       fromEntity("artifact-template"),
@@ -181,8 +199,13 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
         A Central de Catálogos fica em Administração porque é cadastro de quem
         administra a operação — não é uma tela de trabalho do dia.
       */
-      { label: "Central de Catálogos", icon: Library, to: ROUTES.catalogs },
-      fromEntity("team-member"),
+      {
+        label: "Central de Catálogos",
+        icon: Library,
+        to: ROUTES.catalogs,
+        access: { permission: "checklists.read" },
+      },
+      fromEntity("team-member", { permission: "organization.read" }),
       /*
         Notificações saiu daqui e vive no sino da topbar.
 
@@ -204,7 +227,12 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
        * O que sobra são dois donos distintos, e o rótulo diz de quem é cada
        * um: o que a organização configura, e o que é da própria pessoa.
        */
-      { label: "Configurações", icon: SlidersHorizontal, to: ROUTES.settings },
+      {
+        label: "Configurações",
+        icon: SlidersHorizontal,
+        to: ROUTES.settings,
+        access: { permission: "organization.read" },
+      },
       { label: "Minha conta", icon: UserCircle, to: ROUTES.profile },
     ],
   },
@@ -275,7 +303,10 @@ export function ActiveContext() {
             {unitLabel(businessUnit, organization)}
           </span>
         </span>
-        <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <ChevronsUpDown
+          className="size-3.5 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
       </Link>
     </div>
   );
@@ -392,6 +423,17 @@ export function NavigationGroups({
   className?: string;
 }) {
   const pathname = usePathname();
+  const session = useSession();
+  const visibleNavigation = session.isAuthenticated
+    ? navigation
+        .map((group) => ({
+          ...group,
+          items: group.items.filter((item) =>
+            allowsAccess(item.access ?? {}, session),
+          ),
+        }))
+        .filter((group) => group.items.length > 0)
+    : navigation;
   const isActive = (item: NavItem) =>
     item.to
       ? item.to === pathname && item.label === activeLabel
@@ -402,7 +444,7 @@ export function NavigationGroups({
       aria-label="Navegação principal"
       className={cn("scroll-panel flex-1 space-y-6 px-3 py-2", className)}
     >
-      {navigation.map((group, posicao) => (
+      {visibleNavigation.map((group, posicao) => (
         <div key={group.group || "topo"} className="space-y-1">
           {/*
             O primeiro grupo não tem rótulo: são os destinos que não são uma

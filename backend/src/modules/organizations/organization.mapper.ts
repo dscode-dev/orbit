@@ -81,7 +81,16 @@ interface MemberSource {
     avatarUrl: string | null;
     status: string;
   };
-  role: { id: string; key: string; name: string };
+  usesCustomAccess: boolean;
+  customPermissions: readonly string[];
+  customAllowedSurfaces: readonly string[];
+  role: {
+    id: string;
+    key: string;
+    name: string;
+    permissions: readonly string[];
+    allowedSurfaces: readonly string[];
+  };
 }
 
 interface UnitMembershipSource {
@@ -203,6 +212,19 @@ export class OrganizationReadModelMapper {
       businessUnits: businessUnits.map((unit) => ({ ...unit })),
       joinedAt: this.date(source.joinedAt),
       isOwner: source.userId === ownerUserId,
+      access: {
+        useRoleDefaults: !source.usesCustomAccess,
+        permissions: [
+          ...(source.usesCustomAccess
+            ? source.customPermissions
+            : source.role.permissions),
+        ],
+        allowedSurfaces: [
+          ...(source.usesCustomAccess
+            ? source.customAllowedSurfaces
+            : source.role.allowedSurfaces),
+        ],
+      },
     };
   }
 

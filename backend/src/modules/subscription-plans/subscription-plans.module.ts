@@ -15,6 +15,7 @@ import { SubscriptionPlanRepository } from './subscription-plan.repository';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { UsageRepository } from './usage.repository';
 import { UsageService } from './usage.service';
+import { ProductAccessService } from './product-access';
 
 @Global()
 @Module({
@@ -35,6 +36,7 @@ import { UsageService } from './usage.service';
     SubscriptionProvisioningService,
     TrialFingerprintService,
     TrialEligibilityService,
+    ProductAccessService,
   ],
   exports: [
     SubscriptionPlanService,
@@ -45,6 +47,7 @@ import { UsageService } from './usage.service';
     SubscriptionReconciliationService,
     SubscriptionProvisioningService,
     TrialEligibilityService,
+    ProductAccessService,
   ],
 })
 export class SubscriptionPlansModule {}

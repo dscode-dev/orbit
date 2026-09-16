@@ -12,6 +12,9 @@ import { accessBlockReason, allowsAccess } from "./access";
 const session = (permissions: string[], capabilities: string[]) => ({
   hasPermission: (permission: string) => permissions.includes(permission),
   hasCapability: (capability: string) => capabilities.includes(capability),
+  hasProductCapability: (capability: string) =>
+    capability === "ORBIT_INTELLIGENCE",
+  hasFeature: (feature: string) => feature === "ORBIT_INTELLIGENCE",
 });
 
 const full = session(["operations.update"], ["operations.manage"]);
@@ -35,6 +38,27 @@ describe("allowsAccess", () => {
     expect(allowsAccess({ capability: "operations.manage" }, none)).toBe(false);
   });
 
+  it("combina entitlement canônico e disponibilidade de implementação", () => {
+    expect(
+      allowsAccess(
+        {
+          productCapability: "ORBIT_INTELLIGENCE",
+          feature: "ORBIT_INTELLIGENCE",
+        },
+        full,
+      ),
+    ).toBe(true);
+    expect(
+      allowsAccess(
+        {
+          productCapability: "ORBIT_INTELLIGENCE",
+          feature: "SCHEDULING_INTELLIGENCE",
+        },
+        full,
+      ),
+    ).toBe(false);
+  });
+
   it("exigência não declarada libera", () => {
     expect(allowsAccess({}, none)).toBe(true);
   });
@@ -50,7 +74,9 @@ describe("allowsAccess", () => {
 
 describe("accessBlockReason", () => {
   it("liberado não tem motivo", () => {
-    expect(accessBlockReason({ permission: "operations.update" }, full)).toBeNull();
+    expect(
+      accessBlockReason({ permission: "operations.update" }, full),
+    ).toBeNull();
   });
 
   it("bloqueado tem frase para mostrar ao usuário", () => {
