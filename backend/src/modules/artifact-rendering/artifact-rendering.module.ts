@@ -27,6 +27,9 @@ import { ARTIFACT_RENDERER } from './renderers/artifact-renderer';
 import { ArtifactRendererRegistry } from './renderers/renderer.registry';
 import { ArtifactHtmlRenderer } from './renderers/html/artifact-html.renderer';
 import { ArtifactPdfRenderer } from './renderers/pdf/artifact-pdf.renderer';
+import { ArtifactPremiumPdfRenderer } from './renderers/pdf/artifact-premium-pdf.renderer';
+import { DocumentContextBuilder } from './document-context.builder';
+import { PmocPlanDocumentService } from './pmoc-plan-document.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
@@ -41,16 +44,24 @@ import { NotificationsModule } from '../notifications/notifications.module';
   providers: [
     ArtifactHtmlRenderer,
     ArtifactPdfRenderer,
+    ArtifactPremiumPdfRenderer,
     {
       provide: ARTIFACT_RENDERER,
-      inject: [ArtifactHtmlRenderer, ArtifactPdfRenderer],
-      useFactory: (html: ArtifactHtmlRenderer, pdf: ArtifactPdfRenderer) => [
-        html,
-        pdf,
+      inject: [
+        ArtifactHtmlRenderer,
+        ArtifactPdfRenderer,
+        ArtifactPremiumPdfRenderer,
       ],
+      useFactory: (
+        html: ArtifactHtmlRenderer,
+        pdf: ArtifactPdfRenderer,
+        premium: ArtifactPremiumPdfRenderer,
+      ) => [html, pdf, premium],
     },
     ArtifactRendererRegistry,
     ArtifactRenderAssembler,
+    DocumentContextBuilder,
+    PmocPlanDocumentService,
     ArtifactRenderRepository,
     ArtifactRenderMetrics,
     ArtifactRenderService,
@@ -60,6 +71,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
   ],
   exports: [
     ArtifactRenderService,
+    PmocPlanDocumentService,
     ArtifactRendererRegistry,
     BackgroundJobWorker,
   ],

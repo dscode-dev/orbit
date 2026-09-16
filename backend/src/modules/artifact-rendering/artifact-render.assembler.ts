@@ -92,6 +92,8 @@ export interface AssembleSource {
   }[];
   evidence?: NonNullable<RenderInput['evidence']>;
   organizationName: string;
+  /** Contexto do documento premium; opcional, o desenho lida com a ausência. */
+  documentContext?: unknown;
   correlationId: string;
 }
 
@@ -147,7 +149,12 @@ export class ArtifactRenderAssembler {
       evidence: source.evidence ?? [],
       branding: this.branding(source.snapshot.layout, source.organizationName),
       layout: record(source.snapshot.layout),
-      metadata: record(source.snapshot.metadata),
+      metadata: {
+        ...record(source.snapshot.metadata),
+        ...(source.documentContext
+          ? { documentContext: source.documentContext }
+          : {}),
+      },
       correlationId: source.correlationId,
       generatedAt: new Date(),
     };
@@ -167,6 +174,7 @@ export class ArtifactRenderAssembler {
     >;
     organizationName: string;
     correlationId: string;
+    documentContext?: unknown;
   }): RenderInput {
     const frozen = record(source.frozen);
     const rawSections = Array.isArray(frozen.sections) ? frozen.sections : [];
@@ -265,6 +273,9 @@ export class ArtifactRenderAssembler {
       metadata: {
         ...record(source.snapshot.metadata),
         fieldSnapshotHash: text(frozen.snapshotHash),
+        ...(source.documentContext
+          ? { documentContext: source.documentContext }
+          : {}),
       },
       correlationId: source.correlationId,
       generatedAt: new Date(),

@@ -47,6 +47,7 @@ import {
   type JobQueue,
 } from '../jobs/background-job.types';
 import { ArtifactRenderAssembler } from './artifact-render.assembler';
+import { DocumentContextBuilder } from './document-context.builder';
 import { ArtifactRenderMetrics } from './artifact-render.metrics';
 import { ArtifactRenderRepository } from './artifact-render.repository';
 import { ArtifactRendererRegistry } from './renderers/renderer.registry';
@@ -69,6 +70,7 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
   constructor(
     private readonly repository: ArtifactRenderRepository,
     private readonly assembler: ArtifactRenderAssembler,
+    private readonly documentContext: DocumentContextBuilder,
     private readonly renderers: ArtifactRendererRegistry,
     private readonly manifests: ArtifactManifestService,
     private readonly metrics: ArtifactRenderMetrics,
@@ -235,6 +237,23 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
           ),
         ),
       );
+      /**
+       * O contexto do documento, montado uma vez e entregue aos dois caminhos.
+       *
+       * Vai em `metadata.documentContext` porque `RenderInput` é o contrato de
+       * **todos** os renderers, e acrescentar um campo obrigatório a ele
+       * quebraria os que não precisam dele — o HTML, entre eles.
+       */
+      const documentContext = this.documentContext.build({
+        businessUnit: source.businessUnit,
+        customer: source.customer,
+        operation: source.operation,
+        legalReference:
+          source.snapshot.artifactType === 'PMOC'
+            ? 'Plano de Manutenção, Operação e Controle — Lei nº 13.589/2018.'
+            : undefined,
+      });
+
       const input = source.fieldArtifact
         ? this.assembler.assembleFrozen({
             execution: source,
@@ -243,6 +262,7 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
             assets: fieldAssets,
             organizationName: source.organization.displayName,
             correlationId: job.correlationId,
+            documentContext,
           })
         : this.assembler.assemble({
             execution: source,
@@ -252,6 +272,7 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
             evidence,
             organizationName: source.organization.displayName,
             correlationId: job.correlationId,
+            documentContext,
           });
 
       const output = await renderer.render(input);

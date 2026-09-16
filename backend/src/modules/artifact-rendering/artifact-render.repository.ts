@@ -79,6 +79,85 @@ export class ArtifactRenderRepository {
             },
           },
           organization: { select: { displayName: true } },
+
+          /**
+           * O contexto do documento premium.
+           *
+           * Timbre, cliente, atendimento e parque não são resposta de campo:
+           * pedir que o técnico redigite o CNPJ da própria empresa num
+           * formulário seria transformar cadastro em digitação, e o primeiro
+           * erro sairia impresso com cara de verdade.
+           *
+           * Tudo aqui é leitura enxuta — só as colunas que o documento
+           * imprime. Um `include` generoso arrastaria o parque inteiro do
+           * cliente para gerar uma folha de rosto.
+           */
+          businessUnit: {
+            select: {
+              legalName: true,
+              tradeName: true,
+              documentType: true,
+              documentNumber: true,
+              email: true,
+              phone: true,
+              website: true,
+              logoUrl: true,
+              city: true,
+              stateCode: true,
+              district: true,
+              street: true,
+              number: true,
+              timezone: true,
+            },
+          },
+          customer: {
+            select: {
+              legalName: true,
+              tradeName: true,
+              documentType: true,
+              documentNumber: true,
+            },
+          },
+          operation: {
+            select: {
+              code: true,
+              title: true,
+              sector: true,
+              scheduledStart: true,
+              startedAt: true,
+              completedAt: true,
+              responsibleFieldTechnician: { select: { displayName: true } },
+              customerAddress: {
+                select: {
+                  label: true,
+                  street: true,
+                  number: true,
+                  district: true,
+                  city: true,
+                  stateCode: true,
+                  postalCode: true,
+                },
+              },
+              assets: {
+                orderBy: { createdAt: 'asc' as const },
+                select: {
+                  asset: {
+                    select: {
+                      name: true,
+                      manufacturer: true,
+                      model: true,
+                      serialNumber: true,
+                      identifier: true,
+                      location: true,
+                      /* A capacidade não é coluna: mora no JSON livre de
+                         especificações, e o compositor lê de lá. */
+                      specifications: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       });
       if (!source) return null;

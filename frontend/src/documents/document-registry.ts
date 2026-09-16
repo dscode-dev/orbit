@@ -200,6 +200,13 @@ export interface RendererDefinition {
 
 const RENDERERS: readonly RendererDefinition[] = [
   {
+    id: "pdf.premium",
+    label: "PDF premium",
+    description:
+      "Documento com timbre da unidade, tabela de equipamentos que pagina e rodapé numerado.",
+    format: "PDF",
+  },
+  {
     id: "pdf.default",
     label: "PDF padrão",
     description: "Documento paginado, com cabeçalho, rodapé e assinaturas.",
