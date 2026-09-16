@@ -14,18 +14,20 @@
  * deixa no lugar dele o selo discreto da topbar — que continua ali enquanto a
  * assinatura estiver vencida, sem interromper nada.
  *
- * ## Doze horas de silêncio, num cookie
+ * ## Uma vez, e sai do caminho de verdade
  *
- * Num cookie e não em `localStorage`, pela mesma razão do tema: o servidor
- * monta o shell e precisa saber antes de pintar — senão o modal aparece e
- * some na frente de quem já o fechou.
+ * Dispensado, não volta — nem ao navegar, nem ao recarregar dentro de doze
+ * horas. Quem lembra é `SubscriptionNoticeProvider`, no layout raiz: este
+ * componente vive dentro do `AppShell`, que remonta a cada navegação, e
+ * guardar a decisão aqui a perdia no primeiro clique do menu.
  *
  * Doze horas porque isto é "já li hoje", não uma preferência. Guardar para
  * sempre faria com que quem dispensou o aviso em setembro não fosse mais
- * lembrado em outubro; silenciar só pela aba faria o aviso voltar a cada
- * recarregamento, no meio do trabalho.
+ * lembrado em outubro.
+ *
+ * Depois disso, quem conta a história é o selo da topbar — presente em toda
+ * tela, sem interromper nenhuma, e clicável para a aba onde se contrata.
  */
-import { useState } from "react";
 import Link from "next/link";
 import { CalendarX2 } from "lucide-react";
 
@@ -40,34 +42,12 @@ import {
 } from "@/components/ui/dialog";
 import { useSession } from "@/providers/session-provider";
 import { ROUTE_ASSINATURA, dataDeVencimento } from "./subscription-access";
-import {
-  AVISO_COOKIE,
-  AVISO_COOKIE_MAX_AGE,
-} from "./subscription-notice-cookie";
-import { useAvisoDispensado } from "./subscription-notice-provider";
+import { useAvisoDeAssinatura } from "./subscription-notice-provider";
 
 export function SubscriptionExpiredNotice() {
   const session = useSession();
+  const { dispensado, dispensar } = useAvisoDeAssinatura();
   const vencida = session.isAuthenticated && !session.subscriptionActive;
-  /**
-   * O estado inicial vem do cookie lido **no servidor**.
-   *
-   * Descobrir isso depois da hidratação faria o modal aparecer e sumir na
-   * frente de quem já o tinha fechado — o mesmo piscar que o menu e o tema
-   * resolvem lendo o cookie no layout raiz.
-   */
-  const [dispensado, setDispensado] = useState(useAvisoDispensado());
-
-  const dispensar = () => {
-    setDispensado(true);
-    /* `document.cookie` pode lançar com armazenamento bloqueado. Se não dá
-       para lembrar, o aviso volta — que é melhor que quebrar a tela. */
-    try {
-      document.cookie = `${AVISO_COOKIE}=1; path=/; max-age=${AVISO_COOKIE_MAX_AGE}; samesite=lax`;
-    } catch {
-      /* Silêncio: o estado local já fechou o diálogo desta vez. */
-    }
-  };
 
   if (!vencida) return null;
 

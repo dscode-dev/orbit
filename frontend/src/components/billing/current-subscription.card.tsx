@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PanelFrame } from "@/components/panels";
 import { formatDate } from "@/lib/formatters";
+import { useSession } from "@/providers/session-provider";
 import { BILLING_INTERVAL_LABELS, type BillingOverview } from "@/types/billing";
 import { derivarAcoes } from "./billing-actions";
 import {
@@ -72,12 +73,30 @@ export function CurrentSubscriptionCard({
   commandPending,
 }: Props) {
   const { subscription, catalog, entitlements } = overview;
+  const session = useSession();
+
+  /**
+   * Quem decide se o acesso vale é a sessão, e não a janela daqui.
+   *
+   * `entitlements.window` é calculada pelo módulo de cobrança e **não** é a
+   * mesma coisa que o período que o `ActivePlanGuard` confere: numa conta com
+   * a avaliação vencida ela mostrava 14/09 — 14/10 enquanto o servidor já
+   * recusava toda escrita com `402`. A página para onde o selo "Assinatura
+   * vencida" leva dizia "o acesso atual continua valendo" — e essa é
+   * exatamente a página onde a pessoa vai resolver o problema.
+   *
+   * Unificar as duas origens é trabalho do módulo de cobrança. O que não pode
+   * esperar é a tela contradizer o servidor.
+   */
+  const vencida = session.isAuthenticated && !session.subscriptionActive;
 
   /**
    * Sem assinatura não é erro.
    *
    * Uma organização anterior à cobrança continua operando pelo acesso que já
-   * tinha — dizer "sem plano" afirmaria uma restrição que não existe.
+   * tinha — dizer "sem plano" afirmaria uma restrição que não existe. A
+   * exceção é quando esse acesso **acabou**: aí a frase vira uma promessa que
+   * o servidor não cumpre.
    */
   if (!subscription) {
     return (
@@ -104,11 +123,17 @@ export function CurrentSubscriptionCard({
 
           <dl className="grid gap-3 sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-muted-foreground">Período em curso</dt>
+              <dt className="text-xs text-muted-foreground">
+                {vencida ? "Acesso encerrado em" : "Período em curso"}
+              </dt>
               <dd className="mt-0.5 text-sm">
-                {`${formatDate(entitlements.window.start)} — ${formatDate(
-                  entitlements.window.end,
-                )}`}
+                {vencida
+                  ? (session.subscriptionEndsAt
+                      ? formatDate(session.subscriptionEndsAt)
+                      : "—")
+                  : `${formatDate(entitlements.window.start)} — ${formatDate(
+                      entitlements.window.end,
+                    )}`}
               </dd>
             </div>
             <div>
@@ -117,10 +142,23 @@ export function CurrentSubscriptionCard({
             </div>
           </dl>
 
-          <p className="text-sm text-muted-foreground">
-            O acesso atual continua valendo. Escolha um plano abaixo para
-            contratar quando quiser passar para a cobrança regular.
-          </p>
+          {vencida ? (
+            <div className="rounded-lg border border-warning/40 bg-warning/10 p-3">
+              <p className="text-sm font-medium text-warning">
+                O período de acesso terminou
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Consultar o histórico e baixar os documentos já emitidos
+                continua funcionando. Criar e alterar registros fica pausado
+                até a contratação de um plano.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              O acesso atual continua valendo. Escolha um plano abaixo para
+              contratar quando quiser passar para a cobrança regular.
+            </p>
+          )}
         </div>
       </PanelFrame>
     );
