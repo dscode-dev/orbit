@@ -29,6 +29,7 @@ import { ArtifactHtmlRenderer } from './renderers/html/artifact-html.renderer';
 import { ArtifactPdfRenderer } from './renderers/pdf/artifact-pdf.renderer';
 import { ArtifactPremiumPdfRenderer } from './renderers/pdf/artifact-premium-pdf.renderer';
 import { DocumentContextBuilder } from './document-context.builder';
+import { RenderInputFactory } from './render-input.factory';
 import { PmocPlanDocumentService } from './pmoc-plan-document.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -61,6 +62,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     ArtifactRendererRegistry,
     ArtifactRenderAssembler,
     DocumentContextBuilder,
+    RenderInputFactory,
     PmocPlanDocumentService,
     ArtifactRenderRepository,
     ArtifactRenderMetrics,

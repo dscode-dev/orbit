@@ -1873,6 +1873,99 @@ export class PmocRepository {
     });
   }
 
+  /**
+   * Tudo o que o documento do plano imprime, numa leitura.
+   *
+   * Projeção própria de propósito: `coverageView` serve a listagens e traz o
+   * mínimo do equipamento. O documento precisa de marca, modelo e local, e
+   * alargar a projeção compartilhada faria toda listagem de cobertura carregar
+   * campos que ela não mostra.
+   */
+  documentSource(planId: string, organizationId: string) {
+    return this.rls.run(async (tx) => {
+      const plan = await tx.pmocPlan.findFirst({
+        where: { id: planId, organizationId, deletedAt: null },
+        select: {
+          code: true,
+          name: true,
+          status: true,
+          notes: true,
+          startsOn: true,
+          endsOn: true,
+          frequencyAmount: true,
+          frequencyUnit: true,
+          serviceTypes: true,
+          procedure: true,
+          lastExecutedAt: true,
+          nextDueOn: true,
+          technician: { select: { displayName: true } },
+          technicalResponsible: { select: { displayName: true } },
+          customer: {
+            select: {
+              legalName: true,
+              tradeName: true,
+              documentType: true,
+              documentNumber: true,
+            },
+          },
+          businessUnit: {
+            select: {
+              legalName: true,
+              tradeName: true,
+              documentType: true,
+              documentNumber: true,
+              email: true,
+              phone: true,
+              website: true,
+              city: true,
+              stateCode: true,
+              district: true,
+              street: true,
+              number: true,
+              timezone: true,
+            },
+          },
+        },
+      });
+      if (!plan) return null;
+
+      const [coverages, planUnits] = await Promise.all([
+        tx.pmocEquipmentCoverage.findMany({
+          where: { planId, organizationId, deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            startsOn: true,
+            asset: {
+              select: {
+                name: true,
+                manufacturer: true,
+                model: true,
+                identifier: true,
+                serialNumber: true,
+                location: true,
+                specifications: true,
+              },
+            },
+          },
+        }),
+        tx.pmocPlanUnit.findMany({
+          where: { planId, plan: { organizationId } },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            unit: {
+              select: {
+                name: true,
+                checklistTemplate: { select: { name: true } },
+              },
+            },
+          },
+        }),
+      ]);
+
+      return { plan, coverages, planUnits };
+    });
+  }
+
   listCoverages(planId: string, organizationId: string) {
     return this.rls.run((tx) =>
       tx.pmocEquipmentCoverage.findMany({

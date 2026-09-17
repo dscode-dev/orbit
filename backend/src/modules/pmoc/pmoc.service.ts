@@ -78,6 +78,7 @@ import { instantFromCivilDate } from '../scheduling/scheduling-time';
 import { PmocRepository } from './pmoc.repository';
 import { WorkforceService } from '../workforce/workforce.service';
 import { ArtifactRenderService } from '../artifact-rendering/artifact-render.service';
+import { PmocPlanDocumentService } from '../artifact-rendering/pmoc-plan-document.service';
 
 /** Quem pediu, e o que ele pode. */
 export interface PmocActor {
@@ -89,6 +90,109 @@ export interface PmocActor {
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
+/* -------------------------------------------------------------------- */
+/* Formatação do documento do plano                                      */
+/* -------------------------------------------------------------------- */
+
+/** `2026-03-01` ou um `Date` viram `01/03/2026`. */
+function dataSimples(valor: Date | string | null | undefined) {
+  if (!valor) return undefined;
+  const texto = typeof valor === 'string' ? valor : valor.toISOString();
+  const [ano, mes, dia] = texto.slice(0, 10).split('-');
+  return dia && mes && ano ? `${dia}/${mes}/${ano}` : undefined;
+}
+
+/** CNPJ e CPF com máscara. Qualquer outro tipo sai como veio. */
+function documentoFormatado(
+  tipo: string | null | undefined,
+  numero: string | null | undefined,
+) {
+  if (!numero) return undefined;
+  const digitos = numero.replace(/\D/g, '');
+  if (tipo === 'CNPJ' && digitos.length === 14) {
+    return digitos.replace(
+      /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
+      '$1.$2.$3/$4-$5',
+    );
+  }
+  if (tipo === 'CPF' && digitos.length === 11) {
+    return digitos.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+  }
+  return numero;
+}
+
+function enderecoDaUnidade(unidade: {
+  street?: string | null;
+  number?: string | null;
+  district?: string | null;
+  city?: string | null;
+  stateCode?: string | null;
+} | null) {
+  if (!unidade) return undefined;
+  const logradouro = [unidade.street, unidade.number]
+    .filter(Boolean)
+    .join(', ');
+  const cidade = [unidade.city, unidade.stateCode].filter(Boolean).join('/');
+  const partes = [logradouro, unidade.district, cidade].filter(
+    (parte) => parte && parte.length > 0,
+  );
+  return partes.length > 0 ? partes.join(' — ') : undefined;
+}
+
+/**
+ * A capacidade não tem coluna: fica em `Asset.specifications`, que é JSON livre
+ * porque cada organização nomeia o campo do seu jeito. Procuramos as chaves
+ * que aparecem de fato em vez de exigir um esquema que ninguém adotou.
+ */
+function capacidadeDeclarada(specifications: unknown) {
+  if (!specifications || typeof specifications !== 'object') return undefined;
+  const registro = specifications as Record<string, unknown>;
+  for (const [chave, valor] of Object.entries(registro)) {
+    if (!/capacidade|capacity|btu|btus|tr/i.test(chave)) continue;
+    if (typeof valor === 'string' && valor.trim()) return valor.trim();
+    if (typeof valor === 'number') return String(valor);
+  }
+  return undefined;
+}
+
+/**
+ * O roteiro previsto vive em `PmocPlan.procedure`, um JSON livre. Aceitamos as
+ * duas formas que o produto gera hoje — grupo com lista de textos e grupo com
+ * lista de objetos rotulados — e ignoramos o que não souber ler, porque um
+ * roteiro parcial impresso é melhor que uma emissão que falha.
+ */
+function roteiroDoPlano(procedure: unknown) {
+  if (!procedure || typeof procedure !== 'object') return [];
+  const grupos: { group: string; items: string[] }[] = [];
+
+  for (const [grupo, valor] of Object.entries(
+    procedure as Record<string, unknown>,
+  )) {
+    const itens = itensDoGrupo(valor);
+    if (itens.length > 0) grupos.push({ group: grupo, items: itens });
+  }
+
+  return grupos;
+}
+
+function itensDoGrupo(valor: unknown): string[] {
+  if (typeof valor === 'string') return valor.trim() ? [valor.trim()] : [];
+  if (!Array.isArray(valor)) return [];
+
+  return valor
+    .map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (item && typeof item === 'object') {
+        const registro = item as Record<string, unknown>;
+        const rotulo =
+          registro.label ?? registro.name ?? registro.title ?? registro.text;
+        return typeof rotulo === 'string' ? rotulo.trim() : '';
+      }
+      return '';
+    })
+    .filter((item) => item.length > 0);
+}
+
 @Injectable()
 export class PmocService {
   constructor(
@@ -97,6 +201,7 @@ export class PmocService {
     private readonly jobs: BackgroundJobQueue,
     private readonly workforce: WorkforceService,
     private readonly rendering: ArtifactRenderService,
+    private readonly planDocument: PmocPlanDocumentService,
   ) {}
 
   /* ---------------------------------------------------------------- */
@@ -590,6 +695,94 @@ export class PmocService {
       data: result.data.map((plan) => this.mapper.summary(plan)),
       meta: result.meta,
     }));
+  }
+
+  /**
+   * O documento do plano — o papel que o fiscal pede na porta.
+   *
+   * Não passa pela fila de renderização porque não é uma execução: não há
+   * snapshot congelado, respostas de campo nem revisão. É a configuração
+   * **de agora**, impressa agora. Cada emissão redesenha do banco, e por isso
+   * carrega a data de emissão com destaque.
+   */
+  async document(id: string, actor: PmocActor) {
+    const source = await this.repository.documentSource(
+      id,
+      actor.organizationId,
+    );
+    if (!source) throw new EntityNotFoundException('PmocPlan', id);
+
+    const { plan, coverages, planUnits } = source;
+    const fuso = plan.businessUnit?.timezone ?? 'America/Sao_Paulo';
+
+    const bytes = await this.planDocument.render({
+      timezone: fuso,
+      emitter: {
+        name:
+          plan.businessUnit?.tradeName ??
+          plan.businessUnit?.legalName ??
+          'Orbit',
+        legalName: plan.businessUnit?.legalName ?? undefined,
+        document: documentoFormatado(
+          plan.businessUnit?.documentType,
+          plan.businessUnit?.documentNumber,
+        ),
+        address: enderecoDaUnidade(plan.businessUnit),
+        phone: plan.businessUnit?.phone ?? undefined,
+        email: plan.businessUnit?.email ?? undefined,
+        website: plan.businessUnit?.website ?? undefined,
+      },
+      plan: {
+        plan: {
+          code: plan.code,
+          name: plan.name,
+          status: plan.status,
+          coverageStart: dataSimples(plan.startsOn),
+          coverageEnd: dataSimples(plan.endsOn),
+          cadence: frequencyLabel({
+            amount: plan.frequencyAmount,
+            unit: plan.frequencyUnit as FrequencyUnit,
+          }),
+          serviceTypes: plan.serviceTypes ?? undefined,
+          notes: plan.notes ?? undefined,
+          technicalResponsible:
+            plan.technicalResponsible?.displayName ?? undefined,
+          fieldTechnician: plan.technician?.displayName ?? undefined,
+          nextDueOn: dataSimples(plan.nextDueOn),
+          lastExecutedAt: dataSimples(plan.lastExecutedAt),
+        },
+        customer: {
+          name: plan.customer?.tradeName ?? plan.customer?.legalName,
+          document: documentoFormatado(
+            plan.customer?.documentType,
+            plan.customer?.documentNumber,
+          ),
+        },
+        equipment: coverages.map((coverage) => ({
+          name: coverage.asset?.name ?? undefined,
+          manufacturer: coverage.asset?.manufacturer ?? undefined,
+          model: coverage.asset?.model ?? undefined,
+          capacity: capacidadeDeclarada(coverage.asset?.specifications),
+          identifier:
+            coverage.asset?.identifier ??
+            coverage.asset?.serialNumber ??
+            undefined,
+          sector: coverage.asset?.location ?? undefined,
+          coverageStart: dataSimples(coverage.startsOn),
+        })),
+        units: planUnits.map((link) => ({
+          name: link.unit.name,
+          checklist: link.unit.checklistTemplate?.name ?? undefined,
+        })),
+        procedure: roteiroDoPlano(plan.procedure),
+      },
+    });
+
+    return {
+      bytes,
+      mimeType: 'application/pdf',
+      fileName: `${plan.code}-plano.pdf`,
+    };
   }
 
   async get(id: string, actor: PmocActor) {

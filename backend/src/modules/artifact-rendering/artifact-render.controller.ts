@@ -4,20 +4,28 @@
  * ```
  * POST /artifact-executions/:id/render     solicita  → 202 com o estado
  * GET  /artifact-executions/:id/render     consulta  → estado
+ * GET  /artifact-executions/:id/preview    rascunho  → o PDF, sem persistir
  * GET  /artifact-rendering/metrics         observa   → contadores do processo
  * ```
  *
- * **Só isto.** Listar revisões e obter URL de download já existem na PR-19
+ * Listar revisões e obter URL de download já existem na PR-19
  * (`GET /artifact-executions/:id/manifests` e
  * `GET /artifact-manifests/:id/download`); repeti-los aqui criaria dois
  * caminhos para a mesma coisa.
  *
- * Nenhuma rota devolve arquivo: quando uma URL assinada resolve o caso, é ela
- * que é devolvida — e ela é da PR-19.
+ * **O preview é a exceção que devolve arquivo.** Documento emitido mora no
+ * storage e se alcança por URL assinada — é da PR-19. O rascunho não existe em
+ * lugar nenhum: ele é desenhado na hora e morre na resposta. Não há objeto
+ * para assinar, e persistir um só para poder assiná-lo faria o preview
+ * consumir número de documento e aparecer no histórico do cliente como se algo
+ * tivesse sido emitido.
  */
 import {
   Body,
   Controller,
+  Query,
+  Res,
+  StreamableFile,
   Get,
   HttpCode,
   HttpStatus,
@@ -26,6 +34,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { Permissions } from '../../decorators';
 import { ForbiddenException } from '../../exceptions';
 import { ParseUUIDv7Pipe } from '../../pipes';
@@ -64,6 +73,45 @@ export class ArtifactRenderController {
     @Body() input: RequestArtifactRenderDto,
   ) {
     return this.rendering.request(id, this.actor(request), input);
+  }
+
+  /**
+   * O rascunho, para ver antes de emitir.
+   *
+   * Devolve os bytes do PDF **inline**: o navegador abre no lugar de baixar, e
+   * é isso que faz o preview parecer preview. `Content-Disposition: inline`
+   * com nome de arquivo mesmo assim, para quem escolher salvar.
+   *
+   * `no-store` porque o rascunho muda a cada resposta preenchida — um preview
+   * em cache mostraria o formulário de dez minutos atrás e quem olhasse
+   * concluiria que a edição não salvou.
+   *
+   * Exige `artifact_executions.read`, e não `artifact_rendering.render`: ver
+   * como está ficando não emite nada.
+   */
+  @Get('artifact-executions/:id/preview')
+  @Capabilities('artifact_executions.read')
+  @Permissions('artifact_executions.read')
+  @ApiOperation({ summary: 'Draft document for review; nothing is persisted' })
+  async preview(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+    @Res({ passthrough: true }) response: Response,
+    @Query('renderer') renderer?: string,
+  ): Promise<StreamableFile> {
+    const rascunho = await this.rendering.preview(
+      id,
+      this.actor(request),
+      renderer,
+    );
+
+    response.set({
+      'Content-Type': rascunho.mimeType,
+      'Content-Disposition': `inline; filename="${rascunho.fileName}"`,
+      'Cache-Control': 'no-store',
+    });
+
+    return new StreamableFile(rascunho.bytes);
   }
 
   @Get('artifact-executions/:id/render')

@@ -46,8 +46,7 @@ import {
   type JobProcessor,
   type JobQueue,
 } from '../jobs/background-job.types';
-import { ArtifactRenderAssembler } from './artifact-render.assembler';
-import { DocumentContextBuilder } from './document-context.builder';
+import { RenderInputFactory } from './render-input.factory';
 import { ArtifactRenderMetrics } from './artifact-render.metrics';
 import { ArtifactRenderRepository } from './artifact-render.repository';
 import { ArtifactRendererRegistry } from './renderers/renderer.registry';
@@ -69,13 +68,11 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
 
   constructor(
     private readonly repository: ArtifactRenderRepository,
-    private readonly assembler: ArtifactRenderAssembler,
-    private readonly documentContext: DocumentContextBuilder,
+    private readonly inputs: RenderInputFactory,
     private readonly renderers: ArtifactRendererRegistry,
     private readonly manifests: ArtifactManifestService,
     private readonly metrics: ArtifactRenderMetrics,
     private readonly registry: JobProcessorRegistry,
-    @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
     @Optional()
     private readonly mobileNotifications?: MobileNotificationService,
   ) {}
@@ -153,127 +150,15 @@ export class ArtifactRenderProcessor implements JobProcessor, OnModuleInit {
     try {
       const renderer = this.renderers.get(payload.renderer);
 
-      const evidence = await Promise.all(
-        [
-          ...(source.pmocEquipmentExecution?.evidence ?? []).map((item) => ({
-            id: item.id,
-            kind: item.kind,
-            caption: item.caption,
-            fileName: item.storageFile.fileName,
-            mimeType: item.storageFile.mimeType,
-            sha256: item.storageFile.sha256,
-            storageFile: item.storageFile,
-          })),
-          ...(source.pmocEquipmentExecution?.fieldEvidence ?? []).map(
-            (item) => ({
-              id: item.id,
-              kind: item.category,
-              caption: null,
-              fileName: item.fileName,
-              mimeType: item.mimeType,
-              sha256: item.sha256,
-              storageFile: item.storageFile,
-            }),
-          ),
-        ].map(async (item) => ({
-          id: item.id,
-          kind: item.kind,
-          caption: item.caption,
-          fileName: item.fileName,
-          mimeType: item.mimeType,
-          sha256: item.sha256,
-          bytes:
-            item.storageFile.status === 'AVAILABLE'
-              ? await this.storage.get({
-                  bucket: item.storageFile.bucket,
-                  objectKey: item.storageFile.objectKey,
-                })
-              : undefined,
-        })),
-      );
-      const signatureImages = new Map(
-        await Promise.all(
-          source.signatureAssets.map(
-            async (asset) =>
-              [
-                asset.id,
-                {
-                  bytes: await this.storage.get({
-                    bucket: asset.bucket,
-                    objectKey: asset.objectKey,
-                  }),
-                  mimeType: asset.mimeType,
-                },
-              ] as const,
-          ),
-        ),
-      );
-      const signatures = source.signatures.map((signature) => {
-        const image = signature.signatureAssetId
-          ? signatureImages.get(signature.signatureAssetId)
-          : undefined;
-        return {
-          ...signature,
-          signatureImage: image?.bytes,
-          signatureImageMimeType: image?.mimeType,
-        };
-      });
-
-      const fieldAssets = new Map(
-        await Promise.all(
-          source.fieldAssets.map(
-            async (asset) =>
-              [
-                asset.id,
-                {
-                  bytes: await this.storage.get({
-                    bucket: asset.bucket,
-                    objectKey: asset.objectKey,
-                  }),
-                  mimeType: asset.mimeType,
-                  fileName: asset.fileName,
-                },
-              ] as const,
-          ),
-        ),
-      );
       /**
-       * O contexto do documento, montado uma vez e entregue aos dois caminhos.
+       * A montagem é do fabricante, e não daqui.
        *
-       * Vai em `metadata.documentContext` porque `RenderInput` é o contrato de
-       * **todos** os renderers, e acrescentar um campo obrigatório a ele
-       * quebraria os que não precisam dele — o HTML, entre eles.
+       * O preview parte exatamente do mesmo input e do mesmo renderer — a
+       * diferença entre os dois caminhos é só o que acontece com os bytes.
+       * Montar aqui de novo faria o que o owner vê divergir do que ele recebe
+       * na primeira mudança, e em silêncio.
        */
-      const documentContext = this.documentContext.build({
-        businessUnit: source.businessUnit,
-        customer: source.customer,
-        operation: source.operation,
-        legalReference:
-          source.snapshot.artifactType === 'PMOC'
-            ? 'Plano de Manutenção, Operação e Controle — Lei nº 13.589/2018.'
-            : undefined,
-      });
-
-      const input = source.fieldArtifact
-        ? this.assembler.assembleFrozen({
-            execution: source,
-            snapshot: source.snapshot,
-            frozen: source.fieldArtifact.snapshot,
-            assets: fieldAssets,
-            organizationName: source.organization.displayName,
-            correlationId: job.correlationId,
-            documentContext,
-          })
-        : this.assembler.assemble({
-            execution: source,
-            snapshot: source.snapshot,
-            responses: source.responses,
-            signatures,
-            evidence,
-            organizationName: source.organization.displayName,
-            correlationId: job.correlationId,
-            documentContext,
-          });
+      const input = await this.inputs.build(source, job.correlationId);
 
       const output = await renderer.render(input);
 

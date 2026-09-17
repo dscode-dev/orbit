@@ -26,6 +26,8 @@ import { JOB_QUEUES } from '../jobs/background-job.types';
 import { ArtifactRenderMetrics } from './artifact-render.metrics';
 import { ArtifactRenderRepository } from './artifact-render.repository';
 import { ArtifactRendererRegistry } from './renderers/renderer.registry';
+import { RenderInputFactory } from './render-input.factory';
+import { defaultRendererFor } from './renderers/default-renderer';
 import type {
   ArtifactRenderStateReadModel,
   RenderMetricsReadModel,
@@ -51,7 +53,63 @@ export class ArtifactRenderService {
     private readonly renderers: ArtifactRendererRegistry,
     private readonly manifestPolicy: ArtifactManifestPolicy,
     private readonly metrics: ArtifactRenderMetrics,
+    private readonly inputs: RenderInputFactory,
   ) {}
+
+  /**
+   * O rascunho, para o owner ver antes de emitir.
+   *
+   * ## O preview é o próprio documento
+   *
+   * Mesmo `RenderInput`, mesmo renderer, mesmos bytes. O que ele **não** faz é
+   * abrir revisão, gravar arquivo, calcular hash e aposentar a anterior — nada
+   * disso é conteúdo, é emissão. Por isso o preview não deixa rastro: gerar um
+   * rascunho não pode consumir número de documento nem aparecer no histórico
+   * do cliente como se algo tivesse sido emitido.
+   *
+   * Uma segunda implementação "só para mostrar" divergiria do documento final
+   * na primeira mudança, e divergiria calada — ninguém compara dois PDFs.
+   *
+   * ## Não passa pela fila
+   *
+   * A fila existe para trabalho que pode demorar e não pode se perder. Um
+   * preview é o oposto: quem pediu está olhando a tela, e um rascunho perdido
+   * se pede de novo. Enfileirar só acrescentaria a espera do worker.
+   *
+   * ## Nem pela política de emissão
+   *
+   * `assertExecutionCanIssue` recusa execução que ainda não pode emitir — que
+   * é exatamente quando o preview serve. Ver como está ficando um rascunho é o
+   * caso de uso; exigir que ele já pudesse ser emitido o esvaziaria.
+   */
+  async preview(
+    executionId: string,
+    actor: RenderActor,
+    renderer?: string,
+  ): Promise<{ bytes: Buffer; mimeType: string; fileName: string }> {
+    const source = await this.repository.findRenderSource(
+      executionId,
+      actor.organizationId,
+    );
+    if (!source) {
+      throw new EntityNotFoundException('Artifact execution', executionId);
+    }
+
+    const motor = this.renderers.get(
+      renderer ?? defaultRendererFor(source.snapshot.artifactType),
+    );
+    const input = await this.inputs.build(
+      source,
+      BackgroundJobWorker.correlationId(),
+    );
+    const output = await motor.render(input);
+
+    return {
+      bytes: output.bytes,
+      mimeType: output.mimeType,
+      fileName: `${source.code}-rascunho.${output.format.toLowerCase()}`,
+    };
+  }
 
   /**
    * Pede a renderização.
@@ -74,7 +132,10 @@ export class ArtifactRenderService {
     }
 
     /** Recusa cedo: o registry conhece os renderers disponíveis. */
-    this.renderers.get(input.renderer);
+    /* O estado não carrega o tipo do artefato, e o padrão não depende dele —
+       ver `defaultRendererFor`. */
+    const renderer = input.renderer ?? defaultRendererFor();
+    this.renderers.get(renderer);
 
     /**
      * A mesma regra da emissão manual.
@@ -105,7 +166,7 @@ export class ArtifactRenderService {
       businessUnitId: execution.businessUnitId,
       payload: {
         executionId,
-        renderer: input.renderer,
+        renderer,
         metadata: input.metadata,
       } satisfies RenderJobPayload,
       correlationId,
@@ -124,13 +185,13 @@ export class ArtifactRenderService {
       'ARTIFACT_RENDER_REQUESTED',
       executionId,
       {
-        renderer: input.renderer,
+        renderer,
         jobId: job.id,
         correlationId: job.correlationId,
       },
     );
 
-    this.metrics.recordStart(input.renderer, job.correlationId, executionId);
+    this.metrics.recordStart(renderer, job.correlationId, executionId);
 
     return this.toState(state, job.id, job.correlationId);
   }
