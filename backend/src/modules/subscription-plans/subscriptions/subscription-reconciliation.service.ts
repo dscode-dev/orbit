@@ -146,7 +146,9 @@ export class SubscriptionReconciliationService {
         currentPeriodStart: linha.currentPeriodStart,
         currentPeriodEnd: linha.currentPeriodEnd,
         trialEndsAt: linha.trialEndsAt,
+        graceStartsAt: linha.graceStartsAt,
         graceEndsAt: linha.graceEndsAt,
+        providerManaged: linha.providerSubscriptionId !== null,
         cancelAtPeriodEnd: linha.cancelAtPeriodEnd,
         pendingEffectiveAt: linha.pendingEffectiveAt,
       },
@@ -158,6 +160,8 @@ export class SubscriptionReconciliationService {
       status: projetado.status,
       currentPeriodStart: projetado.currentPeriodStart,
       currentPeriodEnd: projetado.currentPeriodEnd,
+      graceStartsAt: projetado.graceStartsAt,
+      graceEndsAt: projetado.graceEndsAt,
       version: { increment: 1 },
     };
 

@@ -19,7 +19,7 @@ import { SubscriptionService } from '../subscription-plans/subscriptions/subscri
 import { TrialEligibilityService } from '../subscription-plans/subscriptions/trial-eligibility.service';
 import {
   TRIAL_DAYS,
-  allowsPlanChange,
+  allowsInitialCheckout,
   SubscriptionStatus,
 } from '../subscription-plans/subscriptions/subscription.types';
 import {
@@ -104,7 +104,7 @@ export class BillingService {
     const assinatura = await this.subscriptions.currentOrNull(
       input.organizationId,
     );
-    if (assinatura && !allowsPlanChange(assinatura.effectiveStatus)) {
+    if (assinatura && !allowsInitialCheckout(assinatura.effectiveStatus)) {
       throw new BillingCheckoutNotAllowedException(
         `subscription status ${assinatura.effectiveStatus}`,
       );

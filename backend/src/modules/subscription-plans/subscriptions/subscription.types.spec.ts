@@ -10,6 +10,7 @@ import {
 describe('ciclo de vida da assinatura', () => {
   describe('acesso ao produto', () => {
     it.each([
+      [SubscriptionStatus.PENDING_PAYMENT, false],
       [SubscriptionStatus.TRIALING, true],
       [SubscriptionStatus.ACTIVE, true],
       [SubscriptionStatus.PAST_DUE, true],
@@ -26,6 +27,7 @@ describe('ciclo de vida da assinatura', () => {
     it('só quem está em avaliação ou ativo troca de plano', () => {
       expect(allowsPlanChange(SubscriptionStatus.TRIALING)).toBe(true);
       expect(allowsPlanChange(SubscriptionStatus.ACTIVE)).toBe(true);
+      expect(allowsPlanChange(SubscriptionStatus.PENDING_PAYMENT)).toBe(true);
       for (const status of [
         SubscriptionStatus.PAST_DUE,
         SubscriptionStatus.GRACE_PERIOD,
@@ -58,6 +60,18 @@ describe('ciclo de vida da assinatura', () => {
           SubscriptionStatus.SUSPENDED,
         ),
       ).toBe(true);
+    });
+
+    it('pagamento confirmado é o único caminho da pendência para acesso', () => {
+      expect(
+        allowsTransition(
+          SubscriptionStatus.PENDING_PAYMENT,
+          SubscriptionStatus.ACTIVE,
+        ),
+      ).toBe(true);
+      expect(grantsProductAccess(SubscriptionStatus.PENDING_PAYMENT)).toBe(
+        false,
+      );
     });
 
     it('pagar restaura o acesso a partir de qualquer estado recuperável', () => {

@@ -140,12 +140,11 @@ export class EntitlementService {
       );
     }
     /**
-     * Sem assinatura, a origem antiga responde.
+     * Sem assinatura, somente a origem antiga responde com acesso.
      *
-     * É a compatibilidade declarada da migração: inquilinos anteriores à
-     * PR-PL-02 continuam funcionando pelo plano apontado na organização. Não é
-     * "assumir ilimitado" — é a mesma resolução de sempre, e ela permanece
-     * fecha-falha para plano de catálogo.
+     * Planos customizados/legados continuam pelo `plan_id`. Um código do
+     * catálogo comercial sem contrato canônico, por outro lado, é uma falha de
+     * provisionamento e não pode virar acesso pago gratuito.
      */
     return this.direitosDe(await this.plano(organizationId));
   }
@@ -153,7 +152,11 @@ export class EntitlementService {
   /** A escolha da origem, num lugar só. */
   private direitosDe(plano: PlanRow): EffectiveEntitlements {
     if (isKnownPlan(plano.planKey)) {
-      return fromCatalog(planDefinition(plano.planKey));
+      /** Catálogo comercial sem assinatura canônica nunca concede acesso. */
+      return {
+        ...fromCatalog(planDefinition(plano.planKey)),
+        accessGranted: false,
+      };
     }
     return (
       customProfile(plano.planKey, plano.planName, plano.limits) ??

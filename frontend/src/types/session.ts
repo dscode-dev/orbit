@@ -114,7 +114,7 @@ export interface AuthenticatedSession {
    */
   organizations: readonly SessionOrganizationRef[];
   isPlatformAdmin: boolean;
-  /** Assinatura em estado que libera o produto (`TRIALING`/`ACTIVE`/`PAST_DUE`). */
+  /** Assinatura em estado que libera o produto, inclusive carência vigente. */
   subscriptionActive: boolean;
   /**
    * Fim do período vigente, em ISO. `null` quando não há período definido.

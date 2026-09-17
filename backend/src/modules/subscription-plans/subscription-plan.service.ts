@@ -5,16 +5,14 @@ import {
   ForbiddenException,
   ValidationException,
 } from '../../exceptions';
-import type {
-  ChangeSubscriptionDto,
-  CreatePlanDto,
-  UpdatePlanDto,
-} from './subscription-plan.dto';
+import type { CreatePlanDto, UpdatePlanDto } from './subscription-plan.dto';
 import {
   type PlanTenantAccess,
   SubscriptionPlanRepository,
 } from './subscription-plan.repository';
 import { SubscriptionExpiredException } from './subscription-expired.exception';
+import { project } from './subscriptions/subscription.projection';
+import { isKnownPlan } from './catalog/plan-registry';
 
 export interface OrganizationEntitlements {
   planKey: string;
@@ -31,6 +29,7 @@ export class SubscriptionPlanService {
     'TRIALING',
     'ACTIVE',
     'PAST_DUE',
+    'GRACE_PERIOD',
   ]);
 
   constructor(private readonly repository: SubscriptionPlanRepository) {}
@@ -78,6 +77,57 @@ export class SubscriptionPlanService {
       access,
     );
     if (!organization) throw new EntityNotFoundException('Organization');
+    const subscription = organization.subscriptions?.[0];
+    if (subscription) {
+      const projected = project(
+        {
+          status: subscription.status,
+          billingInterval: subscription.billingInterval,
+          billingAnchorAt: subscription.billingAnchorAt,
+          currentPeriodStart: subscription.currentPeriodStart,
+          currentPeriodEnd: subscription.currentPeriodEnd,
+          trialEndsAt: subscription.trialEndsAt,
+          graceStartsAt: subscription.graceStartsAt,
+          graceEndsAt: subscription.graceEndsAt,
+          providerManaged: subscription.providerSubscriptionId !== null,
+          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+          pendingEffectiveAt: subscription.pendingEffectiveAt,
+        },
+        new Date(),
+      );
+      const planKey =
+        projected.pendingApplied && subscription.pendingPlanCode
+          ? subscription.pendingPlanCode
+          : subscription.planCode;
+      const plan =
+        planKey === organization.plan.key
+          ? organization.plan
+          : await this.repository.findActiveByKey(planKey);
+      if (!plan) throw new EntityNotFoundException('Plan');
+      return {
+        planKey,
+        subscriptionStatus: projected.status,
+        capabilities: plan.capabilities,
+        limits: this.parseLimits(plan.limits),
+        currentPeriodStart: projected.currentPeriodStart,
+        currentPeriodEnd: projected.currentPeriodEnd,
+      };
+    }
+    if (isKnownPlan(organization.plan.key)) {
+      /**
+       * Plano comercial sem contrato canônico não herda acesso da coluna
+       * legada. Isso também fecha a janela em que o cadastro da organização
+       * termina, mas o provisionamento da assinatura falha logo depois.
+       */
+      return {
+        planKey: organization.plan.key,
+        subscriptionStatus: 'PENDING_PAYMENT',
+        capabilities: organization.plan.capabilities,
+        limits: this.parseLimits(organization.plan.limits),
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+      };
+    }
     return {
       planKey: organization.plan.key,
       subscriptionStatus: organization.subscriptionStatus,
@@ -116,6 +166,12 @@ export class SubscriptionPlanService {
       )
     ) {
       return false;
+    }
+    if (
+      entitlements.subscriptionStatus === 'PAST_DUE' ||
+      entitlements.subscriptionStatus === 'GRACE_PERIOD'
+    ) {
+      return true;
     }
     return !(
       entitlements.currentPeriodEnd &&
@@ -169,28 +225,6 @@ export class SubscriptionPlanService {
         'The current plan does not include the required capability',
       );
     }
-  }
-
-  async changeSubscription(
-    organizationId: string,
-    input: ChangeSubscriptionDto,
-  ) {
-    const plan = await this.repository.findActiveByKey(input.planKey);
-    if (!plan) throw new ValidationException('Invalid plan');
-    const periodStart = new Date();
-    const periodEnd = new Date(periodStart);
-    if (input.billingCycle === 'ANNUAL') {
-      periodEnd.setUTCFullYear(periodEnd.getUTCFullYear() + 1);
-    } else {
-      periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
-    }
-    return this.repository.changeSubscription(organizationId, plan.id, {
-      status: 'ACTIVE',
-      periodStart,
-      periodEnd,
-      externalCustomerId: input.externalCustomerId,
-      externalSubscriptionId: input.externalSubscriptionId,
-    });
   }
 
   private parseLimits(

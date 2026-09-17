@@ -55,6 +55,7 @@ function rotuloDaOrigem(source: string): string {
 const VARIANTE_DO_SELO: Readonly<
   Record<string, "default" | "secondary" | "destructive" | "outline">
 > = {
+  PENDING_PAYMENT: "outline",
   ACTIVE: "default",
   TRIALING: "secondary",
   PAST_DUE: "outline",
@@ -118,7 +119,9 @@ export function CurrentSubscriptionCard({
             <p className="font-display text-lg font-semibold">
               {entitlements.label}
             </p>
-            <Badge variant="secondary">{rotuloDaOrigem(entitlements.source)}</Badge>
+            <Badge variant="secondary">
+              {rotuloDaOrigem(entitlements.source)}
+            </Badge>
           </div>
 
           <dl className="grid gap-3 sm:grid-cols-2">
@@ -128,9 +131,9 @@ export function CurrentSubscriptionCard({
               </dt>
               <dd className="mt-0.5 text-sm">
                 {vencida
-                  ? (session.subscriptionEndsAt
-                      ? formatDate(session.subscriptionEndsAt)
-                      : "—")
+                  ? session.subscriptionEndsAt
+                    ? formatDate(session.subscriptionEndsAt)
+                    : "—"
                   : `${formatDate(entitlements.window.start)} — ${formatDate(
                       entitlements.window.end,
                     )}`}
@@ -149,8 +152,8 @@ export function CurrentSubscriptionCard({
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Consultar o histórico e baixar os documentos já emitidos
-                continua funcionando. Criar e alterar registros fica pausado
-                até a contratação de um plano.
+                continua funcionando. Criar e alterar registros fica pausado até
+                a contratação de um plano.
               </p>
             </div>
           ) : (
@@ -209,7 +212,10 @@ export function CurrentSubscriptionCard({
 
         {subscription.trial?.endsAt ? (
           <p className="flex items-center gap-2 text-sm">
-            <CalendarClock className="size-4 text-muted-foreground" aria-hidden />
+            <CalendarClock
+              className="size-4 text-muted-foreground"
+              aria-hidden
+            />
             Período de teste até {formatDate(subscription.trial.endsAt)}
             {diasAte(subscription.trial.endsAt) > 0
               ? ` · restam ${diasAte(subscription.trial.endsAt)} dias`
@@ -278,7 +284,11 @@ export function CurrentSubscriptionCard({
           ) : null}
 
           {acoes.canKeepSubscription ? (
-            <Button size="sm" onClick={onKeepSubscription} disabled={commandPending}>
+            <Button
+              size="sm"
+              onClick={onKeepSubscription}
+              disabled={commandPending}
+            >
               Manter assinatura
             </Button>
           ) : null}

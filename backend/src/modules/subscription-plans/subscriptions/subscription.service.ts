@@ -57,7 +57,16 @@ export interface CreateSubscriptionInput {
   billingInterval: BillingInterval;
   /** Quando o acesso começa. O aniversário sai daqui. */
   startsAt?: Date;
-  trial?: { startsAt: Date; endsAt: Date };
+  /**
+   * A única autoridade possível na criação pública.
+   *
+   * Uma assinatura sem avaliação nasce aguardando pagamento. `ACTIVE` não
+   * é uma opção deste comando: somente um fato financeiro confirmado pode
+   * conceder acesso pago.
+   */
+  access:
+    | { kind: 'TRIAL'; startsAt: Date; endsAt: Date }
+    | { kind: 'PAYMENT_REQUIRED' };
 }
 
 @Injectable()
@@ -90,6 +99,8 @@ export class SubscriptionService {
       ...linha,
       currentPeriodStart: projetado.currentPeriodStart,
       currentPeriodEnd: projetado.currentPeriodEnd,
+      graceStartsAt: projetado.graceStartsAt,
+      graceEndsAt: projetado.graceEndsAt,
       effectiveStatus: projetado.status,
     };
   }
@@ -138,14 +149,16 @@ export class SubscriptionService {
         catalogVersion: CATALOG_VERSION,
         entitlementsSnapshot: snapshotOf(plano) as unknown as Prisma.JsonValue,
         billingInterval: input.billingInterval,
-        status: input.trial
-          ? SubscriptionStatus.TRIALING
-          : SubscriptionStatus.ACTIVE,
+        status:
+          input.access.kind === 'TRIAL'
+            ? SubscriptionStatus.TRIALING
+            : SubscriptionStatus.PENDING_PAYMENT,
         billingAnchorAt: inicio,
         currentPeriodStart: periodo.start,
         currentPeriodEnd: periodo.end,
-        trialStartsAt: input.trial?.startsAt ?? null,
-        trialEndsAt: input.trial?.endsAt ?? null,
+        trialStartsAt:
+          input.access.kind === 'TRIAL' ? input.access.startsAt : null,
+        trialEndsAt: input.access.kind === 'TRIAL' ? input.access.endsAt : null,
         cancelAtPeriodEnd: false,
         canceledAt: null,
         graceStartsAt: null,
@@ -309,20 +322,51 @@ export class SubscriptionService {
   async reportPaymentSucceeded(
     organizationId: string,
     expectedVersion: number,
+    period: { start: Date; end: Date },
   ) {
     return this.comando(organizationId, expectedVersion, (atual) => {
-      this.assertTransicao(atual.effectiveStatus, SubscriptionStatus.ACTIVE);
-      const periodo = anchoredPeriod(
-        atual.billingAnchorAt,
-        BILLING_INTERVAL_MONTHS[atual.billingInterval] ?? 1,
-        new Date(),
-      );
+      if (
+        atual.effectiveStatus !== SubscriptionStatus.ACTIVE &&
+        !allowsTransition(atual.effectiveStatus, SubscriptionStatus.ACTIVE)
+      ) {
+        throw new SubscriptionInvalidTransitionException(
+          atual.effectiveStatus,
+          SubscriptionStatus.ACTIVE,
+        );
+      }
+      if (period.start >= period.end) {
+        throw new ConflictException(
+          'Provider billing period is invalid',
+          'INVALID_PROVIDER_PERIOD',
+        );
+      }
       return {
         status: SubscriptionStatus.ACTIVE,
         graceStartsAt: null,
         graceEndsAt: null,
-        currentPeriodStart: periodo.start,
-        currentPeriodEnd: periodo.end,
+        currentPeriodStart: period.start,
+        currentPeriodEnd: period.end,
+      };
+    });
+  }
+
+  /** O provedor encerrou a assinatura. O acesso termina sem renovação local. */
+  async reportProviderEnded(organizationId: string, expectedVersion: number) {
+    return this.comando(organizationId, expectedVersion, (atual) => {
+      this.assertTransicao(atual.effectiveStatus, SubscriptionStatus.CANCELED);
+      const agora = new Date();
+      return {
+        status: SubscriptionStatus.CANCELED,
+        cancelAtPeriodEnd: false,
+        canceledAt: atual.canceledAt ?? agora,
+        endedAt: agora,
+        graceStartsAt: null,
+        graceEndsAt: null,
+        pendingPlanCode: null,
+        pendingBillingInterval: null,
+        pendingCatalogVersion: null,
+        pendingEntitlementsSnapshot: Prisma.DbNull,
+        pendingEffectiveAt: null,
       };
     });
   }
@@ -418,7 +462,9 @@ export class SubscriptionService {
       currentPeriodStart: linha.currentPeriodStart,
       currentPeriodEnd: linha.currentPeriodEnd,
       trialEndsAt: linha.trialEndsAt,
+      graceStartsAt: linha.graceStartsAt,
       graceEndsAt: linha.graceEndsAt,
+      providerManaged: linha.providerSubscriptionId !== null,
       cancelAtPeriodEnd: linha.cancelAtPeriodEnd,
       pendingEffectiveAt: linha.pendingEffectiveAt,
     };

@@ -107,6 +107,7 @@ describe('Subscription lifecycle, billing periods and trial (e2e)', () => {
     rotulo: string,
     planKey: string = PlanCode.ESSENTIAL,
     documento = cnpj(),
+    confirmPayment = true,
   ): Promise<Inquilino> {
     const local = randomUUID().slice(0, 8);
     const email = `subscriptions.${rotulo}.${local}@orbit.local`;
@@ -137,6 +138,23 @@ describe('Subscription lifecycle, billing periods and trial (e2e)', () => {
       where: { ownerUserId: dono.id },
       select: { id: true },
     });
+    if (confirmPayment) {
+      const current = await como(organizacao.id, () =>
+        subscriptions.requireCurrent(organizacao.id),
+      );
+      if (current.effectiveStatus === SubscriptionStatus.PENDING_PAYMENT) {
+        await como(organizacao.id, () =>
+          subscriptions.reportPaymentSucceeded(
+            organizacao.id,
+            current.version,
+            {
+              start: current.currentPeriodStart,
+              end: current.currentPeriodEnd,
+            },
+          ),
+        );
+      }
+    }
     return { email, token, organizationId: organizacao.id, documento };
   }
 
@@ -257,12 +275,13 @@ describe('Subscription lifecycle, billing periods and trial (e2e)', () => {
         'trial-b',
         PlanCode.ESSENTIAL,
         orgA.documento,
+        false,
       );
       const assinatura = await como(orgB.organizationId, () =>
         subscriptions.requireCurrent(orgB.organizationId),
       );
       /** Cadastro segue em frente — o que não vem é o presente. */
-      expect(assinatura.status).toBe(SubscriptionStatus.ACTIVE);
+      expect(assinatura.status).toBe(SubscriptionStatus.PENDING_PAYMENT);
       expect(assinatura.trialStartsAt).toBeNull();
     });
 
@@ -291,11 +310,11 @@ describe('Subscription lifecycle, billing periods and trial (e2e)', () => {
       PlanCode.ENTERPRISE_UNLIMITED,
     ])('%s não oferece avaliação', async (plano) => {
       expect(trials.offersTrial(plano)).toBe(false);
-      const inquilino = await registrar('sem-trial', plano);
+      const inquilino = await registrar('sem-trial', plano, cnpj(), false);
       const assinatura = await como(inquilino.organizationId, () =>
         subscriptions.requireCurrent(inquilino.organizationId),
       );
-      expect(assinatura.status).toBe(SubscriptionStatus.ACTIVE);
+      expect(assinatura.status).toBe(SubscriptionStatus.PENDING_PAYMENT);
       expect(assinatura.trialStartsAt).toBeNull();
     });
 
@@ -673,6 +692,10 @@ describe('Subscription lifecycle, billing periods and trial (e2e)', () => {
         subscriptions.reportPaymentSucceeded(
           inquilino.organizationId,
           antesDoPagamento.version,
+          {
+            start: antesDoPagamento.currentPeriodStart,
+            end: antesDoPagamento.currentPeriodEnd,
+          },
         ),
       );
       const restaurada = await como(inquilino.organizationId, () =>

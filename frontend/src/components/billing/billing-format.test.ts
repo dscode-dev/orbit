@@ -18,7 +18,8 @@ import type { ResourceEntitlement } from "@/types/billing";
  * tipografia certa, porque impede que "R$" quebre para uma linha e o valor
  * fique noutra. Aqui ele é normalizado só para a comparação ficar legível.
  */
-const semNbsp = (valor: string | null) => valor?.replace(/\u00a0/g, " ") ?? null;
+const semNbsp = (valor: string | null) =>
+  valor?.replace(/\u00a0/g, " ") ?? null;
 
 const recurso = (
   current: number,
@@ -65,9 +66,9 @@ describe("apresentação de cobrança", () => {
   });
 
   it("ilimitado não tem proporção", () => {
-    expect(percentualDeUso(recurso(9999, { unlimited: true, value: null }))).toBe(
-      null,
-    );
+    expect(
+      percentualDeUso(recurso(9999, { unlimited: true, value: null })),
+    ).toBe(null);
   });
 
   it("a barra não transborda quando o uso passa do teto", () => {
@@ -100,6 +101,7 @@ describe("apresentação de cobrança", () => {
   });
 
   it("traduz o estado da assinatura", () => {
+    expect(rotuloDoStatus("PENDING_PAYMENT")).toBe("Aguardando contratação");
     expect(rotuloDoStatus("TRIALING")).toBe("Período de teste");
     expect(rotuloDoStatus("GRACE_PERIOD")).toBe("Período de regularização");
     expect(rotuloDoStatus("SUSPENDED")).toBe("Suspensa");
@@ -112,9 +114,7 @@ describe("apresentação de cobrança", () => {
   it("preserva o wording aprovado dos recursos", () => {
     expect(rotuloDoRecurso("FIELD_TECHNICIANS")).toBe("Técnicos operadores");
     expect(rotuloDoRecurso("AUXILIARY_TECHNICIANS")).toBe("auxiliares técnico");
-    expect(rotuloDoRecurso("SERVICE_ORDERS_CREATED")).toBe(
-      "Ordens de serviço",
-    );
+    expect(rotuloDoRecurso("SERVICE_ORDERS_CREATED")).toBe("Ordens de serviço");
   });
 
   it("conta dias a partir da data do servidor", () => {

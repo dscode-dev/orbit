@@ -292,7 +292,10 @@ describe('Stripe billing integration and webhook reconciliation (e2e)', () => {
   }
 
   /** Liga a assinatura do Orbit a uma do provedor, como o checkout faria. */
-  async function vincular(organizationId: string): Promise<string> {
+  async function vincular(
+    organizationId: string,
+    alreadyPaid = true,
+  ): Promise<string> {
     const providerSubscriptionId = `sub_test_${randomUUID().slice(0, 12)}`;
     const assinatura = await como(organizationId, () =>
       subscriptions.requireCurrent(organizationId),
@@ -311,6 +314,17 @@ describe('Stripe billing integration and webhook reconciliation (e2e)', () => {
       ProviderBillingState.ACTIVE,
       'active',
     );
+    if (alreadyPaid) {
+      const current = await como(organizationId, () =>
+        subscriptions.requireCurrent(organizationId),
+      );
+      await como(organizationId, () =>
+        subscriptions.reportPaymentSucceeded(organizationId, current.version, {
+          start: current.currentPeriodStart,
+          end: current.currentPeriodEnd,
+        }),
+      );
+    }
     return providerSubscriptionId;
   }
 
@@ -508,7 +522,7 @@ describe('Stripe billing integration and webhook reconciliation (e2e)', () => {
   describe('reconciliação', () => {
     it('pagamento confirmado mantém a assinatura ativa', async () => {
       const inquilino = await registrar('pago');
-      const providerId = await vincular(inquilino.organizationId);
+      const providerId = await vincular(inquilino.organizationId, false);
 
       const { corpo, assinatura } = eventoAssinado({
         id: `evt_${randomUUID()}`,
@@ -623,6 +637,37 @@ describe('Stripe billing integration and webhook reconciliation (e2e)', () => {
       /** Continua no que já era; o desconhecido não promoveu nada. */
       expect(atual.effectiveStatus).toBe(SubscriptionStatus.ACTIVE);
       expect(atual.providerStatus).toBe('estado_novo_do_fornecedor');
+    });
+
+    it('encerramento no provedor encerra o acesso local', async () => {
+      const inquilino = await registrar('encerrada');
+      const providerId = await vincular(inquilino.organizationId);
+      provedor.declara(providerId, ProviderBillingState.ENDED, 'canceled');
+
+      const { corpo, assinatura } = eventoAssinado({
+        id: `evt_${randomUUID()}`,
+        type: 'customer.subscription.deleted',
+        subscriptionId: providerId,
+      });
+      await http()
+        .post('/api/v1/billing/webhooks/stripe')
+        .set('stripe-signature', assinatura)
+        .set('content-type', 'application/json')
+        .send(corpo)
+        .expect(200);
+      await reconciliation.drainInbox();
+
+      await expect(
+        como(inquilino.organizationId, () =>
+          subscriptions.currentOrNull(inquilino.organizationId),
+        ),
+      ).resolves.toBeNull();
+      const historica = await prisma.organizationSubscription.findFirstOrThrow({
+        where: { organizationId: inquilino.organizationId },
+        orderBy: { startedAt: 'desc' },
+      });
+      expect(historica.status).toBe(SubscriptionStatus.CANCELED);
+      expect(historica.endedAt).not.toBeNull();
     });
 
     it('evento sem consumidor é reconhecido e arquivado', async () => {
@@ -793,6 +838,23 @@ describe('Stripe billing integration and webhook reconciliation (e2e)', () => {
         .post('/api/v1/billing/checkout-session')
         .send({ planCode: PlanCode.PROFESSIONAL, billingInterval: 'MONTHLY' })
         .expect(401);
+    });
+
+    it('não abre uma segunda assinatura para contrato já ativo', async () => {
+      const ativo = await registrar('checkout-duplicado');
+      await vincular(ativo.organizationId);
+      const resposta = await auth(
+        http().post('/api/v1/billing/checkout-session'),
+        ativo.token,
+      )
+        .send({
+          planCode: PlanCode.PROFESSIONAL_INTELLIGENCE,
+          billingInterval: 'ANNUAL',
+        })
+        .expect(409);
+      expect((resposta.body as ErrorBody).error.code).toBe(
+        'BILLING_CHECKOUT_NOT_ALLOWED',
+      );
     });
   });
 

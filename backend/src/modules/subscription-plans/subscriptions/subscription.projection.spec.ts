@@ -11,7 +11,9 @@ const base: SubscriptionState = {
   currentPeriodStart: iso('2026-09-15T00:00:00.000Z'),
   currentPeriodEnd: iso('2026-10-15T00:00:00.000Z'),
   trialEndsAt: null,
+  graceStartsAt: null,
   graceEndsAt: null,
+  providerManaged: true,
   cancelAtPeriodEnd: false,
   pendingEffectiveAt: null,
 };
@@ -98,20 +100,31 @@ describe('projeção do estado da assinatura', () => {
   });
 
   describe('renovação', () => {
-    it('o período rola sozinho quando ninguém cancelou', () => {
+    it('contrato do provedor entra em carência sem pagamento confirmado', () => {
       const projetado = project(base, iso('2026-10-20T00:00:00.000Z'));
-      expect(projetado.status).toBe(SubscriptionStatus.ACTIVE);
-      expect(projetado.renewed).toBe(true);
-      expect(projetado.currentPeriodStart.toISOString()).toBe(
+      expect(projetado.status).toBe(SubscriptionStatus.GRACE_PERIOD);
+      expect(projetado.renewed).toBe(false);
+      expect(projetado.graceStartsAt?.toISOString()).toBe(
         '2026-10-15T00:00:00.000Z',
       );
-      expect(projetado.currentPeriodEnd.toISOString()).toBe(
-        '2026-11-15T00:00:00.000Z',
+      expect(projetado.graceEndsAt?.toISOString()).toBe(
+        '2026-10-22T00:00:00.000Z',
       );
     });
 
-    it('o worker parado por meses não deixa buraco: cai no período certo', () => {
+    it('carência implícita também é limitada quando o worker para', () => {
       const projetado = project(base, iso('2027-02-20T00:00:00.000Z'));
+      expect(projetado.status).toBe(SubscriptionStatus.SUSPENDED);
+      expect(projetado.renewed).toBe(false);
+    });
+
+    it('contrato legado sem provedor preserva a renovação anterior', () => {
+      const projetado = project(
+        { ...base, providerManaged: false },
+        iso('2027-02-20T00:00:00.000Z'),
+      );
+      expect(projetado.status).toBe(SubscriptionStatus.ACTIVE);
+      expect(projetado.renewed).toBe(true);
       expect(projetado.currentPeriodStart.toISOString()).toBe(
         '2027-02-15T00:00:00.000Z',
       );

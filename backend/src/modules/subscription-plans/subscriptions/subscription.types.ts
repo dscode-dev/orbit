@@ -10,6 +10,8 @@ const literal = <T extends Record<string, string>>(value: T): Readonly<T> =>
   value;
 
 export const SubscriptionStatus = literal({
+  /** Contratação criada, mas ainda sem pagamento ou avaliação vigente. */
+  PENDING_PAYMENT: 'PENDING_PAYMENT',
   /** Acesso temporário concedido pelo Orbit, sem pagamento. */
   TRIALING: 'TRIALING',
   /** Assinatura vigente e provisionada. */
@@ -51,12 +53,25 @@ export function grantsProductAccess(status: SubscriptionStatus): boolean {
 
 /** Estados a partir dos quais ainda se pode trocar de plano. */
 const PODE_TROCAR_DE_PLANO: ReadonlySet<SubscriptionStatus> = new Set([
+  SubscriptionStatus.PENDING_PAYMENT,
   SubscriptionStatus.TRIALING,
   SubscriptionStatus.ACTIVE,
 ]);
 
 export function allowsPlanChange(status: SubscriptionStatus): boolean {
   return PODE_TROCAR_DE_PLANO.has(status);
+}
+
+/** Estados que ainda podem abrir a primeira contratação no provedor. */
+const PODE_INICIAR_CHECKOUT: ReadonlySet<SubscriptionStatus> = new Set([
+  SubscriptionStatus.PENDING_PAYMENT,
+  SubscriptionStatus.TRIALING,
+  SubscriptionStatus.CANCELED,
+  SubscriptionStatus.EXPIRED,
+]);
+
+export function allowsInitialCheckout(status: SubscriptionStatus): boolean {
+  return PODE_INICIAR_CHECKOUT.has(status);
 }
 
 /**
@@ -68,6 +83,7 @@ export function allowsPlanChange(status: SubscriptionStatus): boolean {
 const TRANSICOES: Readonly<
   Record<SubscriptionStatus, readonly SubscriptionStatus[]>
 > = {
+  PENDING_PAYMENT: ['ACTIVE', 'CANCELED', 'EXPIRED'],
   TRIALING: ['ACTIVE', 'CANCELED', 'EXPIRED'],
   ACTIVE: ['PAST_DUE', 'GRACE_PERIOD', 'SUSPENDED', 'CANCELED', 'EXPIRED'],
   PAST_DUE: ['ACTIVE', 'GRACE_PERIOD', 'SUSPENDED', 'CANCELED'],

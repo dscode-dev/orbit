@@ -18,7 +18,7 @@ import {
   type BillingInterval,
 } from '../catalog/plan-catalog.types';
 import { anchoredPeriod } from '../entitlements/anchored-period';
-import { SubscriptionStatus } from './subscription.types';
+import { GRACE_PERIOD_DAYS, SubscriptionStatus } from './subscription.types';
 
 export interface SubscriptionState {
   readonly status: SubscriptionStatus;
@@ -27,7 +27,10 @@ export interface SubscriptionState {
   readonly currentPeriodStart: Date;
   readonly currentPeriodEnd: Date;
   readonly trialEndsAt: Date | null;
+  readonly graceStartsAt: Date | null;
   readonly graceEndsAt: Date | null;
+  /** `true` quando a renovação depende de confirmação financeira externa. */
+  readonly providerManaged: boolean;
   readonly cancelAtPeriodEnd: boolean;
   readonly pendingEffectiveAt: Date | null;
 }
@@ -36,6 +39,8 @@ export interface ProjectedSubscription {
   readonly status: SubscriptionStatus;
   readonly currentPeriodStart: Date;
   readonly currentPeriodEnd: Date;
+  readonly graceStartsAt: Date | null;
+  readonly graceEndsAt: Date | null;
   /** A mudança programada já venceu e vale a partir de agora. */
   readonly pendingApplied: boolean;
   /** O período rolou sozinho — renovação implícita até a PR-PL-03 existir. */
@@ -50,6 +55,8 @@ export function project(
 ): ProjectedSubscription {
   let status = state.status;
   let { currentPeriodStart, currentPeriodEnd } = state;
+  let graceStartsAt = state.graceStartsAt;
+  let graceEndsAt = state.graceEndsAt;
   let renewed = false;
 
   /**
@@ -80,9 +87,11 @@ export function project(
    *
    * Com cancelamento agendado, é aqui que ele acontece — nunca antes: quem
    * cancelou no dia 2 de um plano anual continua até o fim do que já pagou.
-   * Sem cancelamento, o período rola. Não existe provedor de pagamento nesta
-   * etapa, e portanto não existe informação de falha; inventar uma seria
-   * suspender quem está em dia.
+   * Sem cancelamento, contratos antigos sem provedor mantêm o comportamento
+   * legado. Contratos geridos pelo provedor **nunca** renovam só porque o
+   * relógio passou: entram numa carência curta enquanto a confirmação de
+   * pagamento não chega. Isso fecha a falha em que uma interrupção do worker
+   * concedia outro mês ou ano inteiro gratuitamente.
    */
   if (
     (status === SubscriptionStatus.ACTIVE ||
@@ -91,6 +100,15 @@ export function project(
   ) {
     if (state.cancelAtPeriodEnd) {
       status = SubscriptionStatus.CANCELED;
+    } else if (status === SubscriptionStatus.ACTIVE && state.providerManaged) {
+      graceStartsAt = currentPeriodEnd;
+      graceEndsAt = new Date(
+        currentPeriodEnd.getTime() + GRACE_PERIOD_DAYS * 24 * 60 * 60_000,
+      );
+      status =
+        at >= graceEndsAt
+          ? SubscriptionStatus.SUSPENDED
+          : SubscriptionStatus.GRACE_PERIOD;
     } else if (status === SubscriptionStatus.ACTIVE) {
       const periodo = anchoredPeriod(
         state.billingAnchorAt,
@@ -110,12 +128,16 @@ export function project(
     status,
     currentPeriodStart,
     currentPeriodEnd,
+    graceStartsAt,
+    graceEndsAt,
     pendingApplied,
     renewed,
     changed:
       status !== state.status ||
       renewed ||
       pendingApplied ||
+      graceStartsAt?.getTime() !== state.graceStartsAt?.getTime() ||
+      graceEndsAt?.getTime() !== state.graceEndsAt?.getTime() ||
       currentPeriodStart.getTime() !== state.currentPeriodStart.getTime(),
   };
 }

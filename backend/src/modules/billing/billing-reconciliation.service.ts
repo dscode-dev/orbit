@@ -266,11 +266,13 @@ export class BillingReconciliationService {
       organizationId: string;
       version: number;
       effectiveStatus: SubscriptionStatus;
+      currentPeriodStart: Date;
+      currentPeriodEnd: Date;
     },
     provedor: ProviderSubscription,
     providerEventId: string | null,
   ): Promise<void> {
-    const comando = this.comandoPara(atual.effectiveStatus, provedor.state);
+    const comando = this.comandoPara(atual, provedor);
     if (comando === 'NONE') {
       await this.subscriptions.syncProviderSnapshot(atual.id, {
         providerStatus: provedor.rawStatus,
@@ -282,7 +284,19 @@ export class BillingReconciliationService {
     }
 
     if (comando === 'ACTIVATE') {
+      if (!provedor.currentPeriodStart || !provedor.currentPeriodEnd) {
+        throw new Error('Provider subscription has no authoritative period');
+      }
       await this.subscriptions.reportPaymentSucceeded(
+        atual.organizationId,
+        atual.version,
+        {
+          start: provedor.currentPeriodStart,
+          end: provedor.currentPeriodEnd,
+        },
+      );
+    } else if (comando === 'END') {
+      await this.subscriptions.reportProviderEnded(
         atual.organizationId,
         atual.version,
       );
@@ -309,27 +323,40 @@ export class BillingReconciliationService {
    * pago liberado.
    */
   private comandoPara(
-    atual: SubscriptionStatus,
-    provedor: ProviderBillingState,
-  ): 'ACTIVATE' | 'FAIL' | 'NONE' {
+    atual: {
+      effectiveStatus: SubscriptionStatus;
+      currentPeriodStart?: Date;
+      currentPeriodEnd?: Date;
+    },
+    provedor: ProviderSubscription,
+  ): 'ACTIVATE' | 'FAIL' | 'END' | 'NONE' {
     if (
-      provedor === ProviderBillingState.UNKNOWN ||
-      provedor === ProviderBillingState.INCOMPLETE
+      provedor.state === ProviderBillingState.UNKNOWN ||
+      provedor.state === ProviderBillingState.INCOMPLETE
     ) {
       return 'NONE';
     }
-    if (
-      provedor === ProviderBillingState.ACTIVE ||
-      provedor === ProviderBillingState.TRIALING
-    ) {
-      return atual === SubscriptionStatus.ACTIVE ? 'NONE' : 'ACTIVATE';
+    if (provedor.state === ProviderBillingState.TRIALING) {
+      return 'NONE';
     }
-    if (provedor === ProviderBillingState.PAYMENT_FAILED) {
+    if (provedor.state === ProviderBillingState.ACTIVE) {
+      const periodChanged =
+        provedor.currentPeriodStart?.getTime() !==
+          atual.currentPeriodStart?.getTime() ||
+        provedor.currentPeriodEnd?.getTime() !==
+          atual.currentPeriodEnd?.getTime();
+      return atual.effectiveStatus === SubscriptionStatus.ACTIVE &&
+        !periodChanged
+        ? 'NONE'
+        : 'ACTIVATE';
+    }
+    if (provedor.state === ProviderBillingState.PAYMENT_FAILED) {
       /** Já sem acesso, ou já em carência: não recomeça o relógio. */
-      if (!grantsProductAccess(atual)) return 'NONE';
-      return atual === SubscriptionStatus.GRACE_PERIOD ? 'NONE' : 'FAIL';
+      if (!grantsProductAccess(atual.effectiveStatus)) return 'NONE';
+      return atual.effectiveStatus === SubscriptionStatus.GRACE_PERIOD
+        ? 'NONE'
+        : 'FAIL';
     }
-    /** `ENDED`: o encerramento é do ciclo do Orbit, e a projeção já o conduz. */
-    return 'NONE';
+    return provedor.state === ProviderBillingState.ENDED ? 'END' : 'NONE';
   }
 }

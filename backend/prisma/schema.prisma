@@ -624,8 +624,8 @@ model OrganizationSubscription {
 
   /// `MONTHLY` · `SEMIANNUAL` · `ANNUAL`. Muda preço e duração, nunca direito.
   billingInterval String @map("billing_interval") @db.VarChar(20)
-  /// `TRIALING` · `ACTIVE` · `PAST_DUE` · `GRACE_PERIOD` · `SUSPENDED` ·
-  /// `CANCELED` · `EXPIRED`.
+  /// `PENDING_PAYMENT` · `TRIALING` · `ACTIVE` · `PAST_DUE` ·
+  /// `GRACE_PERIOD` · `SUSPENDED` · `CANCELED` · `EXPIRED`.
   status          String @db.VarChar(20)
 
   /// O aniversário. Cobrança e uso saem daqui, e não do mês do calendário.

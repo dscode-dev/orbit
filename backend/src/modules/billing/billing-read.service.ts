@@ -15,7 +15,7 @@ import type {
   OrganizationEntitlementsReadModel,
   PlanCatalogReadModel,
 } from '../subscription-plans/subscription-plan.read-models';
-import { allowsPlanChange } from '../subscription-plans/subscriptions/subscription.types';
+import { allowsInitialCheckout } from '../subscription-plans/subscriptions/subscription.types';
 import { BillingRepository } from './billing.repository';
 import { BILLING_PROVIDER, type BillingProvider } from './billing.types';
 
@@ -95,7 +95,7 @@ export class BillingReadService {
     );
 
     const podeContratar =
-      assinatura === null || allowsPlanChange(assinatura.effectiveStatus);
+      assinatura === null || allowsInitialCheckout(assinatura.effectiveStatus);
     /** Sem cliente no provedor não há portal para abrir — ele nasce no checkout. */
     const podeAbrirPortal = cliente !== null;
 

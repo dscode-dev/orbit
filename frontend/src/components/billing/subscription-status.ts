@@ -20,6 +20,7 @@ export const STATUS_COM_ACESSO: readonly string[] = [
   "TRIALING",
   "ACTIVE",
   "PAST_DUE",
+  "GRACE_PERIOD",
 ];
 
 export function assinaturaVigente(
@@ -28,6 +29,10 @@ export function assinaturaVigente(
   agora: Date = new Date(),
 ): boolean {
   if (!status || !STATUS_COM_ACESSO.includes(status)) return false;
+
+  /* A carência é posterior ao período pago; a data dele estar no passado é
+     justamente o motivo deste estado e não deve esconder o acesso concedido. */
+  if (status === "PAST_DUE" || status === "GRACE_PERIOD") return true;
 
   /* Sem período definido não há o que vencer — é o caso das contas anteriores
      à cobrança, que nunca tiveram data. */

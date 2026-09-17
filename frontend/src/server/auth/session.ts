@@ -195,10 +195,15 @@ export async function buildSessionState(
       subscriptionActive: subscriptionStatus
         ? assinaturaVigente(
             subscriptionStatus,
-            organization?.currentPeriodEnd ?? null,
+            entitlements?.currentPeriodEnd ??
+              organization?.currentPeriodEnd ??
+              null,
           )
         : isPlatformAdmin,
-      subscriptionEndsAt: organization?.currentPeriodEnd ?? null,
+      subscriptionEndsAt:
+        entitlements?.currentPeriodEnd ??
+        organization?.currentPeriodEnd ??
+        null,
       requiresPasswordChange: user.mustChangePassword === true,
     };
     return session;

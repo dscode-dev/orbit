@@ -11,8 +11,7 @@
 
 /** Um teto, na forma em que o servidor o publica. */
 export type PlanLimit =
-  | { unlimited: true; value: null }
-  | { unlimited: false; value: number };
+  { unlimited: true; value: null } | { unlimited: false; value: number };
 
 export interface PlanPrice {
   /** Centavos. É esta a autoridade; o texto é vitrine. */
@@ -143,16 +142,10 @@ export interface SubscriptionVersionInput {
 /* ------------------------------------------------------------------ */
 
 /** As periodicidades, na ordem em que aparecem. */
-export const BILLING_INTERVALS = [
-  "MONTHLY",
-  "SEMIANNUAL",
-  "ANNUAL",
-] as const;
+export const BILLING_INTERVALS = ["MONTHLY", "SEMIANNUAL", "ANNUAL"] as const;
 export type BillingIntervalCode = (typeof BILLING_INTERVALS)[number];
 
-export const BILLING_INTERVAL_LABELS: Readonly<
-  Record<string, string>
-> = {
+export const BILLING_INTERVAL_LABELS: Readonly<Record<string, string>> = {
   MONTHLY: "Mensal",
   SEMIANNUAL: "Semestral",
   ANNUAL: "Anual",
@@ -173,6 +166,7 @@ export const BILLING_INTERVAL_MONTHS: Readonly<Record<string, number>> = {
  * o texto neutro em vez do código cru.
  */
 export const SUBSCRIPTION_STATUS_LABELS: Readonly<Record<string, string>> = {
+  PENDING_PAYMENT: "Aguardando contratação",
   TRIALING: "Período de teste",
   ACTIVE: "Ativa",
   PAST_DUE: "Pagamento pendente",

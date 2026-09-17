@@ -40,8 +40,9 @@ describe("assinaturaVigente", () => {
    * empresa por isso seria a punição errada para o problema errado — a mesma
    * decisão que o backend toma em `COM_ACESSO`.
    */
-  it("PAST_DUE dentro do período continua liberando", () => {
-    expect(assinaturaVigente("PAST_DUE", AMANHA, AGORA)).toBe(true);
+  it("PAST_DUE e GRACE_PERIOD continuam liberando apó o período pago", () => {
+    expect(assinaturaVigente("PAST_DUE", ONTEM, AGORA)).toBe(true);
+    expect(assinaturaVigente("GRACE_PERIOD", ONTEM, AGORA)).toBe(true);
   });
 
   it("cancelada e suspensa não liberam, mesmo com período no futuro", () => {

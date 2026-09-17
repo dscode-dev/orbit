@@ -79,6 +79,9 @@ export class SubscriptionMapper {
   private actions(
     linha: SubscriptionRow & { effectiveStatus: SubscriptionStatus },
   ): string[] {
+    if (linha.effectiveStatus === SubscriptionStatus.PENDING_PAYMENT) {
+      return [SubscriptionAction.SUBSCRIBE];
+    }
     if (isTerminal(linha.effectiveStatus)) {
       return [SubscriptionAction.SUBSCRIBE];
     }

@@ -9,7 +9,7 @@
  * ## A avaliação é tentada, não exigida
  *
  * Se o documento já consumiu a avaliação, o cadastro **não falha**: a
- * organização nasce com assinatura ativa e a empresa segue para o pagamento.
+ * organização nasce aguardando pagamento e segue para a contratação.
  * Derrubar um cadastro legítimo porque o sócio já testou noutra empresa seria
  * transformar o antifraude em porta trancada.
  */
@@ -101,7 +101,9 @@ export class SubscriptionProvisioningService {
             planCode,
             billingInterval: input.billingInterval ?? BillingInterval.MONTHLY,
             startsAt: inicio,
-            ...(trial ? { trial } : {}),
+            access: trial
+              ? { kind: 'TRIAL', ...trial }
+              : { kind: 'PAYMENT_REQUIRED' },
           },
           transaction,
         ),

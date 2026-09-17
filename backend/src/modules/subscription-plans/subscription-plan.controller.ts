@@ -5,7 +5,6 @@ import { ForbiddenException } from '../../exceptions';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import { ParseUUIDv7Pipe } from '../../pipes';
 import {
-  ChangeSubscriptionDto,
   CreatePlanDto,
   RecordUsageDto,
   UpdatePlanDto,
@@ -72,15 +71,6 @@ export class SubscriptionPlanController {
   @Surfaces('WEB', 'MOBILE', 'API')
   getSubscription(@Req() request: IdentityRequest) {
     return this.plans.getEntitlements(this.organizationId(request));
-  }
-
-  @Patch('organizations/current/subscription')
-  @Permissions('subscription.manage')
-  changeSubscription(
-    @Req() request: IdentityRequest,
-    @Body() input: ChangeSubscriptionDto,
-  ) {
-    return this.plans.changeSubscription(this.organizationId(request), input);
   }
 
   /**

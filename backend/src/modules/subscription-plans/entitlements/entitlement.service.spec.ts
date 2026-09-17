@@ -13,6 +13,9 @@ import {
   PlanUsageLimitReachedException,
 } from './entitlement.errors';
 import type { SubscriptionService } from '../subscriptions/subscription.service';
+import { isKnownPlan, planDefinition } from '../catalog/plan-registry';
+import { snapshotOf } from '../subscriptions/subscription.snapshot';
+import { SubscriptionStatus } from '../subscriptions/subscription.types';
 import { EntitlementMapper } from './entitlement.mapper';
 import { EntitlementMetrics } from './entitlement.metrics';
 import type {
@@ -99,7 +102,7 @@ function contextoDeRequisicao(): RequestContext {
   });
 }
 
-function montar(contexto?: RequestContext) {
+function montar(contexto?: RequestContext, commercialSubscription = true) {
   const repositorio = new RepositorioFalso();
   const rls = {
     run: <T>(work: (tx: unknown) => Promise<T>) => work(null),
@@ -108,13 +111,26 @@ function montar(contexto?: RequestContext) {
   const contexts = {
     getOptional: () => contexto,
   } as unknown as RequestContextService;
-  /** Sem assinatura: estes testes são sobre o catálogo e os tetos. */
-  const semAssinatura = {
-    currentOrNull: () => Promise.resolve(null),
+  /** Planos comerciais sempre são exercitados por uma assinatura ativa. */
+  const assinatura = {
+    currentOrNull: () => {
+      if (!commercialSubscription || !isKnownPlan(repositorio.planKey)) {
+        return Promise.resolve(null);
+      }
+      const plan = planDefinition(repositorio.planKey);
+      return Promise.resolve({
+        planCode: plan.code,
+        entitlementsSnapshot: snapshotOf(plan),
+        effectiveStatus: SubscriptionStatus.ACTIVE,
+        pendingEffectiveAt: null,
+        pendingPlanCode: null,
+        pendingEntitlementsSnapshot: null,
+      });
+    },
   } as unknown as SubscriptionService;
   const service = new EntitlementService(
     repositorio as unknown as EntitlementRepository,
-    semAssinatura,
+    assinatura,
     rls,
     contexts,
     new EntitlementMetrics(),
@@ -125,6 +141,13 @@ function montar(contexto?: RequestContext) {
 
 describe('EntitlementService', () => {
   describe('capacidades', () => {
+    it('nega plano comercial sem assinatura canônica', async () => {
+      const { service } = montar(undefined, false);
+      await expect(
+        service.hasCapability(ORGANIZACAO, PlanCapability.CUSTOMERS),
+      ).resolves.toBe(false);
+    });
+
     it('libera o que o plano contratou', async () => {
       const { service } = montar();
       await expect(
@@ -522,7 +545,7 @@ describe('EntitlementService', () => {
   describe('desempenho', () => {
     it('resolve o plano uma vez por requisição, não uma por linha', async () => {
       const contexto = contextoDeRequisicao();
-      const { repositorio, service } = montar(contexto);
+      const { repositorio, service } = montar(contexto, false);
       for (let i = 0; i < 50; i += 1) {
         await service.hasCapability(ORGANIZACAO, PlanCapability.CUSTOMERS);
       }
@@ -530,7 +553,7 @@ describe('EntitlementService', () => {
     });
 
     it('fora de uma requisição não guarda nada entre chamadas', async () => {
-      const { repositorio, service } = montar();
+      const { repositorio, service } = montar(undefined, false);
       await service.hasCapability(ORGANIZACAO, PlanCapability.CUSTOMERS);
       await service.hasCapability(ORGANIZACAO, PlanCapability.CUSTOMERS);
       expect(repositorio.consultasDePlano).toBe(2);
@@ -539,12 +562,12 @@ describe('EntitlementService', () => {
     it('a memória não atravessa requisições diferentes', async () => {
       const primeira = contextoDeRequisicao();
       const segunda = contextoDeRequisicao();
-      const { repositorio, service } = montar(primeira);
+      const { repositorio, service } = montar(primeira, false);
       await service.resolve(ORGANIZACAO);
       await service.resolve(ORGANIZACAO);
       expect(repositorio.consultasDePlano).toBe(1);
 
-      const outra = montar(segunda);
+      const outra = montar(segunda, false);
       await outra.service.resolve(ORGANIZACAO);
       expect(outra.repositorio.consultasDePlano).toBe(1);
     });
