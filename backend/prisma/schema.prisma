@@ -843,10 +843,15 @@ model BillingWebhookEvent {
 
   providerCreatedAt DateTime  @map("provider_created_at") @db.Timestamptz(3)
   receivedAt        DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
-  /// `PENDING` · `PROCESSED` · `IGNORED` · `FAILED`.
+  /// `PENDING` · `PROCESSING` · `PROCESSED` · `IGNORED` · `DEAD_LETTER`.
   processingStatus  String    @default("PENDING") @map("processing_status") @db.VarChar(20)
   attempts          Int       @default(0)
+  nextAttemptAt     DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  processingToken   String?   @map("processing_token") @db.Uuid
+  processingStartedAt DateTime? @map("processing_started_at") @db.Timestamptz(3)
+  leaseExpiresAt    DateTime? @map("lease_expires_at") @db.Timestamptz(3)
   processedAt       DateTime? @map("processed_at") @db.Timestamptz(3)
+  deadLetteredAt    DateTime? @map("dead_lettered_at") @db.Timestamptz(3)
   /// Código curto da falha. Nunca a mensagem crua do provedor.
   lastErrorCode     String?   @map("last_error_code") @db.VarChar(80)
 
@@ -855,6 +860,7 @@ model BillingWebhookEvent {
 
   @@unique([provider, providerEventId], map: "billing_webhook_events_provider_event_unique")
   @@index([processingStatus, receivedAt])
+  @@index([processingStatus, nextAttemptAt, leaseExpiresAt], map: "billing_webhook_events_claim_idx")
   @@index([providerSubscriptionId])
   @@map("billing_webhook_events")
 }

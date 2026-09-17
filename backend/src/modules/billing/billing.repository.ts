@@ -43,6 +43,21 @@ export interface BillingCheckoutAttemptRow {
   updatedAt: Date;
 }
 
+export interface ClaimedBillingEvent {
+  id: string;
+  provider: string;
+  providerEventId: string;
+  eventType: string;
+  providerObjectId: string | null;
+  providerSubscriptionId: string | null;
+  apiVersion: string | null;
+  providerCreatedAt: Date;
+  receivedAt: Date;
+  processingStatus: string;
+  attempts: number;
+  processingToken: string;
+}
+
 @Injectable()
 export class BillingRepository {
   constructor(
@@ -310,33 +325,136 @@ export class BillingRepository {
     });
   }
 
-  /** Eventos ainda não processados, os mais antigos primeiro. */
-  pendingEvents(take: number) {
-    return this.comoPlataforma((tx) =>
-      tx.billingWebhookEvent.findMany({
-        where: { processingStatus: 'PENDING' },
-        orderBy: { receivedAt: 'asc' },
-        take,
-      }),
-    );
+  /**
+   * Reivindica um evento com lease e `SKIP LOCKED`.
+   *
+   * Duas réplicas podem drenar a mesma tabela, mas nunca recebem a mesma linha.
+   * Um processo que morre perde o lease e a linha volta a ser elegível.
+   */
+  claimNextEvent(input: {
+    leaseMs: number;
+    maxAttempts: number;
+  }): Promise<ClaimedBillingEvent | null> {
+    return this.comoPlataforma(async (tx) => {
+      await tx.$executeRaw`
+        UPDATE "billing_webhook_events"
+        SET "processing_status" = 'DEAD_LETTER',
+            "dead_lettered_at" = now(),
+            "processed_at" = now(),
+            "processing_token" = NULL,
+            "lease_expires_at" = NULL,
+            "last_error_code" = COALESCE("last_error_code", 'RETRY_EXHAUSTED'),
+            "updated_at" = now()
+        WHERE "attempts" >= ${input.maxAttempts}
+          AND (
+            "processing_status" = 'PENDING'
+            OR (
+              "processing_status" = 'PROCESSING'
+              AND "lease_expires_at" <= now()
+            )
+          )
+      `;
+
+      const token = generateUuidV7();
+      const leaseExpiresAt = new Date(Date.now() + input.leaseMs);
+      const rows = await tx.$queryRaw<ClaimedBillingEvent[]>`
+        WITH candidate AS (
+          SELECT "id"
+          FROM "billing_webhook_events"
+          WHERE "attempts" < ${input.maxAttempts}
+            AND (
+              (
+                "processing_status" = 'PENDING'
+                AND "next_attempt_at" <= now()
+              )
+              OR (
+                "processing_status" = 'PROCESSING'
+                AND "lease_expires_at" <= now()
+              )
+            )
+          ORDER BY "received_at" ASC, "id" ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        )
+        UPDATE "billing_webhook_events" AS event
+        SET "processing_status" = 'PROCESSING',
+            "attempts" = event."attempts" + 1,
+            "processing_token" = ${token}::uuid,
+            "processing_started_at" = now(),
+            "lease_expires_at" = ${leaseExpiresAt}::timestamptz,
+            "updated_at" = now()
+        FROM candidate
+        WHERE event."id" = candidate."id"
+        RETURNING
+          event."id",
+          event."provider",
+          event."provider_event_id" AS "providerEventId",
+          event."event_type" AS "eventType",
+          event."provider_object_id" AS "providerObjectId",
+          event."provider_subscription_id" AS "providerSubscriptionId",
+          event."api_version" AS "apiVersion",
+          event."provider_created_at" AS "providerCreatedAt",
+          event."received_at" AS "receivedAt",
+          event."processing_status" AS "processingStatus",
+          event."attempts",
+          event."processing_token"::text AS "processingToken"
+      `;
+      return rows[0] ?? null;
+    });
   }
 
-  finishEvent(
-    id: string,
-    status: 'PROCESSED' | 'IGNORED' | 'FAILED',
-    lastErrorCode?: string,
-  ) {
-    return this.comoPlataforma((tx) =>
-      tx.billingWebhookEvent.update({
-        where: { id },
-        data: {
-          processingStatus: status,
-          processedAt: new Date(),
-          attempts: { increment: 1 },
-          lastErrorCode: lastErrorCode ?? null,
+  async finishClaimedEvent(input: {
+    id: string;
+    processingToken: string;
+    status: 'PROCESSED' | 'IGNORED';
+    lastErrorCode?: string;
+  }): Promise<void> {
+    await this.comoPlataforma(async (tx) => {
+      const { count } = await tx.billingWebhookEvent.updateMany({
+        where: {
+          id: input.id,
+          processingStatus: 'PROCESSING',
+          processingToken: input.processingToken,
         },
-      }),
-    );
+        data: {
+          processingStatus: input.status,
+          processedAt: new Date(),
+          processingToken: null,
+          leaseExpiresAt: null,
+          lastErrorCode: input.lastErrorCode ?? null,
+        },
+      });
+      if (count !== 1) throw new Error('Billing event lease was lost');
+    });
+  }
+
+  async retryClaimedEvent(input: {
+    id: string;
+    processingToken: string;
+    errorCode: string;
+    nextAttemptAt: Date;
+    deadLetter: boolean;
+  }): Promise<void> {
+    await this.comoPlataforma(async (tx) => {
+      const now = new Date();
+      const { count } = await tx.billingWebhookEvent.updateMany({
+        where: {
+          id: input.id,
+          processingStatus: 'PROCESSING',
+          processingToken: input.processingToken,
+        },
+        data: {
+          processingStatus: input.deadLetter ? 'DEAD_LETTER' : 'PENDING',
+          nextAttemptAt: input.nextAttemptAt,
+          processingToken: null,
+          leaseExpiresAt: null,
+          processedAt: input.deadLetter ? now : null,
+          deadLetteredAt: input.deadLetter ? now : null,
+          lastErrorCode: input.errorCode.slice(0, 80),
+        },
+      });
+      if (count !== 1) throw new Error('Billing event lease was lost');
+    });
   }
 
   /**

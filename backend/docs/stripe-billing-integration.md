@@ -232,6 +232,18 @@ provedor, a reconciliação **entra** no contexto daquele inquilino, recém-cria
 com ator `SYSTEM` e sem papéis. Nada é herdado de requisição anterior, e o
 contexto morre com a reconciliação.
 
+**Entrega durável.** O endpoint assinado apenas registra. O worker reivindica
+cada evento com `FOR UPDATE SKIP LOCKED`, token e lease: réplicas concorrentes
+não executam a mesma linha; uma réplica que morre libera o trabalho pelo prazo
+do lease. Falhas transitórias voltam com backoff exponencial e orçamento de
+oito tentativas. Falhas permanentes ou retries esgotados terminam em
+`DEAD_LETTER`, preservados para diagnóstico — nunca são apagados.
+
+`BILLING_EVENTS_WORKER_ENABLED=false` desliga apenas o consumidor nesta
+réplica; `BILLING_EVENTS_POLL_INTERVAL_MS` controla a cadência (mínimo 500 ms).
+O padrão é ligado a cada 2 segundos. A coordenação continua sendo do banco,
+portanto múltiplas réplicas podem manter o worker habilitado.
+
 ## Rotação de segredos
 
 | Segredo | Rotacionável | Efeito |

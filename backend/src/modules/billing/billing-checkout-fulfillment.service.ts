@@ -73,8 +73,9 @@ export class BillingCheckoutFulfillmentService {
       typeof session.providerCustomerId === 'string',
       'CHECKOUT_CUSTOMER_MISSING',
     );
+    const providerCustomerId = session.providerCustomerId;
     this.assert(
-      attempt.billingCustomer.providerCustomerId === session.providerCustomerId,
+      attempt.billingCustomer.providerCustomerId === providerCustomerId,
       'CHECKOUT_CUSTOMER_MISMATCH',
     );
     const planCode = Object.values(PlanCode).find(
@@ -96,6 +97,7 @@ export class BillingCheckoutFulfillmentService {
       typeof session.providerSubscriptionId === 'string',
       'CHECKOUT_SUBSCRIPTION_MISSING',
     );
+    const providerSubscriptionId = session.providerSubscriptionId;
 
     await this.asTenant(attempt.organizationId, async () => {
       const current = await this.subscriptions.requireCurrent(
@@ -117,8 +119,8 @@ export class BillingCheckoutFulfillmentService {
 
       await this.subscriptions.linkProvider(current.id, {
         provider: this.provider.name,
-        providerSubscriptionId: session.providerSubscriptionId,
-        providerCustomerId: session.providerCustomerId,
+        providerSubscriptionId,
+        providerCustomerId,
         providerPriceId: session.providerPriceId,
         providerStatus: `checkout:${session.rawStatus}`,
       });
@@ -127,9 +129,9 @@ export class BillingCheckoutFulfillmentService {
     await this.repository.completeCheckoutAttempt({
       id: attempt.id,
       providerSessionId,
-      providerSubscriptionId: session.providerSubscriptionId,
+      providerSubscriptionId,
     });
-    return session.providerSubscriptionId;
+    return providerSubscriptionId;
   }
 
   private assert(condition: unknown, code: string): asserts condition {

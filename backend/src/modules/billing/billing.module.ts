@@ -12,6 +12,7 @@ import { SubscriptionPlansModule } from '../subscription-plans/subscription-plan
 import { BillingConfig } from './billing.config';
 import { BillingCheckoutFulfillmentService } from './billing-checkout-fulfillment.service';
 import { BillingController } from './billing.controller';
+import { BillingEventWorker } from './billing-event.worker';
 import { BillingReadService } from './billing-read.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
 import { BillingRepository } from './billing.repository';
@@ -27,6 +28,7 @@ import { StripeBillingProvider } from './stripe/stripe-billing.provider';
     BillingConfig,
     BillingRepository,
     BillingCheckoutFulfillmentService,
+    BillingEventWorker,
     StripeBillingProvider,
     { provide: BILLING_PROVIDER, useExisting: StripeBillingProvider },
     BillingService,

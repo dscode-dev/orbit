@@ -55,6 +55,9 @@ const EVENTOS_TRATADOS = new Set([
 ]);
 
 const LOTE = 50;
+const LEASE_MS = 2 * 60_000;
+const MAX_ATTEMPTS = 8;
+const MAX_BACKOFF_MS = 60 * 60_000;
 
 export interface BillingReconciliationSummary {
   readonly examined: number;
@@ -87,13 +90,21 @@ export class BillingReconciliationService {
     };
     if (!this.provider.isEnabled()) return resumo;
 
-    const pendentes = await this.repository.pendingEvents(LOTE);
-    for (const evento of pendentes) {
+    for (let index = 0; index < LOTE; index += 1) {
+      const evento = await this.repository.claimNextEvent({
+        leaseMs: LEASE_MS,
+        maxAttempts: MAX_ATTEMPTS,
+      });
+      if (!evento) break;
       resumo.examined += 1;
 
       if (!EVENTOS_TRATADOS.has(evento.eventType)) {
         /** Assinado mas sem consumidor: reconhecido e arquivado, sem falhar. */
-        await this.repository.finishEvent(evento.id, 'IGNORED');
+        await this.repository.finishClaimedEvent({
+          id: evento.id,
+          processingToken: evento.processingToken,
+          status: 'IGNORED',
+        });
         resumo.ignored += 1;
         continue;
       }
@@ -101,16 +112,23 @@ export class BillingReconciliationService {
         evento.eventType === 'checkout.session.completed' ||
         evento.eventType === 'checkout.session.async_payment_succeeded';
       if (isCheckout && !evento.providerObjectId) {
-        await this.repository.finishEvent(evento.id, 'FAILED', 'NO_SESSION');
+        await this.repository.retryClaimedEvent({
+          id: evento.id,
+          processingToken: evento.processingToken,
+          errorCode: 'NO_SESSION',
+          nextAttemptAt: new Date(),
+          deadLetter: true,
+        });
         resumo.failed += 1;
         continue;
       }
       if (!isCheckout && !evento.providerSubscriptionId) {
-        await this.repository.finishEvent(
-          evento.id,
-          'IGNORED',
-          'NO_SUBSCRIPTION',
-        );
+        await this.repository.finishClaimedEvent({
+          id: evento.id,
+          processingToken: evento.processingToken,
+          status: 'IGNORED',
+          lastErrorCode: 'NO_SUBSCRIPTION',
+        });
         resumo.ignored += 1;
         continue;
       }
@@ -123,32 +141,35 @@ export class BillingReconciliationService {
           providerSubscriptionId,
           evento.providerEventId,
         );
-        await this.repository.finishEvent(evento.id, 'PROCESSED');
+        await this.repository.finishClaimedEvent({
+          id: evento.id,
+          processingToken: evento.processingToken,
+          status: 'PROCESSED',
+        });
         resumo.processed += 1;
       } catch (error) {
         if (error instanceof BillingCheckoutAwaitingPaymentError) {
-          await this.repository.finishEvent(
-            evento.id,
-            'IGNORED',
-            'AWAITING_PAYMENT',
-          );
+          await this.repository.finishClaimedEvent({
+            id: evento.id,
+            processingToken: evento.processingToken,
+            status: 'IGNORED',
+            lastErrorCode: 'AWAITING_PAYMENT',
+          });
           resumo.ignored += 1;
           continue;
         }
-        if (error instanceof BillingProviderUnavailableException) {
-          /**
-           * O provedor não respondeu. O evento continua pendente e ninguém é
-           * suspenso por isso — a próxima passagem tenta de novo.
-           */
-          resumo.deferred += 1;
-          continue;
-        }
-        await this.repository.finishEvent(
-          evento.id,
-          'FAILED',
-          error instanceof Error ? error.name.slice(0, 80) : 'UNKNOWN',
-        );
-        resumo.failed += 1;
+        const errorCode = this.safeErrorCode(error);
+        const permanent = this.isPermanent(errorCode);
+        const exhausted = evento.attempts >= MAX_ATTEMPTS;
+        await this.repository.retryClaimedEvent({
+          id: evento.id,
+          processingToken: evento.processingToken,
+          errorCode: exhausted ? 'RETRY_EXHAUSTED' : errorCode,
+          nextAttemptAt: new Date(Date.now() + this.backoff(evento.attempts)),
+          deadLetter: permanent || exhausted,
+        });
+        if (permanent || exhausted) resumo.failed += 1;
+        else resumo.deferred += 1;
       }
     }
 
@@ -158,6 +179,30 @@ export class BillingReconciliationService {
       );
     }
     return resumo;
+  }
+
+  /** Backoff exponencial limitado; `attempts` já inclui o claim atual. */
+  private backoff(attempts: number): number {
+    return Math.min(MAX_BACKOFF_MS, 5_000 * 2 ** Math.max(0, attempts - 1));
+  }
+
+  private safeErrorCode(error: unknown): string {
+    if (
+      error instanceof Error &&
+      /^[A-Z][A-Z0-9_]{2,79}$/.test(error.message)
+    ) {
+      return error.message;
+    }
+    if (error instanceof BillingProviderUnavailableException) {
+      return 'PROVIDER_UNAVAILABLE';
+    }
+    return error instanceof Error
+      ? error.name.replace(/[^A-Za-z0-9_]/g, '').slice(0, 80) || 'UNKNOWN'
+      : 'UNKNOWN';
+  }
+
+  private isPermanent(errorCode: string): boolean {
+    return errorCode.startsWith('CHECKOUT_');
   }
 
   /**

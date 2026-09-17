@@ -753,8 +753,9 @@ describe('Stripe billing integration and webhook reconciliation (e2e)', () => {
       const inquilino = await registrar('outage');
       const providerId = await vincular(inquilino.organizationId);
 
+      const eventId = `evt_${randomUUID()}`;
       const { corpo, assinatura } = eventoAssinado({
-        id: `evt_${randomUUID()}`,
+        id: eventId,
         type: 'invoice.paid',
         subscriptionId: providerId,
       });
@@ -776,6 +777,11 @@ describe('Stripe billing integration and webhook reconciliation (e2e)', () => {
 
       /** O provedor volta, e a reconciliação conclui. */
       provedor.indisponivel = false;
+      /** O relógio do teste avança o backoff sem dormir cinco segundos. */
+      await prisma.billingWebhookEvent.updateMany({
+        where: { providerEventId: eventId },
+        data: { nextAttemptAt: new Date(0) },
+      });
       const depois = await reconciliation.drainInbox();
       expect(depois.processed).toBeGreaterThan(0);
     });

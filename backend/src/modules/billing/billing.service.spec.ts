@@ -114,8 +114,8 @@ describe('BillingService checkout intent', () => {
       }),
     );
     expect(
-      repository.beginCheckoutAttempt.mock.invocationCallOrder[0],
-    ).toBeLessThan(createCheckoutSession.mock.invocationCallOrder[0]);
+      repository.beginCheckoutAttempt.mock.invocationCallOrder[0]!,
+    ).toBeLessThan(createCheckoutSession.mock.invocationCallOrder[0]!);
     expect(repository.openCheckoutAttempt).toHaveBeenCalledWith({
       id: attemptId,
       providerSessionId: 'cs_test_stable',
@@ -140,9 +140,9 @@ describe('BillingService checkout intent', () => {
 
     const calls = createCheckoutSession.mock.calls;
     expect(calls).toHaveLength(2);
-    expect(calls[0][0].checkoutAttemptId).toBe(attemptId);
-    expect(calls[1][0].checkoutAttemptId).toBe(attemptId);
-    expect(calls[0][0].idempotencyKey).toBe(calls[1][0].idempotencyKey);
+    expect(calls[0]![0].checkoutAttemptId).toBe(attemptId);
+    expect(calls[1]![0].checkoutAttemptId).toBe(attemptId);
+    expect(calls[0]![0].idempotencyKey).toBe(calls[1]![0].idempotencyKey);
   });
 
   it('recusa cobrar um plano diferente da assinatura local', async () => {
