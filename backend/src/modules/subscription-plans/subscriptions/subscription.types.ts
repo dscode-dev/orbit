@@ -66,8 +66,6 @@ export function allowsPlanChange(status: SubscriptionStatus): boolean {
 const PODE_INICIAR_CHECKOUT: ReadonlySet<SubscriptionStatus> = new Set([
   SubscriptionStatus.PENDING_PAYMENT,
   SubscriptionStatus.TRIALING,
-  SubscriptionStatus.CANCELED,
-  SubscriptionStatus.EXPIRED,
 ]);
 
 export function allowsInitialCheckout(status: SubscriptionStatus): boolean {

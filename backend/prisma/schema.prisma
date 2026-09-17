@@ -243,6 +243,7 @@ model Organization {
   subscriptions                 OrganizationSubscription[]
   trialGrants                   SubscriptionTrialGrant[]
   billingCustomers              BillingCustomer[]
+  billingCheckoutAttempts       BillingCheckoutAttempt[]
   integrations                  Integration[]
   sessions                      Session[]
   customers                     Customer[]
@@ -675,9 +676,11 @@ model OrganizationSubscription {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  trialGrants  SubscriptionTrialGrant[]
+  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  trialGrants      SubscriptionTrialGrant[]
+  checkoutAttempts BillingCheckoutAttempt[]
 
+  @@unique([id, organizationId], map: "organization_subscriptions_tenant_identity")
   @@index([organizationId, endedAt])
   @@index([status, currentPeriodEnd])
   @@index([status, trialEndsAt])
@@ -752,12 +755,57 @@ model BillingCustomer {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  checkoutAttempts BillingCheckoutAttempt[]
 
+  @@unique([id, organizationId], map: "billing_customers_tenant_identity")
   @@unique([provider, providerCustomerId], map: "billing_customers_provider_customer_unique")
   @@unique([organizationId, provider, mode], map: "billing_customers_organization_unique")
   @@index([organizationId])
   @@map("billing_customers")
+}
+
+/// Uma intenção de primeira contratação criada pelo Orbit.
+///
+/// Ela existe antes da chamada de rede. Assim, retry, concorrência e webhook
+/// possuem a mesma identidade server-owned; o redirect do navegador nunca é a
+/// autoridade que concede acesso.
+model BillingCheckoutAttempt {
+  id                String @id @default(uuid(7)) @db.Uuid
+  organizationId    String @map("organization_id") @db.Uuid
+  subscriptionId    String @map("subscription_id") @db.Uuid
+  billingCustomerId String @map("billing_customer_id") @db.Uuid
+
+  provider String @db.VarChar(20)
+  mode     String @db.VarChar(10)
+
+  planCode        String @map("plan_code") @db.VarChar(60)
+  billingInterval String @map("billing_interval") @db.VarChar(20)
+
+  /// `CREATING` · `OPEN` · `COMPLETED` · `EXPIRED` · `FAILED`.
+  status String @default("CREATING") @db.VarChar(20)
+
+  idempotencyKey         String  @map("idempotency_key") @db.VarChar(64)
+  providerSessionId      String? @map("provider_session_id") @db.VarChar(255)
+  providerSubscriptionId String? @map("provider_subscription_id") @db.VarChar(255)
+
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  failedAt    DateTime? @map("failed_at") @db.Timestamptz(3)
+  failureCode String?   @map("failure_code") @db.VarChar(80)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization    Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription    OrganizationSubscription @relation(fields: [subscriptionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  billingCustomer BillingCustomer          @relation(fields: [billingCustomerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([provider, idempotencyKey], map: "billing_checkout_attempts_idempotency_unique")
+  @@unique([provider, providerSessionId], map: "billing_checkout_attempts_provider_session_unique")
+  @@index([organizationId, status, createdAt])
+  @@index([subscriptionId, createdAt])
+  @@map("billing_checkout_attempts")
 }
 
 /// A caixa de entrada dos eventos do provedor.

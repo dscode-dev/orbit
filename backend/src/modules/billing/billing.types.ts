@@ -69,6 +69,7 @@ export interface ProviderSubscription {
 }
 
 export interface CheckoutSessionRequest {
+  readonly checkoutAttemptId: string;
   readonly organizationId: string;
   readonly providerCustomerId: string;
   readonly planCode: PlanCode;
@@ -83,6 +84,35 @@ export interface CheckoutSession {
   readonly providerSessionId: string;
   readonly url: string;
   readonly expiresAt: Date | null;
+}
+
+export const ProviderCheckoutState = {
+  OPEN: 'OPEN',
+  COMPLETE: 'COMPLETE',
+  EXPIRED: 'EXPIRED',
+  UNKNOWN: 'UNKNOWN',
+} as const;
+export type ProviderCheckoutState =
+  (typeof ProviderCheckoutState)[keyof typeof ProviderCheckoutState];
+
+/** Retrato canônico e mínimo de uma Checkout Session. */
+export interface ProviderCheckoutSession {
+  readonly providerSessionId: string;
+  readonly state: ProviderCheckoutState;
+  readonly rawStatus: string;
+  readonly paymentStatus: string;
+  readonly providerCustomerId: string | null;
+  readonly providerSubscriptionId: string | null;
+  readonly providerPriceId: string | null;
+  readonly url: string | null;
+  readonly expiresAt: Date | null;
+  readonly metadata: Readonly<{
+    checkoutAttemptId: string | null;
+    organizationId: string | null;
+    subscriptionId: string | null;
+    planCode: string | null;
+    billingInterval: string | null;
+  }>;
 }
 
 export interface BillingPortalSession {
@@ -121,6 +151,10 @@ export interface BillingProvider {
   createCheckoutSession(
     request: CheckoutSessionRequest,
   ): Promise<CheckoutSession>;
+
+  retrieveCheckoutSession(
+    providerSessionId: string,
+  ): Promise<ProviderCheckoutSession>;
 
   createBillingPortalSession(input: {
     providerCustomerId: string;

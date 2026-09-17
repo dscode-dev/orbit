@@ -38,6 +38,8 @@ import {
   type CheckoutSessionRequest,
   type PriceVerification,
   type ProviderEvent,
+  ProviderCheckoutState,
+  type ProviderCheckoutSession,
   type ProviderSubscription,
 } from '../billing.types';
 import {
@@ -131,6 +133,7 @@ export class StripeBillingProvider implements BillingProvider {
               ? { trial_period_days: request.trialDays }
               : {}),
             metadata: {
+              orbitCheckoutAttemptId: request.checkoutAttemptId,
               orbitOrganizationId: request.organizationId,
               orbitPlanCode: request.planCode,
               orbitBillingInterval: request.billingInterval,
@@ -139,7 +142,15 @@ export class StripeBillingProvider implements BillingProvider {
                 : {}),
             },
           },
-          metadata: { orbitOrganizationId: request.organizationId },
+          metadata: {
+            orbitCheckoutAttemptId: request.checkoutAttemptId,
+            orbitOrganizationId: request.organizationId,
+            orbitPlanCode: request.planCode,
+            orbitBillingInterval: request.billingInterval,
+            ...(request.subscriptionId
+              ? { orbitSubscriptionId: request.subscriptionId }
+              : {}),
+          },
         },
         { idempotencyKey: request.idempotencyKey },
       ),
@@ -159,6 +170,45 @@ export class StripeBillingProvider implements BillingProvider {
     };
   }
 
+  async retrieveCheckoutSession(
+    providerSessionId: string,
+  ): Promise<ProviderCheckoutSession> {
+    const stripe = this.require();
+    const session = await this.chamar('retrieveCheckoutSession', () =>
+      stripe.checkout.sessions.retrieve(providerSessionId, {
+        expand: ['line_items'],
+      }),
+    );
+    const price = session.line_items?.data[0]?.price;
+    return {
+      providerSessionId: session.id,
+      state:
+        session.status === 'open'
+          ? ProviderCheckoutState.OPEN
+          : session.status === 'complete'
+            ? ProviderCheckoutState.COMPLETE
+            : session.status === 'expired'
+              ? ProviderCheckoutState.EXPIRED
+              : ProviderCheckoutState.UNKNOWN,
+      rawStatus: session.status ?? 'unknown',
+      paymentStatus: session.payment_status,
+      providerCustomerId: this.idDoObjeto(session.customer),
+      providerSubscriptionId: this.idDoObjeto(session.subscription),
+      providerPriceId: this.idDoObjeto(price),
+      url: session.url,
+      expiresAt: session.expires_at
+        ? new Date(session.expires_at * 1000)
+        : null,
+      metadata: {
+        checkoutAttemptId: session.metadata?.['orbitCheckoutAttemptId'] ?? null,
+        organizationId: session.metadata?.['orbitOrganizationId'] ?? null,
+        subscriptionId: session.metadata?.['orbitSubscriptionId'] ?? null,
+        planCode: session.metadata?.['orbitPlanCode'] ?? null,
+        billingInterval: session.metadata?.['orbitBillingInterval'] ?? null,
+      },
+    };
+  }
+
   async createBillingPortalSession(input: {
     providerCustomerId: string;
   }): Promise<BillingPortalSession> {
@@ -171,6 +221,13 @@ export class StripeBillingProvider implements BillingProvider {
       }),
     );
     return { url: session.url };
+  }
+
+  private idDoObjeto(
+    value: string | { id: string } | null | undefined,
+  ): string | null {
+    if (typeof value === 'string') return value;
+    return value?.id ?? null;
   }
 
   async retrieveSubscription(

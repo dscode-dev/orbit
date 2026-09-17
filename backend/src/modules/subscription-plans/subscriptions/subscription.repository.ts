@@ -185,13 +185,30 @@ export class SubscriptionRepository {
       providerPriceId: string | null;
       providerStatus: string;
     },
-  ): Promise<void> {
-    await this.rls.run((tx) =>
-      tx.organizationSubscription.updateMany({
+  ): Promise<boolean> {
+    return this.rls.run(async (tx) => {
+      const { count } = await tx.organizationSubscription.updateMany({
         where: { id, providerSubscriptionId: null },
         data: { ...link, providerUpdatedAt: new Date() },
-      }),
-    );
+      });
+      if (count === 1) return true;
+
+      const current = await tx.organizationSubscription.findUnique({
+        where: { id },
+        select: {
+          provider: true,
+          providerSubscriptionId: true,
+          providerCustomerId: true,
+          providerPriceId: true,
+        },
+      });
+      return (
+        current?.provider === link.provider &&
+        current.providerSubscriptionId === link.providerSubscriptionId &&
+        current.providerCustomerId === link.providerCustomerId &&
+        current.providerPriceId === link.providerPriceId
+      );
+    });
   }
 
   /**

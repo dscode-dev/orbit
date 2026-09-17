@@ -412,7 +412,13 @@ export class SubscriptionService {
       providerStatus: string;
     },
   ): Promise<void> {
-    await this.repository.linkProvider(id, link);
+    const linked = await this.repository.linkProvider(id, link);
+    if (!linked) {
+      throw new ConflictException(
+        'Subscription is already linked to another provider object',
+        'CONFLICT',
+      );
+    }
   }
 
   /* ---------------------------------------------------------------- */

@@ -22,6 +22,27 @@ export interface BillingCustomerRow {
   providerCustomerId: string;
 }
 
+export interface BillingCheckoutAttemptRow {
+  id: string;
+  organizationId: string;
+  subscriptionId: string;
+  billingCustomerId: string;
+  provider: string;
+  mode: string;
+  planCode: string;
+  billingInterval: string;
+  status: string;
+  idempotencyKey: string;
+  providerSessionId: string | null;
+  providerSubscriptionId: string | null;
+  expiresAt: Date | null;
+  completedAt: Date | null;
+  failedAt: Date | null;
+  failureCode: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 @Injectable()
 export class BillingRepository {
   constructor(
@@ -84,6 +105,148 @@ export class BillingRepository {
           });
         }
         throw error;
+      }
+    });
+  }
+
+  /**
+   * Cria a intenção antes da chamada de rede.
+   *
+   * O índice parcial garante uma única tentativa ativa por organização. A
+   * leitura após P2002 transforma concorrência em replay da mesma intenção.
+   */
+  async beginCheckoutAttempt(input: {
+    id: string;
+    organizationId: string;
+    subscriptionId: string;
+    billingCustomerId: string;
+    provider: BillingProviderName;
+    mode: BillingMode;
+    planCode: string;
+    billingInterval: string;
+    idempotencyKey: string;
+  }): Promise<{ attempt: BillingCheckoutAttemptRow; created: boolean }> {
+    return this.rls.run(async (tx) => {
+      try {
+        const attempt = await tx.billingCheckoutAttempt.create({
+          data: { ...input, status: 'CREATING' },
+        });
+        return { attempt, created: true };
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          const attempt = await tx.billingCheckoutAttempt.findFirst({
+            where: {
+              organizationId: input.organizationId,
+              provider: input.provider,
+              mode: input.mode,
+              status: { in: ['CREATING', 'OPEN'] },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (attempt) return { attempt, created: false };
+        }
+        throw error;
+      }
+    });
+  }
+
+  async openCheckoutAttempt(input: {
+    id: string;
+    providerSessionId: string;
+    expiresAt: Date | null;
+  }): Promise<void> {
+    await this.rls.run(async (tx) => {
+      const { count } = await tx.billingCheckoutAttempt.updateMany({
+        where: { id: input.id, status: { in: ['CREATING', 'OPEN'] } },
+        data: {
+          status: 'OPEN',
+          providerSessionId: input.providerSessionId,
+          expiresAt: input.expiresAt,
+        },
+      });
+      if (count === 0) {
+        const current = await tx.billingCheckoutAttempt.findUnique({
+          where: { id: input.id },
+        });
+        if (
+          current?.status !== 'COMPLETED' ||
+          current.providerSessionId !== input.providerSessionId
+        ) {
+          throw new Error('Checkout attempt is no longer active');
+        }
+      }
+    });
+  }
+
+  async expireCheckoutAttempt(id: string): Promise<void> {
+    await this.rls.run((tx) =>
+      tx.billingCheckoutAttempt.updateMany({
+        where: { id, status: { in: ['CREATING', 'OPEN'] } },
+        data: { status: 'EXPIRED' },
+      }),
+    );
+  }
+
+  /** Resolve a correlação sob contexto de plataforma; nenhum payload decide tenant. */
+  findCheckoutAttemptForFulfillment(input: {
+    provider: BillingProviderName;
+    providerSessionId: string;
+    checkoutAttemptId: string | null;
+  }) {
+    return this.comoPlataforma((tx) =>
+      tx.billingCheckoutAttempt.findFirst({
+        where: {
+          provider: input.provider,
+          OR: [
+            { providerSessionId: input.providerSessionId },
+            ...(input.checkoutAttemptId
+              ? [{ id: input.checkoutAttemptId }]
+              : []),
+          ],
+        },
+        include: { billingCustomer: true },
+      }),
+    );
+  }
+
+  async completeCheckoutAttempt(input: {
+    id: string;
+    providerSessionId: string;
+    providerSubscriptionId: string;
+  }): Promise<void> {
+    await this.comoPlataforma(async (tx) => {
+      const { count } = await tx.billingCheckoutAttempt.updateMany({
+        where: {
+          id: input.id,
+          status: { in: ['CREATING', 'OPEN'] },
+          OR: [
+            { providerSessionId: null },
+            { providerSessionId: input.providerSessionId },
+          ],
+        },
+        data: {
+          status: 'COMPLETED',
+          providerSessionId: input.providerSessionId,
+          providerSubscriptionId: input.providerSubscriptionId,
+          completedAt: new Date(),
+          failedAt: null,
+          failureCode: null,
+        },
+      });
+      if (count === 0) {
+        const current = await tx.billingCheckoutAttempt.findUnique({
+          where: { id: input.id },
+        });
+        if (
+          current?.status !== 'COMPLETED' ||
+          current.providerSessionId !== input.providerSessionId ||
+          current.providerSubscriptionId !== input.providerSubscriptionId
+        ) {
+          throw new Error('Checkout correlation conflict');
+        }
       }
     });
   }

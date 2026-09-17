@@ -13,10 +13,10 @@
  * navegação; quem ativa é o estado verificado do provedor chegando por
  * webhook assinado ou por reconciliação — e nada mais.
  */
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import { generateUuidV7 } from '../../utils';
 import { SubscriptionService } from '../subscription-plans/subscriptions/subscription.service';
-import { TrialEligibilityService } from '../subscription-plans/subscriptions/trial-eligibility.service';
 import {
   TRIAL_DAYS,
   allowsInitialCheckout,
@@ -27,28 +27,27 @@ import {
   type BillingInterval,
   type PlanCode as PlanCodeType,
 } from '../subscription-plans/catalog/plan-catalog.types';
-import { BillingConfig } from './billing.config';
 import {
   BillingCheckoutNotAllowedException,
   BillingNotConfiguredException,
 } from './billing.errors';
-import { BillingRepository } from './billing.repository';
+import {
+  BillingRepository,
+  type BillingCustomerRow,
+} from './billing.repository';
 import {
   BILLING_PROVIDER,
+  ProviderCheckoutState,
   type BillingProvider,
   type CheckoutSession,
 } from './billing.types';
 
 @Injectable()
 export class BillingService {
-  private readonly logger = new Logger(BillingService.name);
-
   constructor(
     @Inject(BILLING_PROVIDER) private readonly provider: BillingProvider,
     private readonly repository: BillingRepository,
-    private readonly config: BillingConfig,
     private readonly subscriptions: SubscriptionService,
-    private readonly trials: TrialEligibilityService,
   ) {}
 
   isEnabled(): boolean {
@@ -63,14 +62,14 @@ export class BillingService {
    * canônico — e o outro fica órfão lá, sem cobrança e sem assinatura. É o
    * preço aceitável de não segurar um bloqueio durante uma chamada de rede.
    */
-  async ensureCustomer(organizationId: string): Promise<string> {
+  async ensureCustomer(organizationId: string): Promise<BillingCustomerRow> {
     this.assertEnabled();
     const existente = await this.repository.findCustomer(
       organizationId,
       this.provider.name,
       this.provider.mode,
     );
-    if (existente) return existente.providerCustomerId;
+    if (existente) return existente;
 
     const criado = await this.provider.createCustomer({
       organizationId,
@@ -84,7 +83,7 @@ export class BillingService {
       mode: this.provider.mode,
       providerCustomerId: criado.providerCustomerId,
     });
-    return vinculo.providerCustomerId;
+    return vinculo;
   }
 
   /**
@@ -101,44 +100,105 @@ export class BillingService {
     billingInterval: BillingInterval;
   }): Promise<CheckoutSession> {
     this.assertEnabled();
-    const assinatura = await this.subscriptions.currentOrNull(
+    const assinatura = await this.subscriptions.requireCurrent(
       input.organizationId,
     );
-    if (assinatura && !allowsInitialCheckout(assinatura.effectiveStatus)) {
+    if (!allowsInitialCheckout(assinatura.effectiveStatus)) {
       throw new BillingCheckoutNotAllowedException(
         `subscription status ${assinatura.effectiveStatus}`,
       );
     }
+    if (assinatura.providerSubscriptionId) {
+      throw new BillingCheckoutNotAllowedException(
+        'subscription is already linked to the billing provider',
+      );
+    }
+    if (
+      assinatura.planCode !== input.planCode ||
+      assinatura.billingInterval !== input.billingInterval
+    ) {
+      throw new BillingCheckoutNotAllowedException(
+        'checkout must match the current subscription',
+      );
+    }
 
-    const customerId = await this.ensureCustomer(input.organizationId);
+    const customer = await this.ensureCustomer(input.organizationId);
 
-    return this.provider.createCheckoutSession({
-      organizationId: input.organizationId,
-      providerCustomerId: customerId,
-      planCode: input.planCode,
-      billingInterval: input.billingInterval,
-      trialDays: this.diasDeAvaliacao(assinatura, input.planCode),
-      subscriptionId: assinatura?.id ?? null,
+    for (let passagem = 0; passagem < 2; passagem += 1) {
+      const attemptId = generateUuidV7();
+      const { attempt } = await this.repository.beginCheckoutAttempt({
+        id: attemptId,
+        organizationId: input.organizationId,
+        subscriptionId: assinatura.id,
+        billingCustomerId: customer.id,
+        provider: this.provider.name,
+        mode: this.provider.mode,
+        planCode: input.planCode,
+        billingInterval: input.billingInterval,
+        idempotencyKey: this.chave('checkout-attempt', attemptId),
+      });
+
+      if (
+        attempt.subscriptionId !== assinatura.id ||
+        attempt.planCode !== input.planCode ||
+        attempt.billingInterval !== input.billingInterval ||
+        attempt.billingCustomerId !== customer.id
+      ) {
+        throw new BillingCheckoutNotAllowedException(
+          'another checkout is already in progress',
+        );
+      }
+
+      if (attempt.providerSessionId) {
+        const currentSession = await this.provider.retrieveCheckoutSession(
+          attempt.providerSessionId,
+        );
+        if (currentSession.state === ProviderCheckoutState.EXPIRED) {
+          await this.repository.expireCheckoutAttempt(attempt.id);
+          continue;
+        }
+        if (currentSession.state === ProviderCheckoutState.COMPLETE) {
+          throw new BillingCheckoutNotAllowedException(
+            'checkout is already complete and awaiting reconciliation',
+          );
+        }
+      }
+
       /**
-       * A mesma intenção produz a mesma chave.
-       *
-       * Clicar duas vezes em "assinar" devolve a mesma sessão do provedor em
-       * vez de abrir duas contratações concorrentes para a mesma empresa.
+       * A tentativa já estava persistida. Se a aplicação caiu após o Stripe
+       * responder, a mesma chave recupera a mesma sessão sem criar cobrança
+       * paralela.
        */
-      idempotencyKey: this.chave(
-        'checkout',
-        `${input.organizationId}:${input.planCode}:${input.billingInterval}:${assinatura?.version ?? 0}`,
-      ),
-    });
+      const session = await this.provider.createCheckoutSession({
+        checkoutAttemptId: attempt.id,
+        organizationId: input.organizationId,
+        providerCustomerId: customer.providerCustomerId,
+        planCode: input.planCode,
+        billingInterval: input.billingInterval,
+        trialDays: this.diasDeAvaliacao(assinatura, input.planCode),
+        subscriptionId: assinatura.id,
+        idempotencyKey: attempt.idempotencyKey,
+      });
+      await this.repository.openCheckoutAttempt({
+        id: attempt.id,
+        providerSessionId: session.providerSessionId,
+        expiresAt: session.expiresAt,
+      });
+      return session;
+    }
+
+    throw new BillingCheckoutNotAllowedException(
+      'expired checkout could not be replaced',
+    );
   }
 
   async createBillingPortalSession(
     organizationId: string,
   ): Promise<{ url: string }> {
     this.assertEnabled();
-    const customerId = await this.ensureCustomer(organizationId);
+    const customer = await this.ensureCustomer(organizationId);
     return this.provider.createBillingPortalSession({
-      providerCustomerId: customerId,
+      providerCustomerId: customer.providerCustomerId,
     });
   }
 
@@ -157,14 +217,11 @@ export class BillingService {
     assinatura: {
       effectiveStatus: SubscriptionStatus;
       trialEndsAt: Date | null;
-    } | null,
+    },
     planCode: PlanCodeType,
   ): number | null {
     if (planCode !== PlanCode.ESSENTIAL) return null;
-    if (
-      !assinatura ||
-      assinatura.effectiveStatus !== SubscriptionStatus.TRIALING
-    ) {
+    if (assinatura.effectiveStatus !== SubscriptionStatus.TRIALING) {
       return null;
     }
     if (!assinatura.trialEndsAt) return null;

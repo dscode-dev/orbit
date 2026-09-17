@@ -10,6 +10,7 @@
 import { Module } from '@nestjs/common';
 import { SubscriptionPlansModule } from '../subscription-plans/subscription-plans.module';
 import { BillingConfig } from './billing.config';
+import { BillingCheckoutFulfillmentService } from './billing-checkout-fulfillment.service';
 import { BillingController } from './billing.controller';
 import { BillingReadService } from './billing-read.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
@@ -25,6 +26,7 @@ import { StripeBillingProvider } from './stripe/stripe-billing.provider';
   providers: [
     BillingConfig,
     BillingRepository,
+    BillingCheckoutFulfillmentService,
     StripeBillingProvider,
     { provide: BILLING_PROVIDER, useExisting: StripeBillingProvider },
     BillingService,

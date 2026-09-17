@@ -1,6 +1,7 @@
 import {
   SubscriptionStatus,
   allowedTransitions,
+  allowsInitialCheckout,
   allowsPlanChange,
   allowsTransition,
   grantsProductAccess,
@@ -36,6 +37,25 @@ describe('ciclo de vida da assinatura', () => {
         SubscriptionStatus.EXPIRED,
       ]) {
         expect(allowsPlanChange(status)).toBe(false);
+      }
+    });
+  });
+
+  describe('primeira contratação', () => {
+    it('abre checkout somente para a assinatura corrente ainda não paga ou em avaliação', () => {
+      expect(allowsInitialCheckout(SubscriptionStatus.PENDING_PAYMENT)).toBe(
+        true,
+      );
+      expect(allowsInitialCheckout(SubscriptionStatus.TRIALING)).toBe(true);
+      for (const status of [
+        SubscriptionStatus.ACTIVE,
+        SubscriptionStatus.PAST_DUE,
+        SubscriptionStatus.GRACE_PERIOD,
+        SubscriptionStatus.SUSPENDED,
+        SubscriptionStatus.CANCELED,
+        SubscriptionStatus.EXPIRED,
+      ]) {
+        expect(allowsInitialCheckout(status)).toBe(false);
       }
     });
   });

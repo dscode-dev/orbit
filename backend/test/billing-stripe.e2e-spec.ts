@@ -28,8 +28,10 @@ import {
   BILLING_PROVIDER,
   BillingMode,
   BillingProviderName,
+  ProviderCheckoutState,
   ProviderBillingState,
   type BillingProvider,
+  type ProviderCheckoutSession,
   type ProviderSubscription,
 } from '../src/modules/billing/billing.types';
 import { BillingReconciliationService } from '../src/modules/billing/billing-reconciliation.service';
@@ -115,6 +117,27 @@ class ProvedorDeTeste implements BillingProvider {
       providerSessionId: 'cs_test_suite',
       url: 'https://checkout.stripe.test/c/cs_test_suite',
       expiresAt: null,
+    });
+  }
+
+  retrieveCheckoutSession(id: string): Promise<ProviderCheckoutSession> {
+    return Promise.resolve({
+      providerSessionId: id,
+      state: ProviderCheckoutState.OPEN,
+      rawStatus: 'open',
+      paymentStatus: 'unpaid',
+      providerCustomerId: 'cus_test_suite',
+      providerSubscriptionId: null,
+      providerPriceId: 'price_test_suite',
+      url: `https://checkout.stripe.test/c/${id}`,
+      expiresAt: null,
+      metadata: {
+        checkoutAttemptId: null,
+        organizationId: null,
+        subscriptionId: null,
+        planCode: null,
+        billingInterval: null,
+      },
     });
   }
 

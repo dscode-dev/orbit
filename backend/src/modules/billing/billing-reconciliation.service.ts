@@ -31,6 +31,10 @@ import {
   grantsProductAccess,
 } from '../subscription-plans/subscriptions/subscription.types';
 import { BillingProviderUnavailableException } from './billing.errors';
+import {
+  BillingCheckoutAwaitingPaymentError,
+  BillingCheckoutFulfillmentService,
+} from './billing-checkout-fulfillment.service';
 import { BillingRepository } from './billing.repository';
 import {
   BILLING_PROVIDER,
@@ -42,6 +46,7 @@ import {
 /** Eventos que este código sabe transformar em comando. O resto é ignorado. */
 const EVENTOS_TRATADOS = new Set([
   'checkout.session.completed',
+  'checkout.session.async_payment_succeeded',
   'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted',
@@ -66,6 +71,7 @@ export class BillingReconciliationService {
   constructor(
     @Inject(BILLING_PROVIDER) private readonly provider: BillingProvider,
     private readonly repository: BillingRepository,
+    private readonly checkoutFulfillment: BillingCheckoutFulfillmentService,
     private readonly subscriptions: SubscriptionService,
     private readonly contexts: RequestContextStorage,
   ) {}
@@ -91,7 +97,15 @@ export class BillingReconciliationService {
         resumo.ignored += 1;
         continue;
       }
-      if (!evento.providerSubscriptionId) {
+      const isCheckout =
+        evento.eventType === 'checkout.session.completed' ||
+        evento.eventType === 'checkout.session.async_payment_succeeded';
+      if (isCheckout && !evento.providerObjectId) {
+        await this.repository.finishEvent(evento.id, 'FAILED', 'NO_SESSION');
+        resumo.failed += 1;
+        continue;
+      }
+      if (!isCheckout && !evento.providerSubscriptionId) {
         await this.repository.finishEvent(
           evento.id,
           'IGNORED',
@@ -102,13 +116,25 @@ export class BillingReconciliationService {
       }
 
       try {
+        const providerSubscriptionId = isCheckout
+          ? await this.checkoutFulfillment.fulfill(evento.providerObjectId!)
+          : evento.providerSubscriptionId!;
         await this.reconcileProviderSubscription(
-          evento.providerSubscriptionId,
+          providerSubscriptionId,
           evento.providerEventId,
         );
         await this.repository.finishEvent(evento.id, 'PROCESSED');
         resumo.processed += 1;
       } catch (error) {
+        if (error instanceof BillingCheckoutAwaitingPaymentError) {
+          await this.repository.finishEvent(
+            evento.id,
+            'IGNORED',
+            'AWAITING_PAYMENT',
+          );
+          resumo.ignored += 1;
+          continue;
+        }
         if (error instanceof BillingProviderUnavailableException) {
           /**
            * O provedor não respondeu. O evento continua pendente e ninguém é
