@@ -289,12 +289,14 @@ export const METRICS = {
    * Altura reservada no topo.
    *
    * Vale para todas as páginas, mas só a primeira a preenche: nela a faixa
-   * grafite ocupa a altura inteira, com logo, título e timbre. Da segunda em
+   * ocupa a altura inteira, com o logo do cliente acima do nome do documento,
+   * o código em pílula e o timbre à direita. A altura comporta o logo sem
+   * comprimir o resto — foi o que obrigou a subir de 104. Da segunda em
    * diante o cabeçalho é compacto e o que sobra vira respiro — que é melhor
    * que repetir o timbre inteiro em toda folha de um documento de seis
    * páginas.
    */
-  headerHeight: 104,
+  headerHeight: 132,
   /** Altura reservada no rodapé para a linha de identificação. */
   footerHeight: 44,
   gutter: 18,

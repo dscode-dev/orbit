@@ -145,38 +145,46 @@ function paintHeader(
     .fill(brandGradient(document, theme));
   document.restore();
 
-  const topo = 22;
-  const y = topo;
-
   /**
-   * O logo fica **ao lado** do título, não acima dele.
+   * O logo do cliente vem **acima** do nome do documento, centrado nele.
    *
-   * Empilhado, ele somava sua altura à do título e à da pílula do código, e o
-   * conjunto estourava a faixa — a pílula encostava no filete. Lado a lado, o
-   * logo ocupa a folga horizontal que já existia à esquerda e a faixa mantém
-   * a altura, que é o que permite o resto do cabeçalho ter posição fixa.
+   * É a composição de papel timbrado: a marca de quem emite encabeça a folha e
+   * o nome do documento vem logo abaixo, no mesmo eixo. Ao lado, o logo
+   * disputava a linha com o título e o conjunto lia como dois elementos soltos
+   * em vez de um bloco.
    *
-   * A largura reservada é fixa mesmo quando o logo é estreito: um título que
-   * começa em posição diferente conforme a marca do inquilino faria cada
-   * cliente receber um documento com composição própria.
+   * O eixo é o da coluna do título, e não o da página: o timbre ocupa a
+   * direita, e centrar na página jogaria o logo por cima dele.
    */
-  const LARGURA_DO_LOGO = 74;
-  let colunaDoTitulo = esquerda;
+  const topo = 20;
+  const colunaDoTitulo = esquerda;
+  const larguraDaColuna = largura * 0.54;
+  let y = topo;
 
   if (identity.emitter?.logo) {
     try {
-      /* `fit` já ancora em cima e à esquerda; passar `align`/`valign` aqui é
-         o que o tipo de `pdfkit` recusa, e não mudaria o resultado. */
-      document.image(identity.emitter.logo, esquerda, y, {
-        fit: [LARGURA_DO_LOGO, 44],
-      });
-      colunaDoTitulo = esquerda + LARGURA_DO_LOGO + 16;
+      const alturaDoLogo = 38;
+      /* `fit` mantém a proporção e devolve o encaixe dentro da caixa; para
+         centrar é preciso saber a largura que ele de fato ocupou, e o pdfkit
+         não a informa. Medimos pela proporção declarada na própria imagem. */
+      const largura_ = larguraRenderizada(
+        identity.emitter.logo,
+        alturaDoLogo,
+        larguraDaColuna,
+      );
+      document.image(
+        identity.emitter.logo,
+        colunaDoTitulo + (larguraDaColuna - largura_) / 2,
+        y,
+        { fit: [larguraDaColuna, alturaDoLogo] },
+      );
+      y += alturaDoLogo + 12;
     } catch {
       /* Logo ilegível não derruba o documento: o nome cobre a identificação. */
     }
   }
 
-  const recuo = colunaDoTitulo - esquerda;
+  const temLogo = y > topo;
 
   /**
    * O corpo do título cede para caber numa linha.
@@ -187,7 +195,7 @@ function paintHeader(
    * até caber mantém a faixa com altura previsível, que é o que permite o
    * resto do cabeçalho ter posição fixa.
    */
-  const larguraDoTitulo = largura * 0.56 - recuo;
+  const larguraDoTitulo = larguraDaColuna;
   let corpoDoTitulo = 21;
   document.font(FONTS.bold);
   while (
@@ -202,13 +210,25 @@ function paintHeader(
     .font(FONTS.bold)
     .fontSize(corpoDoTitulo)
     .fillColor(theme.onShell)
-    .text(identity.documentTitle, colunaDoTitulo, y + 2, {
+    .text(identity.documentTitle, colunaDoTitulo, y, {
       width: larguraDoTitulo,
+      align: temLogo ? 'center' : 'left',
       lineBreak: false,
       ellipsis: true,
     });
 
-  pill(document, identity.documentCode, colunaDoTitulo, document.y + 6, theme);
+  /* A pílula acompanha o título: centrada quando há logo, à esquerda quando o
+     bloco começa na margem. */
+  const larguraDaPilula = larguraDoCodigo(document, identity.documentCode);
+  pill(
+    document,
+    identity.documentCode,
+    temLogo
+      ? colunaDoTitulo + (larguraDaColuna - larguraDaPilula) / 2
+      : colunaDoTitulo,
+    document.y + 7,
+    theme,
+  );
 
   /* O timbre fica à direita, alinhado à direita: é onde o olho procura quem
      emitiu, e é o que o documento impresso precisa provar. */
@@ -385,4 +405,77 @@ function paintFooter(
       align: 'right',
       lineBreak: false,
     });
+}
+
+/**
+ * A largura que uma imagem ocupa ao ser encaixada numa altura.
+ *
+ * `fit` do pdfkit preserva a proporção e não informa a largura resultante, que
+ * é justamente o que falta para centrar o logo. Lemos as dimensões do cabeçalho
+ * do arquivo: PNG traz largura e altura no `IHDR`, JPEG no marcador `SOFn`.
+ *
+ * Sem conseguir ler, devolvemos a largura máxima — o logo fica alinhado à
+ * esquerda da coluna em vez de centrado, que é degradação aceitável para um
+ * formato que não soubemos medir.
+ */
+function larguraRenderizada(
+  bytes: Buffer,
+  altura: number,
+  larguraMaxima: number,
+): number {
+  const dimensoes = dimensoesDaImagem(bytes);
+  if (!dimensoes) return larguraMaxima;
+
+  const escala = Math.min(
+    altura / dimensoes.altura,
+    larguraMaxima / dimensoes.largura,
+  );
+  return dimensoes.largura * escala;
+}
+
+function dimensoesDaImagem(
+  bytes: Buffer,
+): { largura: number; altura: number } | null {
+  /* PNG: assinatura de 8 bytes, depois o IHDR com largura e altura. */
+  if (
+    bytes.length > 24 &&
+    bytes.readUInt32BE(0) === 0x89504e47 &&
+    bytes.toString('latin1', 12, 16) === 'IHDR'
+  ) {
+    return { largura: bytes.readUInt32BE(16), altura: bytes.readUInt32BE(20) };
+  }
+
+  /* JPEG: percorre os marcadores até um SOFn, que carrega as dimensões. */
+  if (bytes.length > 4 && bytes.readUInt16BE(0) === 0xffd8) {
+    let posicao = 2;
+    while (posicao + 9 < bytes.length) {
+      if (bytes[posicao] !== 0xff) {
+        posicao += 1;
+        continue;
+      }
+      const marcador = bytes[posicao + 1]!;
+      /* SOF0..SOF3 e SOF5..SOF15; DHT/DAC/RST não trazem dimensão. */
+      const ehSof =
+        marcador >= 0xc0 &&
+        marcador <= 0xcf &&
+        marcador !== 0xc4 &&
+        marcador !== 0xc8 &&
+        marcador !== 0xcc;
+      if (ehSof) {
+        return {
+          altura: bytes.readUInt16BE(posicao + 5),
+          largura: bytes.readUInt16BE(posicao + 7),
+        };
+      }
+      posicao += 2 + bytes.readUInt16BE(posicao + 2);
+    }
+  }
+
+  return null;
+}
+
+/** A largura que a pílula vai ocupar, para poder centrá-la. */
+function larguraDoCodigo(document: PDFKit.PDFDocument, texto: string): number {
+  document.font(FONTS.bold).fontSize(8.5);
+  return document.widthOfString(texto) + 18;
 }
