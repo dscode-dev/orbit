@@ -32,6 +32,7 @@ import { paintFrames, type FrameIdentity } from './kit/page-frame';
 import { composePmocExecution } from './documents/pmoc-execution.document';
 import { composeRvt } from './documents/rvt.document';
 import { composeServiceOrder } from './documents/service-order.document';
+import { composeReceipt } from './documents/receipt.document';
 import { documentTitleFor } from './documents/labels';
 import { composeGeneric } from './documents/generic.document';
 
@@ -112,6 +113,9 @@ export class ArtifactPremiumPdfRenderer implements ArtifactRenderer {
           case 'SERVICE_ORDER':
           case 'ORDEM_SERVICO':
             composeServiceOrder(document, input, context, theme);
+            break;
+          case 'RECIBO':
+            composeReceipt(document, input, context, theme);
             break;
           default:
             composeGeneric(document, input, theme);

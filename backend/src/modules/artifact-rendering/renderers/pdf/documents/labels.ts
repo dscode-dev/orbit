@@ -13,6 +13,11 @@ const PAPEIS: Readonly<Record<string, string>> = {
   FIELD_TECHNICIAN: 'Técnico em campo',
   ASSISTANT_TECHNICIAN: 'Técnico auxiliar',
   CUSTOMER: 'Cliente',
+  /* Papéis dos slots do catálogo oficial. `ISSUER` assina o recibo — é quem
+     recebeu o dinheiro — e `TECHNICIAN` assina OS e RVT. Sem estes dois, o
+     código do banco ia impresso ao lado da assinatura. */
+  ISSUER: 'Emitente',
+  TECHNICIAN: 'Técnico responsável',
   CUSTOMER_REPRESENTATIVE: 'Representante do cliente',
   OWNER: 'Responsável pela organização',
   MANAGER: 'Gestor',

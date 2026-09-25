@@ -533,3 +533,96 @@ function desenharCaixa(
 
   document.restore();
 }
+
+/* ------------------------------------------------------------------ */
+/* Valor em destaque                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O valor principal do documento, com o extenso embaixo.
+ *
+ * ## Por que não é mais um par rótulo/valor
+ *
+ * Num recibo o valor **é** o documento. Impresso em corpo 9 no meio de uma
+ * grade, ele fica do mesmo tamanho do número do telefone, e quem confere
+ * precisa procurar. Aqui ele ocupa a largura toda, num corpo que se lê de
+ * longe, com a faixa de acento à esquerda marcando onde olhar.
+ *
+ * O extenso vem logo abaixo, e não em outro canto da folha: as duas formas do
+ * mesmo número conferem uma à outra, e separá-las destrói justamente a
+ * conferência que o extenso existe para permitir.
+ */
+export function amountBlock(
+  document: Doc,
+  amount: string,
+  theme: DocumentTheme,
+  options: { readonly label?: string; readonly inWords?: string } = {},
+): void {
+  const largura = contentWidth(document);
+  const padding = 14;
+  const larguraDoTexto = largura - padding * 2 - 6;
+
+  const alturaDoRotulo = options.label ? 12 : 0;
+  document.font(FONTS.bold).fontSize(20);
+  const alturaDoValor = document.heightOfString(amount, {
+    width: larguraDoTexto,
+  });
+  let alturaDoExtenso = 0;
+  if (options.inWords) {
+    document.font(FONTS.regular).fontSize(9);
+    alturaDoExtenso =
+      4 + document.heightOfString(options.inWords, { width: larguraDoTexto });
+  }
+  const alturaTotal =
+    alturaDoRotulo + alturaDoValor + alturaDoExtenso + padding * 2;
+
+  ensureSpace(document, alturaTotal + 8);
+
+  const topo = document.y;
+  const esquerda = document.page.margins.left;
+
+  document
+    .save()
+    .roundedRect(esquerda, topo, largura, alturaTotal, METRICS.radius)
+    .fillColor(theme.surfaceStrong)
+    .fill()
+    /* A faixa é desenhada por cima do fundo e não como borda: uma borda de
+       6pt arredondada deixaria o canto grosso e o miolo desalinhado. */
+    .rect(esquerda, topo, 4, alturaTotal)
+    .fillColor(theme.accent)
+    .fill()
+    .restore();
+
+  let y = topo + padding;
+
+  if (options.label) {
+    document
+      .font(FONTS.bold)
+      .fontSize(6.5)
+      .fillColor(theme.inkFaint)
+      .text(options.label.toUpperCase(), esquerda + padding + 6, y, {
+        width: larguraDoTexto,
+        characterSpacing: 0.4,
+      });
+    y += alturaDoRotulo;
+  }
+
+  document
+    .font(FONTS.bold)
+    .fontSize(20)
+    .fillColor(theme.ink)
+    .text(amount, esquerda + padding + 6, y, { width: larguraDoTexto });
+
+  if (options.inWords) {
+    document
+      .font(FONTS.regular)
+      .fontSize(9)
+      .fillColor(theme.inkMuted)
+      .text(options.inWords, esquerda + padding + 6, y + alturaDoValor + 4, {
+        width: larguraDoTexto,
+      });
+  }
+
+  document.y = topo + alturaTotal + 14;
+  document.x = esquerda;
+}
