@@ -52,6 +52,7 @@ import {
   type QuoteDetailRecord,
 } from './quote.repository';
 import { QuoteDocumentService } from '../artifact-rendering/quote-document.service';
+import { readEmbeddedImage } from '../../common/embedded-image';
 
 /** Moedas aceitas — as mesmas do Financeiro, que é onde o valor termina. */
 const SUPPORTED_CURRENCIES: readonly string[] = ['BRL', 'USD', 'EUR'];
@@ -107,6 +108,19 @@ function diasDeValidade(
   if (Number.isNaN(de) || Number.isNaN(ate)) return undefined;
   const dias = Math.round((ate - de) / 86_400_000);
   return dias > 0 ? dias : undefined;
+}
+
+/**
+ * O logo da unidade, quando há e quando é seguro imprimir.
+ *
+ * `readEmbeddedImage` recusa URL — que o servidor teria de buscar, e o
+ * endereço é escolhido pelo inquilino — e SVG, que carrega script.
+ */
+function logoDoEmissor(logoUrl: string | null | undefined) {
+  const imagem = readEmbeddedImage(logoUrl);
+  return imagem
+    ? { logo: imagem.bytes, logoMimeType: imagem.mimeType }
+    : undefined;
 }
 
 /** CNPJ e CPF com máscara; um documento comercial sem ela parece rascunho. */
@@ -202,6 +216,7 @@ export class QuoteService {
     const bytes = await this.documents.render({
       timezone: unidade?.timezone ?? 'America/Sao_Paulo',
       emitter: {
+        ...logoDoEmissor(unidade?.logoUrl),
         tradeName: unidade?.tradeName ?? undefined,
         legalName: unidade?.legalName ?? undefined,
         document: documentoFormatado(

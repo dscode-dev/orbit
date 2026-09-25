@@ -214,6 +214,7 @@ export class QuoteRepository {
               email: true,
               phone: true,
               website: true,
+              logoUrl: true,
               street: true,
               number: true,
               district: true,

@@ -1917,6 +1917,7 @@ export class PmocRepository {
               email: true,
               phone: true,
               website: true,
+              logoUrl: true,
               city: true,
               stateCode: true,
               district: true,

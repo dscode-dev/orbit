@@ -80,6 +80,7 @@ import { WorkforceService } from '../workforce/workforce.service';
 import { ArtifactRenderService } from '../artifact-rendering/artifact-render.service';
 import { PmocPlanDocumentService } from '../artifact-rendering/pmoc-plan-document.service';
 import { PMOC_PLAN_LEGAL_REFERENCE } from '../artifact-rendering/renderers/pdf/documents/legal';
+import { readEmbeddedImage } from '../../common/embedded-image';
 
 /** Quem pediu, e o que ele pode. */
 export interface PmocActor {
@@ -101,6 +102,19 @@ function dataSimples(valor: Date | string | null | undefined) {
   const texto = typeof valor === 'string' ? valor : valor.toISOString();
   const [ano, mes, dia] = texto.slice(0, 10).split('-');
   return dia && mes && ano ? `${dia}/${mes}/${ano}` : undefined;
+}
+
+/**
+ * O logo da unidade, quando há e quando é seguro imprimir.
+ *
+ * `readEmbeddedImage` recusa URL — que o servidor teria de buscar, e o
+ * endereço é escolhido pelo inquilino — e SVG, que carrega script.
+ */
+function logoDoEmissor(logoUrl: string | null | undefined) {
+  const imagem = readEmbeddedImage(logoUrl);
+  return imagem
+    ? { logo: imagem.bytes, logoMimeType: imagem.mimeType }
+    : undefined;
 }
 
 /** CNPJ e CPF com máscara. Qualquer outro tipo sai como veio. */
@@ -740,6 +754,7 @@ export class PmocService {
     const bytes = await this.planDocument.render({
       timezone: fuso,
       emitter: {
+        ...logoDoEmissor(plan.businessUnit?.logoUrl),
         tradeName: plan.businessUnit?.tradeName ?? undefined,
         legalName: plan.businessUnit?.legalName ?? undefined,
         document: documentoFormatado(

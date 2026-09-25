@@ -145,19 +145,38 @@ function paintHeader(
     .fill(brandGradient(document, theme));
   document.restore();
 
-  const topo = 20;
-  let y = topo;
+  const topo = 22;
+  const y = topo;
+
+  /**
+   * O logo fica **ao lado** do título, não acima dele.
+   *
+   * Empilhado, ele somava sua altura à do título e à da pílula do código, e o
+   * conjunto estourava a faixa — a pílula encostava no filete. Lado a lado, o
+   * logo ocupa a folga horizontal que já existia à esquerda e a faixa mantém
+   * a altura, que é o que permite o resto do cabeçalho ter posição fixa.
+   *
+   * A largura reservada é fixa mesmo quando o logo é estreito: um título que
+   * começa em posição diferente conforme a marca do inquilino faria cada
+   * cliente receber um documento com composição própria.
+   */
+  const LARGURA_DO_LOGO = 74;
+  let colunaDoTitulo = esquerda;
 
   if (identity.emitter?.logo) {
     try {
       /* `fit` já ancora em cima e à esquerda; passar `align`/`valign` aqui é
          o que o tipo de `pdfkit` recusa, e não mudaria o resultado. */
-      document.image(identity.emitter.logo, esquerda, y, { fit: [104, 28] });
-      y += 34;
+      document.image(identity.emitter.logo, esquerda, y, {
+        fit: [LARGURA_DO_LOGO, 44],
+      });
+      colunaDoTitulo = esquerda + LARGURA_DO_LOGO + 16;
     } catch {
       /* Logo ilegível não derruba o documento: o nome cobre a identificação. */
     }
   }
+
+  const recuo = colunaDoTitulo - esquerda;
 
   /**
    * O corpo do título cede para caber numa linha.
@@ -168,8 +187,8 @@ function paintHeader(
    * até caber mantém a faixa com altura previsível, que é o que permite o
    * resto do cabeçalho ter posição fixa.
    */
-  const larguraDoTitulo = largura * 0.56;
-  let corpoDoTitulo = y > topo ? 16 : 21;
+  const larguraDoTitulo = largura * 0.56 - recuo;
+  let corpoDoTitulo = 21;
   document.font(FONTS.bold);
   while (
     corpoDoTitulo > 12 &&
@@ -183,13 +202,13 @@ function paintHeader(
     .font(FONTS.bold)
     .fontSize(corpoDoTitulo)
     .fillColor(theme.onShell)
-    .text(identity.documentTitle, esquerda, y, {
+    .text(identity.documentTitle, colunaDoTitulo, y + 2, {
       width: larguraDoTitulo,
       lineBreak: false,
       ellipsis: true,
     });
 
-  pill(document, identity.documentCode, esquerda, document.y + 5, theme);
+  pill(document, identity.documentCode, colunaDoTitulo, document.y + 6, theme);
 
   /* O timbre fica à direita, alinhado à direita: é onde o olho procura quem
      emitiu, e é o que o documento impresso precisa provar. */
