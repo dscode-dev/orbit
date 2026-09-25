@@ -42,7 +42,7 @@ import type {
   RenderInput,
   RenderSectionInput,
 } from '../../artifact-renderer';
-import { formatAnswer } from '../../html/html-safe';
+import { answerText } from './answer-text';
 import { roleLabel } from './labels';
 import { checkState } from './check-state';
 
@@ -310,7 +310,7 @@ function respostasLivres(
         .filter((campo) => !campo.hidden && !CAMPOS_PROPRIOS.has(campo.id))
         .sort((esquerda, direita) => esquerda.order - direita.order)
         .map((campo) => {
-          const texto = textoDaResposta(campo);
+          const texto = answerText(campo);
           return {
             label: campo.unit ? `${campo.label} (${campo.unit})` : campo.label,
             value: texto,
@@ -416,23 +416,8 @@ function campo(input: RenderInput, id: string): RenderFieldInput | undefined {
 function valorDoCampo(input: RenderInput, id: string): string | undefined {
   const encontrado = campo(input, id);
   if (!encontrado || encontrado.hidden) return undefined;
-  const texto = textoDaResposta(encontrado);
+  const texto = answerText(encontrado);
   return texto.length > 0 ? texto : undefined;
-}
-
-/**
- * A resposta como ela deve sair impressa.
- *
- * `formatAnswer` serve a qualquer renderer e devolve a data como ela veio —
- * ISO. Num documento que o cliente arquiva, `2026-10-01` é defeito: a data do
- * Orbit é civil, sem hora, e imprimi-la em dd/mm/aaaa é o mínimo que se espera
- * de um papel em português.
- */
-function textoDaResposta(campo: RenderFieldInput): string {
-  const texto = formatAnswer(campo.value).trim();
-  if (campo.type !== 'DATE') return texto;
-  const civil = /^(\d{4})-(\d{2})-(\d{2})/.exec(texto);
-  return civil ? `${civil[3]}/${civil[2]}/${civil[1]}` : texto;
 }
 
 /** Situação em português; o código do enum não é para o cliente ler. */

@@ -28,6 +28,11 @@ type Doc = PDFKit.PDFDocument;
  * Exige espaço para o título **mais** um primeiro pedaço de conteúdo: um
  * título sozinho no pé da página é o defeito clássico do relatório impresso,
  * e quem lê vira a folha sem saber o que está começando.
+ *
+ * O padrão reserva o título e cerca de quatro linhas — o suficiente para o
+ * começo de um quadro de texto ou as duas primeiras linhas de uma tabela.
+ * Era 72, que passava o título e deixava o conteúdo para a página seguinte
+ * justamente no caso que a folga existe para evitar.
  */
 export function sectionTitle(
   document: Doc,
@@ -35,7 +40,7 @@ export function sectionTitle(
   theme: DocumentTheme,
   options: { readonly espacoMinimo?: number } = {},
 ): void {
-  ensureSpace(document, options.espacoMinimo ?? 72);
+  ensureSpace(document, options.espacoMinimo ?? 112);
 
   document
     .font(FONTS.bold)
@@ -734,4 +739,82 @@ export function totalsBlock(
 
   document.y = topo + alturaTotal + 14;
   document.x = document.page.margins.left;
+}
+
+/* ------------------------------------------------------------------ */
+/* Declaração em destaque                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A conclusão de um laudo, em corpo maior e com faixa de acento.
+ *
+ * ## Por que não é um `noteBlock` com título
+ *
+ * Num laudo a conclusão **é** o documento: tudo antes dela existe para
+ * sustentá-la, e quem recebe o papel procura por ela antes de ler o resto.
+ * Impressa no mesmo corpo das constatações, ela vira mais um parágrafo e o
+ * leitor precisa achar onde o texto deixa de descrever e passa a concluir.
+ *
+ * A faixa à esquerda é a mesma do valor no recibo e no orçamento, pela mesma
+ * razão: marca onde olhar primeiro. Um documento onde tudo tem o mesmo peso
+ * não tem destaque nenhum.
+ */
+export function statementBlock(
+  document: Doc,
+  texto: string,
+  theme: DocumentTheme,
+  options: { readonly title?: string } = {},
+): void {
+  const largura = contentWidth(document);
+  const padding = 14;
+  const larguraDoTexto = largura - padding * 2 - 6;
+
+  const alturaDoTitulo = options.title ? 13 : 0;
+  document.font(FONTS.regular).fontSize(10.5);
+  const alturaDoTexto = document.heightOfString(texto, {
+    width: larguraDoTexto,
+    lineGap: 1.5,
+  });
+  const alturaTotal = alturaDoTitulo + alturaDoTexto + padding * 2;
+
+  ensureSpace(document, alturaTotal + 8);
+
+  const topo = document.y;
+  const esquerda = document.page.margins.left;
+
+  document
+    .save()
+    .roundedRect(esquerda, topo, largura, alturaTotal, METRICS.radius)
+    .fillColor(theme.surfaceStrong)
+    .fill()
+    .rect(esquerda, topo, 4, alturaTotal)
+    .fillColor(theme.accent)
+    .fill()
+    .restore();
+
+  let y = topo + padding;
+
+  if (options.title) {
+    document
+      .font(FONTS.bold)
+      .fontSize(6.5)
+      .fillColor(theme.inkFaint)
+      .text(options.title.toUpperCase(), esquerda + padding + 6, y, {
+        width: larguraDoTexto,
+        characterSpacing: 0.4,
+      });
+    y += alturaDoTitulo;
+  }
+
+  document
+    .font(FONTS.regular)
+    .fontSize(10.5)
+    .fillColor(theme.ink)
+    .text(texto, esquerda + padding + 6, y, {
+      width: larguraDoTexto,
+      lineGap: 1.5,
+    });
+
+  document.y = topo + alturaTotal + 14;
+  document.x = esquerda;
 }

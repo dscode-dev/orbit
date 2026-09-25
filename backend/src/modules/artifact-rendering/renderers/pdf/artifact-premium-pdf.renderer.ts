@@ -33,6 +33,8 @@ import { composePmocExecution } from './documents/pmoc-execution.document';
 import { composeRvt } from './documents/rvt.document';
 import { composeServiceOrder } from './documents/service-order.document';
 import { composeReceipt } from './documents/receipt.document';
+import { composeTechnicalReport } from './documents/technical-report.document';
+import { composeAirQuality } from './documents/air-quality.document';
 import { documentTitleFor } from './documents/labels';
 import { composeGeneric } from './documents/generic.document';
 
@@ -116,6 +118,12 @@ export class ArtifactPremiumPdfRenderer implements ArtifactRenderer {
             break;
           case 'RECIBO':
             composeReceipt(document, input, context, theme);
+            break;
+          case 'RELATORIO_TECNICO':
+            composeTechnicalReport(document, input, context, theme);
+            break;
+          case 'QUALIDADE_AR':
+            composeAirQuality(document, input, context, theme);
             break;
           default:
             composeGeneric(document, input, theme);

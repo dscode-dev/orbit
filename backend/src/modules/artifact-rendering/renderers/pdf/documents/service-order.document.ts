@@ -45,7 +45,7 @@ import type {
   RenderInput,
   RenderSectionInput,
 } from '../../artifact-renderer';
-import { formatAnswer } from '../../html/html-safe';
+import { answerText } from './answer-text';
 import { checkState } from './check-state';
 import { roleLabel } from './labels';
 
@@ -337,7 +337,7 @@ function respostasLivres(
         .filter((campo) => !campo.hidden && !CAMPOS_PROPRIOS.has(campo.id))
         .sort((esquerda, direita) => esquerda.order - direita.order)
         .map((campo) => {
-          const texto = textoDaResposta(campo);
+          const texto = answerText(campo);
           return {
             label: campo.unit ? `${campo.label} (${campo.unit})` : campo.label,
             value: texto,
@@ -454,16 +454,8 @@ function campo(input: RenderInput, id: string): RenderFieldInput | undefined {
 function valorDoCampo(input: RenderInput, id: string): string | undefined {
   const encontrado = campo(input, id);
   if (!encontrado || encontrado.hidden) return undefined;
-  const texto = textoDaResposta(encontrado);
+  const texto = answerText(encontrado);
   return texto.length > 0 ? texto : undefined;
-}
-
-/** Data civil vira dd/mm/aaaa; ISO cru num papel em português é defeito. */
-function textoDaResposta(campo: RenderFieldInput): string {
-  const texto = formatAnswer(campo.value).trim();
-  if (campo.type !== 'DATE') return texto;
-  const civil = /^(\d{4})-(\d{2})-(\d{2})/.exec(texto);
-  return civil ? `${civil[3]}/${civil[2]}/${civil[1]}` : texto;
 }
 
 /** Natureza do atendimento em português; o código do enum não é do cliente. */

@@ -40,6 +40,7 @@ import type { DocumentContext } from '../kit/document-context';
 import type { DocumentTheme } from '../kit/theme';
 import type { RenderFieldInput, RenderInput } from '../../artifact-renderer';
 import { formatAnswer } from '../../html/html-safe';
+import { answerText } from './answer-text';
 import { moeda, valorPorExtenso } from './amount-in-words';
 import { roleLabel } from './labels';
 
@@ -190,7 +191,7 @@ function respostasLivres(
         .filter((campo) => !campo.hidden && !CAMPOS_PROPRIOS.has(campo.id))
         .sort((esquerda, direita) => esquerda.order - direita.order)
         .map((campo) => {
-          const texto = textoDaResposta(campo);
+          const texto = answerText(campo);
           return {
             label: campo.unit ? `${campo.label} (${campo.unit})` : campo.label,
             value: texto,
@@ -336,15 +337,8 @@ function campoPorId(
 function valorDoCampo(input: RenderInput, id: string): string | undefined {
   const encontrado = campoPorId(input, id);
   if (!encontrado || encontrado.hidden) return undefined;
-  const texto = textoDaResposta(encontrado);
+  const texto = answerText(encontrado);
   return texto.length > 0 ? texto : undefined;
-}
-
-function textoDaResposta(campo: RenderFieldInput): string {
-  const texto = formatAnswer(campo.value).trim();
-  if (campo.type !== 'DATE') return texto;
-  const civil = /^(\d{4})-(\d{2})-(\d{2})/.exec(texto);
-  return civil ? `${civil[3]}/${civil[2]}/${civil[1]}` : texto;
 }
 
 function formatCivil(iso: string): string {
