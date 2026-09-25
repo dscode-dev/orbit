@@ -387,3 +387,149 @@ export function groupLabel(
   document.y += 4;
   document.x = document.page.margins.left;
 }
+
+/* ------------------------------------------------------------------ */
+/* Lista de verificação                                                */
+/* ------------------------------------------------------------------ */
+
+export interface CheckItem {
+  readonly label: string;
+  /** `null` quando o item não foi respondido — diferente de respondido "não". */
+  readonly checked: boolean | null;
+  readonly note?: string | null;
+}
+
+/**
+ * Itens de verificação com caixa marcada, em duas colunas.
+ *
+ * ## Por que caixa e não a palavra "Sim"
+ *
+ * Quem confere um relatório de visita procura o que **não** foi feito, e
+ * procura varrendo a margem. Uma coluna de caixas dá isso num relance; uma
+ * coluna de "Sim"/"Não" obriga a ler cada linha. É o mesmo dado com custo de
+ * leitura diferente.
+ *
+ * ## Três estados, não dois
+ *
+ * Marcado, não marcado e **sem resposta** são coisas diferentes. Imprimir o
+ * item não respondido como se fosse recusado inventa um fato que ninguém
+ * registrou — e num documento assinado isso é grave. O não respondido sai com
+ * a caixa tracejada e um traço no lugar da marca.
+ *
+ * ## A observação vai junto
+ *
+ * Uma tabela com coluna de observação fica quase toda vazia, porque a maioria
+ * dos itens não tem nada a dizer. Aqui a observação entra sob o rótulo, em
+ * corpo menor, só quando existe: mesma informação, sem a coluna deserta.
+ */
+export function checkList(
+  document: Doc,
+  itens: readonly CheckItem[],
+  theme: DocumentTheme,
+): void {
+  if (itens.length === 0) return;
+
+  const largura = contentWidth(document);
+  const colunaLargura = (largura - METRICS.gutter) / 2;
+  const caixa = 8;
+  const recuo = caixa + 7;
+  const larguraDoTexto = colunaLargura - recuo;
+
+  const medidos = itens.map((item) => {
+    document.font(FONTS.regular).fontSize(8.5);
+    let altura = document.heightOfString(item.label, {
+      width: larguraDoTexto,
+    });
+    if (item.note) {
+      document.font(FONTS.regular).fontSize(7.5);
+      altura +=
+        2 +
+        document.heightOfString(item.note, {
+          width: larguraDoTexto,
+        });
+    }
+    return { item, altura: Math.max(altura, caixa + 2) };
+  });
+
+  const esquerda = document.page.margins.left;
+
+  for (let indice = 0; indice < medidos.length; indice += 2) {
+    const par = medidos.slice(indice, indice + 2);
+    const alturaDaLinha = Math.max(...par.map((medido) => medido.altura)) + 7;
+
+    ensureSpace(document, alturaDaLinha);
+    const topo = document.y;
+
+    par.forEach((medido, coluna) => {
+      const x = esquerda + coluna * (colunaLargura + METRICS.gutter);
+      desenharCaixa(document, x, topo + 1, caixa, medido.item.checked, theme);
+
+      document
+        .font(FONTS.regular)
+        .fontSize(8.5)
+        .fillColor(theme.ink)
+        .text(medido.item.label, x + recuo, topo, { width: larguraDoTexto });
+
+      if (medido.item.note) {
+        document
+          .font(FONTS.regular)
+          .fontSize(7.5)
+          .fillColor(theme.inkMuted)
+          .text(medido.item.note, x + recuo, document.y + 1, {
+            width: larguraDoTexto,
+          });
+      }
+    });
+
+    document.y = topo + alturaDaLinha;
+    document.x = esquerda;
+  }
+
+  document.y += 6;
+}
+
+function desenharCaixa(
+  document: Doc,
+  x: number,
+  y: number,
+  lado: number,
+  marcado: boolean | null,
+  theme: DocumentTheme,
+): void {
+  document.save().lineWidth(0.8);
+
+  if (marcado === null) {
+    /* Tracejada: ninguém respondeu, e a folha não deve sugerir que alguém
+       respondeu. */
+    document
+      .dash(1.5, { space: 1.5 })
+      .rect(x, y, lado, lado)
+      .strokeColor(theme.border)
+      .stroke()
+      .undash();
+    document
+      .moveTo(x + 2, y + lado / 2)
+      .lineTo(x + lado - 2, y + lado / 2)
+      .strokeColor(theme.inkFaint)
+      .stroke();
+    document.restore();
+    return;
+  }
+
+  document
+    .rect(x, y, lado, lado)
+    .strokeColor(marcado ? theme.accent : theme.border)
+    .stroke();
+
+  if (marcado) {
+    document
+      .moveTo(x + 1.8, y + lado / 2)
+      .lineTo(x + lado / 2 - 0.6, y + lado - 2.2)
+      .lineTo(x + lado - 1.6, y + 2)
+      .lineWidth(1.2)
+      .strokeColor(theme.accent)
+      .stroke();
+  }
+
+  document.restore();
+}

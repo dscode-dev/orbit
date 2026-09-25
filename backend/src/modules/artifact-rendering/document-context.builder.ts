@@ -57,6 +57,11 @@ export class DocumentContextBuilder {
             name:
               this.texto(source.customer.tradeName) ??
               this.texto(source.customer.legalName),
+            /* Só quando acrescenta: com fantasia ausente, `name` já é a razão
+               social, e imprimi-la de novo logo ao lado seria repetição. */
+            legalName: this.texto(source.customer.tradeName)
+              ? this.texto(source.customer.legalName)
+              : undefined,
             document: this.documento(
               source.customer.documentType,
               source.customer.documentNumber,
@@ -69,6 +74,7 @@ export class DocumentContextBuilder {
         ? {
             code: this.texto(source.operation.code),
             title: this.texto(source.operation.title),
+            sector: this.texto(source.operation.sector),
             scheduledFor: this.data(source.operation.scheduledStart, timezone),
             startedAt: this.dataHora(source.operation.startedAt, timezone),
             completedAt: this.dataHora(source.operation.completedAt, timezone),

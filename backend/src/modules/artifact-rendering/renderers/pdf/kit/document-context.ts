@@ -42,6 +42,8 @@ export interface DocumentEmitter {
 /** Para quem o serviço foi prestado. */
 export interface DocumentCustomer {
   readonly name?: string;
+  /** Só quando difere do nome — repetir o mesmo texto duas vezes é ruído. */
+  readonly legalName?: string;
   readonly document?: string;
   readonly address?: string;
   readonly contactName?: string;
@@ -63,6 +65,7 @@ export interface DocumentEquipment {
 export interface DocumentOperation {
   readonly code?: string;
   readonly title?: string;
+  readonly sector?: string;
   readonly scheduledFor?: string;
   readonly startedAt?: string;
   readonly completedAt?: string;

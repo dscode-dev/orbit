@@ -30,6 +30,8 @@ import { readDocumentContext } from './kit/document-context';
 import { METRICS, buildTheme } from './kit/theme';
 import { paintFrames, type FrameIdentity } from './kit/page-frame';
 import { composePmocExecution } from './documents/pmoc-execution.document';
+import { composeRvt } from './documents/rvt.document';
+import { documentTitleFor } from './documents/labels';
 import { composeGeneric } from './documents/generic.document';
 
 const VERSION = '2.0.0';
@@ -96,6 +98,14 @@ export class ArtifactPremiumPdfRenderer implements ArtifactRenderer {
           case 'PMOC':
             composePmocExecution(document, input, context, theme);
             break;
+          /* `RVT` é o tipo do documento congelado que vem do app de campo;
+             `RELATORIO_VISITA` é o do template oficial. Os dois desenham o
+             mesmo papel — o cliente não distingue por qual caminho ele foi
+             preenchido, e não deveria mesmo. */
+          case 'RVT':
+          case 'RELATORIO_VISITA':
+            composeRvt(document, input, context, theme);
+            break;
           default:
             composeGeneric(document, input, theme);
         }
@@ -111,7 +121,9 @@ export class ArtifactPremiumPdfRenderer implements ArtifactRenderer {
   private identity(input: RenderInput): FrameIdentity {
     const context = readDocumentContext(input.metadata);
     return {
-      documentTitle: input.branding.documentTitle ?? input.execution.title,
+      documentTitle:
+        input.branding.documentTitle ??
+        documentTitleFor(input.snapshot.artifactType, input.execution.title),
       documentCode: input.execution.code,
       emitter: context.emitter,
       revisionLabel: `Versão documental ${input.snapshot.templateVersion}`,
