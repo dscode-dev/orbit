@@ -9,6 +9,7 @@
 import { ConflictException, ValidationException } from '../../exceptions';
 import type { QuoteRepository } from './quote.repository';
 import { QuoteService } from './quote.service';
+import type { QuoteDocumentService } from '../artifact-rendering/quote-document.service';
 
 const decimal = (value: string) => ({ toString: () => value });
 
@@ -64,7 +65,15 @@ describe('QuoteService', () => {
     nextOperationCode: jest.fn(),
   };
 
-  const service = new QuoteService(repository as unknown as QuoteRepository);
+  /* Nenhum caminho exercitado aqui imprime documento; o stub existe para o
+     construtor, não para o teste. Tipado de propósito: se a classe ganhar
+     outro método, o stub para de compilar em vez de passar mudo. */
+  const documents: QuoteDocumentService = { render: jest.fn() };
+
+  const service = new QuoteService(
+    repository as unknown as QuoteRepository,
+    documents,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();

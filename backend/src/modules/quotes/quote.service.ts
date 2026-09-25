@@ -51,6 +51,7 @@ import {
   type ItemSnapshot,
   type QuoteDetailRecord,
 } from './quote.repository';
+import { QuoteDocumentService } from '../artifact-rendering/quote-document.service';
 
 /** Moedas aceitas — as mesmas do Financeiro, que é onde o valor termina. */
 const SUPPORTED_CURRENCIES: readonly string[] = ['BRL', 'USD', 'EUR'];
@@ -71,9 +72,95 @@ const TRANSITIONS = {
 /** Só rascunho aceita edição de conteúdo — texto ou itens. */
 const EDITABLE: readonly string[] = [QuoteStatus.DRAFT];
 
+/* -------------------------------------------------------------------- */
+/* Formatação do documento                                               */
+/* -------------------------------------------------------------------- */
+
+/** `Date` do Prisma (`@db.Date`) para `AAAA-MM-DD`, sem passar pelo fuso. */
+function toDateOnlyString(valor: Date): string {
+  return valor.toISOString().slice(0, 10);
+}
+
+function formatCivil(iso: string): string {
+  const [ano, mes, dia] = iso.slice(0, 10).split('-');
+  return dia && mes && ano ? `${dia}/${mes}/${ano}` : iso;
+}
+
+function dataSimples(valor: Date | null | undefined): string | undefined {
+  return valor ? formatCivil(toDateOnlyString(valor)) : undefined;
+}
+
+/**
+ * Quantos dias a proposta vale, contados da emissão.
+ *
+ * Sai ao lado da data porque "válido até 25/10/2026 (30 dias)" responde de uma
+ * vez as duas perguntas que quem recebe faz. Prazo já vencido devolve
+ * `undefined` — imprimir "(-3 dias)" numa proposta é constrangedor.
+ */
+function diasDeValidade(
+  emissao: Date | null | undefined,
+  validUntil: string | undefined,
+): number | undefined {
+  if (!emissao || !validUntil) return undefined;
+  const de = Date.parse(`${toDateOnlyString(emissao)}T00:00:00Z`);
+  const ate = Date.parse(`${validUntil}T00:00:00Z`);
+  if (Number.isNaN(de) || Number.isNaN(ate)) return undefined;
+  const dias = Math.round((ate - de) / 86_400_000);
+  return dias > 0 ? dias : undefined;
+}
+
+/** CNPJ e CPF com máscara; um documento comercial sem ela parece rascunho. */
+function documentoFormatado(
+  tipo: string | null | undefined,
+  numero: string | null | undefined,
+): string | undefined {
+  if (!numero) return undefined;
+  const digitos = numero.replace(/\D/g, '');
+  if (digitos.length === 14) {
+    return `CNPJ ${digitos.replace(
+      /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
+      '$1.$2.$3/$4-$5',
+    )}`;
+  }
+  if (digitos.length === 11) {
+    return `CPF ${digitos.replace(
+      /^(\d{3})(\d{3})(\d{3})(\d{2})$/,
+      '$1.$2.$3-$4',
+    )}`;
+  }
+  return tipo ? `${tipo} ${numero}` : numero;
+}
+
+function enderecoCompleto(endereco: {
+  label: string;
+  street: string;
+  number: string | null;
+  complement: string | null;
+  district: string | null;
+  city: string;
+  stateCode: string | null;
+}): string {
+  const logradouro = [endereco.street, endereco.number]
+    .filter(Boolean)
+    .join(', ');
+  const cidade = [endereco.city, endereco.stateCode].filter(Boolean).join('/');
+  return [
+    endereco.label,
+    logradouro,
+    endereco.complement,
+    endereco.district,
+    cidade,
+  ]
+    .filter((parte) => parte && String(parte).length > 0)
+    .join(' — ');
+}
+
 @Injectable()
 export class QuoteService {
-  constructor(private readonly repository: QuoteRepository) {}
+  constructor(
+    private readonly repository: QuoteRepository,
+    private readonly documents: QuoteDocumentService,
+  ) {}
 
   /* ---------------------------------------------------------------- */
   /* Leitura                                                           */
@@ -90,6 +177,100 @@ export class QuoteService {
     const quote = await this.repository.find(id, organizationId);
     if (!quote) throw new EntityNotFoundException('Quote', id);
     return quote;
+  }
+
+  /**
+   * A proposta impressa.
+   *
+   * Desenhada na hora, a partir do estado atual. Não passa pela fila nem abre
+   * revisão: um orçamento é editado enquanto é rascunho, e cada reimpressão
+   * viraria versão de um documento que ninguém executou.
+   *
+   * Os valores saem como o domínio os persistiu. Recalcular na impressão
+   * criaria uma segunda fonte de verdade sobre dinheiro.
+   */
+  async document(id: string, organizationId: string) {
+    const fonte = await this.repository.documentSource(id, organizationId);
+    if (!fonte) throw new EntityNotFoundException('Quote', id);
+
+    const unidade = fonte.businessUnit;
+    const endereco = fonte.customer.addresses[0];
+    const validUntil = fonte.validUntil
+      ? toDateOnlyString(fonte.validUntil)
+      : undefined;
+
+    const bytes = await this.documents.render({
+      timezone: unidade?.timezone ?? 'America/Sao_Paulo',
+      emitter: {
+        tradeName: unidade?.tradeName ?? undefined,
+        legalName: unidade?.legalName ?? undefined,
+        document: documentoFormatado(
+          unidade?.documentType,
+          unidade?.documentNumber,
+        ),
+        address: [unidade?.street, unidade?.number]
+          .filter(Boolean)
+          .join(', ')
+          .concat(unidade?.district ? ` — ${unidade.district}` : ''),
+        cityState: [unidade?.city, unidade?.stateCode]
+          .filter(Boolean)
+          .join('/'),
+        phone: unidade?.phone ?? undefined,
+        email: unidade?.email ?? undefined,
+        website: unidade?.website ?? undefined,
+      },
+      quote: {
+        quote: {
+          code: fonte.code,
+          title: fonte.title,
+          status: fonte.status,
+          issuedAt: dataSimples(fonte.sentAt ?? fonte.createdAt),
+          validUntil: validUntil ? formatCivil(validUntil) : undefined,
+          validityDays: diasDeValidade(
+            fonte.sentAt ?? fonte.createdAt,
+            validUntil,
+          ),
+          notes: fonte.notes ?? undefined,
+          author: fonte.createdBy?.displayName ?? undefined,
+          operationCode: fonte.operation?.code ?? undefined,
+        },
+        customer: {
+          name: fonte.customer.tradeName ?? fonte.customer.legalName,
+          legalName: fonte.customer.tradeName
+            ? fonte.customer.legalName
+            : undefined,
+          document: documentoFormatado(
+            fonte.customer.documentType,
+            fonte.customer.documentNumber,
+          ),
+          email: fonte.customer.email ?? undefined,
+          phone: fonte.customer.phone ?? undefined,
+          address: endereco ? enderecoCompleto(endereco) : undefined,
+        },
+        items: fonte.items.map((item) => ({
+          kind: item.kind,
+          description: item.description,
+          sku: item.sku ?? undefined,
+          unit: item.unit,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          discount: Number(item.discount),
+          total: Number(item.total),
+          notes: item.notes ?? undefined,
+        })),
+        totals: {
+          subtotal: Number(fonte.subtotal),
+          discount: Number(fonte.discount),
+          total: Number(fonte.total),
+        },
+      },
+    });
+
+    return {
+      bytes,
+      mimeType: 'application/pdf',
+      fileName: `${fonte.code}.pdf`,
+    };
   }
 
   /* ---------------------------------------------------------------- */

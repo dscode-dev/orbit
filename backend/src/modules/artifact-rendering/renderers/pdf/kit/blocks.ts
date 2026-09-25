@@ -626,3 +626,112 @@ export function amountBlock(
   document.y = topo + alturaTotal + 14;
   document.x = esquerda;
 }
+
+/* ------------------------------------------------------------------ */
+/* Resumo de valores                                                   */
+/* ------------------------------------------------------------------ */
+
+export interface TotalLine {
+  readonly label: string;
+  readonly value: string;
+  /** Desconto e abatimento: sai em outra cor, com o sinal já no texto. */
+  readonly negative?: boolean;
+  /** A linha do total: régua acima, corpo maior. */
+  readonly emphasis?: boolean;
+}
+
+/**
+ * O resumo financeiro, alinhado à direita.
+ *
+ * ## Por que não é um cartão de definições
+ *
+ * Valores se conferem somando de cima para baixo, e para isso as casas
+ * decimais precisam estar na mesma coluna. Num cartão de duas colunas os
+ * números caem em posições diferentes conforme o rótulo ao lado, e quem
+ * confere passa a somar valores desalinhados — que é exatamente como um
+ * desconto lançado duas vezes passa despercebido.
+ *
+ * É a forma de uma fatura porque é a forma que quem recebe a proposta já sabe
+ * ler.
+ */
+export function totalsBlock(
+  document: Doc,
+  linhas: readonly TotalLine[],
+  theme: DocumentTheme,
+): void {
+  if (linhas.length === 0) return;
+
+  const largura = contentWidth(document);
+  /* Metade da página: o resumo encosta na margem direita, e o espaço à
+     esquerda é o que faz o olho descer pela coluna dos números. */
+  const larguraDoBloco = Math.min(largura * 0.55, 300);
+  const esquerda = document.page.margins.left + largura - larguraDoBloco;
+  const padding = 10;
+  const larguraInterna = larguraDoBloco - padding * 2;
+
+  const alturas = linhas.map((linha) => (linha.emphasis ? 22 : 15));
+  const alturaTotal =
+    alturas.reduce((soma, item) => soma + item, 0) + padding * 2;
+
+  ensureSpace(document, alturaTotal + 10);
+
+  const topo = document.y;
+
+  document
+    .save()
+    .roundedRect(esquerda, topo, larguraDoBloco, alturaTotal, METRICS.radius)
+    .fillColor(theme.surface)
+    .fill()
+    .roundedRect(esquerda, topo, larguraDoBloco, alturaTotal, METRICS.radius)
+    .lineWidth(0.5)
+    .strokeColor(theme.border)
+    .stroke()
+    .restore();
+
+  let y = topo + padding;
+
+  linhas.forEach((linha, indice) => {
+    if (linha.emphasis) {
+      document
+        .save()
+        .moveTo(esquerda + padding, y + 2)
+        .lineTo(esquerda + larguraDoBloco - padding, y + 2)
+        .lineWidth(0.7)
+        .strokeColor(theme.border)
+        .stroke()
+        .restore();
+      y += 6;
+    }
+
+    const corpo = linha.emphasis ? 11 : 8.5;
+    const fonte = linha.emphasis ? FONTS.bold : FONTS.regular;
+    const tinta = linha.emphasis
+      ? theme.ink
+      : linha.negative
+        ? theme.accent
+        : theme.inkMuted;
+
+    document
+      .font(linha.emphasis ? FONTS.bold : FONTS.regular)
+      .fontSize(linha.emphasis ? 8 : 7.5)
+      .fillColor(theme.inkFaint)
+      .text(linha.label.toUpperCase(), esquerda + padding, y + 2, {
+        width: larguraInterna * 0.55,
+        characterSpacing: 0.3,
+      });
+
+    document
+      .font(fonte)
+      .fontSize(corpo)
+      .fillColor(tinta)
+      .text(linha.value, esquerda + padding + larguraInterna * 0.55, y, {
+        width: larguraInterna * 0.45,
+        align: 'right',
+      });
+
+    y += alturas[indice]!;
+  });
+
+  document.y = topo + alturaTotal + 14;
+  document.x = document.page.margins.left;
+}

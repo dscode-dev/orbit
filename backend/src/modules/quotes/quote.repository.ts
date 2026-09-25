@@ -141,6 +141,93 @@ export class QuoteRepository {
     });
   }
 
+  /**
+   * Tudo o que a proposta impressa mostra, numa leitura.
+   *
+   * Projeção própria porque o documento precisa do que a tela não mostra: o
+   * CNPJ do cliente para a proposta ter valor comercial, o endereço do
+   * atendimento, e a identidade completa de quem emite — timbre, endereço e
+   * contato. Alargar `detailView` faria toda listagem carregar isso.
+   */
+  documentSource(id: string, organizationId: string) {
+    return this.rls.run(async (tx) => {
+      const quote = await tx.quote.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: {
+          code: true,
+          status: true,
+          title: true,
+          notes: true,
+          validUntil: true,
+          subtotal: true,
+          discount: true,
+          total: true,
+          sentAt: true,
+          decidedAt: true,
+          createdAt: true,
+          createdBy: { select: { displayName: true } },
+          operation: { select: { code: true, title: true } },
+          items: {
+            orderBy: { position: 'asc' as const },
+            select: {
+              kind: true,
+              description: true,
+              sku: true,
+              unit: true,
+              quantity: true,
+              unitPrice: true,
+              discount: true,
+              total: true,
+              notes: true,
+            },
+          },
+          customer: {
+            select: {
+              legalName: true,
+              tradeName: true,
+              documentType: true,
+              documentNumber: true,
+              email: true,
+              phone: true,
+              addresses: {
+                where: { isPrimary: true, isActive: true },
+                take: 1,
+                select: {
+                  label: true,
+                  street: true,
+                  number: true,
+                  complement: true,
+                  district: true,
+                  city: true,
+                  stateCode: true,
+                  postalCode: true,
+                },
+              },
+            },
+          },
+          businessUnit: {
+            select: {
+              legalName: true,
+              tradeName: true,
+              documentType: true,
+              documentNumber: true,
+              email: true,
+              phone: true,
+              website: true,
+              street: true,
+              number: true,
+              district: true,
+              city: true,
+              stateCode: true,
+              timezone: true,
+            },
+          },
+        },
+      });
+      return quote;
+    });
+  }
+
   find(id: string, organizationId: string) {
     return this.rls.run(async (tx) => {
       await this.expireStale(tx, organizationId);

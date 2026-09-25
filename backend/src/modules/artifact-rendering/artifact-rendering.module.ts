@@ -31,6 +31,7 @@ import { ArtifactPremiumPdfRenderer } from './renderers/pdf/artifact-premium-pdf
 import { DocumentContextBuilder } from './document-context.builder';
 import { RenderInputFactory } from './render-input.factory';
 import { PmocPlanDocumentService } from './pmoc-plan-document.service';
+import { QuoteDocumentService } from './quote-document.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
@@ -64,6 +65,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     DocumentContextBuilder,
     RenderInputFactory,
     PmocPlanDocumentService,
+    QuoteDocumentService,
     ArtifactRenderRepository,
     ArtifactRenderMetrics,
     ArtifactRenderService,
@@ -74,6 +76,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
   exports: [
     ArtifactRenderService,
     PmocPlanDocumentService,
+    QuoteDocumentService,
     ArtifactRendererRegistry,
     BackgroundJobWorker,
   ],

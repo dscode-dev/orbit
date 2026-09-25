@@ -27,8 +27,11 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { Permissions } from '../../decorators';
 import { ForbiddenException } from '../../exceptions';
 import { ParseUUIDv7Pipe } from '../../pipes';
@@ -72,6 +75,36 @@ export class QuoteController {
       data: result.data.map((quote) => this.mapper.summary(quote)),
       meta: result.meta,
     };
+  }
+
+  /**
+   * A proposta em PDF.
+   *
+   * Declarada antes de `:id` porque o Nest resolve na ordem de declaração, e
+   * uma rota mais específica registrada depois nunca é alcançada.
+   *
+   * `quotes.read` e não `quotes.manage`: imprimir a proposta é lê-la.
+   * `no-store` porque o orçamento muda enquanto é rascunho — um PDF em cache
+   * mostraria valores que já não valem, e quem enviasse esse arquivo ao
+   * cliente estaria propondo um preço que o sistema não pratica mais.
+   */
+  @Get(':id/document')
+  @Capabilities('quotes.read')
+  @Permissions('quotes.read')
+  async document(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const documento = await this.quotes.document(id, this.org(request));
+
+    response.set({
+      'Content-Type': documento.mimeType,
+      'Content-Disposition': `inline; filename="${documento.fileName}"`,
+      'Cache-Control': 'no-store',
+    });
+
+    return new StreamableFile(documento.bytes);
   }
 
   @Get(':id')

@@ -17,9 +17,15 @@ import { QuoteFinancialProcessor } from './quote-financial.processor';
 import { QuoteMapper } from './quote.mapper';
 import { QuoteRepository } from './quote.repository';
 import { QuoteService } from './quote.service';
+import { ArtifactRenderingModule } from '../artifact-rendering/artifact-rendering.module';
 
 @Module({
-  imports: [PrismaModule, SubscriptionPlansModule, FinancialModule],
+  imports: [
+    PrismaModule,
+    SubscriptionPlansModule,
+    FinancialModule,
+    ArtifactRenderingModule,
+  ],
   controllers: [QuoteController],
   providers: [
     QuoteRepository,
