@@ -75,13 +75,40 @@ export class DocumentContextBuilder {
             code: this.texto(source.operation.code),
             title: this.texto(source.operation.title),
             sector: this.texto(source.operation.sector),
-            scheduledFor: this.data(source.operation.scheduledStart, timezone),
+            kind: this.texto(source.operation.kind),
+            priority: this.texto(source.operation.priority),
+            description: this.texto(source.operation.description),
+            status: this.texto(source.operation.status),
+            openedAt: this.dataHora(source.operation.createdAt, timezone),
+            scheduledFor: this.dataHora(
+              source.operation.scheduledStart,
+              timezone,
+            ),
+            scheduledEnd: this.dataHora(
+              source.operation.scheduledEnd,
+              timezone,
+            ),
+            authorizedAt: this.dataHora(
+              source.operation.authorizedAt,
+              timezone,
+            ),
             startedAt: this.dataHora(source.operation.startedAt, timezone),
             completedAt: this.dataHora(source.operation.completedAt, timezone),
+            duration: this.duracao(
+              source.operation.startedAt,
+              source.operation.completedAt,
+            ),
             fieldTechnician: this.texto(
               this.registro(source.operation.responsibleFieldTechnician)
                 ?.displayName,
             ),
+            startedBy: this.texto(
+              this.registro(source.operation.startedBy)?.displayName,
+            ),
+            completedBy: this.texto(
+              this.registro(source.operation.completedBy)?.displayName,
+            ),
+            auxiliaryTechnicians: this.auxiliares(source.operation),
           }
         : undefined,
       plan: source.plan,
@@ -98,6 +125,40 @@ export class DocumentContextBuilder {
    * documento é onde ele estava **naquele** atendimento. Quando o atendimento
    * não declara setor, o local cadastrado no equipamento responde.
    */
+  /**
+   * Quanto durou o atendimento, em palavras.
+   *
+   * Sai calculado e não como duas datas para o leitor subtrair: a duração é o
+   * que entra em conversa de faturamento, e obrigar quem lê a fazer a conta é
+   * onde as divergências nascem.
+   */
+  private duracao(inicio: unknown, fim: unknown): string | undefined {
+    const de = this.paraData(inicio);
+    const ate = this.paraData(fim);
+    if (!de || !ate) return undefined;
+
+    const minutos = Math.round((ate.getTime() - de.getTime()) / 60000);
+    /* Conclusão antes do início é dado inconsistente; imprimir "-30 min"
+       numa ordem de serviço assinada é pior que omitir. */
+    if (minutos < 0) return undefined;
+    if (minutos < 60) return `${minutos} min`;
+
+    const horas = Math.floor(minutos / 60);
+    const resto = minutos % 60;
+    return resto === 0 ? `${horas} h` : `${horas} h ${resto} min`;
+  }
+
+  private auxiliares(operation: Linha): readonly string[] | undefined {
+    const lista = this.registro(operation)?.auxiliaryTechnicians;
+    if (!Array.isArray(lista)) return undefined;
+    const nomes = lista
+      .map((item) =>
+        this.texto(this.registro(this.registro(item)?.user)?.displayName),
+      )
+      .filter((nome): nome is string => Boolean(nome));
+    return nomes.length > 0 ? nomes : undefined;
+  }
+
   private equipamentos(operation: Linha): readonly DocumentEquipment[] {
     const vinculos = Array.isArray(operation?.assets) ? operation.assets : [];
     const setorDoAtendimento = this.texto(operation?.sector);

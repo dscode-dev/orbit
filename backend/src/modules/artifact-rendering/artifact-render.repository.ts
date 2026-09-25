@@ -123,10 +123,38 @@ export class ArtifactRenderRepository {
               code: true,
               title: true,
               sector: true,
+              kind: true,
+              priority: true,
+              description: true,
+              status: true,
+              createdAt: true,
+              scheduledEnd: true,
+              authorizedAt: true,
               scheduledStart: true,
               startedAt: true,
               completedAt: true,
               responsibleFieldTechnician: { select: { displayName: true } },
+              /**
+               * Quem iniciou e quem concluiu.
+               *
+               * Uma ordem de serviço que diz apenas *quando* foi concluída não
+               * responde à pergunta que o cliente faz ao contestar: por quem.
+               *
+               * **Só estes dois.** Acrescentar `createdBy` e `authorizedBy`
+               * aqui faz o inferidor de tipos do Prisma desistir — o retorno
+               * de `findRenderSource` já é grande, e com quatro relações de
+               * `User` a mais ele colapsa para um tipo sem `fieldArtifact` nem
+               * `manifests`, quebrando o processador. Quem criou e quem
+               * autorizou têm trilha própria em `operation_history`, que é o
+               * lugar certo para auditá-las.
+               */
+              startedBy: { select: { displayName: true } },
+              completedBy: { select: { displayName: true } },
+              auxiliaryTechnicians: {
+                where: { removedAt: null },
+                orderBy: { assignedAt: 'asc' as const },
+                select: { user: { select: { displayName: true } } },
+              },
               customerAddress: {
                 select: {
                   label: true,

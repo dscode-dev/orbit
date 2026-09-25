@@ -31,6 +31,7 @@ import { METRICS, buildTheme } from './kit/theme';
 import { paintFrames, type FrameIdentity } from './kit/page-frame';
 import { composePmocExecution } from './documents/pmoc-execution.document';
 import { composeRvt } from './documents/rvt.document';
+import { composeServiceOrder } from './documents/service-order.document';
 import { documentTitleFor } from './documents/labels';
 import { composeGeneric } from './documents/generic.document';
 
@@ -105,6 +106,12 @@ export class ArtifactPremiumPdfRenderer implements ArtifactRenderer {
           case 'RVT':
           case 'RELATORIO_VISITA':
             composeRvt(document, input, context, theme);
+            break;
+          /* `SERVICE_ORDER` vem do app de campo, `ORDEM_SERVICO` do template
+             oficial — mesmo papel, dois caminhos de preenchimento. */
+          case 'SERVICE_ORDER':
+          case 'ORDEM_SERVICO':
+            composeServiceOrder(document, input, context, theme);
             break;
           default:
             composeGeneric(document, input, theme);

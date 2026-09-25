@@ -66,11 +66,25 @@ export interface DocumentOperation {
   readonly code?: string;
   readonly title?: string;
   readonly sector?: string;
+  /** Natureza do atendimento — corretiva, preventiva, instalação. */
+  readonly kind?: string;
+  readonly priority?: string;
+  /** O que o cliente pediu, como foi registrado na abertura. */
+  readonly description?: string;
+  readonly status?: string;
+  readonly openedAt?: string;
   readonly scheduledFor?: string;
+  readonly scheduledEnd?: string;
+  readonly authorizedAt?: string;
   readonly startedAt?: string;
   readonly completedAt?: string;
+  /** Já em palavras: "2 h 15 min". */
+  readonly duration?: string;
   readonly fieldTechnician?: string;
   readonly technicalResponsible?: string;
+  readonly startedBy?: string;
+  readonly completedBy?: string;
+  readonly auxiliaryTechnicians?: readonly string[];
 }
 
 /** O plano de manutenção, quando o documento nasce de um. */
