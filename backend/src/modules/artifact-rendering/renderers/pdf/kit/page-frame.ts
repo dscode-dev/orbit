@@ -157,56 +157,63 @@ function paintHeader(
    * direita, e centrar na página jogaria o logo por cima dele.
    */
   /**
-   * O bloco é medido inteiro antes de ser desenhado, e então centrado na
-   * vertical da faixa.
+   * O bloco da esquerda: logo, nome do documento e código.
    *
-   * Antes ele crescia por acumulação — `y += altura do logo`, depois
-   * `document.y + 7` para a pílula — e ninguém conferia se o conjunto ainda
-   * cabia. Com logo, a pílula passava do filete. Medindo primeiro, ou o bloco
-   * cabe ou o título cede corpo, e a faixa nunca é estourada.
+   * O logo é centrado **na largura do título**, e não na coluna: a coluna é
+   * uma caixa de medida, o título é o que se vê. Centrar na caixa deixava o
+   * logo fora do eixo do texto sempre que o título não a preenchia.
+   *
+   * Tudo é medido antes de desenhar. O bloco crescia por acumulação e ninguém
+   * conferia se ainda cabia na faixa — com logo, a pílula passava do filete.
    */
   const colunaDoTitulo = esquerda;
   const larguraDaColuna = largura * 0.54;
 
-  const logo = identity.emitter?.logo
-    ? medirLogo(identity.emitter.logo, larguraDaColuna)
-    : null;
-
-  const ALTURA_DA_PILULA = 16;
-  const ESPACO_APOS_LOGO = 10;
-  const ESPACO_ANTES_DA_PILULA = 7;
-
   /* O corpo do título cede até caber numa linha: `lineBreak: false` não
      impede o pdfkit de quebrar num espaço quando há `width`. */
-  let corpoDoTitulo = logo ? 19 : 21;
+  const temLogo = Boolean(identity.emitter?.logo);
+  let corpoDoTitulo = temLogo ? 18 : 21;
   document.font(FONTS.bold);
   while (
-    corpoDoTitulo > 12 &&
+    corpoDoTitulo > 11 &&
     document.fontSize(corpoDoTitulo).widthOfString(identity.documentTitle) >
       larguraDaColuna
   ) {
     corpoDoTitulo -= 1;
   }
-  const alturaDoTitulo = document.fontSize(corpoDoTitulo).currentLineHeight();
+  document.fontSize(corpoDoTitulo);
+  const larguraDoTitulo = Math.min(
+    document.widthOfString(identity.documentTitle),
+    larguraDaColuna,
+  );
+  const alturaDoTitulo = document.currentLineHeight();
+
+  const logo = identity.emitter?.logo
+    ? medirLogo(identity.emitter.logo, larguraDoTitulo)
+    : null;
+
+  const ALTURA_DA_PILULA = 16;
+  const APOS_LOGO = 8;
+  const ANTES_DA_PILULA = 6;
 
   const alturaDoBloco =
-    (logo ? logo.altura + ESPACO_APOS_LOGO : 0) +
+    (logo ? logo.altura + APOS_LOGO : 0) +
     alturaDoTitulo +
-    ESPACO_ANTES_DA_PILULA +
+    ANTES_DA_PILULA +
     ALTURA_DA_PILULA;
 
-  /* Centrado na faixa, e nunca acima da margem de respiro do topo. */
-  let y = Math.max(16, (alturaDaFaixa - alturaDoBloco) / 2);
+  /* Centrado na vertical da faixa, respeitando uma folga mínima no topo. */
+  let y = Math.max(14, (alturaDaFaixa - alturaDoBloco) / 2);
 
   if (logo) {
     try {
       document.image(
         logo.bytes,
-        colunaDoTitulo + (larguraDaColuna - logo.largura) / 2,
+        colunaDoTitulo + (larguraDoTitulo - logo.largura) / 2,
         y,
-        { fit: [larguraDaColuna, logo.altura] },
+        { fit: [logo.largura, logo.altura] },
       );
-      y += logo.altura + ESPACO_APOS_LOGO;
+      y += logo.altura + APOS_LOGO;
     } catch {
       /* Logo ilegível não derruba o documento: o nome cobre a identificação. */
     }
@@ -217,23 +224,19 @@ function paintHeader(
     .fontSize(corpoDoTitulo)
     .fillColor(theme.onShell)
     .text(identity.documentTitle, colunaDoTitulo, y, {
-      width: larguraDaColuna,
-      align: logo ? 'center' : 'left',
+      width: larguraDoTitulo,
       lineBreak: false,
       ellipsis: true,
     });
 
-  y += alturaDoTitulo + ESPACO_ANTES_DA_PILULA;
+  y += alturaDoTitulo + ANTES_DA_PILULA;
 
-  /* A pílula acompanha o título: centrada quando há logo, à esquerda quando o
-     bloco começa na margem. */
+  /* A pílula também se centra na largura do título, pelo mesmo motivo. */
   const larguraDaPilula = larguraDoCodigo(document, identity.documentCode);
   pill(
     document,
     identity.documentCode,
-    logo
-      ? colunaDoTitulo + (larguraDaColuna - larguraDaPilula) / 2
-      : colunaDoTitulo,
+    colunaDoTitulo + (larguraDoTitulo - larguraDaPilula) / 2,
     y,
     theme,
   );
@@ -432,7 +435,7 @@ function medirLogo(
   bytes: Buffer,
   larguraMaxima: number,
 ): { bytes: Buffer; largura: number; altura: number } {
-  const ALTURA_ALVO = 34;
+  const ALTURA_ALVO = 30;
   const dimensoes = dimensoesDaImagem(bytes);
   if (!dimensoes) {
     return { bytes, largura: larguraMaxima, altura: ALTURA_ALVO };
