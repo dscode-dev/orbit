@@ -159,9 +159,9 @@ function paintHeader(
   /**
    * O bloco da esquerda: logo, nome do documento e código.
    *
-   * O logo é centrado **na largura do título**, e não na coluna: a coluna é
-   * uma caixa de medida, o título é o que se vê. Centrar na caixa deixava o
-   * logo fora do eixo do texto sempre que o título não a preenchia.
+   * Os três alinham pela **esquerda**, na margem. Centrados, cada um começava
+   * num ponto diferente conforme a própria largura, e o bloco não tinha eixo:
+   * a margem é o eixo que o resto da folha já usa.
    *
    * Tudo é medido antes de desenhar. O bloco crescia por acumulação e ninguém
    * conferia se ainda cabia na faixa — com logo, a pílula passava do filete.
@@ -193,8 +193,10 @@ function paintHeader(
     : null;
 
   const ALTURA_DA_PILULA = 16;
-  const APOS_LOGO = 8;
-  const ANTES_DA_PILULA = 6;
+  /* Respiro entre os três: colados, eles lêem como um carimbo só em vez de
+     marca, nome e número. */
+  const APOS_LOGO = 14;
+  const ANTES_DA_PILULA = 11;
 
   const alturaDoBloco =
     (logo ? logo.altura + APOS_LOGO : 0) +
@@ -207,12 +209,9 @@ function paintHeader(
 
   if (logo) {
     try {
-      document.image(
-        logo.bytes,
-        colunaDoTitulo + (larguraDoTitulo - logo.largura) / 2,
-        y,
-        { fit: [logo.largura, logo.altura] },
-      );
+      document.image(logo.bytes, colunaDoTitulo, y, {
+        fit: [logo.largura, logo.altura],
+      });
       y += logo.altura + APOS_LOGO;
     } catch {
       /* Logo ilegível não derruba o documento: o nome cobre a identificação. */
@@ -231,15 +230,7 @@ function paintHeader(
 
   y += alturaDoTitulo + ANTES_DA_PILULA;
 
-  /* A pílula também se centra na largura do título, pelo mesmo motivo. */
-  const larguraDaPilula = larguraDoCodigo(document, identity.documentCode);
-  pill(
-    document,
-    identity.documentCode,
-    colunaDoTitulo + (larguraDoTitulo - larguraDaPilula) / 2,
-    y,
-    theme,
-  );
+  pill(document, identity.documentCode, colunaDoTitulo, y, theme);
 
   /* O timbre fica à direita, alinhado à direita: é onde o olho procura quem
      emitiu, e é o que o documento impresso precisa provar. */
@@ -254,10 +245,25 @@ function paintHeader(
 
     const colunaX = esquerda + largura * 0.58;
     const colunaLargura = largura * 0.42;
-    /* O timbre começa no topo da faixa, independente do bloco da esquerda:
-       é uma coluna própria, e amarrá-la ao bloco do título faria ela descer
-       junto quando o cliente tem logo. */
-    let yDireita = 20;
+
+    /**
+     * O timbre é centrado na vertical da faixa, como o bloco da esquerda.
+     *
+     * Ancorado no topo, ele encostava no filete superior e ficava desalinhado
+     * do nome do documento — duas colunas começando em alturas diferentes
+     * dentro da mesma faixa. Medindo a altura antes, as duas partem do mesmo
+     * eixo óptico.
+     */
+    const alturaDoNome = emitter.tradeName
+      ? document.font(FONTS.bold).fontSize(10.5).currentLineHeight() + 3
+      : 0;
+    const alturaDaLinha = document
+      .font(FONTS.regular)
+      .fontSize(7.5)
+      .currentLineHeight();
+    const alturaDoTimbre = alturaDoNome + linhas.length * alturaDaLinha;
+
+    let yDireita = Math.max(14, (alturaDaFaixa - alturaDoTimbre) / 2);
 
     if (emitter.tradeName) {
       document
@@ -268,7 +274,7 @@ function paintHeader(
           width: colunaLargura,
           align: 'right',
         });
-      yDireita = document.y + 2;
+      yDireita = document.y + 3;
     }
 
     document.font(FONTS.regular).fontSize(7.5).fillColor(theme.onShellMuted);
@@ -491,10 +497,4 @@ function dimensoesDaImagem(
   }
 
   return null;
-}
-
-/** A largura que a pílula vai ocupar, para poder centrá-la. */
-function larguraDoCodigo(document: PDFKit.PDFDocument, texto: string): number {
-  document.font(FONTS.bold).fontSize(8.5);
-  return document.widthOfString(texto) + 18;
 }
