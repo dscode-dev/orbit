@@ -15,7 +15,9 @@
  */
 import { Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import { ConflictException } from '../../exceptions';
 import { generateUuidV7 } from '../../utils';
+import { planDefinition } from '../subscription-plans/catalog/plan-registry';
 import { SubscriptionService } from '../subscription-plans/subscriptions/subscription.service';
 import {
   TRIAL_DAYS,
@@ -23,12 +25,14 @@ import {
   SubscriptionStatus,
 } from '../subscription-plans/subscriptions/subscription.types';
 import {
+  BillingInterval,
   PlanCode,
-  type BillingInterval,
+  type BillingInterval as BillingIntervalType,
   type PlanCode as PlanCodeType,
 } from '../subscription-plans/catalog/plan-catalog.types';
 import {
   BillingCheckoutNotAllowedException,
+  BillingCommandNotAllowedException,
   BillingNotConfiguredException,
 } from './billing.errors';
 import {
@@ -37,6 +41,7 @@ import {
 } from './billing.repository';
 import {
   BILLING_PROVIDER,
+  ProviderBillingState,
   ProviderCheckoutState,
   type BillingProvider,
   type CheckoutSession,
@@ -97,7 +102,7 @@ export class BillingService {
   async createCheckoutSession(input: {
     organizationId: string;
     planCode: PlanCodeType;
-    billingInterval: BillingInterval;
+    billingInterval: BillingIntervalType;
   }): Promise<CheckoutSession> {
     this.assertEnabled();
     const assinatura = await this.subscriptions.requireCurrent(
@@ -202,6 +207,226 @@ export class BillingService {
     });
   }
 
+  /** Agenda o fim no provedor antes de refletir qualquer estado local. */
+  async cancelSubscription(
+    organizationId: string,
+    expectedVersion: number,
+  ): Promise<void> {
+    const assinatura = await this.requireExpected(
+      organizationId,
+      expectedVersion,
+    );
+    if (!assinatura.providerSubscriptionId) {
+      await this.subscriptions.cancelAtPeriodEnd(
+        organizationId,
+        expectedVersion,
+      );
+      return;
+    }
+
+    this.assertEnabled();
+    await this.assertProviderTarget(assinatura);
+    const provedor = await this.provider.setCancelAtPeriodEnd({
+      providerSubscriptionId: assinatura.providerSubscriptionId,
+      cancelAtPeriodEnd: true,
+      idempotencyKey: this.chave(
+        'cancel-subscription',
+        `${assinatura.id}:${expectedVersion}`,
+      ),
+    });
+    this.assertProviderOwnership(assinatura, provedor);
+    if (!provedor.cancelAtPeriodEnd) {
+      throw new BillingCommandNotAllowedException(
+        'provider did not schedule cancellation',
+      );
+    }
+    await this.subscriptions.applyProviderCancellation(
+      organizationId,
+      expectedVersion,
+      true,
+    );
+  }
+
+  /** Remove no provedor o cancelamento agendado antes de manter o acesso. */
+  async keepSubscription(
+    organizationId: string,
+    expectedVersion: number,
+  ): Promise<void> {
+    const assinatura = await this.requireExpected(
+      organizationId,
+      expectedVersion,
+    );
+    if (!assinatura.cancelAtPeriodEnd) {
+      throw new BillingCommandNotAllowedException('no scheduled cancellation');
+    }
+    if (!assinatura.providerSubscriptionId) {
+      await this.subscriptions.keepSubscription(
+        organizationId,
+        expectedVersion,
+      );
+      return;
+    }
+
+    this.assertEnabled();
+    await this.assertProviderTarget(assinatura);
+    const provedor = await this.provider.setCancelAtPeriodEnd({
+      providerSubscriptionId: assinatura.providerSubscriptionId,
+      cancelAtPeriodEnd: false,
+      idempotencyKey: this.chave(
+        'keep-subscription',
+        `${assinatura.id}:${expectedVersion}`,
+      ),
+    });
+    this.assertProviderOwnership(assinatura, provedor);
+    if (provedor.cancelAtPeriodEnd) {
+      throw new BillingCommandNotAllowedException(
+        'provider kept cancellation scheduled',
+      );
+    }
+    await this.subscriptions.applyProviderCancellation(
+      organizationId,
+      expectedVersion,
+      false,
+    );
+  }
+
+  /**
+   * Troca comercial com autoridade financeira externa.
+   *
+   * Upgrade é cobrado e confirmado antes de liberar direitos. Downgrade é
+   * agendado no período do provedor e só então aparece como pendência local.
+   */
+  async changeSubscriptionPlan(input: {
+    organizationId: string;
+    expectedVersion: number;
+    planCode: PlanCodeType;
+    billingInterval?: BillingIntervalType;
+  }): Promise<void> {
+    const assinatura = await this.requireExpected(
+      input.organizationId,
+      input.expectedVersion,
+    );
+    const targetInterval = input.billingInterval ?? assinatura.billingInterval;
+    if (
+      assinatura.planCode === input.planCode &&
+      assinatura.billingInterval === targetInterval
+    ) {
+      throw new BillingCommandNotAllowedException('no change requested');
+    }
+    if (!assinatura.providerSubscriptionId) {
+      await this.subscriptions.changePlan(
+        input.organizationId,
+        input.expectedVersion,
+        input.planCode,
+        targetInterval,
+      );
+      return;
+    }
+
+    this.assertEnabled();
+    await this.assertProviderTarget(assinatura);
+    const origem = planDefinition(assinatura.planCode);
+    const destino = planDefinition(input.planCode);
+    const timing =
+      destino.prices[BillingInterval.MONTHLY]!.amountMinor >
+      origem.prices[BillingInterval.MONTHLY]!.amountMinor
+        ? 'IMMEDIATE'
+        : 'PERIOD_END';
+    const alteracao = await this.provider.changePlan({
+      providerSubscriptionId: assinatura.providerSubscriptionId,
+      organizationId: input.organizationId,
+      subscriptionId: assinatura.id,
+      planCode: input.planCode,
+      billingInterval: targetInterval,
+      timing,
+      idempotencyKey: this.chave(
+        'change-plan',
+        `${assinatura.id}:${input.expectedVersion}:${input.planCode}:${targetInterval}`,
+      ),
+    });
+    this.assertProviderOwnership(assinatura, alteracao.subscription);
+
+    if (timing === 'PERIOD_END') {
+      if (!alteracao.scheduled) {
+        throw new BillingCommandNotAllowedException(
+          'provider did not schedule plan change',
+        );
+      }
+      await this.subscriptions.scheduleProviderPlanChange(
+        input.organizationId,
+        input.expectedVersion,
+        input.planCode,
+        targetInterval,
+        alteracao.effectiveAt,
+      );
+      return;
+    }
+
+    const provedor = alteracao.subscription;
+    if (
+      alteracao.scheduled ||
+      (provedor.state !== ProviderBillingState.ACTIVE &&
+        provedor.state !== ProviderBillingState.TRIALING) ||
+      !provedor.currentPeriodStart ||
+      !provedor.currentPeriodEnd
+    ) {
+      throw new BillingCommandNotAllowedException(
+        'provider did not confirm immediate plan change',
+      );
+    }
+    await this.subscriptions.applyProviderPlan(
+      input.organizationId,
+      input.expectedVersion,
+      {
+        planCode: input.planCode,
+        billingInterval: targetInterval,
+        period: {
+          start: provedor.currentPeriodStart,
+          end: provedor.currentPeriodEnd,
+        },
+        activate: provedor.state === ProviderBillingState.ACTIVE,
+        cancelAtPeriodEnd: provedor.cancelAtPeriodEnd,
+      },
+    );
+  }
+
+  async cancelScheduledPlanChange(
+    organizationId: string,
+    expectedVersion: number,
+  ): Promise<void> {
+    const assinatura = await this.requireExpected(
+      organizationId,
+      expectedVersion,
+    );
+    if (!assinatura.pendingPlanCode) {
+      throw new BillingCommandNotAllowedException('no scheduled plan change');
+    }
+    if (!assinatura.providerSubscriptionId) {
+      await this.subscriptions.cancelScheduledChange(
+        organizationId,
+        expectedVersion,
+      );
+      return;
+    }
+
+    this.assertEnabled();
+    await this.assertProviderTarget(assinatura);
+    const provedor = await this.provider.cancelScheduledPlanChange({
+      providerSubscriptionId: assinatura.providerSubscriptionId,
+      organizationId,
+      subscriptionId: assinatura.id,
+      idempotencyKey: this.chave(
+        'cancel-plan-change',
+        `${assinatura.id}:${expectedVersion}`,
+      ),
+    });
+    this.assertProviderOwnership(assinatura, provedor);
+    await this.subscriptions.cancelScheduledChange(
+      organizationId,
+      expectedVersion,
+    );
+  }
+
   /* ---------------------------------------------------------------- */
   /* Internos                                                          */
   /* ---------------------------------------------------------------- */
@@ -238,6 +463,57 @@ export class BillingService {
       .update(identidade)
       .digest('hex')
       .slice(0, 40)}`;
+  }
+
+  private async requireExpected(
+    organizationId: string,
+    expectedVersion: number,
+  ) {
+    const assinatura = await this.subscriptions.requireCurrent(organizationId);
+    if (assinatura.version !== expectedVersion) {
+      throw new ConflictException(
+        'Subscription version is stale',
+        'STALE_VERSION',
+      );
+    }
+    return assinatura;
+  }
+
+  private assertProviderOwnership(
+    local: {
+      providerSubscriptionId: string | null;
+      providerCustomerId: string | null;
+    },
+    provider: {
+      providerSubscriptionId: string;
+      providerCustomerId: string;
+    },
+  ): void {
+    if (
+      provider.providerSubscriptionId !== local.providerSubscriptionId ||
+      !local.providerCustomerId ||
+      provider.providerCustomerId !== local.providerCustomerId
+    ) {
+      throw new BillingCommandNotAllowedException(
+        'provider object does not belong to this subscription',
+      );
+    }
+  }
+
+  /** Confere o vínculo antes de qualquer escrita externa. */
+  private async assertProviderTarget(local: {
+    providerSubscriptionId: string | null;
+    providerCustomerId: string | null;
+  }): Promise<void> {
+    if (!local.providerSubscriptionId) {
+      throw new BillingCommandNotAllowedException(
+        'subscription is not linked to provider',
+      );
+    }
+    const provider = await this.provider.retrieveSubscription(
+      local.providerSubscriptionId,
+    );
+    this.assertProviderOwnership(local, provider);
   }
 
   private assertEnabled(): void {

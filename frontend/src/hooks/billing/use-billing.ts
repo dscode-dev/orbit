@@ -84,3 +84,12 @@ export function useChangePlan() {
     invalidate: [billingService.keys.module()],
   });
 }
+
+export function useCancelScheduledChange() {
+  return useApiMutation<
+    Awaited<ReturnType<typeof billingService.cancelScheduledChange>>,
+    SubscriptionVersionInput
+  >((input) => billingService.cancelScheduledChange(input), {
+    invalidate: [billingService.keys.module()],
+  });
+}

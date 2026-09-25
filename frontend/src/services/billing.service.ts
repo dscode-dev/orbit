@@ -36,7 +36,9 @@ export const billingService = {
    * dias de avaliação e organização não são enviados — e se fossem, o servidor
    * recusaria a requisição inteira.
    */
-  createCheckout: (input: CreateCheckoutInput): Promise<CheckoutSessionResult> =>
+  createCheckout: (
+    input: CreateCheckoutInput,
+  ): Promise<CheckoutSessionResult> =>
     apiClient.post<CheckoutSessionResult>("/billing/checkout-session", input),
 
   openPortal: (): Promise<BillingPortalResult> =>
@@ -61,6 +63,14 @@ export const billingService = {
   changePlan: (input: ChangePlanInput): Promise<OrganizationSubscription> =>
     apiClient.post<OrganizationSubscription>(
       "/organizations/current/subscription/change-plan",
+      input,
+    ),
+
+  cancelScheduledChange: (
+    input: SubscriptionVersionInput,
+  ): Promise<OrganizationSubscription> =>
+    apiClient.post<OrganizationSubscription>(
+      "/organizations/current/subscription/cancel-scheduled-change",
       input,
     ),
 };

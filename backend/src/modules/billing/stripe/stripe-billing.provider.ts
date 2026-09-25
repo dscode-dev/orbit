@@ -40,11 +40,14 @@ import {
   type ProviderEvent,
   ProviderCheckoutState,
   type ProviderCheckoutSession,
+  type ProviderPlanChange,
   type ProviderSubscription,
 } from '../billing.types';
 import {
+  BillingCommandNotAllowedException,
   BillingConfigurationInvalidException,
   BillingNotConfiguredException,
+  BillingPaymentActionRequiredException,
   BillingProviderUnavailableException,
   BillingWebhookInvalidException,
 } from '../billing.errors';
@@ -243,11 +246,13 @@ export class StripeBillingProvider implements BillingProvider {
 
   async changePlan(input: {
     providerSubscriptionId: string;
+    organizationId: string;
+    subscriptionId: string;
     planCode: PlanCodeType;
     billingInterval: BillingIntervalType;
     timing: 'IMMEDIATE' | 'PERIOD_END';
     idempotencyKey: string;
-  }): Promise<ProviderSubscription> {
+  }): Promise<ProviderPlanChange> {
     const stripe = this.require();
     const priceId = this.priceOrFail(input.planCode, input.billingInterval);
     const atual = await this.chamar('retrieveSubscription', () =>
@@ -260,27 +265,190 @@ export class StripeBillingProvider implements BillingProvider {
       );
     }
 
-    return this.normalizar(
-      await this.chamar('changePlan', () =>
-        stripe.subscriptions.update(
-          input.providerSubscriptionId,
-          {
-            items: [{ id: item.id, price: priceId }],
-            /**
-             * Quem calcula centavos é o provedor.
-             *
-             * Subir cobra a diferença agora; descer espera o fim do período. O
-             * Orbit não recalcula proporcional — proporcional tem
-             * arredondamento, imposto e histórico, e a fatura do provedor é a
-             * autoridade financeira disso.
-             */
-            proration_behavior:
-              input.timing === 'IMMEDIATE' ? 'create_prorations' : 'none',
+    if (input.timing === 'PERIOD_END') {
+      return this.schedulePlanChange(stripe, atual, item, priceId, input);
+    }
+
+    const alterada = await this.chamar('changePlan', () =>
+      stripe.subscriptions.update(
+        input.providerSubscriptionId,
+        {
+          items: [{ id: item.id, price: priceId }],
+          /**
+           * `always_invoice` cobra a diferença agora. `error_if_incomplete`
+           * mantém preço e direitos antigos quando a cobrança exige outra
+           * ação: o Orbit não concede upgrade apoiado numa promessa pendente.
+           */
+          proration_behavior: 'always_invoice',
+          payment_behavior: 'error_if_incomplete',
+          metadata: {
+            orbitOrganizationId: input.organizationId,
+            orbitSubscriptionId: input.subscriptionId,
+            orbitPlanCode: input.planCode,
+            orbitBillingInterval: input.billingInterval,
           },
-          { idempotencyKey: input.idempotencyKey },
-        ),
+        },
+        { idempotencyKey: input.idempotencyKey },
       ),
     );
+    const normalizada = this.normalizar(alterada);
+    if (normalizada.providerPriceId !== priceId) {
+      throw new BillingProviderUnavailableException(
+        'provider did not apply the requested price',
+      );
+    }
+    return {
+      subscription: normalizada,
+      scheduled: false,
+      effectiveAt: normalizada.currentPeriodStart ?? new Date(),
+      providerScheduleId: null,
+    };
+  }
+
+  /**
+   * Rebaixamento é um Subscription Schedule, não uma alteração silenciosa do
+   * preço atual. A primeira fase preserva exatamente o item já comprado; a
+   * segunda começa no fim do período e depois libera a assinatura novamente.
+   */
+  private async schedulePlanChange(
+    stripe: Stripe,
+    atual: Stripe.Subscription,
+    item: Stripe.SubscriptionItem,
+    targetPriceId: string,
+    input: {
+      providerSubscriptionId: string;
+      organizationId: string;
+      subscriptionId: string;
+      planCode: PlanCodeType;
+      billingInterval: BillingIntervalType;
+      idempotencyKey: string;
+    },
+  ): Promise<ProviderPlanChange> {
+    const scheduleId = this.idDoObjeto(atual.schedule);
+    let schedule: Stripe.SubscriptionSchedule;
+
+    if (scheduleId) {
+      schedule = await this.chamar('retrievePlanSchedule', () =>
+        stripe.subscriptionSchedules.retrieve(scheduleId),
+      );
+      const owned =
+        schedule.metadata?.['orbitOrganizationId'] === input.organizationId &&
+        schedule.metadata?.['orbitSubscriptionId'] === input.subscriptionId;
+      if (!owned) {
+        /**
+         * Tenta somente o replay exato de uma criação anterior. Se o schedule
+         * veio de fora, a chave é inédita e o Stripe recusa criar outro; nós
+         * jamais assumimos propriedade de configuração alheia.
+         */
+        const replay = await this.chamar('createPlanSchedule', () =>
+          stripe.subscriptionSchedules.create(
+            { from_subscription: input.providerSubscriptionId },
+            { idempotencyKey: `${input.idempotencyKey}:create` },
+          ),
+        );
+        if (replay.id !== schedule.id) {
+          throw new BillingProviderUnavailableException(
+            'subscription is managed by another schedule',
+          );
+        }
+        schedule = replay;
+      }
+    } else {
+      schedule = await this.chamar('createPlanSchedule', () =>
+        stripe.subscriptionSchedules.create(
+          { from_subscription: input.providerSubscriptionId },
+          { idempotencyKey: `${input.idempotencyKey}:create` },
+        ),
+      );
+    }
+
+    const effectiveAtSeconds = item.current_period_end;
+    const months = BILLING_INTERVAL_MONTHS[input.billingInterval] ?? 1;
+    await this.chamar('updatePlanSchedule', () =>
+      stripe.subscriptionSchedules.update(
+        schedule.id,
+        {
+          end_behavior: 'release',
+          metadata: {
+            orbitOrganizationId: input.organizationId,
+            orbitSubscriptionId: input.subscriptionId,
+            orbitPlanCode: input.planCode,
+            orbitBillingInterval: input.billingInterval,
+          },
+          proration_behavior: 'none',
+          phases: [
+            {
+              start_date: schedule.current_phase?.start_date ?? 'now',
+              end_date: effectiveAtSeconds,
+              items: [
+                {
+                  price: item.price.id,
+                  quantity: item.quantity ?? 1,
+                },
+              ],
+              proration_behavior: 'none',
+            },
+            {
+              start_date: effectiveAtSeconds,
+              duration: { interval: 'month', interval_count: months },
+              items: [{ price: targetPriceId, quantity: item.quantity ?? 1 }],
+              metadata: {
+                orbitOrganizationId: input.organizationId,
+                orbitSubscriptionId: input.subscriptionId,
+                orbitPlanCode: input.planCode,
+                orbitBillingInterval: input.billingInterval,
+              },
+              proration_behavior: 'none',
+            },
+          ],
+        },
+        { idempotencyKey: `${input.idempotencyKey}:update` },
+      ),
+    );
+
+    return {
+      subscription: this.normalizar(atual),
+      scheduled: true,
+      effectiveAt: new Date(effectiveAtSeconds * 1000),
+      providerScheduleId: schedule.id,
+    };
+  }
+
+  async cancelScheduledPlanChange(input: {
+    providerSubscriptionId: string;
+    organizationId: string;
+    subscriptionId: string;
+    idempotencyKey: string;
+  }): Promise<ProviderSubscription> {
+    const stripe = this.require();
+    const subscription = await this.chamar('retrieveSubscription', () =>
+      stripe.subscriptions.retrieve(input.providerSubscriptionId),
+    );
+    const scheduleId = this.idDoObjeto(subscription.schedule);
+    if (!scheduleId) {
+      throw new BillingCommandNotAllowedException(
+        'provider has no scheduled plan change',
+      );
+    }
+    const schedule = await this.chamar('retrievePlanSchedule', () =>
+      stripe.subscriptionSchedules.retrieve(scheduleId),
+    );
+    if (
+      schedule.metadata?.['orbitOrganizationId'] !== input.organizationId ||
+      schedule.metadata?.['orbitSubscriptionId'] !== input.subscriptionId
+    ) {
+      throw new BillingCommandNotAllowedException(
+        'scheduled change is not owned by Orbit',
+      );
+    }
+    await this.chamar('releasePlanSchedule', () =>
+      stripe.subscriptionSchedules.release(
+        scheduleId,
+        { preserve_cancel_date: true },
+        { idempotencyKey: input.idempotencyKey },
+      ),
+    );
+    return this.retrieveSubscription(input.providerSubscriptionId);
   }
 
   async setCancelAtPeriodEnd(input: {
@@ -517,6 +685,9 @@ export class StripeBillingProvider implements BillingProvider {
         error instanceof Stripe.errors.StripeRateLimitError
       ) {
         throw new BillingProviderUnavailableException(tipo);
+      }
+      if (error instanceof Stripe.errors.StripeCardError) {
+        throw new BillingPaymentActionRequiredException();
       }
       if (error instanceof Stripe.errors.StripeError) {
         throw new BillingConfigurationInvalidException(tipo);

@@ -68,6 +68,16 @@ export interface ProviderSubscription {
   readonly providerUpdatedAt: Date | null;
 }
 
+/** Resultado de uma troca, sem vazar o vocabulário do SDK para a aplicação. */
+export interface ProviderPlanChange {
+  readonly subscription: ProviderSubscription;
+  /** `true` quando o preço novo só entra no próximo período contratado. */
+  readonly scheduled: boolean;
+  readonly effectiveAt: Date;
+  /** Identidade diagnóstica; nunca é aceita do cliente. */
+  readonly providerScheduleId: string | null;
+}
+
 export interface CheckoutSessionRequest {
   readonly checkoutAttemptId: string;
   readonly organizationId: string;
@@ -167,10 +177,19 @@ export interface BillingProvider {
   /** Troca o preço da assinatura. O provedor calcula o dinheiro, não o Orbit. */
   changePlan(input: {
     providerSubscriptionId: string;
+    organizationId: string;
+    subscriptionId: string;
     planCode: PlanCode;
     billingInterval: BillingInterval;
     /** `IMMEDIATE` para subir; `PERIOD_END` para descer. */
     timing: 'IMMEDIATE' | 'PERIOD_END';
+    idempotencyKey: string;
+  }): Promise<ProviderPlanChange>;
+
+  cancelScheduledPlanChange(input: {
+    providerSubscriptionId: string;
+    organizationId: string;
+    subscriptionId: string;
     idempotencyKey: string;
   }): Promise<ProviderSubscription>;
 

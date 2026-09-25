@@ -8,11 +8,14 @@ Subscription      → autoridade comercial interna
 EntitlementService → autoridade de acesso ao produto
 ```
 
-Nenhuma requisição do produto consulta o Stripe. O fluxo é sempre:
+Leituras comuns do produto nunca consultam o Stripe. Eventos e comandos
+comerciais vinculados passam pela fronteira do provedor:
 
 ```text
 Stripe → webhook assinado / reconciliação → adaptador
        → comando do Orbit → OrganizationSubscription → EntitlementService
+
+usuário → comando autenticado → Stripe confirma → OrganizationSubscription
 ```
 
 Registrado em `docs/adr/ADR-007`. O que esta PR acrescenta é o tradutor; a
@@ -87,11 +90,12 @@ teste com chave de produção antes de ela virar cobrança errada.
 
 ## Eventos consumidos
 
-Exatamente estes seis:
+Exatamente estes sete:
 
 | Evento | Significado normalizado | Comando no Orbit |
 |---|---|---|
 | `checkout.session.completed` | contratação concluída | reconciliar assinatura |
+| `checkout.session.async_payment_succeeded` | pagamento assíncrono concluído | concluir contratação e reconciliar |
 | `customer.subscription.created` | assinatura criada | reconciliar assinatura |
 | `customer.subscription.updated` | assinatura mudou | reconciliar assinatura |
 | `customer.subscription.deleted` | assinatura encerrada | reconciliar assinatura |
@@ -194,6 +198,33 @@ silenciosamente ignorado. Ignorar em silêncio ensina que tentar não custa nada
 **Voltar da tela do provedor não ativa nada.** A URL de sucesso é navegação;
 quem ativa é o estado verificado chegando por webhook assinado ou por
 reconciliação.
+
+## Comandos depois da contratação
+
+Uma assinatura com `providerSubscriptionId` não é alterada primeiro no banco.
+O fluxo é deliberadamente provider-first:
+
+```text
+versão local válida → conferir customer/subscription no Stripe
+                    → executar comando idempotente
+                    → validar resposta canônica
+                    → refletir localmente com OCC
+```
+
+- cancelamento e reativação escrevem `cancel_at_period_end` no Stripe antes de
+  mudar o estado local;
+- upgrade usa `always_invoice` e `error_if_incomplete`: a diferença é cobrada
+  agora e direitos novos não são concedidos quando o pagamento fica pendente;
+- downgrade usa um Subscription Schedule de duas fases. O preço atual é
+  preservado até `current_period_end`, e o preço novo começa exatamente ali;
+- desfazer um downgrade libera somente um schedule que possua os metadados da
+  mesma organização e assinatura Orbit;
+- o `price_id` canônico volta para `(planCode, billingInterval)` por igualdade
+  exata com o catálogo configurado. Preço desconhecido falha fechado.
+
+Assinaturas legadas ainda sem vínculo continuam usando os comandos locais. Isso
+preserva compatibilidade, mas uma assinatura já ligada jamais faz fallback
+local quando o Stripe está indisponível.
 
 ### A avaliação continua sendo do Orbit
 

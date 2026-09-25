@@ -20,10 +20,11 @@ import { BillingService } from './billing.service';
 import { BillingWebhookService } from './billing-webhook.service';
 import { BILLING_PROVIDER } from './billing.types';
 import { StripeBillingProvider } from './stripe/stripe-billing.provider';
+import { SubscriptionBillingController } from './subscription-billing.controller';
 
 @Module({
   imports: [SubscriptionPlansModule],
-  controllers: [BillingController],
+  controllers: [BillingController, SubscriptionBillingController],
   providers: [
     BillingConfig,
     BillingRepository,

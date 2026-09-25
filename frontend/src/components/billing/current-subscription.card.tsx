@@ -27,6 +27,7 @@ interface Props {
   overview: BillingOverview;
   onCancelRenewal: () => void;
   onKeepSubscription: () => void;
+  onCancelScheduledChange: () => void;
   onOpenPortal: () => void;
   portalPending: boolean;
   commandPending: boolean;
@@ -69,6 +70,7 @@ export function CurrentSubscriptionCard({
   overview,
   onCancelRenewal,
   onKeepSubscription,
+  onCancelScheduledChange,
   onOpenPortal,
   portalPending,
   commandPending,
@@ -301,6 +303,17 @@ export function CurrentSubscriptionCard({
               disabled={commandPending}
             >
               Cancelar renovação
+            </Button>
+          ) : null}
+
+          {acoes.canCancelScheduledChange ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCancelScheduledChange}
+              disabled={commandPending}
+            >
+              Desfazer mudança programada
             </Button>
           ) : null}
         </div>

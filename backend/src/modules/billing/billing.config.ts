@@ -106,6 +106,28 @@ export class BillingConfig {
     return this.configuration.prices.get(`${planCode}:${interval}`) ?? null;
   }
 
+  /**
+   * Tradução inversa usada somente na reconciliação.
+   *
+   * O preço observado no provedor jamais vira plano por aproximação: ou é um
+   * dos doze IDs configurados na subida, ou o acesso contratado não muda.
+   */
+  catalogEntryForPrice(
+    providerPriceId: string,
+  ): { planCode: PlanCodeType; billingInterval: BillingIntervalType } | null {
+    for (const planCode of Object.values(PlanCode)) {
+      for (const billingInterval of Object.values(BillingInterval)) {
+        if (
+          this.configuration.prices.get(`${planCode}:${billingInterval}`) ===
+          providerPriceId
+        ) {
+          return { planCode, billingInterval };
+        }
+      }
+    }
+    return null;
+  }
+
   private carregar(): BillingConfiguration {
     const ligada =
       (this.environment.getOptional('STRIPE_ENABLED') ?? 'false').trim() ===

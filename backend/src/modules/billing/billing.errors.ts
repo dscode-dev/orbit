@@ -64,6 +64,30 @@ export class BillingCheckoutNotAllowedException extends BaseException {
   }
 }
 
+export class BillingCommandNotAllowedException extends BaseException {
+  constructor(readonly reason: string) {
+    super(
+      {
+        code: 'BILLING_COMMAND_NOT_ALLOWED',
+        message: `Billing command refused: ${reason}`,
+      },
+      HttpStatus.CONFLICT,
+    );
+  }
+}
+
+export class BillingPaymentActionRequiredException extends BaseException {
+  constructor() {
+    super(
+      {
+        code: 'BILLING_PAYMENT_ACTION_REQUIRED',
+        message: 'The payment method could not complete this billing change',
+      },
+      HttpStatus.PAYMENT_REQUIRED,
+    );
+  }
+}
+
 export class BillingCustomerNotAvailableException extends BaseException {
   constructor(organizationId: string) {
     super(

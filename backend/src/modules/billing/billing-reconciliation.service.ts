@@ -31,6 +31,7 @@ import {
   grantsProductAccess,
 } from '../subscription-plans/subscriptions/subscription.types';
 import { BillingProviderUnavailableException } from './billing.errors';
+import { BillingConfig } from './billing.config';
 import {
   BillingCheckoutAwaitingPaymentError,
   BillingCheckoutFulfillmentService,
@@ -76,6 +77,7 @@ export class BillingReconciliationService {
     private readonly repository: BillingRepository,
     private readonly checkoutFulfillment: BillingCheckoutFulfillmentService,
     private readonly subscriptions: SubscriptionService,
+    private readonly config: BillingConfig,
     private readonly contexts: RequestContextStorage,
   ) {}
 
@@ -282,6 +284,12 @@ export class BillingReconciliationService {
       );
       return;
     }
+    if (
+      !local.providerCustomerId ||
+      local.providerCustomerId !== provedor.providerCustomerId
+    ) {
+      throw new Error('BILLING_CUSTOMER_MISMATCH');
+    }
 
     /**
      * A partir daqui, o worker fala como aquele inquilino.
@@ -337,12 +345,68 @@ export class BillingReconciliationService {
       organizationId: string;
       version: number;
       effectiveStatus: SubscriptionStatus;
+      planCode: string;
+      billingInterval: string;
       currentPeriodStart: Date;
       currentPeriodEnd: Date;
+      cancelAtPeriodEnd: boolean;
     },
     provedor: ProviderSubscription,
     providerEventId: string | null,
   ): Promise<void> {
+    const catalogEntry = provedor.providerPriceId
+      ? this.config.catalogEntryForPrice(provedor.providerPriceId)
+      : null;
+    if (this.config.enabled && provedor.providerPriceId && !catalogEntry) {
+      /** Preço desconhecido nunca vira direitos por aproximação. */
+      throw new Error('BILLING_PRICE_NOT_IN_CATALOG');
+    }
+
+    if (
+      catalogEntry &&
+      (provedor.state === ProviderBillingState.ACTIVE ||
+        provedor.state === ProviderBillingState.TRIALING)
+    ) {
+      if (!provedor.currentPeriodStart || !provedor.currentPeriodEnd) {
+        throw new Error('BILLING_PROVIDER_PERIOD_MISSING');
+      }
+      const changed =
+        atual.planCode !== catalogEntry.planCode ||
+        atual.billingInterval !== catalogEntry.billingInterval ||
+        atual.effectiveStatus !==
+          (provedor.state === ProviderBillingState.ACTIVE
+            ? SubscriptionStatus.ACTIVE
+            : SubscriptionStatus.TRIALING) ||
+        atual.currentPeriodStart.getTime() !==
+          provedor.currentPeriodStart.getTime() ||
+        atual.currentPeriodEnd.getTime() !==
+          provedor.currentPeriodEnd.getTime() ||
+        atual.cancelAtPeriodEnd !== provedor.cancelAtPeriodEnd;
+      if (changed) {
+        await this.subscriptions.applyProviderPlan(
+          atual.organizationId,
+          atual.version,
+          {
+            planCode: catalogEntry.planCode,
+            billingInterval: catalogEntry.billingInterval,
+            period: {
+              start: provedor.currentPeriodStart,
+              end: provedor.currentPeriodEnd,
+            },
+            activate: provedor.state === ProviderBillingState.ACTIVE,
+            cancelAtPeriodEnd: provedor.cancelAtPeriodEnd,
+          },
+        );
+      }
+      await this.subscriptions.syncProviderSnapshot(atual.id, {
+        providerStatus: provedor.rawStatus,
+        providerPriceId: provedor.providerPriceId,
+        providerLastEventId: providerEventId,
+        cancelAtPeriodEnd: provedor.cancelAtPeriodEnd,
+      });
+      return;
+    }
+
     const comando = this.comandoPara(atual, provedor);
     if (comando === 'NONE') {
       await this.subscriptions.syncProviderSnapshot(atual.id, {

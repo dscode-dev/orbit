@@ -13,10 +13,6 @@ import { SubscriptionPlanService } from './subscription-plan.service';
 import { EntitlementService } from './entitlements/entitlement.service';
 import { SubscriptionMapper } from './subscriptions/subscription.mapper';
 import { SubscriptionService } from './subscriptions/subscription.service';
-import {
-  ChangeSubscriptionPlanDto,
-  SubscriptionVersionDto,
-} from './subscriptions/subscription.dto';
 import { UsageService } from './usage.service';
 import { RequiresActivePlan } from './plan-access';
 import { ProductAccessService } from './product-access';
@@ -103,53 +99,6 @@ export class SubscriptionPlanController {
   @Get('organizations/current/subscription-details')
   @Permissions('usage.read')
   async currentSubscription(@Req() request: IdentityRequest) {
-    return this.subscriptionMapper.details(
-      await this.subscriptions.requireCurrent(this.organizationId(request)),
-    );
-  }
-
-  @Post('organizations/current/subscription/cancel')
-  @Permissions('subscription.manage')
-  async cancelSubscription(
-    @Req() request: IdentityRequest,
-    @Body() input: SubscriptionVersionDto,
-  ) {
-    await this.subscriptions.cancelAtPeriodEnd(
-      this.organizationId(request),
-      input.expectedVersion,
-    );
-    return this.subscriptionMapper.details(
-      await this.subscriptions.requireCurrent(this.organizationId(request)),
-    );
-  }
-
-  @Post('organizations/current/subscription/keep')
-  @Permissions('subscription.manage')
-  async keepSubscription(
-    @Req() request: IdentityRequest,
-    @Body() input: SubscriptionVersionDto,
-  ) {
-    await this.subscriptions.keepSubscription(
-      this.organizationId(request),
-      input.expectedVersion,
-    );
-    return this.subscriptionMapper.details(
-      await this.subscriptions.requireCurrent(this.organizationId(request)),
-    );
-  }
-
-  @Post('organizations/current/subscription/change-plan')
-  @Permissions('subscription.manage')
-  async changePlan(
-    @Req() request: IdentityRequest,
-    @Body() input: ChangeSubscriptionPlanDto,
-  ) {
-    await this.subscriptions.changePlan(
-      this.organizationId(request),
-      input.expectedVersion,
-      input.planCode,
-      input.billingInterval,
-    );
     return this.subscriptionMapper.details(
       await this.subscriptions.requireCurrent(this.organizationId(request)),
     );

@@ -301,6 +301,44 @@ export class SubscriptionService {
     });
   }
 
+  /**
+   * Espelha uma troca futura que o provedor já aceitou.
+   *
+   * É separado de `changePlan`: aqui o instante efetivo vem do período
+   * canônico do provedor, não de um cálculo local sujeito a drift.
+   */
+  async scheduleProviderPlanChange(
+    organizationId: string,
+    expectedVersion: number,
+    planCode: PlanCode,
+    billingInterval: BillingInterval,
+    effectiveAt: Date,
+  ) {
+    return this.comando(organizationId, expectedVersion, (atual) => {
+      if (!allowsPlanChange(atual.effectiveStatus)) {
+        throw new PlanChangeNotAllowedException(
+          `status ${atual.effectiveStatus}`,
+        );
+      }
+      if (effectiveAt <= new Date()) {
+        throw new ConflictException(
+          'Provider plan change effective date is invalid',
+          'INVALID_PROVIDER_PERIOD',
+        );
+      }
+      const destino = planDefinition(planCode);
+      return {
+        pendingPlanCode: destino.code,
+        pendingBillingInterval: billingInterval,
+        pendingCatalogVersion: CATALOG_VERSION,
+        pendingEntitlementsSnapshot: snapshotOf(
+          destino,
+        ) as unknown as Prisma.InputJsonValue,
+        pendingEffectiveAt: effectiveAt,
+      };
+    });
+  }
+
   /* ---------------------------------------------------------------- */
   /* Fatos financeiros — a PR-PL-03 os trará do provedor               */
   /* ---------------------------------------------------------------- */
@@ -346,6 +384,96 @@ export class SubscriptionService {
         graceEndsAt: null,
         currentPeriodStart: period.start,
         currentPeriodEnd: period.end,
+      };
+    });
+  }
+
+  /**
+   * Aplica preço e período que já foram confirmados pelo provedor.
+   *
+   * Esta é a única escrita que pode conceder o plano novo de uma assinatura
+   * vinculada. O comando HTTP não "acha" que o upgrade deu certo: ele passa
+   * por aqui somente com o retrato canônico retornado pelo provedor.
+   */
+  async applyProviderPlan(
+    organizationId: string,
+    expectedVersion: number,
+    input: {
+      planCode: PlanCode;
+      billingInterval: BillingInterval;
+      period: { start: Date; end: Date };
+      activate: boolean;
+      cancelAtPeriodEnd: boolean;
+    },
+  ) {
+    return this.comando(organizationId, expectedVersion, (atual) => {
+      if (input.period.start >= input.period.end) {
+        throw new ConflictException(
+          'Provider billing period is invalid',
+          'INVALID_PROVIDER_PERIOD',
+        );
+      }
+      if (
+        input.activate &&
+        atual.effectiveStatus !== SubscriptionStatus.ACTIVE &&
+        !allowsTransition(atual.effectiveStatus, SubscriptionStatus.ACTIVE)
+      ) {
+        throw new SubscriptionInvalidTransitionException(
+          atual.effectiveStatus,
+          SubscriptionStatus.ACTIVE,
+        );
+      }
+
+      const destino = planDefinition(input.planCode);
+      const contractedChanged =
+        atual.planCode !== destino.code ||
+        atual.billingInterval !== input.billingInterval;
+      return {
+        ...(contractedChanged
+          ? {
+              planCode: destino.code,
+              catalogVersion: CATALOG_VERSION,
+              entitlementsSnapshot: snapshotOf(
+                destino,
+              ) as unknown as Prisma.InputJsonValue,
+              billingInterval: input.billingInterval,
+              billingAnchorAt: input.period.start,
+            }
+          : {}),
+        ...(input.activate ? { status: SubscriptionStatus.ACTIVE } : {}),
+        currentPeriodStart: input.period.start,
+        currentPeriodEnd: input.period.end,
+        graceStartsAt: null,
+        graceEndsAt: null,
+        cancelAtPeriodEnd: input.cancelAtPeriodEnd,
+        canceledAt: input.cancelAtPeriodEnd
+          ? (atual.canceledAt ?? new Date())
+          : null,
+        pendingPlanCode: null,
+        pendingBillingInterval: null,
+        pendingCatalogVersion: null,
+        pendingEntitlementsSnapshot: Prisma.DbNull,
+        pendingEffectiveAt: null,
+      };
+    });
+  }
+
+  /** Reflete somente o cancelamento que o provedor confirmou. */
+  async applyProviderCancellation(
+    organizationId: string,
+    expectedVersion: number,
+    cancelAtPeriodEnd: boolean,
+  ) {
+    return this.comando(organizationId, expectedVersion, (atual) => {
+      if (isTerminal(atual.effectiveStatus)) {
+        throw new SubscriptionInvalidTransitionException(
+          atual.effectiveStatus,
+          SubscriptionStatus.CANCELED,
+        );
+      }
+      return {
+        cancelAtPeriodEnd,
+        canceledAt: cancelAtPeriodEnd ? (atual.canceledAt ?? new Date()) : null,
       };
     });
   }

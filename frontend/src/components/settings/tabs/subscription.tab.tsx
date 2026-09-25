@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   useBillingOverview,
+  useCancelScheduledChange,
   useCancelRenewal,
   useChangePlan,
   useCreateCheckout,
@@ -61,6 +62,7 @@ export function SubscriptionSettingsTab() {
   const cancelar = useCancelRenewal();
   const manter = useKeepSubscription();
   const trocar = useChangePlan();
+  const desfazerTroca = useCancelScheduledChange();
 
   const [confirmacao, setConfirmacao] = useState<Confirmacao | null>(null);
 
@@ -119,7 +121,10 @@ export function SubscriptionSettingsTab() {
   const dados = overview.data;
   const assinatura = dados.subscription;
   const comandoPendente =
-    cancelar.isPending || manter.isPending || trocar.isPending;
+    cancelar.isPending ||
+    manter.isPending ||
+    trocar.isPending ||
+    desfazerTroca.isPending;
 
   const iniciarCheckout = (planCode: string, intervalo: string) =>
     void proteger(async () => {
@@ -170,6 +175,14 @@ export function SubscriptionSettingsTab() {
           void proteger(async () => {
             if (!assinatura) return;
             await manter.mutateAsync({ expectedVersion: assinatura.version });
+          })
+        }
+        onCancelScheduledChange={() =>
+          void proteger(async () => {
+            if (!assinatura) return;
+            await desfazerTroca.mutateAsync({
+              expectedVersion: assinatura.version,
+            });
           })
         }
         onOpenPortal={abrirPortal}
@@ -317,8 +330,9 @@ function ConfirmacaoDialog({
               <>
                 {" "}
                 A periodicidade passará a ser{" "}
-                {BILLING_INTERVAL_LABELS[confirmacao.intervalo]?.toLowerCase() ??
-                  "outra"}
+                {BILLING_INTERVAL_LABELS[
+                  confirmacao.intervalo
+                ]?.toLowerCase() ?? "outra"}
                 .
               </>
             ) : null}

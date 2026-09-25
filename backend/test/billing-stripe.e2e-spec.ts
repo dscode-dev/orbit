@@ -32,6 +32,7 @@ import {
   ProviderBillingState,
   type BillingProvider,
   type ProviderCheckoutSession,
+  type ProviderPlanChange,
   type ProviderSubscription,
 } from '../src/modules/billing/billing.types';
 import { BillingReconciliationService } from '../src/modules/billing/billing-reconciliation.service';
@@ -155,7 +156,11 @@ class ProvedorDeTeste implements BillingProvider {
     return Promise.resolve(atual);
   }
 
-  changePlan(): Promise<ProviderSubscription> {
+  changePlan(): Promise<ProviderPlanChange> {
+    return Promise.reject(new Error('não exercitado nesta suíte'));
+  }
+
+  cancelScheduledPlanChange(): Promise<ProviderSubscription> {
     return Promise.reject(new Error('não exercitado nesta suíte'));
   }
 
