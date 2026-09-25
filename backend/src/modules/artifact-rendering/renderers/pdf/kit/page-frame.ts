@@ -182,6 +182,16 @@ function paintHeader(
     corpoDoTitulo -= 1;
   }
   document.fontSize(corpoDoTitulo);
+  /**
+   * Duas larguras, e a diferença entre elas importa.
+   *
+   * `larguraDoTitulo` é quanto o texto mede — serve para o logo não passar do
+   * nome do documento. Mas é `larguraDaColuna` que vai para o `text()`: passar
+   * a largura medida deixava a caixa **exatamente** do tamanho do texto, e o
+   * layout interno do pdfkit calcula quebra com regras um pouco diferentes de
+   * `widthOfString`. Sem folga, "Relatório de Visita Técnica" quebrava na
+   * última palavra e a segunda linha saía por trás da pílula.
+   */
   const larguraDoTitulo = Math.min(
     document.widthOfString(identity.documentTitle),
     larguraDaColuna,
@@ -223,7 +233,7 @@ function paintHeader(
     .fontSize(corpoDoTitulo)
     .fillColor(theme.onShell)
     .text(identity.documentTitle, colunaDoTitulo, y, {
-      width: larguraDoTitulo,
+      width: larguraDaColuna,
       lineBreak: false,
       ellipsis: true,
     });
