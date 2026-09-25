@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   type NestInterceptor,
+  StreamableFile,
 } from '@nestjs/common';
 import { redactSensitivePath } from '../common/redact-sensitive-path';
 import type { Request, Response } from 'express';
@@ -123,24 +124,36 @@ export class LoggingInterceptor implements NestInterceptor {
   }
 }
 
-/** Wraps successful controller results in the global API envelope. */
+/**
+ * Wraps successful controller results in the global API envelope.
+ *
+ * **Exceto arquivo.** Uma rota que devolve `StreamableFile` já escolheu o
+ * `Content-Type` e o `Content-Disposition` do corpo; embrulhar o stream num
+ * envelope JSON produz a pior combinação possível — cabeçalhos dizendo
+ * `application/pdf` e um corpo que é `{ "success": true, ... }`. O navegador
+ * salva o arquivo, o arquivo não abre, e nada na resposta denuncia o motivo.
+ */
 @Injectable()
 export class ResponseInterceptor<T> implements NestInterceptor<
   T,
-  IBaseResponse<T>
+  IBaseResponse<T> | StreamableFile
 > {
   intercept(
     context: ExecutionContext,
     next: CallHandler<T>,
-  ): Observable<IBaseResponse<T>> {
+  ): Observable<IBaseResponse<T> | StreamableFile> {
     const request = context.switchToHttp().getRequest<FoundationRequest>();
     return next.handle().pipe(
-      map((data) => ({
-        success: true,
-        data,
-        requestId: request.id ?? 'unknown',
-        timestamp: new Date().toISOString(),
-      })),
+      map((data) =>
+        data instanceof StreamableFile
+          ? data
+          : {
+              success: true,
+              data,
+              requestId: request.id ?? 'unknown',
+              timestamp: new Date().toISOString(),
+            },
+      ),
     );
   }
 }

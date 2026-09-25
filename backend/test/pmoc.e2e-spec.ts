@@ -1435,6 +1435,41 @@ describe('PMOC (e2e)', () => {
     await http().get('/api/v1/pmoc/plans').expect(401);
   }, 90000);
 
+  /**
+   * O documento do plano é o papel que o fiscal pede na porta. Aqui importa
+   * que ele saia com os equipamentos **cobertos por este plano** — não os do
+   * cliente, não os da unidade — e que a rota não seja engolida por
+   * `plans/:id`, que é declarada logo depois dela.
+   */
+  it('emite o documento do plano em PDF, com as coberturas do plano', async () => {
+    const plan = await createPlan();
+    await auth(http().post(`/api/v1/pmoc/plans/${plan.id}/equipment`))
+      .send({ assetId: assetA })
+      .expect(201);
+
+    const response = await auth(
+      http().get(`/api/v1/pmoc/plans/${plan.id}/document`),
+    ).expect(200);
+
+    expect(response.headers['content-type']).toContain('application/pdf');
+    expect(response.headers['content-disposition']).toContain('inline');
+    /* O plano muda sem emitir nada: um PDF em cache seria uma declaração
+       desatualizada arquivada como se fosse a atual. */
+    expect(response.headers['cache-control']).toContain('no-store');
+    expect(response.body).toBeInstanceOf(Buffer);
+    expect((response.body as Buffer).subarray(0, 5).toString()).toBe('%PDF-');
+    expect((response.body as Buffer).length).toBeGreaterThan(2000);
+  }, 60000);
+
+  it('o documento do plano não atravessa organizações', async () => {
+    const mine = await createPlan();
+
+    await auth(
+      http().get(`/api/v1/pmoc/plans/${mine.id}/document`),
+      neighbourToken,
+    ).expect(404);
+  }, 60000);
+
   it('24 · plano de outra organização não é visível', async () => {
     const mine = await createPlan();
 
