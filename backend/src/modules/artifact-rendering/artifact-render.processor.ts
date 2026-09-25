@@ -31,7 +31,6 @@
  * mesmo conteúdo — visível no histórico, que é onde deve estar.
  */
 import {
-  Inject,
   Injectable,
   Logger,
   Optional,
@@ -52,10 +51,6 @@ import { ArtifactRenderRepository } from './artifact-render.repository';
 import { ArtifactRendererRegistry } from './renderers/renderer.registry';
 import type { RenderJobPayload } from './artifact-render.service';
 import { MobileNotificationService } from '../notifications/mobile-notification.service';
-import {
-  STORAGE_PROVIDER,
-  type StorageProvider,
-} from '../storage/storage.types';
 
 /** Nome do arquivo emitido — o código da execução é o que identifica. */
 const fileNameFor = (code: string, format: string): string =>

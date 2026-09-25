@@ -28,8 +28,11 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { Permissions } from '../../decorators';
 import { ForbiddenException } from '../../exceptions';
 import { ParseUUIDv7Pipe } from '../../pipes';
@@ -206,6 +209,37 @@ export class PmocController {
   })
   preview(@Req() request: IdentityRequest, @Body() input: PreviewPmocPlanDto) {
     return this.pmoc.preview(this.actor(request), input);
+  }
+
+  /**
+   * O documento do plano, desenhado na hora.
+   *
+   * Vem antes de `plans/:id` de propósito: o Nest resolve na ordem de
+   * declaração, e uma rota mais específica registrada depois nunca é alcançada.
+   *
+   * `pmoc.read` e não `pmoc.manage`: imprimir a configuração é leitura dela.
+   * `no-store` porque o plano muda sem emitir nada — um PDF em cache mostraria
+   * a cobertura de antes da última alteração, e quem arquivasse esse papel
+   * arquivaria uma declaração falsa.
+   */
+  @Get('plans/:id/document')
+  @Capabilities('pmoc.read')
+  @Permissions('pmoc.read')
+  @ApiOperation({ summary: 'PMOC plan document (PDF) for filing and audit' })
+  async document(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const documento = await this.pmoc.document(id, this.actor(request));
+
+    response.set({
+      'Content-Type': documento.mimeType,
+      'Content-Disposition': `inline; filename="${documento.fileName}"`,
+      'Cache-Control': 'no-store',
+    });
+
+    return new StreamableFile(documento.bytes);
   }
 
   @Get('plans/:id')

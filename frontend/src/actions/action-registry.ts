@@ -684,6 +684,27 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     permission: "artifact_manifests.read",
     capability: "artifact_manifests.read",
   }),
+  /**
+   * Rascunho, não revisão.
+   *
+   * `preview-document` abre um documento **emitido** — por isso pede
+   * `artifact_manifests.read`. Este abre o que sairia se a emissão fosse
+   * agora: não há manifesto para ler, e a autorização é a mesma da rota
+   * (`GET /artifact-executions/:id/preview`), que é leitura da execução.
+   *
+   * Separar as duas importa porque quem revisa antes de emitir muitas vezes
+   * não tem acesso ao acervo emitido, e vice-versa.
+   */
+  define({
+    id: "artifact-execution.preview-draft",
+    entity: "artifact-execution",
+    label: "Pré-visualizar",
+    description: "Mostra como o documento sairia, sem emitir nem versionar.",
+    icon: Eye,
+    category: "document",
+    permission: "artifact_executions.read",
+    capability: "artifact_executions.read",
+  }),
   define({
     id: "artifact-execution.download-document",
     entity: "artifact-execution",

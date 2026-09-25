@@ -1929,38 +1929,40 @@ export class PmocRepository {
       });
       if (!plan) return null;
 
-      const [coverages, planUnits] = await Promise.all([
-        tx.pmocEquipmentCoverage.findMany({
-          where: { planId, organizationId, deletedAt: null },
-          orderBy: { createdAt: 'asc' },
-          select: {
-            startsOn: true,
-            asset: {
-              select: {
-                name: true,
-                manufacturer: true,
-                model: true,
-                identifier: true,
-                serialNumber: true,
-                location: true,
-                specifications: true,
-              },
+      /* Sequencial, não `Promise.all`: são consultas do mesmo cliente
+         transacional, que o driver serializa de qualquer forma enquanto
+         mantém a transação aberta pelo intervalo inteiro. */
+      const coverages = await tx.pmocEquipmentCoverage.findMany({
+        where: { planId, organizationId, deletedAt: null },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          startsOn: true,
+          asset: {
+            select: {
+              name: true,
+              manufacturer: true,
+              model: true,
+              identifier: true,
+              serialNumber: true,
+              location: true,
+              specifications: true,
             },
           },
-        }),
-        tx.pmocPlanUnit.findMany({
-          where: { planId, plan: { organizationId } },
-          orderBy: { createdAt: 'asc' },
-          select: {
-            unit: {
-              select: {
-                name: true,
-                checklistTemplate: { select: { name: true } },
-              },
+        },
+      });
+
+      const planUnits = await tx.pmocPlanUnit.findMany({
+        where: { planId, plan: { organizationId } },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          unit: {
+            select: {
+              name: true,
+              checklistTemplate: { select: { name: true } },
             },
           },
-        }),
-      ]);
+        },
+      });
 
       return { plan, coverages, planUnits };
     });

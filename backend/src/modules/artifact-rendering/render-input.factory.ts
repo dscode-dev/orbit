@@ -16,14 +16,22 @@
  * mesmo renderer. A diferença entre eles é só o que acontece com os bytes.
  */
 import { Inject, Injectable } from '@nestjs/common';
-import { STORAGE_PROVIDER, type StorageProvider } from '../storage/storage.types';
+import {
+  STORAGE_PROVIDER,
+  type StorageProvider,
+} from '../storage/storage.types';
 import { ArtifactRenderAssembler } from './artifact-render.assembler';
 import { DocumentContextBuilder } from './document-context.builder';
 import type { RenderInput } from './renderers/artifact-renderer';
+import { PMOC_EXECUTION_LEGAL_REFERENCE } from './renderers/pdf/documents/legal';
 
 /** A linha que o repositório devolve, com os anexos já resolvidos. */
 type RenderSource = NonNullable<
-  Awaited<ReturnType<import('./artifact-render.repository').ArtifactRenderRepository['findRenderSource']>>
+  Awaited<
+    ReturnType<
+      import('./artifact-render.repository').ArtifactRenderRepository['findRenderSource']
+    >
+  >
 >;
 
 @Injectable()
@@ -48,7 +56,7 @@ export class RenderInputFactory {
       operation: source.operation,
       legalReference:
         source.snapshot.artifactType === 'PMOC'
-          ? 'Plano de Manutenção, Operação e Controle — Lei nº 13.589/2018.'
+          ? PMOC_EXECUTION_LEGAL_REFERENCE
           : undefined,
     });
 

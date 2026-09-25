@@ -215,6 +215,7 @@ export class ArtifactRenderService {
     return {
       ...this.metrics.snapshot(),
       renderers: this.renderers.available(),
+      defaultRenderer: defaultRendererFor(),
     };
   }
 

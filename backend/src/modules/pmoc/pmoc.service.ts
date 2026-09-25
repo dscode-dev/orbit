@@ -79,6 +79,7 @@ import { PmocRepository } from './pmoc.repository';
 import { WorkforceService } from '../workforce/workforce.service';
 import { ArtifactRenderService } from '../artifact-rendering/artifact-render.service';
 import { PmocPlanDocumentService } from '../artifact-rendering/pmoc-plan-document.service';
+import { PMOC_PLAN_LEGAL_REFERENCE } from '../artifact-rendering/renderers/pdf/documents/legal';
 
 /** Quem pediu, e o que ele pode. */
 export interface PmocActor {
@@ -110,33 +111,54 @@ function documentoFormatado(
   if (!numero) return undefined;
   const digitos = numero.replace(/\D/g, '');
   if (tipo === 'CNPJ' && digitos.length === 14) {
-    return digitos.replace(
+    const mascarado = digitos.replace(
       /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
       '$1.$2.$3/$4-$5',
     );
+    return `CNPJ ${mascarado}`;
   }
   if (tipo === 'CPF' && digitos.length === 11) {
-    return digitos.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+    const mascarado = digitos.replace(
+      /^(\d{3})(\d{3})(\d{3})(\d{2})$/,
+      '$1.$2.$3-$4',
+    );
+    return `CPF ${mascarado}`;
   }
-  return numero;
+  return tipo ? `${tipo} ${numero}` : numero;
 }
 
-function enderecoDaUnidade(unidade: {
-  street?: string | null;
-  number?: string | null;
-  district?: string | null;
-  city?: string | null;
-  stateCode?: string | null;
-} | null) {
+function enderecoDaUnidade(
+  unidade: {
+    street?: string | null;
+    number?: string | null;
+    district?: string | null;
+  } | null,
+) {
   if (!unidade) return undefined;
   const logradouro = [unidade.street, unidade.number]
     .filter(Boolean)
     .join(', ');
-  const cidade = [unidade.city, unidade.stateCode].filter(Boolean).join('/');
-  const partes = [logradouro, unidade.district, cidade].filter(
+  const partes = [logradouro, unidade.district].filter(
     (parte) => parte && parte.length > 0,
   );
   return partes.length > 0 ? partes.join(' — ') : undefined;
+}
+
+function cidadeUf(
+  unidade: { city?: string | null; stateCode?: string | null } | null,
+) {
+  const partes = [unidade?.city, unidade?.stateCode].filter(Boolean);
+  return partes.length > 0 ? partes.join('/') : undefined;
+}
+
+/** `serviceTypes` é JSONB livre no banco; só imprimimos o que for texto. */
+function listaDeTextos(valor: unknown): readonly string[] | undefined {
+  if (!Array.isArray(valor)) return undefined;
+  const textos = valor
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return textos.length > 0 ? textos : undefined;
 }
 
 /**
@@ -718,16 +740,14 @@ export class PmocService {
     const bytes = await this.planDocument.render({
       timezone: fuso,
       emitter: {
-        name:
-          plan.businessUnit?.tradeName ??
-          plan.businessUnit?.legalName ??
-          'Orbit',
+        tradeName: plan.businessUnit?.tradeName ?? undefined,
         legalName: plan.businessUnit?.legalName ?? undefined,
         document: documentoFormatado(
           plan.businessUnit?.documentType,
           plan.businessUnit?.documentNumber,
         ),
         address: enderecoDaUnidade(plan.businessUnit),
+        cityState: cidadeUf(plan.businessUnit),
         phone: plan.businessUnit?.phone ?? undefined,
         email: plan.businessUnit?.email ?? undefined,
         website: plan.businessUnit?.website ?? undefined,
@@ -741,9 +761,12 @@ export class PmocService {
           coverageEnd: dataSimples(plan.endsOn),
           cadence: frequencyLabel({
             amount: plan.frequencyAmount,
+            // `frequency_unit` é VARCHAR no banco, não enum: o cast é a mesma
+            // convenção do mapper, e `frequencyLabel` já tem queda para
+            // "período" se algum dia chegar um valor fora da lista.
             unit: plan.frequencyUnit as FrequencyUnit,
           }),
-          serviceTypes: plan.serviceTypes ?? undefined,
+          serviceTypes: listaDeTextos(plan.serviceTypes),
           notes: plan.notes ?? undefined,
           technicalResponsible:
             plan.technicalResponsible?.displayName ?? undefined,
@@ -775,6 +798,7 @@ export class PmocService {
           checklist: link.unit.checklistTemplate?.name ?? undefined,
         })),
         procedure: roteiroDoPlano(plan.procedure),
+        legalReference: PMOC_PLAN_LEGAL_REFERENCE,
       },
     });
 

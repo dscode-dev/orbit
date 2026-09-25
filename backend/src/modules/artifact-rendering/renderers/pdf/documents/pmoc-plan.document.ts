@@ -79,14 +79,20 @@ export interface PmocPlanDocumentInput {
   readonly legalReference?: string;
 }
 
+/**
+ * A capacidade tem peso alto para o que mostra ("36.000 BTU/h", uma linha
+ * curta): abaixo disso ela quebra em "36.000 BTU/" + "h" em toda linha da
+ * tabela. Setor e equipamento cedem o espaço porque são os que já quebram em
+ * duas linhas de qualquer jeito — e quebram bem.
+ */
 const COLUNAS_DO_EQUIPAMENTO: readonly TableColumn[] = [
   { header: 'Item', weight: 0.7, align: 'center' },
-  { header: 'Setor', weight: 1.9 },
-  { header: 'Equipamento', weight: 2.4 },
-  { header: 'Marca', weight: 1.5 },
-  { header: 'Modelo', weight: 1.7 },
+  { header: 'Setor', weight: 1.8 },
+  { header: 'Equipamento', weight: 2.2 },
+  { header: 'Marca', weight: 1.4 },
+  { header: 'Modelo', weight: 1.6 },
   { header: 'Identificação', weight: 1.8, mono: true },
-  { header: 'Capacidade', weight: 1.3, align: 'right' },
+  { header: 'Capacidade', weight: 1.8, align: 'right' },
 ];
 
 export function composePmocPlan(
