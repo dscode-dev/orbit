@@ -156,54 +156,60 @@ function paintHeader(
    * O eixo é o da coluna do título, e não o da página: o timbre ocupa a
    * direita, e centrar na página jogaria o logo por cima dele.
    */
-  const topo = 20;
+  /**
+   * O bloco é medido inteiro antes de ser desenhado, e então centrado na
+   * vertical da faixa.
+   *
+   * Antes ele crescia por acumulação — `y += altura do logo`, depois
+   * `document.y + 7` para a pílula — e ninguém conferia se o conjunto ainda
+   * cabia. Com logo, a pílula passava do filete. Medindo primeiro, ou o bloco
+   * cabe ou o título cede corpo, e a faixa nunca é estourada.
+   */
   const colunaDoTitulo = esquerda;
   const larguraDaColuna = largura * 0.54;
-  let y = topo;
 
-  if (identity.emitter?.logo) {
-    try {
-      const alturaDoLogo = 38;
-      /* `fit` mantém a proporção e devolve o encaixe dentro da caixa; para
-         centrar é preciso saber a largura que ele de fato ocupou, e o pdfkit
-         não a informa. Medimos pela proporção declarada na própria imagem. */
-      const largura_ = larguraRenderizada(
-        identity.emitter.logo,
-        alturaDoLogo,
-        larguraDaColuna,
-      );
-      document.image(
-        identity.emitter.logo,
-        colunaDoTitulo + (larguraDaColuna - largura_) / 2,
-        y,
-        { fit: [larguraDaColuna, alturaDoLogo] },
-      );
-      y += alturaDoLogo + 12;
-    } catch {
-      /* Logo ilegível não derruba o documento: o nome cobre a identificação. */
-    }
-  }
+  const logo = identity.emitter?.logo
+    ? medirLogo(identity.emitter.logo, larguraDaColuna)
+    : null;
 
-  const temLogo = y > topo;
+  const ALTURA_DA_PILULA = 16;
+  const ESPACO_APOS_LOGO = 10;
+  const ESPACO_ANTES_DA_PILULA = 7;
 
-  /**
-   * O corpo do título cede para caber numa linha.
-   *
-   * `lineBreak: false` não impede o pdfkit de quebrar num espaço quando há
-   * `width`, e "Relatório de Qualidade do Ar" em corpo 21 ocupava duas linhas
-   * — empurrando a pílula do código contra o filete da faixa. Medir e reduzir
-   * até caber mantém a faixa com altura previsível, que é o que permite o
-   * resto do cabeçalho ter posição fixa.
-   */
-  const larguraDoTitulo = larguraDaColuna;
-  let corpoDoTitulo = 21;
+  /* O corpo do título cede até caber numa linha: `lineBreak: false` não
+     impede o pdfkit de quebrar num espaço quando há `width`. */
+  let corpoDoTitulo = logo ? 19 : 21;
   document.font(FONTS.bold);
   while (
     corpoDoTitulo > 12 &&
     document.fontSize(corpoDoTitulo).widthOfString(identity.documentTitle) >
-      larguraDoTitulo
+      larguraDaColuna
   ) {
     corpoDoTitulo -= 1;
+  }
+  const alturaDoTitulo = document.fontSize(corpoDoTitulo).currentLineHeight();
+
+  const alturaDoBloco =
+    (logo ? logo.altura + ESPACO_APOS_LOGO : 0) +
+    alturaDoTitulo +
+    ESPACO_ANTES_DA_PILULA +
+    ALTURA_DA_PILULA;
+
+  /* Centrado na faixa, e nunca acima da margem de respiro do topo. */
+  let y = Math.max(16, (alturaDaFaixa - alturaDoBloco) / 2);
+
+  if (logo) {
+    try {
+      document.image(
+        logo.bytes,
+        colunaDoTitulo + (larguraDaColuna - logo.largura) / 2,
+        y,
+        { fit: [larguraDaColuna, logo.altura] },
+      );
+      y += logo.altura + ESPACO_APOS_LOGO;
+    } catch {
+      /* Logo ilegível não derruba o documento: o nome cobre a identificação. */
+    }
   }
 
   document
@@ -211,11 +217,13 @@ function paintHeader(
     .fontSize(corpoDoTitulo)
     .fillColor(theme.onShell)
     .text(identity.documentTitle, colunaDoTitulo, y, {
-      width: larguraDoTitulo,
-      align: temLogo ? 'center' : 'left',
+      width: larguraDaColuna,
+      align: logo ? 'center' : 'left',
       lineBreak: false,
       ellipsis: true,
     });
+
+  y += alturaDoTitulo + ESPACO_ANTES_DA_PILULA;
 
   /* A pílula acompanha o título: centrada quando há logo, à esquerda quando o
      bloco começa na margem. */
@@ -223,10 +231,10 @@ function paintHeader(
   pill(
     document,
     identity.documentCode,
-    temLogo
+    logo
       ? colunaDoTitulo + (larguraDaColuna - larguraDaPilula) / 2
       : colunaDoTitulo,
-    document.y + 7,
+    y,
     theme,
   );
 
@@ -243,7 +251,10 @@ function paintHeader(
 
     const colunaX = esquerda + largura * 0.58;
     const colunaLargura = largura * 0.42;
-    let yDireita = topo;
+    /* O timbre começa no topo da faixa, independente do bloco da esquerda:
+       é uma coluna própria, e amarrá-la ao bloco do título faria ela descer
+       junto quando o cliente tem logo. */
+    let yDireita = 20;
 
     if (emitter.tradeName) {
       document
@@ -408,29 +419,34 @@ function paintFooter(
 }
 
 /**
- * A largura que uma imagem ocupa ao ser encaixada numa altura.
+ * O logo medido: bytes e o tamanho que vai ocupar.
  *
- * `fit` do pdfkit preserva a proporção e não informa a largura resultante, que
- * é justamente o que falta para centrar o logo. Lemos as dimensões do cabeçalho
- * do arquivo: PNG traz largura e altura no `IHDR`, JPEG no marcador `SOFn`.
+ * `fit` do pdfkit preserva a proporção e não informa o resultado, que é o que
+ * falta para centrar. As dimensões saem do cabeçalho do arquivo — `IHDR` no
+ * PNG, marcador `SOFn` no JPEG.
  *
- * Sem conseguir ler, devolvemos a largura máxima — o logo fica alinhado à
- * esquerda da coluna em vez de centrado, que é degradação aceitável para um
- * formato que não soubemos medir.
+ * Logo que não soubermos medir ocupa a caixa inteira e fica alinhado à
+ * esquerda: degradação aceitável para um formato desconhecido.
  */
-function larguraRenderizada(
+function medirLogo(
   bytes: Buffer,
-  altura: number,
   larguraMaxima: number,
-): number {
+): { bytes: Buffer; largura: number; altura: number } {
+  const ALTURA_ALVO = 34;
   const dimensoes = dimensoesDaImagem(bytes);
-  if (!dimensoes) return larguraMaxima;
+  if (!dimensoes) {
+    return { bytes, largura: larguraMaxima, altura: ALTURA_ALVO };
+  }
 
   const escala = Math.min(
-    altura / dimensoes.altura,
+    ALTURA_ALVO / dimensoes.altura,
     larguraMaxima / dimensoes.largura,
   );
-  return dimensoes.largura * escala;
+  return {
+    bytes,
+    largura: dimensoes.largura * escala,
+    altura: dimensoes.altura * escala,
+  };
 }
 
 function dimensoesDaImagem(
