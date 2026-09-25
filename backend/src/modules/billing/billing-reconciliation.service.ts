@@ -39,6 +39,7 @@ import {
 import { BillingRepository } from './billing.repository';
 import {
   BILLING_PROVIDER,
+  ProviderFinancialAdjustmentType,
   ProviderBillingState,
   type BillingProvider,
   type ProviderSubscription,
@@ -53,6 +54,18 @@ const EVENTOS_TRATADOS = new Set([
   'customer.subscription.deleted',
   'invoice.paid',
   'invoice.payment_failed',
+  'invoice.created',
+  'invoice.finalized',
+  'invoice.updated',
+  'invoice.voided',
+  'invoice.marked_uncollectible',
+  'invoice.payment_action_required',
+  'refund.created',
+  'refund.updated',
+  'refund.failed',
+  'charge.dispute.created',
+  'charge.dispute.updated',
+  'charge.dispute.closed',
 ]);
 
 const LOTE = 50;
@@ -113,6 +126,12 @@ export class BillingReconciliationService {
       const isCheckout =
         evento.eventType === 'checkout.session.completed' ||
         evento.eventType === 'checkout.session.async_payment_succeeded';
+      const isInvoice = evento.eventType.startsWith('invoice.');
+      const adjustmentType = evento.eventType.startsWith('refund.')
+        ? ProviderFinancialAdjustmentType.REFUND
+        : evento.eventType.startsWith('charge.dispute.')
+          ? ProviderFinancialAdjustmentType.DISPUTE
+          : null;
       if (isCheckout && !evento.providerObjectId) {
         await this.repository.retryClaimedEvent({
           id: evento.id,
@@ -124,7 +143,34 @@ export class BillingReconciliationService {
         resumo.failed += 1;
         continue;
       }
-      if (!isCheckout && !evento.providerSubscriptionId) {
+      if (isInvoice && !evento.providerObjectId) {
+        await this.repository.retryClaimedEvent({
+          id: evento.id,
+          processingToken: evento.processingToken,
+          errorCode: 'NO_INVOICE',
+          nextAttemptAt: new Date(),
+          deadLetter: true,
+        });
+        resumo.failed += 1;
+        continue;
+      }
+      if (adjustmentType && !evento.providerObjectId) {
+        await this.repository.retryClaimedEvent({
+          id: evento.id,
+          processingToken: evento.processingToken,
+          errorCode: 'NO_FINANCIAL_ADJUSTMENT',
+          nextAttemptAt: new Date(),
+          deadLetter: true,
+        });
+        resumo.failed += 1;
+        continue;
+      }
+      if (
+        !isCheckout &&
+        !isInvoice &&
+        !adjustmentType &&
+        !evento.providerSubscriptionId
+      ) {
         await this.repository.finishClaimedEvent({
           id: evento.id,
           processingToken: evento.processingToken,
@@ -138,11 +184,24 @@ export class BillingReconciliationService {
       try {
         const providerSubscriptionId = isCheckout
           ? await this.checkoutFulfillment.fulfill(evento.providerObjectId!)
-          : evento.providerSubscriptionId!;
-        await this.reconcileProviderSubscription(
-          providerSubscriptionId,
-          evento.providerEventId,
-        );
+          : isInvoice
+            ? await this.reconcileProviderInvoice(
+                evento.providerObjectId!,
+                evento.providerEventId,
+              )
+            : adjustmentType
+              ? await this.reconcileProviderAdjustment(
+                  adjustmentType,
+                  evento.providerObjectId!,
+                  evento.providerEventId,
+                )
+              : evento.providerSubscriptionId!;
+        if (providerSubscriptionId) {
+          await this.reconcileProviderSubscription(
+            providerSubscriptionId,
+            evento.providerEventId,
+          );
+        }
         await this.repository.finishClaimedEvent({
           id: evento.id,
           processingToken: evento.processingToken,
@@ -308,6 +367,90 @@ export class BillingReconciliationService {
       if (!atual) return;
       await this.aplicar(atual, provedor, providerEventId);
     });
+  }
+
+  /**
+   * Materializa a fatura canônica e seu transition record.
+   *
+   * O evento só fornece a identidade. Valores, status, URLs e datas vêm de
+   * uma leitura atual do provedor; nenhum payload antigo vira razão financeiro.
+   */
+  async reconcileProviderInvoice(
+    providerInvoiceId: string,
+    providerEventId: string,
+  ): Promise<string | null> {
+    const invoice = await this.provider.retrieveInvoice(providerInvoiceId);
+    if (!invoice.providerSubscriptionId) {
+      this.logger.warn(
+        JSON.stringify({ stage: 'billing-invoice-without-subscription' }),
+      );
+      return null;
+    }
+    const local = await this.repository.findSubscriptionForLedgerByProviderId(
+      invoice.providerSubscriptionId,
+    );
+    if (!local) throw new Error('BILLING_INVOICE_SUBSCRIPTION_UNLINKED');
+    if (
+      !local.providerCustomerId ||
+      local.providerCustomerId !== invoice.providerCustomerId
+    ) {
+      throw new Error('BILLING_INVOICE_CUSTOMER_MISMATCH');
+    }
+
+    await this.comoInquilino(local.organizationId, () =>
+      this.repository.recordInvoice({
+        organizationId: local.organizationId,
+        subscriptionId: local.id,
+        provider: this.provider.name,
+        mode: this.provider.mode,
+        providerEventId,
+        invoice,
+      }),
+    );
+    return invoice.providerSubscriptionId;
+  }
+
+  async reconcileProviderAdjustment(
+    type: ProviderFinancialAdjustmentType,
+    providerObjectId: string,
+    providerEventId: string,
+  ): Promise<string | null> {
+    const adjustment = await this.provider.retrieveFinancialAdjustment(
+      type,
+      providerObjectId,
+    );
+    const invoice = await this.provider.retrieveInvoice(
+      adjustment.providerInvoiceId,
+    );
+    if (!invoice.providerSubscriptionId) return null;
+    const local = await this.repository.findSubscriptionForLedgerByProviderId(
+      invoice.providerSubscriptionId,
+    );
+    if (!local) throw new Error('BILLING_ADJUSTMENT_SUBSCRIPTION_UNLINKED');
+    if (
+      !local.providerCustomerId ||
+      local.providerCustomerId !== invoice.providerCustomerId
+    ) {
+      throw new Error('BILLING_ADJUSTMENT_CUSTOMER_MISMATCH');
+    }
+
+    await this.comoInquilino(local.organizationId, async () => {
+      await this.repository.recordInvoice({
+        organizationId: local.organizationId,
+        subscriptionId: local.id,
+        provider: this.provider.name,
+        mode: this.provider.mode,
+        providerEventId,
+        invoice,
+      });
+      await this.repository.recordFinancialAdjustment({
+        organizationId: local.organizationId,
+        provider: this.provider.name,
+        providerEventId,
+        adjustment,
+      });
+    });
+    return invoice.providerSubscriptionId;
   }
 
   /**

@@ -21,6 +21,7 @@ import { useSearchParams } from "next/navigation";
 import { AlertTriangle, Loader2 } from "lucide-react";
 
 import { CurrentSubscriptionCard } from "@/components/billing/current-subscription.card";
+import { BillingInvoiceHistory } from "@/components/billing/billing-invoice-history";
 import { PlanCatalogSection } from "@/components/billing/plan-catalog.section";
 import { PlanUsageSection } from "@/components/billing/plan-usage.section";
 import { PanelError, PanelLoading } from "@/components/panels";
@@ -191,6 +192,8 @@ export function SubscriptionSettingsTab() {
       />
 
       <PlanUsageSection entitlements={dados.entitlements} />
+
+      <BillingInvoiceHistory invoices={dados.invoices} />
 
       <PlanCatalogSection
         overview={dados}

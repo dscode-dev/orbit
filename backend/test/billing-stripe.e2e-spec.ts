@@ -32,6 +32,9 @@ import {
   ProviderBillingState,
   type BillingProvider,
   type ProviderCheckoutSession,
+  type ProviderFinancialAdjustment,
+  type ProviderInvoice,
+  ProviderInvoiceStatus,
   type ProviderPlanChange,
   type ProviderSubscription,
 } from '../src/modules/billing/billing.types';
@@ -99,6 +102,7 @@ class ProvedorDeTeste implements BillingProvider {
   enabled = true;
   /** Estado que o provedor "tem" agora, por assinatura. */
   readonly assinaturas = new Map<string, ProviderSubscription>();
+  readonly faturas = new Map<string, ProviderInvoice>();
   /** Quando ligado, toda leitura falha como indisponibilidade. */
   indisponivel = false;
   leituras = 0;
@@ -156,6 +160,19 @@ class ProvedorDeTeste implements BillingProvider {
     return Promise.resolve(atual);
   }
 
+  retrieveInvoice(id: string): Promise<ProviderInvoice> {
+    if (this.indisponivel) {
+      return Promise.reject(new BillingProviderUnavailableException('timeout'));
+    }
+    const invoice = this.faturas.get(id);
+    if (!invoice) return Promise.reject(new Error('unknown invoice'));
+    return Promise.resolve(invoice);
+  }
+
+  retrieveFinancialAdjustment(): Promise<ProviderFinancialAdjustment> {
+    return Promise.reject(new Error('não exercitado nesta suíte'));
+  }
+
   changePlan(): Promise<ProviderPlanChange> {
     return Promise.reject(new Error('não exercitado nesta suíte'));
   }
@@ -184,6 +201,48 @@ class ProvedorDeTeste implements BillingProvider {
     const assinatura = evento.type.startsWith('customer.subscription.')
       ? objeto['id']
       : objeto['subscription'];
+    if (
+      evento.type.startsWith('invoice.') &&
+      typeof objeto['id'] === 'string'
+    ) {
+      const now = new Date();
+      const paid = evento.type === 'invoice.paid';
+      this.faturas.set(objeto['id'], {
+        providerInvoiceId: objeto['id'],
+        providerSubscriptionId:
+          typeof assinatura === 'string' ? assinatura : null,
+        providerCustomerId: 'cus_test_suite',
+        number: 'TEST-0001',
+        status: paid ? ProviderInvoiceStatus.PAID : ProviderInvoiceStatus.OPEN,
+        currency: 'brl',
+        subtotalMinor: 14990,
+        discountMinor: 0,
+        taxMinor: 0,
+        totalMinor: 14990,
+        amountDueMinor: 14990,
+        amountPaidMinor: paid ? 14990 : 0,
+        amountRemainingMinor: paid ? 0 : 14990,
+        creditNotesMinor: 0,
+        attempted: true,
+        attemptCount: 1,
+        billingReason: 'subscription_cycle',
+        collectionMethod: 'charge_automatically',
+        hostedInvoiceUrl: 'https://invoice.stripe.test/i/TEST-0001',
+        invoicePdfUrl: 'https://invoice.stripe.test/i/TEST-0001.pdf',
+        periodStart: now,
+        periodEnd: new Date(now.getTime() + 30 * 86_400_000),
+        dueAt: null,
+        nextPaymentAttemptAt: paid
+          ? null
+          : new Date(now.getTime() + 86_400_000),
+        finalizedAt: now,
+        paidAt: paid ? now : null,
+        voidedAt: null,
+        markedUncollectibleAt: null,
+        providerCreatedAt: now,
+        providerObservedAt: now,
+      });
+    }
     return {
       providerEventId: evento.id,
       type: evento.type,

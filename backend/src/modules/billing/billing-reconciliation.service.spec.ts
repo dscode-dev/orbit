@@ -5,6 +5,8 @@ import {
   BillingMode,
   BillingProviderName,
   ProviderBillingState,
+  ProviderFinancialAdjustmentType,
+  ProviderInvoiceStatus,
   type BillingProvider,
 } from './billing.types';
 import {
@@ -42,6 +44,8 @@ describe('BillingReconciliationService durable inbox', () => {
       mode: BillingMode.TEST,
       isEnabled: jest.fn().mockReturnValue(true),
       retrieveSubscription: jest.fn(),
+      retrieveInvoice: jest.fn(),
+      retrieveFinancialAdjustment: jest.fn(),
     } as unknown as BillingProvider;
     const repository = {
       claimNextEvent: jest
@@ -51,6 +55,9 @@ describe('BillingReconciliationService durable inbox', () => {
       finishClaimedEvent: jest.fn().mockResolvedValue(undefined),
       retryClaimedEvent: jest.fn().mockResolvedValue(undefined),
       findSubscriptionByProviderId: jest.fn(),
+      findSubscriptionForLedgerByProviderId: jest.fn(),
+      recordInvoice: jest.fn().mockResolvedValue(undefined),
+      recordFinancialAdjustment: jest.fn().mockResolvedValue(undefined),
     };
     const checkout = { fulfill: jest.fn() };
     const subscriptions = {
@@ -203,5 +210,138 @@ describe('BillingReconciliationService durable inbox', () => {
         cancelAtPeriodEnd: false,
       },
     );
+  });
+
+  it('materializa a fatura canônica sem persistir payload do webhook', async () => {
+    const { service, provider, repository } = setup();
+    const now = new Date('2026-10-15T00:00:00.000Z');
+    const invoice = {
+      providerInvoiceId: 'in_test_1',
+      providerSubscriptionId: 'sub_test_1',
+      providerCustomerId: 'cus_test_1',
+      number: 'ORBIT-0001',
+      status: ProviderInvoiceStatus.PAID,
+      currency: 'brl',
+      subtotalMinor: 14990,
+      discountMinor: 0,
+      taxMinor: 0,
+      totalMinor: 14990,
+      amountDueMinor: 14990,
+      amountPaidMinor: 14990,
+      amountRemainingMinor: 0,
+      creditNotesMinor: 0,
+      attempted: true,
+      attemptCount: 1,
+      billingReason: 'subscription_cycle',
+      collectionMethod: 'charge_automatically',
+      hostedInvoiceUrl: 'https://invoice.stripe.test/i/ORBIT-0001',
+      invoicePdfUrl: 'https://invoice.stripe.test/i/ORBIT-0001.pdf',
+      periodStart: now,
+      periodEnd: new Date('2026-11-15T00:00:00.000Z'),
+      dueAt: null,
+      nextPaymentAttemptAt: null,
+      finalizedAt: now,
+      paidAt: now,
+      voidedAt: null,
+      markedUncollectibleAt: null,
+      providerCreatedAt: now,
+      providerObservedAt: now,
+    };
+    (provider.retrieveInvoice as jest.Mock).mockResolvedValue(invoice);
+    repository.findSubscriptionForLedgerByProviderId.mockResolvedValue({
+      id: '01900000-0000-7000-8000-000000000098',
+      organizationId: '01900000-0000-7000-8000-000000000099',
+      providerCustomerId: 'cus_test_1',
+    });
+
+    await expect(
+      service.reconcileProviderInvoice('in_test_1', 'evt_invoice_1'),
+    ).resolves.toBe('sub_test_1');
+    expect(repository.recordInvoice).toHaveBeenCalledWith({
+      organizationId: '01900000-0000-7000-8000-000000000099',
+      subscriptionId: '01900000-0000-7000-8000-000000000098',
+      provider: BillingProviderName.STRIPE,
+      mode: BillingMode.TEST,
+      providerEventId: 'evt_invoice_1',
+      invoice,
+    });
+  });
+
+  it('correlaciona reembolso pela fatura canônica e registra somente dados financeiros normalizados', async () => {
+    const { service, provider, repository } = setup();
+    const observedAt = new Date('2026-10-16T00:00:00.000Z');
+    const adjustment = {
+      type: ProviderFinancialAdjustmentType.REFUND,
+      providerObjectId: 're_test_1',
+      providerInvoiceId: 'in_test_1',
+      status: 'SUCCEEDED',
+      amountMinor: 14990,
+      currency: 'brl',
+      reason: 'requested_by_customer',
+      occurredAt: observedAt,
+      providerObservedAt: observedAt,
+    };
+    const invoice = {
+      providerInvoiceId: 'in_test_1',
+      providerSubscriptionId: 'sub_test_1',
+      providerCustomerId: 'cus_test_1',
+      number: 'ORBIT-0001',
+      status: ProviderInvoiceStatus.PAID,
+      currency: 'brl',
+      subtotalMinor: 14990,
+      discountMinor: 0,
+      taxMinor: 0,
+      totalMinor: 14990,
+      amountDueMinor: 14990,
+      amountPaidMinor: 14990,
+      amountRemainingMinor: 0,
+      creditNotesMinor: 0,
+      attempted: true,
+      attemptCount: 1,
+      billingReason: 'subscription_cycle',
+      collectionMethod: 'charge_automatically',
+      hostedInvoiceUrl: null,
+      invoicePdfUrl: null,
+      periodStart: observedAt,
+      periodEnd: new Date('2026-11-16T00:00:00.000Z'),
+      dueAt: null,
+      nextPaymentAttemptAt: null,
+      finalizedAt: observedAt,
+      paidAt: observedAt,
+      voidedAt: null,
+      markedUncollectibleAt: null,
+      providerCreatedAt: observedAt,
+      providerObservedAt: observedAt,
+    };
+    (provider.retrieveFinancialAdjustment as jest.Mock).mockResolvedValue(
+      adjustment,
+    );
+    (provider.retrieveInvoice as jest.Mock).mockResolvedValue(invoice);
+    repository.findSubscriptionForLedgerByProviderId.mockResolvedValue({
+      id: '01900000-0000-7000-8000-000000000098',
+      organizationId: '01900000-0000-7000-8000-000000000099',
+      providerCustomerId: 'cus_test_1',
+    });
+
+    await expect(
+      service.reconcileProviderAdjustment(
+        ProviderFinancialAdjustmentType.REFUND,
+        're_test_1',
+        'evt_refund_1',
+      ),
+    ).resolves.toBe('sub_test_1');
+    expect(repository.recordInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: '01900000-0000-7000-8000-000000000099',
+        providerEventId: 'evt_refund_1',
+        invoice,
+      }),
+    );
+    expect(repository.recordFinancialAdjustment).toHaveBeenCalledWith({
+      organizationId: '01900000-0000-7000-8000-000000000099',
+      provider: BillingProviderName.STRIPE,
+      providerEventId: 'evt_refund_1',
+      adjustment,
+    });
   });
 });

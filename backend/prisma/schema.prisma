@@ -244,6 +244,9 @@ model Organization {
   trialGrants                   SubscriptionTrialGrant[]
   billingCustomers              BillingCustomer[]
   billingCheckoutAttempts       BillingCheckoutAttempt[]
+  billingInvoices               BillingInvoice[]
+  billingInvoiceTransitions     BillingInvoiceTransition[]
+  billingFinancialAdjustments   BillingFinancialAdjustment[]
   integrations                  Integration[]
   sessions                      Session[]
   customers                     Customer[]
@@ -421,7 +424,7 @@ model OrganizationMembership {
   /// Optional access override for one member. BusinessUnitMembership remains
   /// scope-only; it never grants permissions or surfaces.
   usesCustomAccess      Boolean  @default(false) @map("uses_custom_access")
-  customPermissions    String[] @default([]) @map("custom_permissions") @db.VarChar(160)
+  customPermissions     String[] @default([]) @map("custom_permissions") @db.VarChar(160)
   customAllowedSurfaces String[] @default([]) @map("custom_allowed_surfaces") @db.VarChar(10)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -679,6 +682,7 @@ model OrganizationSubscription {
   organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   trialGrants      SubscriptionTrialGrant[]
   checkoutAttempts BillingCheckoutAttempt[]
+  billingInvoices  BillingInvoice[]
 
   @@unique([id, organizationId], map: "organization_subscriptions_tenant_identity")
   @@index([organizationId, endedAt])
@@ -808,6 +812,120 @@ model BillingCheckoutAttempt {
   @@map("billing_checkout_attempts")
 }
 
+/// Projeção financeira canônica de uma fatura do provedor.
+///
+/// Não guarda cartão, endereço, documento fiscal nem client secret. Valores
+/// são inteiros na menor unidade monetária e URLs são as superfícies hospedadas
+/// pelo próprio provedor, já validadas pelo adaptador.
+model BillingInvoice {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  subscriptionId String @map("subscription_id") @db.Uuid
+
+  provider          String  @db.VarChar(20)
+  mode              String  @db.VarChar(10)
+  providerInvoiceId String  @map("provider_invoice_id") @db.VarChar(255)
+  invoiceNumber     String? @map("invoice_number") @db.VarChar(120)
+
+  status               String @db.VarChar(30)
+  currency             String @db.Char(3)
+  subtotalMinor        Int    @map("subtotal_minor")
+  discountMinor        Int    @map("discount_minor")
+  taxMinor             Int    @map("tax_minor")
+  totalMinor           Int    @map("total_minor")
+  amountDueMinor       Int    @map("amount_due_minor")
+  amountPaidMinor      Int    @map("amount_paid_minor")
+  amountRemainingMinor Int    @map("amount_remaining_minor")
+  creditNotesMinor     Int    @map("credit_notes_minor")
+
+  attempted        Boolean
+  attemptCount     Int     @map("attempt_count")
+  billingReason    String? @map("billing_reason") @db.VarChar(60)
+  collectionMethod String  @map("collection_method") @db.VarChar(40)
+
+  hostedInvoiceUrl String? @map("hosted_invoice_url") @db.VarChar(2048)
+  invoicePdfUrl    String? @map("invoice_pdf_url") @db.VarChar(2048)
+
+  periodStart           DateTime  @map("period_start") @db.Timestamptz(3)
+  periodEnd             DateTime  @map("period_end") @db.Timestamptz(3)
+  dueAt                 DateTime? @map("due_at") @db.Timestamptz(3)
+  nextPaymentAttemptAt  DateTime? @map("next_payment_attempt_at") @db.Timestamptz(3)
+  finalizedAt           DateTime? @map("finalized_at") @db.Timestamptz(3)
+  paidAt                DateTime? @map("paid_at") @db.Timestamptz(3)
+  voidedAt              DateTime? @map("voided_at") @db.Timestamptz(3)
+  markedUncollectibleAt DateTime? @map("marked_uncollectible_at") @db.Timestamptz(3)
+  providerCreatedAt     DateTime  @map("provider_created_at") @db.Timestamptz(3)
+  providerObservedAt    DateTime  @map("provider_observed_at") @db.Timestamptz(3)
+  lastProviderEventId   String?   @map("last_provider_event_id") @db.VarChar(255)
+
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription OrganizationSubscription     @relation(fields: [subscriptionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  transitions  BillingInvoiceTransition[]
+  adjustments  BillingFinancialAdjustment[]
+
+  @@unique([id, organizationId], map: "billing_invoices_tenant_identity")
+  @@unique([provider, providerInvoiceId], map: "billing_invoices_provider_invoice_unique")
+  @@index([organizationId, providerCreatedAt(sort: Desc)])
+  @@index([subscriptionId, providerCreatedAt(sort: Desc)])
+  @@map("billing_invoices")
+}
+
+/// Razão append-only das observações que formaram a projeção da fatura.
+model BillingInvoiceTransition {
+  id                   String   @id @default(uuid(7)) @db.Uuid
+  organizationId       String   @map("organization_id") @db.Uuid
+  billingInvoiceId     String   @map("billing_invoice_id") @db.Uuid
+  provider             String   @db.VarChar(20)
+  providerEventId      String   @map("provider_event_id") @db.VarChar(255)
+  status               String   @db.VarChar(30)
+  totalMinor           Int      @map("total_minor")
+  amountPaidMinor      Int      @map("amount_paid_minor")
+  amountRemainingMinor Int      @map("amount_remaining_minor")
+  attemptCount         Int      @map("attempt_count")
+  observedAt           DateTime @map("observed_at") @db.Timestamptz(3)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice      BillingInvoice @relation(fields: [billingInvoiceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([provider, providerEventId], map: "billing_invoice_transitions_provider_event_unique")
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([billingInvoiceId, createdAt])
+  @@map("billing_invoice_transitions")
+}
+
+/// Reembolso ou disputa correlacionado a uma fatura da organização.
+model BillingFinancialAdjustment {
+  id                  String   @id @default(uuid(7)) @db.Uuid
+  organizationId      String   @map("organization_id") @db.Uuid
+  billingInvoiceId    String   @map("billing_invoice_id") @db.Uuid
+  provider            String   @db.VarChar(20)
+  type                String   @db.VarChar(20)
+  providerObjectId    String   @map("provider_object_id") @db.VarChar(255)
+  status              String   @db.VarChar(40)
+  amountMinor         Int      @map("amount_minor")
+  currency            String   @db.Char(3)
+  reason              String?  @db.VarChar(80)
+  occurredAt          DateTime @map("occurred_at") @db.Timestamptz(3)
+  providerObservedAt  DateTime @map("provider_observed_at") @db.Timestamptz(3)
+  lastProviderEventId String   @map("last_provider_event_id") @db.VarChar(255)
+  version             Int      @default(1)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice      BillingInvoice @relation(fields: [billingInvoiceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([provider, type, providerObjectId], map: "billing_financial_adjustments_provider_object_unique")
+  @@index([organizationId, occurredAt(sort: Desc)])
+  @@index([billingInvoiceId, occurredAt])
+  @@map("billing_financial_adjustments")
+}
+
 /// A caixa de entrada dos eventos do provedor.
 ///
 /// ## Por que existe
@@ -841,19 +959,19 @@ model BillingWebhookEvent {
   providerSubscriptionId String? @map("provider_subscription_id") @db.VarChar(255)
   apiVersion             String? @map("api_version") @db.VarChar(40)
 
-  providerCreatedAt DateTime  @map("provider_created_at") @db.Timestamptz(3)
-  receivedAt        DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
+  providerCreatedAt   DateTime  @map("provider_created_at") @db.Timestamptz(3)
+  receivedAt          DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
   /// `PENDING` · `PROCESSING` · `PROCESSED` · `IGNORED` · `DEAD_LETTER`.
-  processingStatus  String    @default("PENDING") @map("processing_status") @db.VarChar(20)
-  attempts          Int       @default(0)
-  nextAttemptAt     DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
-  processingToken   String?   @map("processing_token") @db.Uuid
+  processingStatus    String    @default("PENDING") @map("processing_status") @db.VarChar(20)
+  attempts            Int       @default(0)
+  nextAttemptAt       DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  processingToken     String?   @map("processing_token") @db.Uuid
   processingStartedAt DateTime? @map("processing_started_at") @db.Timestamptz(3)
-  leaseExpiresAt    DateTime? @map("lease_expires_at") @db.Timestamptz(3)
-  processedAt       DateTime? @map("processed_at") @db.Timestamptz(3)
-  deadLetteredAt    DateTime? @map("dead_lettered_at") @db.Timestamptz(3)
+  leaseExpiresAt      DateTime? @map("lease_expires_at") @db.Timestamptz(3)
+  processedAt         DateTime? @map("processed_at") @db.Timestamptz(3)
+  deadLetteredAt      DateTime? @map("dead_lettered_at") @db.Timestamptz(3)
   /// Código curto da falha. Nunca a mensagem crua do provedor.
-  lastErrorCode     String?   @map("last_error_code") @db.VarChar(80)
+  lastErrorCode       String?   @map("last_error_code") @db.VarChar(80)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)

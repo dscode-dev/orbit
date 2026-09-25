@@ -15,8 +15,14 @@ const assinatura = (
   billingInterval: "MONTHLY",
   status: "ACTIVE",
   version: 3,
-  billingPeriod: { start: "2026-09-15T00:00:00.000Z", end: "2026-10-15T00:00:00.000Z" },
-  usagePeriod: { start: "2026-09-15T00:00:00.000Z", end: "2026-10-15T00:00:00.000Z" },
+  billingPeriod: {
+    start: "2026-09-15T00:00:00.000Z",
+    end: "2026-10-15T00:00:00.000Z",
+  },
+  usagePeriod: {
+    start: "2026-09-15T00:00:00.000Z",
+    end: "2026-10-15T00:00:00.000Z",
+  },
   trial: null,
   cancelAtPeriodEnd: false,
   pendingChange: null,
@@ -32,7 +38,10 @@ const visao = (parcial: Partial<BillingOverview> = {}): BillingOverview => ({
     label: "Profissional",
     source: "SUBSCRIPTION",
     capabilities: [],
-    window: { start: "2026-09-15T00:00:00.000Z", end: "2026-10-15T00:00:00.000Z" },
+    window: {
+      start: "2026-09-15T00:00:00.000Z",
+      end: "2026-10-15T00:00:00.000Z",
+    },
     allocation: [],
     usage: [],
   },
@@ -43,6 +52,7 @@ const visao = (parcial: Partial<BillingOverview> = {}): BillingOverview => ({
     canOpenBillingPortal: true,
     allowedActions: ["START_CHECKOUT", "OPEN_BILLING_PORTAL"],
   },
+  invoices: [],
   ...parcial,
 });
 
@@ -137,7 +147,12 @@ describe("ações de cobrança", () => {
       expect(
         mostraAvaliacao(
           assinatura({
-            trial: { eligible: true, trialDays: 30, startsAt: null, endsAt: null },
+            trial: {
+              eligible: true,
+              trialDays: 30,
+              startsAt: null,
+              endsAt: null,
+            },
           }),
         ),
       ).toBe(true);

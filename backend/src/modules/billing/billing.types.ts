@@ -78,6 +78,70 @@ export interface ProviderPlanChange {
   readonly providerScheduleId: string | null;
 }
 
+export const ProviderInvoiceStatus = {
+  DRAFT: 'DRAFT',
+  OPEN: 'OPEN',
+  PAID: 'PAID',
+  VOID: 'VOID',
+  UNCOLLECTIBLE: 'UNCOLLECTIBLE',
+  UNKNOWN: 'UNKNOWN',
+} as const;
+export type ProviderInvoiceStatus =
+  (typeof ProviderInvoiceStatus)[keyof typeof ProviderInvoiceStatus];
+
+/** Fatura normalizada; deliberadamente sem PII ou dados do meio de pagamento. */
+export interface ProviderInvoice {
+  readonly providerInvoiceId: string;
+  readonly providerSubscriptionId: string | null;
+  readonly providerCustomerId: string;
+  readonly number: string | null;
+  readonly status: ProviderInvoiceStatus;
+  readonly currency: string;
+  readonly subtotalMinor: number;
+  readonly discountMinor: number;
+  readonly taxMinor: number;
+  readonly totalMinor: number;
+  readonly amountDueMinor: number;
+  readonly amountPaidMinor: number;
+  readonly amountRemainingMinor: number;
+  readonly creditNotesMinor: number;
+  readonly attempted: boolean;
+  readonly attemptCount: number;
+  readonly billingReason: string | null;
+  readonly collectionMethod: string;
+  readonly hostedInvoiceUrl: string | null;
+  readonly invoicePdfUrl: string | null;
+  readonly periodStart: Date;
+  readonly periodEnd: Date;
+  readonly dueAt: Date | null;
+  readonly nextPaymentAttemptAt: Date | null;
+  readonly finalizedAt: Date | null;
+  readonly paidAt: Date | null;
+  readonly voidedAt: Date | null;
+  readonly markedUncollectibleAt: Date | null;
+  readonly providerCreatedAt: Date;
+  readonly providerObservedAt: Date;
+}
+
+export const ProviderFinancialAdjustmentType = {
+  REFUND: 'REFUND',
+  DISPUTE: 'DISPUTE',
+} as const;
+export type ProviderFinancialAdjustmentType =
+  (typeof ProviderFinancialAdjustmentType)[keyof typeof ProviderFinancialAdjustmentType];
+
+export interface ProviderFinancialAdjustment {
+  readonly type: ProviderFinancialAdjustmentType;
+  readonly providerObjectId: string;
+  readonly providerInvoiceId: string;
+  readonly status: string;
+  readonly amountMinor: number;
+  readonly currency: string;
+  readonly reason: string | null;
+  readonly occurredAt: Date;
+  readonly providerObservedAt: Date;
+}
+
 export interface CheckoutSessionRequest {
   readonly checkoutAttemptId: string;
   readonly organizationId: string;
@@ -173,6 +237,13 @@ export interface BillingProvider {
   retrieveSubscription(
     providerSubscriptionId: string,
   ): Promise<ProviderSubscription>;
+
+  retrieveInvoice(providerInvoiceId: string): Promise<ProviderInvoice>;
+
+  retrieveFinancialAdjustment(
+    type: ProviderFinancialAdjustmentType,
+    providerObjectId: string,
+  ): Promise<ProviderFinancialAdjustment>;
 
   /** Troca o preço da assinatura. O provedor calcula o dinheiro, não o Orbit. */
   changePlan(input: {

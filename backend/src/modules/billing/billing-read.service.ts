@@ -34,6 +34,37 @@ export interface BillingOverviewReadModel {
   subscription: OrganizationSubscriptionReadModel | null;
   entitlements: OrganizationEntitlementsReadModel;
   billing: BillingReadinessReadModel;
+  invoices: readonly BillingInvoiceReadModel[];
+}
+
+export interface BillingInvoiceReadModel {
+  id: string;
+  number: string | null;
+  status: string;
+  currency: string;
+  totalMinor: number;
+  amountPaidMinor: number;
+  amountRemainingMinor: number;
+  creditNotesMinor: number;
+  attemptCount: number;
+  period: { start: string; end: string };
+  dueAt: string | null;
+  nextPaymentAttemptAt: string | null;
+  paidAt: string | null;
+  issuedAt: string;
+  hostedInvoiceUrl: string | null;
+  invoicePdfUrl: string | null;
+  adjustments: readonly BillingFinancialAdjustmentReadModel[];
+}
+
+export interface BillingFinancialAdjustmentReadModel {
+  id: string;
+  type: string;
+  status: string;
+  amountMinor: number;
+  currency: string;
+  reason: string | null;
+  occurredAt: string;
 }
 
 export interface BillingReadinessReadModel {
@@ -72,6 +103,39 @@ export class BillingReadService {
         : null,
       entitlements: await this.entitlements.describe(organizationId),
       billing: await this.readiness(organizationId),
+      invoices: (await this.repository.recentInvoices(organizationId)).map(
+        (invoice) => ({
+          id: invoice.id,
+          number: invoice.invoiceNumber,
+          status: invoice.status,
+          currency: invoice.currency,
+          totalMinor: invoice.totalMinor,
+          amountPaidMinor: invoice.amountPaidMinor,
+          amountRemainingMinor: invoice.amountRemainingMinor,
+          creditNotesMinor: invoice.creditNotesMinor,
+          attemptCount: invoice.attemptCount,
+          period: {
+            start: invoice.periodStart.toISOString(),
+            end: invoice.periodEnd.toISOString(),
+          },
+          dueAt: invoice.dueAt?.toISOString() ?? null,
+          nextPaymentAttemptAt:
+            invoice.nextPaymentAttemptAt?.toISOString() ?? null,
+          paidAt: invoice.paidAt?.toISOString() ?? null,
+          issuedAt: invoice.providerCreatedAt.toISOString(),
+          hostedInvoiceUrl: invoice.hostedInvoiceUrl,
+          invoicePdfUrl: invoice.invoicePdfUrl,
+          adjustments: invoice.adjustments.map((adjustment) => ({
+            id: adjustment.id,
+            type: adjustment.type,
+            status: adjustment.status,
+            amountMinor: adjustment.amountMinor,
+            currency: adjustment.currency,
+            reason: adjustment.reason,
+            occurredAt: adjustment.occurredAt.toISOString(),
+          })),
+        }),
+      ),
     };
   }
 

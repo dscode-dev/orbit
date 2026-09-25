@@ -38,6 +38,10 @@ import {
   type CheckoutSessionRequest,
   type PriceVerification,
   type ProviderEvent,
+  type ProviderFinancialAdjustment,
+  ProviderFinancialAdjustmentType,
+  type ProviderInvoice,
+  ProviderInvoiceStatus,
   ProviderCheckoutState,
   type ProviderCheckoutSession,
   type ProviderPlanChange,
@@ -242,6 +246,92 @@ export class StripeBillingProvider implements BillingProvider {
         stripe.subscriptions.retrieve(providerSubscriptionId),
       ),
     );
+  }
+
+  async retrieveInvoice(providerInvoiceId: string): Promise<ProviderInvoice> {
+    const stripe = this.require();
+    const invoice = await this.chamar('retrieveInvoice', () =>
+      stripe.invoices.retrieve(providerInvoiceId),
+    );
+    if ('deleted' in invoice && invoice.deleted) {
+      throw new BillingProviderUnavailableException('invoice was deleted');
+    }
+    return this.normalizarFatura(invoice);
+  }
+
+  async retrieveFinancialAdjustment(
+    type: ProviderFinancialAdjustmentType,
+    providerObjectId: string,
+  ): Promise<ProviderFinancialAdjustment> {
+    const stripe = this.require();
+    let paymentIntentId: string | null;
+    let rawStatus: string;
+    let reason: string | null;
+    let amountMinor: number;
+    let currency: string;
+    let occurredAt: Date;
+    let canonicalObjectId: string;
+    if (type === ProviderFinancialAdjustmentType.REFUND) {
+      const refund = await this.chamar('retrieveRefund', () =>
+        stripe.refunds.retrieve(providerObjectId),
+      );
+      paymentIntentId = this.idDoObjeto(refund.payment_intent);
+      rawStatus = refund.status ?? 'unknown';
+      reason =
+        refund.reason ?? refund.failure_reason ?? refund.pending_reason ?? null;
+      amountMinor = refund.amount;
+      currency = refund.currency;
+      occurredAt = new Date(refund.created * 1000);
+      canonicalObjectId = refund.id;
+    } else {
+      const dispute = await this.chamar('retrieveDispute', () =>
+        stripe.disputes.retrieve(providerObjectId),
+      );
+      paymentIntentId = this.idDoObjeto(dispute.payment_intent);
+      rawStatus = dispute.status;
+      reason = dispute.reason;
+      amountMinor = dispute.amount;
+      currency = dispute.currency;
+      occurredAt = new Date(dispute.created * 1000);
+      canonicalObjectId = dispute.id;
+    }
+    if (!paymentIntentId) {
+      throw new BillingProviderUnavailableException(
+        'financial adjustment without payment intent',
+      );
+    }
+    const payments = await this.chamar('findAdjustmentInvoice', () =>
+      stripe.invoicePayments.list({
+        payment: { type: 'payment_intent', payment_intent: paymentIntentId },
+        limit: 2,
+      }),
+    );
+    if (payments.data.length !== 1 || payments.has_more) {
+      throw new BillingProviderUnavailableException(
+        'financial adjustment invoice correlation is ambiguous',
+      );
+    }
+    const providerInvoiceId = this.idDoObjeto(payments.data[0]!.invoice);
+    if (!providerInvoiceId) {
+      throw new BillingProviderUnavailableException(
+        'financial adjustment without invoice',
+      );
+    }
+
+    return {
+      type,
+      providerObjectId: canonicalObjectId,
+      providerInvoiceId,
+      status: rawStatus
+        .toUpperCase()
+        .replace(/[^A-Z0-9_]/g, '_')
+        .slice(0, 40),
+      amountMinor,
+      currency: currency.toLowerCase(),
+      reason: reason?.slice(0, 80) ?? null,
+      occurredAt,
+      providerObservedAt: new Date(),
+    };
   }
 
   async changePlan(input: {
@@ -615,10 +705,105 @@ export class StripeBillingProvider implements BillingProvider {
     };
   }
 
+  private normalizarFatura(invoice: Stripe.Invoice): ProviderInvoice {
+    const providerCustomerId = this.idDoObjeto(invoice.customer);
+    if (!providerCustomerId) {
+      throw new BillingProviderUnavailableException('invoice without customer');
+    }
+    const subscription = invoice.parent?.subscription_details?.subscription;
+    const providerSubscriptionId = this.idDoObjeto(subscription);
+    const status =
+      invoice.status === 'draft'
+        ? ProviderInvoiceStatus.DRAFT
+        : invoice.status === 'open'
+          ? ProviderInvoiceStatus.OPEN
+          : invoice.status === 'paid'
+            ? ProviderInvoiceStatus.PAID
+            : invoice.status === 'void'
+              ? ProviderInvoiceStatus.VOID
+              : invoice.status === 'uncollectible'
+                ? ProviderInvoiceStatus.UNCOLLECTIBLE
+                : ProviderInvoiceStatus.UNKNOWN;
+    const at = (seconds: number | null): Date | null =>
+      seconds === null ? null : new Date(seconds * 1000);
+    return {
+      providerInvoiceId: invoice.id,
+      providerSubscriptionId,
+      providerCustomerId,
+      number: invoice.number,
+      status,
+      currency: invoice.currency.toLowerCase(),
+      subtotalMinor: invoice.subtotal,
+      discountMinor:
+        invoice.total_discount_amounts?.reduce(
+          (sum, discount) => sum + discount.amount,
+          0,
+        ) ?? 0,
+      taxMinor:
+        invoice.total_taxes?.reduce((sum, tax) => sum + tax.amount, 0) ?? 0,
+      totalMinor: invoice.total,
+      amountDueMinor: invoice.amount_due,
+      amountPaidMinor: invoice.amount_paid,
+      amountRemainingMinor: invoice.amount_remaining,
+      creditNotesMinor:
+        invoice.pre_payment_credit_notes_amount +
+        invoice.post_payment_credit_notes_amount,
+      attempted: invoice.attempted,
+      attemptCount: invoice.attempt_count,
+      billingReason: invoice.billing_reason,
+      collectionMethod: invoice.collection_method,
+      hostedInvoiceUrl: this.providerUrl(invoice.hosted_invoice_url ?? null),
+      invoicePdfUrl: this.providerUrl(invoice.invoice_pdf ?? null),
+      periodStart: new Date(invoice.period_start * 1000),
+      periodEnd: new Date(invoice.period_end * 1000),
+      dueAt: at(invoice.due_date),
+      nextPaymentAttemptAt: at(invoice.next_payment_attempt),
+      finalizedAt: at(invoice.status_transitions.finalized_at),
+      paidAt: at(invoice.status_transitions.paid_at),
+      voidedAt: at(invoice.status_transitions.voided_at),
+      markedUncollectibleAt: at(
+        invoice.status_transitions.marked_uncollectible_at,
+      ),
+      providerCreatedAt: new Date(invoice.created * 1000),
+      providerObservedAt: new Date(),
+    };
+  }
+
+  private providerUrl(value: string | null): string | null {
+    if (!value) return null;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' ? url.toString() : null;
+    } catch {
+      return null;
+    }
+  }
+
   private assinaturaDoEvento(evento: Stripe.Event): string | null {
     const objeto = evento.data.object as unknown as Record<string, unknown>;
     if (evento.type.startsWith('customer.subscription.')) {
       return typeof objeto['id'] === 'string' ? objeto['id'] : null;
+    }
+    if (evento.type.startsWith('invoice.')) {
+      const parent = objeto['parent'];
+      if (parent && typeof parent === 'object') {
+        const subscriptionDetails = (parent as Record<string, unknown>)[
+          'subscription_details'
+        ];
+        if (subscriptionDetails && typeof subscriptionDetails === 'object') {
+          const subscription = (subscriptionDetails as Record<string, unknown>)[
+            'subscription'
+          ];
+          if (typeof subscription === 'string') return subscription;
+          if (
+            subscription &&
+            typeof subscription === 'object' &&
+            typeof (subscription as { id?: unknown }).id === 'string'
+          ) {
+            return (subscription as { id: string }).id;
+          }
+        }
+      }
     }
     const assinatura = objeto['subscription'];
     if (typeof assinatura === 'string') return assinatura;

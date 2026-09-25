@@ -38,12 +38,10 @@ describe('AuthorizationService', () => {
       allowedSurfaces: ['WEB'],
       isOrganizationOwner: false,
     };
-    expect(
-      service.canDelegate(actor, ['operations.read'], ['WEB']),
-    ).toBe(true);
-    expect(
-      service.canDelegate(actor, ['financial.manage'], ['WEB']),
-    ).toBe(false);
+    expect(service.canDelegate(actor, ['operations.read'], ['WEB'])).toBe(true);
+    expect(service.canDelegate(actor, ['financial.manage'], ['WEB'])).toBe(
+      false,
+    );
     expect(
       service.canDelegate(actor, ['operations.read'], ['WEB', 'MOBILE']),
     ).toBe(false);

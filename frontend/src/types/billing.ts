@@ -97,6 +97,36 @@ export interface BillingReadiness {
   allowedActions: readonly string[];
 }
 
+export interface BillingInvoice {
+  id: string;
+  number: string | null;
+  status: string;
+  currency: string;
+  totalMinor: number;
+  amountPaidMinor: number;
+  amountRemainingMinor: number;
+  creditNotesMinor: number;
+  attemptCount: number;
+  period: SubscriptionPeriod;
+  dueAt: string | null;
+  nextPaymentAttemptAt: string | null;
+  paidAt: string | null;
+  issuedAt: string;
+  hostedInvoiceUrl: string | null;
+  invoicePdfUrl: string | null;
+  adjustments: readonly BillingFinancialAdjustment[];
+}
+
+export interface BillingFinancialAdjustment {
+  id: string;
+  type: string;
+  status: string;
+  amountMinor: number;
+  currency: string;
+  reason: string | null;
+  occurredAt: string;
+}
+
 /** Tudo o que a tela precisa, numa leitura. */
 export interface BillingOverview {
   catalog: PlanCatalog;
@@ -104,6 +134,8 @@ export interface BillingOverview {
   subscription: OrganizationSubscription | null;
   entitlements: OrganizationEntitlementsView;
   billing: BillingReadiness;
+  /** Histórico financeiro canônico, sem IDs internos do provedor. */
+  invoices: readonly BillingInvoice[];
 }
 
 export interface CheckoutSessionResult {
