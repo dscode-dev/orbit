@@ -14,7 +14,13 @@
  * **repete o cabeçalho** marcando que aquilo é continuação.
  */
 import { contentBottom, contentWidth, ensureSpace } from './page-frame';
-import { FONTS, METRICS, type DocumentTheme } from './theme';
+import {
+  FONTS,
+  METRICS,
+  brandGradientVertical,
+  shellGradient,
+  type DocumentTheme,
+} from './theme';
 
 type Doc = PDFKit.PDFDocument;
 
@@ -42,23 +48,45 @@ export function sectionTitle(
 ): void {
   ensureSpace(document, options.espacoMinimo ?? 112);
 
-  document
-    .font(FONTS.bold)
-    .fontSize(12.5)
-    .fillColor(theme.accent)
-    .text(texto, { width: contentWidth(document) });
+  /**
+   * Marcador de degradê à esquerda, título em grafite.
+   *
+   * O título colorido competia com o próprio conteúdo: numa folha com seis
+   * seções, seis linhas de texto azul em corpo grande puxam mais atenção que
+   * os dados. O grafite devolve o peso ao texto e o marcador mantém a marca
+   * presente — é o mesmo recurso da barra dos blocos de destaque, na mesma
+   * largura, o que faz o documento parecer um sistema e não uma coleção de
+   * tratamentos.
+   */
+  const esquerdaDoTitulo = document.page.margins.left;
+  const yDoTitulo = document.y;
 
-  const y = document.y + 3;
   document
     .save()
-    .moveTo(document.page.margins.left, y)
+    .roundedRect(esquerdaDoTitulo, yDoTitulo + 1.5, 3, 13, 1.5)
+    .fill(brandGradientVertical(document, yDoTitulo, 14, theme))
+    .restore();
+
+  document
+    .font(FONTS.bold)
+    .fontSize(12)
+    .fillColor(theme.ink)
+    .text(texto, esquerdaDoTitulo + 10, yDoTitulo, {
+      width: contentWidth(document) - 10,
+    });
+
+  const y = document.y + 4;
+  document
+    .save()
+    .moveTo(esquerdaDoTitulo, y)
     .lineTo(document.page.width - document.page.margins.right, y)
-    .lineWidth(1)
-    .strokeColor(theme.accent)
+    .lineWidth(0.6)
+    .strokeColor(theme.border)
     .stroke()
     .restore();
 
-  document.y = y + 9;
+  document.x = esquerdaDoTitulo;
+  document.y = y + 10;
 }
 
 /* ------------------------------------------------------------------ */
@@ -91,18 +119,28 @@ export function definitionCard(
   if (visiveis.length === 0) return;
 
   const largura = contentWidth(document);
-  const padding = 12;
-  const colunaLargura = (largura - padding * 2 - METRICS.gutter) / 2;
+  /**
+   * Sem caixa: os pares assentam no branco do papel.
+   *
+   * A moldura cinza com borda em volta de cada grupo é o que fazia a folha
+   * parecer formulário preenchido — seis caixas empilhadas numa página, cada
+   * uma competindo com a seguinte. O título de seção já delimita o grupo; a
+   * caixa repetia essa delimitação e cobrava respiro por isso.
+   *
+   * O que separa as linhas agora é uma régua de meio ponto, que o olho segue
+   * sem perceber que está lá.
+   */
+  const colunaLargura = (largura - METRICS.gutter) / 2;
 
   /* Medição: cada item vira uma altura, e os de meia largura são emparelhados
      dois a dois — a linha vale pela maior das duas alturas. */
   const medidos = visiveis.map((item) => {
-    const larguraDoTexto = item.full ? largura - padding * 2 : colunaLargura;
-    document.font(FONTS.regular).fontSize(9);
+    const larguraDoTexto = item.full ? largura : colunaLargura;
+    document.font(FONTS.regular).fontSize(9.5);
     const alturaDoValor = document.heightOfString(item.value ?? '', {
       width: larguraDoTexto,
     });
-    return { item, larguraDoTexto, altura: 11 + alturaDoValor };
+    return { item, larguraDoTexto, altura: 12 + alturaDoValor };
   });
 
   const linhas: (typeof medidos)[] = [];
@@ -124,56 +162,63 @@ export function definitionCard(
   }
   if (pendente.length) linhas.push(pendente);
 
-  const alturaInterna = linhas.reduce(
+  const espacoEntreLinhas = 13;
+  const alturaTotal = linhas.reduce(
     (total, linha) =>
-      total + Math.max(...linha.map((medido) => medido.altura)) + 10,
+      total +
+      Math.max(...linha.map((medido) => medido.altura)) +
+      espacoEntreLinhas,
     0,
   );
-  const alturaTotal = alturaInterna + padding * 2 - 10;
 
   ensureSpace(document, alturaTotal + 8);
 
   const topo = document.y;
   const esquerda = document.page.margins.left;
 
-  document
-    .save()
-    .roundedRect(esquerda, topo, largura, alturaTotal, METRICS.radius)
-    .fillColor(theme.surface)
-    .fill()
-    .roundedRect(esquerda, topo, largura, alturaTotal, METRICS.radius)
-    .lineWidth(0.5)
-    .strokeColor(theme.border)
-    .stroke()
-    .restore();
+  let y = topo;
+  for (const [indiceDaLinha, linha] of linhas.entries()) {
+    /* Régua entre linhas, nunca antes da primeira nem depois da última: ela
+       separa pares, e não emoldura o grupo. */
+    if (indiceDaLinha > 0) {
+      document
+        .save()
+        .moveTo(esquerda, y - espacoEntreLinhas / 2 - 1)
+        .lineTo(esquerda + largura, y - espacoEntreLinhas / 2 - 1)
+        .lineWidth(0.5)
+        .strokeColor(theme.border)
+        .stroke()
+        .restore();
+    }
 
-  let y = topo + padding;
-  for (const linha of linhas) {
-    let x = esquerda + padding;
+    let x = esquerda;
     for (const medido of linha) {
       document
         .font(FONTS.bold)
-        .fontSize(6.5)
+        /* 7pt, e não 6.5: meio ponto num rótulo em caixa alta é a diferença
+           entre ler e decifrar quando a folha sai de uma impressora de
+           escritório. */
+        .fontSize(7)
         .fillColor(theme.inkFaint)
         .text(medido.item.label.toUpperCase(), x, y, {
           width: medido.larguraDoTexto,
-          characterSpacing: 0.4,
+          characterSpacing: 0.7,
           lineBreak: false,
           ellipsis: true,
         });
       document
         .font(FONTS.regular)
-        .fontSize(9)
+        .fontSize(9.5)
         .fillColor(theme.ink)
-        .text(medido.item.value ?? '', x, y + 10, {
+        .text(medido.item.value ?? '', x, y + 11, {
           width: medido.larguraDoTexto,
         });
       x += colunaLargura + METRICS.gutter;
     }
-    y += Math.max(...linha.map((medido) => medido.altura)) + 10;
+    y += Math.max(...linha.map((medido) => medido.altura)) + espacoEntreLinhas;
   }
 
-  document.y = topo + alturaTotal + 14;
+  document.y = topo + alturaTotal + 8;
   document.x = esquerda;
 }
 
@@ -224,27 +269,52 @@ export function table(
   const paddingY = 5;
 
   const desenharCabecalho = (continuacao: boolean): void => {
-    const alturaDoCabecalho = 20;
+    /**
+     * O aviso de continuação é uma legenda **acima** da tabela.
+     *
+     * Antes ele era concatenado ao texto da primeira coluna, o que produzia
+     * "ITEM (CONTINUAÇÃO)" dentro de uma célula dimensionada para a palavra
+     * "Item": o texto estourava a largura e desalinhava o cabeçalho inteiro na
+     * segunda página. Uma informação sobre a tabela não cabe numa célula da
+     * tabela.
+     */
+    if (continuacao && options.continuationLabel) {
+      document
+        .font(FONTS.regular)
+        .fontSize(7)
+        .fillColor(theme.inkFaint)
+        .text(options.continuationLabel, esquerda, document.y, {
+          width: largura,
+          characterSpacing: 0.2,
+        });
+      document.y += 3;
+    }
+
+    const alturaDoCabecalho = 21;
     const topo = document.y;
 
     document
       .save()
-      .rect(esquerda, topo, largura, alturaDoCabecalho)
-      .fillColor(theme.accentSoft)
-      .fill()
+      .roundedRect(esquerda, topo, largura, alturaDoCabecalho, METRICS.radius)
+      /* O canto de baixo volta a ser reto: a faixa encosta na primeira linha
+         de dados, e cantos arredondados ali deixariam um vinco branco. */
+      .rect(
+        esquerda,
+        topo + alturaDoCabecalho - METRICS.radius,
+        largura,
+        METRICS.radius,
+      )
+      .fill(shellGradient(document, theme))
       .restore();
 
     let x = esquerda;
     columns.forEach((coluna, indice) => {
-      const texto =
-        continuacao && indice === 0 && options.continuationLabel
-          ? `${coluna.header} ${options.continuationLabel}`
-          : coluna.header;
+      const texto = coluna.header;
       document
         .font(FONTS.bold)
-        .fontSize(6.8)
-        .fillColor(theme.accent)
-        .text(texto.toUpperCase(), x + paddingX, topo + 6.5, {
+        .fontSize(7)
+        .fillColor(theme.onShell)
+        .text(texto.toUpperCase(), x + paddingX, topo + 7, {
           width: larguras[indice]! - paddingX * 2,
           align: coluna.align ?? 'left',
           characterSpacing: 0.3,
@@ -343,21 +413,19 @@ export function noteBlock(
   const topo = document.y;
   const esquerda = document.page.margins.left;
 
+  /* Sem borda: o fundo já separa o texto do papel, e o contorno em volta
+     dele era o que dava ao bloco cara de campo de formulário. */
   document
     .save()
     .roundedRect(esquerda, topo, largura, alturaTotal, METRICS.radius)
     .fillColor(theme.surface)
     .fill()
-    .roundedRect(esquerda, topo, largura, alturaTotal, METRICS.radius)
-    .lineWidth(0.5)
-    .strokeColor(theme.border)
-    .stroke()
     .restore();
 
   if (options.title) {
     document
       .font(FONTS.bold)
-      .fontSize(6.5)
+      .fontSize(7)
       .fillColor(theme.inkFaint)
       .text(options.title.toUpperCase(), esquerda + padding, topo + padding, {
         width: largura - padding * 2,
@@ -594,8 +662,7 @@ export function amountBlock(
     /* A faixa é desenhada por cima do fundo e não como borda: uma borda de
        6pt arredondada deixaria o canto grosso e o miolo desalinhado. */
     .rect(esquerda, topo, 4, alturaTotal)
-    .fillColor(theme.accent)
-    .fill()
+    .fill(brandGradientVertical(document, topo, alturaTotal, theme))
     .restore();
 
   let y = topo + padding;
@@ -603,7 +670,7 @@ export function amountBlock(
   if (options.label) {
     document
       .font(FONTS.bold)
-      .fontSize(6.5)
+      .fontSize(7)
       .fillColor(theme.inkFaint)
       .text(options.label.toUpperCase(), esquerda + padding + 6, y, {
         width: larguraDoTexto,
@@ -788,8 +855,7 @@ export function statementBlock(
     .fillColor(theme.surfaceStrong)
     .fill()
     .rect(esquerda, topo, 4, alturaTotal)
-    .fillColor(theme.accent)
-    .fill()
+    .fill(brandGradientVertical(document, topo, alturaTotal, theme))
     .restore();
 
   let y = topo + padding;
@@ -797,7 +863,7 @@ export function statementBlock(
   if (options.title) {
     document
       .font(FONTS.bold)
-      .fontSize(6.5)
+      .fontSize(7)
       .fillColor(theme.inkFaint)
       .text(options.title.toUpperCase(), esquerda + padding + 6, y, {
         width: larguraDoTexto,

@@ -202,7 +202,11 @@ describe('documento do plano de PMOC', () => {
     const texto = textoDoPdf(documento.bytes);
 
     expect(contarPaginas(documento.bytes)).toBeGreaterThan(1);
-    expect(texto).toContain('CONTINUAÇÃO');
+    /* A legenda é do documento, não de uma célula: em minúscula, acima da
+       tabela. Concatenada ao cabeçalho da primeira coluna — que foi o defeito
+       — ela estourava a largura reservada para "Item". */
+    expect(texto).toContain('(continuação)');
+    expect(texto).not.toContain('ITEM (');
     expect(texto).toContain('MOD-59');
   });
 

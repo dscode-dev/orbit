@@ -17,7 +17,13 @@
  * moldura porque ela não existe para o fluxo — existe só no fim.
  */
 import type { DocumentEmitter } from './document-context';
-import { FONTS, METRICS, type DocumentTheme } from './theme';
+import {
+  FONTS,
+  METRICS,
+  brandGradient,
+  shellGradient,
+  type DocumentTheme,
+} from './theme';
 
 export interface FrameIdentity {
   /** "PMOC", "Ordem de Serviço" — o que o documento é. */
@@ -90,64 +96,103 @@ export function paintFrames(
      */
     const margemOriginal = document.page.margins.bottom;
     document.page.margins.bottom = 0;
-    paintHeader(document, identity, theme);
+    paintHeader(document, identity, theme, indice === 0);
     paintFooter(document, identity, theme, indice + 1, total);
     document.page.margins.bottom = margemOriginal;
   }
 }
 
+/**
+ * O cabeçalho.
+ *
+ * ## Duas formas, e o motivo
+ *
+ * Na primeira página é uma faixa grafite de altura inteira: logo, nome do
+ * documento em branco, código em pílula e o timbre de quem emite. É o que faz
+ * a folha parecer papel timbrado em vez de saída de formulário, e é a única
+ * página onde alguém olha o cabeçalho procurando informação.
+ *
+ * Da segunda em diante repetir esse bloco é desperdício — num laudo de seis
+ * páginas seriam seis faixas escuras dizendo a mesma coisa. Ali fica só o
+ * necessário para identificar a folha solta que caiu da grampeadora: filete da
+ * marca, nome do documento e código.
+ */
 function paintHeader(
   document: PDFKit.PDFDocument,
   identity: FrameIdentity,
   theme: DocumentTheme,
+  primeira: boolean,
 ): void {
   const esquerda = METRICS.pageMargin;
   const direita = document.page.width - METRICS.pageMargin;
   const largura = direita - esquerda;
 
-  /* A faixa de marca sangra até a borda: é o que dá ao documento o aspecto de
-     papel timbrado em vez de folha de formulário. */
+  if (!primeira) {
+    paintCompactHeader(document, identity, theme, esquerda, direita, largura);
+    return;
+  }
+
+  const alturaDaFaixa = METRICS.headerHeight - 14;
+
   document.save();
-  document.rect(0, 0, document.page.width, 6).fill(theme.accent);
+  document
+    .rect(0, 0, document.page.width, alturaDaFaixa)
+    .fill(shellGradient(document, theme));
+  /* O filete da marca fecha a faixa por baixo: é a transição do grafite para o
+     branco do papel, e é onde o degradê tem largura para ser visto. */
+  document
+    .rect(0, alturaDaFaixa, document.page.width, 3)
+    .fill(brandGradient(document, theme));
   document.restore();
 
-  const topo = 26;
-  let alturaDaMarca = 0;
+  const topo = 20;
+  let y = topo;
 
   if (identity.emitter?.logo) {
     try {
       /* `fit` já ancora em cima e à esquerda; passar `align`/`valign` aqui é
          o que o tipo de `pdfkit` recusa, e não mudaria o resultado. */
-      document.image(identity.emitter.logo, esquerda, topo, {
-        fit: [116, 40],
-      });
-      alturaDaMarca = 44;
+      document.image(identity.emitter.logo, esquerda, y, { fit: [104, 28] });
+      y += 34;
     } catch {
       /* Logo ilegível não derruba o documento: o nome cobre a identificação. */
-      alturaDaMarca = 0;
     }
+  }
+
+  /**
+   * O corpo do título cede para caber numa linha.
+   *
+   * `lineBreak: false` não impede o pdfkit de quebrar num espaço quando há
+   * `width`, e "Relatório de Qualidade do Ar" em corpo 21 ocupava duas linhas
+   * — empurrando a pílula do código contra o filete da faixa. Medir e reduzir
+   * até caber mantém a faixa com altura previsível, que é o que permite o
+   * resto do cabeçalho ter posição fixa.
+   */
+  const larguraDoTitulo = largura * 0.56;
+  let corpoDoTitulo = y > topo ? 16 : 21;
+  document.font(FONTS.bold);
+  while (
+    corpoDoTitulo > 12 &&
+    document.fontSize(corpoDoTitulo).widthOfString(identity.documentTitle) >
+      larguraDoTitulo
+  ) {
+    corpoDoTitulo -= 1;
   }
 
   document
     .font(FONTS.bold)
-    .fontSize(alturaDaMarca ? 15 : 18)
-    .fillColor(theme.ink)
-    .text(identity.documentTitle, esquerda, topo + alturaDaMarca, {
-      width: largura * 0.5,
+    .fontSize(corpoDoTitulo)
+    .fillColor(theme.onShell)
+    .text(identity.documentTitle, esquerda, y, {
+      width: larguraDoTitulo,
       lineBreak: false,
+      ellipsis: true,
     });
 
-  document
-    .font(FONTS.bold)
-    .fontSize(9)
-    .fillColor(theme.accent)
-    .text(identity.documentCode, esquerda, document.y + 1, {
-      width: largura * 0.5,
-      lineBreak: false,
-    });
+  pill(document, identity.documentCode, esquerda, document.y + 5, theme);
 
-  /* A identificação de quem emite fica à direita, alinhada à direita: é onde o
-     olho procura o timbre, e é o que o documento impresso precisa provar. */
+  /* O timbre fica à direita, alinhado à direita: é onde o olho procura quem
+     emitiu, e é o que o documento impresso precisa provar. */
   const emitter = identity.emitter;
   if (emitter) {
     const linhas = [
@@ -157,34 +202,74 @@ function paintHeader(
       emitter.email,
     ].filter((linha): linha is string => Boolean(linha));
 
-    const colunaX = esquerda + largura * 0.52;
-    const colunaLargura = largura * 0.48;
-    let y = topo;
+    const colunaX = esquerda + largura * 0.58;
+    const colunaLargura = largura * 0.42;
+    let yDireita = topo;
 
     if (emitter.tradeName) {
       document
         .font(FONTS.bold)
-        .fontSize(10)
-        .fillColor(theme.ink)
-        .text(emitter.tradeName, colunaX, y, {
+        .fontSize(10.5)
+        .fillColor(theme.onShell)
+        .text(emitter.tradeName, colunaX, yDireita, {
           width: colunaLargura,
           align: 'right',
         });
-      y = document.y + 1;
+      yDireita = document.y + 2;
     }
 
-    document.font(FONTS.regular).fontSize(7.5).fillColor(theme.inkMuted);
+    document.font(FONTS.regular).fontSize(7.5).fillColor(theme.onShellMuted);
     for (const linha of linhas) {
-      document.text(linha, colunaX, y, {
+      document.text(linha, colunaX, yDireita, {
         width: colunaLargura,
         align: 'right',
       });
-      y = document.y;
+      yDireita = document.y;
     }
   }
+}
 
-  /* A régua fecha o cabeçalho e separa do conteúdo sem pedir espaço vertical. */
-  const linhaY = METRICS.headerHeight - 12;
+/** Da segunda página em diante: o mínimo para identificar a folha. */
+function paintCompactHeader(
+  document: PDFKit.PDFDocument,
+  identity: FrameIdentity,
+  theme: DocumentTheme,
+  esquerda: number,
+  direita: number,
+  largura: number,
+): void {
+  document.save();
+  document
+    .rect(0, 0, document.page.width, 3)
+    .fill(brandGradient(document, theme));
+  document.restore();
+
+  const y = 26;
+  const rotulo = [identity.emitter?.tradeName, identity.documentTitle]
+    .filter(Boolean)
+    .join('  ·  ');
+
+  document
+    .font(FONTS.bold)
+    .fontSize(8.5)
+    .fillColor(theme.ink)
+    .text(rotulo, esquerda, y, {
+      width: largura * 0.7,
+      lineBreak: false,
+      ellipsis: true,
+    });
+
+  document
+    .font(FONTS.bold)
+    .fontSize(8.5)
+    .fillColor(theme.accent)
+    .text(identity.documentCode, esquerda + largura * 0.7, y, {
+      width: largura * 0.3,
+      align: 'right',
+      lineBreak: false,
+    });
+
+  const linhaY = y + 15;
   document
     .save()
     .moveTo(esquerda, linhaY)
@@ -193,6 +278,37 @@ function paintHeader(
     .strokeColor(theme.border)
     .stroke()
     .restore();
+}
+
+/**
+ * O código do documento numa pílula com o degradê.
+ *
+ * Um código em texto solto some no meio do timbre. Na pílula ele vira o
+ * segundo elemento que se lê depois do nome do documento — que é a ordem em
+ * que alguém procura um papel específico numa pasta.
+ */
+function pill(
+  document: PDFKit.PDFDocument,
+  texto: string,
+  x: number,
+  y: number,
+  theme: DocumentTheme,
+): void {
+  document.font(FONTS.bold).fontSize(8.5);
+  const larguraDoTexto = document.widthOfString(texto);
+  const padding = 9;
+  const largura = larguraDoTexto + padding * 2;
+  const altura = 16;
+
+  document
+    .save()
+    .roundedRect(x, y, largura, altura, altura / 2)
+    .fill(brandGradient(document, theme))
+    .restore();
+
+  document
+    .fillColor('#FFFFFF')
+    .text(texto, x + padding, y + 4.5, { lineBreak: false });
 }
 
 function paintFooter(
