@@ -13,6 +13,9 @@ RUN npm ci
 COPY prisma ./prisma
 COPY prisma.config.ts tsconfig.json tsconfig.build.json nest-cli.json ./
 COPY src ./src
+# A tipografia dos documentos. `registerFonts` a procura em
+# `process.cwd()/assets/fonts`, e o `tsc` não copia arquivo que não é código.
+COPY assets ./assets
 
 RUN npx prisma generate
 RUN npm run build
@@ -83,6 +86,10 @@ RUN apt-get update \
 COPY --from=production-dependencies --chown=orbit:orbit /app/node_modules ./node_modules
 COPY --from=production-dependencies --chown=orbit:orbit /app/dist ./dist
 COPY --from=production-dependencies --chown=orbit:orbit /app/package.json ./package.json
+# Sem as fontes na imagem, `registerFonts` cai no apelido de Helvetica e **todo**
+# documento premium sai com a tipografia errada — quando não estourava `ENOENT`,
+# antes de o apelido existir. São ~430 KB de TTF, e o desenho depende deles.
+COPY --from=production-dependencies --chown=orbit:orbit /app/assets ./assets
 
 USER orbit
 EXPOSE 3001

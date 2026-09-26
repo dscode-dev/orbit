@@ -6,7 +6,9 @@
  * documento que não passava `primaryColor` saía monocromático **achando que
  * tinha cor** — era o caso do plano de PMOC e do orçamento.
  */
-import { buildTheme } from './theme';
+import PDFDocument from 'pdfkit';
+
+import { buildTheme, FONT_FILES, FONTS, registerFonts } from './theme';
 
 /** Razão de contraste da WCAG 2.1 entre duas cores hexadecimais. */
 function contraste(a: string, b: string): number {
@@ -104,6 +106,65 @@ describe('buildTheme', () => {
        nossa em qualquer cor escolhida. */
     for (const token of ['ink', 'inkMuted', 'border', 'surface'] as const) {
       expect(cliente[token]).toBe(orbit[token]);
+    }
+  });
+});
+
+describe('registerFonts', () => {
+  /**
+   * O documento tem de sair mesmo sem os arquivos de fonte.
+   *
+   * Isto nasce de um defeito real, e o pior tipo: o `catch` vazio do registro
+   * dava a impressão de tolerar a ausência. Não tolerava — sem registro, o nome
+   * lógico não existe e `document.font('Inter-Semibold')` é tratado como caminho
+   * de arquivo, estourando `ENOENT` na primeira linha de texto. Na imagem de
+   * produção, onde `assets/` não era copiada, **toda** emissão premium falhava
+   * com 500, e nenhum teste via: no host o arquivo está lá.
+   */
+  it('usa fonte padrão do PDF quando o arquivo não existe', () => {
+    const document = new PDFDocument({ bufferPages: true });
+    /* Registro anotado em lista própria: `mock.calls` chega como `any`, e ler
+       argumento por índice num teste sobre fonte é tão frágil quanto o defeito
+       que ele cerca. */
+    const registrados: { nome: string; origem: string }[] = [];
+
+    jest.spyOn(document, 'registerFont').mockImplementation(function (
+      this: PDFKit.PDFDocument,
+      nome,
+      origem,
+    ) {
+      /* `registerFont` também aceita buffer; aqui só chega string, e o que o
+         teste examina é o caminho ou o apelido. */
+      const caminho = typeof origem === 'string' ? origem : '';
+      registrados.push({ nome, origem: caminho });
+      /* Só o caminho de arquivo falha; o apelido para fonte padrão passa. */
+      if (caminho.endsWith('.ttf')) {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      }
+      return this;
+    });
+
+    registerFonts(document);
+
+    for (const nome of Object.keys(FONT_FILES)) {
+      const apelido = registrados.find(
+        (registro) =>
+          registro.nome === nome && !registro.origem.endsWith('.ttf'),
+      );
+      expect(apelido?.origem).toMatch(/^Helvetica/);
+    }
+  });
+
+  it('escreve texto em todos os pesos depois de registrar, sem estourar', () => {
+    /* O teste que faltava: registrar e **usar**. A falha só aparecia no primeiro
+       `document.font(...)`, e não no registro. */
+    const document = new PDFDocument({ bufferPages: true });
+    registerFonts(document);
+
+    for (const peso of [FONTS.regular, FONTS.bold, FONTS.strong, FONTS.mono]) {
+      expect(() =>
+        document.font(peso).text('Documento de teste'),
+      ).not.toThrow();
     }
   });
 });

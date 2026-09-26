@@ -375,25 +375,51 @@ export const FONTS = {
 } as const;
 
 /** Onde os arquivos da fonte vivem, a partir da raiz do backend. */
+/**
+ * O arquivo de cada peso, e a fonte padrão do PDF que o substitui.
+ *
+ * O substituto existe porque a alternativa é o documento não sair. E ele tem de
+ * ser **registrado com o mesmo nome**: `document.font('Inter-Semibold')` sem
+ * registro prévio faz o pdfkit tratar o nome como caminho de arquivo e estourar
+ * `ENOENT` na primeira linha de texto.
+ */
 export const FONT_FILES = {
-  Inter: 'assets/fonts/Inter-500.ttf',
-  'Inter-Semibold': 'assets/fonts/Inter-600.ttf',
-  'Inter-Bold': 'assets/fonts/Inter-700.ttf',
+  Inter: { file: 'assets/fonts/Inter-500.ttf', fallback: 'Helvetica' },
+  'Inter-Semibold': {
+    file: 'assets/fonts/Inter-600.ttf',
+    fallback: 'Helvetica-Bold',
+  },
+  'Inter-Bold': {
+    file: 'assets/fonts/Inter-700.ttf',
+    fallback: 'Helvetica-Bold',
+  },
 } as const;
 
 /**
  * Registra a tipografia no documento.
  *
- * Chamada uma vez por documento, antes de qualquer texto. Se um arquivo
- * faltar, o documento sai em Helvetica em vez de não sair: uma fonte ausente
- * não é motivo para o cliente ficar sem o papel.
+ * Chamada uma vez por documento, antes de qualquer texto.
+ *
+ * ## O `catch` vazio escondia uma falha fatal
+ *
+ * A primeira versão só engolia o erro de registro, na suposição de que "o pdfkit
+ * cai nas catorze padrão do PDF". Não cai: sem registro, o nome lógico não
+ * existe, e `document.font('Inter-Semibold')` é interpretado como **caminho de
+ * arquivo**. O resultado foi `ENOENT` em toda emissão premium na imagem de
+ * produção, onde `assets/` não era copiada — falha que nenhum teste pegou,
+ * porque no host o arquivo está lá.
+ *
+ * Agora a ausência do arquivo é registrada como apelido de uma fonte padrão: o
+ * documento sai em Helvetica, que é o que a intenção original dizia.
  */
 export function registerFonts(document: PDFKit.PDFDocument): void {
-  for (const [nome, caminho] of Object.entries(FONT_FILES)) {
+  for (const [nome, { file, fallback }] of Object.entries(FONT_FILES)) {
     try {
-      document.registerFont(nome, resolve(process.cwd(), caminho));
+      document.registerFont(nome, resolve(process.cwd(), file));
     } catch {
-      /* Sem a fonte, o pdfkit cai nas catorze padrão do PDF. */
+      /* `registerFont` com o nome de uma das catorze padrão vira apelido — o
+         pdfkit reconhece a string antes de tentar ler arquivo. */
+      document.registerFont(nome, fallback);
     }
   }
 }
