@@ -11,6 +11,7 @@ import {
   ValidationException,
 } from '../../../exceptions';
 import type { BusinessUnitRepository } from './business-unit.repository';
+import type { EntitlementService } from '../../subscription-plans/entitlements/entitlement.service';
 
 /** PNG 1×1 válido, o menor que dá para escrever à mão. */
 const PNG =
@@ -25,8 +26,11 @@ function montar(unidade: unknown = { id: 'unit-1' }) {
         Promise.resolve({ id, logoUrl }),
       ),
   };
+  /* O caminho da marca não consulta entitlements; o stub existe para o
+     construtor, não para o teste. */
   const service = new BusinessUnitService(
     repository as unknown as BusinessUnitRepository,
+    {} as unknown as EntitlementService,
   );
   return { service, repository };
 }
