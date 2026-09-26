@@ -27,7 +27,7 @@ import type {
   RenderOutput,
 } from '../artifact-renderer';
 import { readDocumentContext } from './kit/document-context';
-import { METRICS, buildTheme } from './kit/theme';
+import { METRICS, buildTheme, registerFonts } from './kit/theme';
 import { paintFrames, type FrameIdentity } from './kit/page-frame';
 import { composePmocExecution } from './documents/pmoc-execution.document';
 import { composeRvt } from './documents/rvt.document';
@@ -76,6 +76,8 @@ export class ArtifactPremiumPdfRenderer implements ArtifactRenderer {
           Producer: `${this.id}@${this.version}`,
         },
       });
+
+      registerFonts(document);
 
       const chunks: Buffer[] = [];
       document.on('data', (chunk: Buffer) => chunks.push(chunk));

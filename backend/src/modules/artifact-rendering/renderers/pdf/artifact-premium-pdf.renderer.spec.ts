@@ -7,46 +7,9 @@
  * páginas, o cabeçalho de tabela que precisa reaparecer, o rodapé numerado e
  * os códigos do banco que não podem vazar impressos.
  */
-import { inflateSync } from 'node:zlib';
 import { ArtifactPremiumPdfRenderer } from './artifact-premium-pdf.renderer';
 import type { RenderInput } from '../artifact-renderer';
-
-/**
- * O texto escrito no PDF.
- *
- * Duas camadas separam a palavra dos bytes: os streams são comprimidos e o
- * texto dentro deles é gravado como hex. Procurar a palavra nos bytes crus não
- * acharia nada — e passar com uma asserção mais fraca provaria que o teste
- * desistiu.
- */
-function textoDoPdf(pdf: Buffer): string {
-  const bruto = pdf.toString('latin1');
-  const partes: string[] = [];
-  const padrao = /stream\r?\n/g;
-  let achado: RegExpExecArray | null;
-
-  while ((achado = padrao.exec(bruto)) !== null) {
-    const inicio = achado.index + achado[0].length;
-    const fim = bruto.indexOf('endstream', inicio);
-    if (fim < 0) continue;
-    let conteudo: string;
-    try {
-      conteudo = inflateSync(
-        Buffer.from(bruto.slice(inicio, fim), 'latin1'),
-      ).toString('latin1');
-    } catch {
-      continue;
-    }
-    for (const hex of conteudo.match(/<[0-9a-fA-F]+>/g) ?? []) {
-      partes.push(Buffer.from(hex.slice(1, -1), 'hex').toString('latin1'));
-    }
-  }
-  return partes.join('');
-}
-
-function contarPaginas(pdf: Buffer): number {
-  return (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-}
+import { pdfText, pdfPageCount } from '../../../../../test/support/pdf-text';
 
 function equipamentos(quantidade: number) {
   return Array.from({ length: quantidade }, (_, indice) => ({
@@ -132,7 +95,7 @@ describe('ArtifactPremiumPdfRenderer', () => {
 
   it('imprime o timbre de quem emite e o número do documento', async () => {
     const saida = await new ArtifactPremiumPdfRenderer().render(entrada());
-    const texto = textoDoPdf(saida.bytes);
+    const texto = pdfText(saida.bytes);
 
     expect(texto).toContain('Climatize');
     expect(texto).toContain('21.505.237/0001-02');
@@ -152,14 +115,14 @@ describe('ArtifactPremiumPdfRenderer', () => {
     const saida = await new ArtifactPremiumPdfRenderer().render(
       entrada({ equipamentos: 3 }),
     );
-    expect(contarPaginas(saida.bytes)).toBe(1);
+    expect(pdfPageCount(saida.bytes)).toBe(1);
   });
 
   it('numera as páginas dizendo o total', async () => {
     const curto = await new ArtifactPremiumPdfRenderer().render(
       entrada({ equipamentos: 3 }),
     );
-    expect(textoDoPdf(curto.bytes)).toContain('gina 1 de 1');
+    expect(pdfText(curto.bytes)).toContain('gina 1 de 1');
   });
 
   /**
@@ -174,9 +137,9 @@ describe('ArtifactPremiumPdfRenderer', () => {
     const saida = await new ArtifactPremiumPdfRenderer().render(
       entrada({ equipamentos: 60 }),
     );
-    const texto = textoDoPdf(saida.bytes);
+    const texto = pdfText(saida.bytes);
 
-    expect(contarPaginas(saida.bytes)).toBeGreaterThan(1);
+    expect(pdfPageCount(saida.bytes)).toBeGreaterThan(1);
     expect(texto).toMatch(/CONTINUA/i);
     /* O cabeçalho aparece mais de uma vez justamente por ter sido repetido. */
     expect(texto.match(/CAPACIDADE/gi)?.length ?? 0).toBeGreaterThan(1);
@@ -203,7 +166,7 @@ describe('ArtifactPremiumPdfRenderer', () => {
         ],
       }),
     );
-    const texto = textoDoPdf(saida.bytes);
+    const texto = pdfText(saida.bytes);
 
     expect(texto).toContain('Daniel Oliveira');
     expect(texto).toContain('Responsável técnico');
@@ -222,6 +185,6 @@ describe('ArtifactPremiumPdfRenderer', () => {
     });
 
     expect(saida.bytes.subarray(0, 5).toString()).toBe('%PDF-');
-    expect(textoDoPdf(saida.bytes)).toContain('Climatize');
+    expect(pdfText(saida.bytes)).toContain('Climatize');
   });
 });

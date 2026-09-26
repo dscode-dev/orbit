@@ -6,34 +6,9 @@
  * profissional de quem a assina. As ressalvas entram junto, porque esconder
  * limitação é o que transforma um laudo em problema depois.
  */
-import { inflateSync } from 'node:zlib';
 import { ArtifactPremiumPdfRenderer } from '../artifact-premium-pdf.renderer';
 import type { RenderInput } from '../../artifact-renderer';
-
-function textoDoPdf(pdf: Buffer): string {
-  const bruto = pdf.toString('latin1');
-  const partes: string[] = [];
-  const padrao = /stream\r?\n/g;
-  let achado: RegExpExecArray | null;
-
-  while ((achado = padrao.exec(bruto)) !== null) {
-    const inicio = achado.index + achado[0].length;
-    const fim = bruto.indexOf('endstream', inicio);
-    if (fim < 0) continue;
-    let conteudo: string;
-    try {
-      conteudo = inflateSync(
-        Buffer.from(bruto.slice(inicio, fim), 'latin1'),
-      ).toString('latin1');
-    } catch {
-      continue;
-    }
-    for (const hex of conteudo.match(/<[0-9a-fA-F]+>/g) ?? []) {
-      partes.push(Buffer.from(hex.slice(1, -1), 'hex').toString('latin1'));
-    }
-  }
-  return partes.join('').replace(/\s/g, ' ');
-}
+import { pdfText } from '../../../../../../test/support/pdf-text';
 
 function entrada(
   options: { semRessalvas?: boolean; semCredencial?: boolean } = {},
@@ -160,14 +135,14 @@ describe('Laudo Técnico premium', () => {
   const renderer = new ArtifactPremiumPdfRenderer();
 
   it('nomeia o documento como laudo, não como relatório genérico', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('Laudo Técnico');
     expect(texto).toContain('LT-000014');
   });
 
   it('delimita o objeto, separado da metodologia', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     /* O objeto é o que delimita o laudo: o que está fora dele não foi
        examinado, e misturá-lo com o método apaga essa fronteira. */
@@ -177,7 +152,7 @@ describe('Laudo Técnico premium', () => {
   });
 
   it('põe a conclusão em destaque, depois das constatações', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     const constatacao = texto.indexOf('Incrustação severa');
     const conclusao = texto.indexOf('A restrição está no sistema');
@@ -187,7 +162,7 @@ describe('Laudo Técnico premium', () => {
   });
 
   it('imprime as ressalvas em seção visível', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     /* Esconder limitação é o que transforma um laudo em problema depois. */
     expect(texto).toContain('Ressalvas e limitações');
@@ -195,7 +170,7 @@ describe('Laudo Técnico premium', () => {
   });
 
   it('não inventa ressalva quando o laudo não declarou nenhuma', async () => {
-    const texto = textoDoPdf(
+    const texto = pdfText(
       (await renderer.render(entrada({ semRessalvas: true }))).bytes,
     );
 
@@ -203,7 +178,7 @@ describe('Laudo Técnico premium', () => {
   });
 
   it('dá seção própria ao registro profissional', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     /* É o registro que dá validade ao laudo; em corpo 7 ao lado do nome ele
        é fácil demais de não ver. Sai duas vezes de propósito: na
@@ -216,7 +191,7 @@ describe('Laudo Técnico premium', () => {
   });
 
   it('não abre o cartão de registro quando não há credencial', async () => {
-    const texto = textoDoPdf(
+    const texto = pdfText(
       (await renderer.render(entrada({ semCredencial: true }))).bytes,
     );
 
@@ -228,7 +203,7 @@ describe('Laudo Técnico premium', () => {
   });
 
   it('traduz a situação para quem recebe o laudo', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('Emitido');
     expect(texto).not.toContain('COMPLETED');

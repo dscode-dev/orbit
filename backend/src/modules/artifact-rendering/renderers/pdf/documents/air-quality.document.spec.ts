@@ -5,36 +5,9 @@
  * documento pode dizer que 1340 é maior que 1000, e não pode dizer que o
  * ambiente está conforme. Quem conclui é quem assina.
  */
-import { inflateSync } from 'node:zlib';
 import { ArtifactPremiumPdfRenderer } from '../artifact-premium-pdf.renderer';
 import type { RenderInput } from '../../artifact-renderer';
-
-function textoDoPdf(pdf: Buffer): string {
-  const bruto = pdf.toString('latin1');
-  const partes: string[] = [];
-  const padrao = /stream\r?\n/g;
-  let achado: RegExpExecArray | null;
-
-  while ((achado = padrao.exec(bruto)) !== null) {
-    const inicio = achado.index + achado[0].length;
-    const fim = bruto.indexOf('endstream', inicio);
-    if (fim < 0) continue;
-    let conteudo: string;
-    try {
-      conteudo = inflateSync(
-        Buffer.from(bruto.slice(inicio, fim), 'latin1'),
-      ).toString('latin1');
-    } catch {
-      continue;
-    }
-    for (const hex of conteudo.match(/<[0-9a-fA-F]+>/g) ?? []) {
-      partes.push(Buffer.from(hex.slice(1, -1), 'hex').toString('latin1'));
-    }
-  }
-  /* `Intl` usa espaço inquebrável entre número e unidade: certo para
-     impressão, ruim para comparar em teste. */
-  return partes.join('').replace(/\s/g, ' ');
-}
+import { pdfText } from '../../../../../../test/support/pdf-text';
 
 function entrada(
   medicoes: Record<string, unknown> = {
@@ -161,7 +134,7 @@ describe('Qualidade do ar premium', () => {
   const renderer = new ArtifactPremiumPdfRenderer();
 
   it('põe a referência ao lado do medido', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     /* Sem a referência ao lado, "1.340 ppm" exige que quem lê conheça a
        norma — e quem recebe o relatório é o síndico, não o engenheiro. */
@@ -172,7 +145,7 @@ describe('Qualidade do ar premium', () => {
   });
 
   it('resume quantos parâmetros ficaram fora, antes da tabela', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     /* Cinco medidos (fungos não foi), dois fora: CO2 e umidade. */
     expect(texto).toContain('2 de 5 parâmetros medidos ficaram fora');
@@ -183,7 +156,7 @@ describe('Qualidade do ar premium', () => {
   });
 
   it('diz que todos passaram quando todos passam', async () => {
-    const texto = textoDoPdf(
+    const texto = pdfText(
       (
         await renderer.render(
           entrada({
@@ -202,7 +175,7 @@ describe('Qualidade do ar premium', () => {
   });
 
   it('não confunde não medido com dentro do referencial', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('Não medido');
     /* Fungos não foi medido e não pode contar como aprovado. */
@@ -210,7 +183,7 @@ describe('Qualidade do ar premium', () => {
   });
 
   it('nunca afirma conformidade — isso é de quem assina', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto.toLowerCase()).not.toContain('conforme');
     /* O parecer sai como o responsável técnico escreveu. */
@@ -218,13 +191,13 @@ describe('Qualidade do ar premium', () => {
   });
 
   it('imprime a ressalva sazonal junto da tabela', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('envoltória das duas faixas');
   });
 
   it('cita a norma de onde os referenciais vêm', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     /* Sem a citação, a coluna "Referência" é um número que o sistema afirma
        sem dizer com que autoridade. */
@@ -233,7 +206,7 @@ describe('Qualidade do ar premium', () => {
   });
 
   it('escreve decimais com vírgula, como o resto do documento', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('412,5');
     expect(texto).not.toContain('412.5');

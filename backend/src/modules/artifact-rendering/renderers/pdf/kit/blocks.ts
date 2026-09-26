@@ -168,7 +168,7 @@ export function definitionCard(
      dois a dois — a linha vale pela maior das duas alturas. */
   const medidos = visiveis.map((item) => {
     const larguraDoTexto = item.full ? largura : colunaLargura;
-    document.font(FONTS.regular).fontSize(9.5);
+    document.font(FONTS.regular).fontSize(10);
     const alturaDoValor = document.heightOfString(item.value ?? '', {
       width: larguraDoTexto,
     });
@@ -234,7 +234,7 @@ export function definitionCard(
         /* 7pt, e não 6.5: meio ponto num rótulo em caixa alta é a diferença
            entre ler e decifrar quando a folha sai de uma impressora de
            escritório. */
-        .fontSize(7)
+        .fontSize(7.5)
         .fillColor(theme.inkFaint)
         .text(medido.item.label.toUpperCase(), x, y, {
           width: medido.larguraDoTexto,
@@ -244,7 +244,7 @@ export function definitionCard(
         });
       document
         .font(FONTS.regular)
-        .fontSize(9.5)
+        .fontSize(10)
         .fillColor(theme.ink)
         .text(medido.item.value ?? '', x, y + 11, {
           width: medido.larguraDoTexto,
@@ -369,7 +369,7 @@ export function table(
   rows.forEach((linha, indiceDaLinha) => {
     /* Medição antes de escrever: a altura da linha é a da célula mais alta. */
     const alturas = columns.map((coluna, indice) => {
-      document.font(coluna.mono ? FONTS.mono : FONTS.regular).fontSize(8);
+      document.font(coluna.mono ? FONTS.mono : FONTS.regular).fontSize(8.5);
       return document.heightOfString(String(linha[indice] ?? '—'), {
         width: larguras[indice]! - paddingX * 2,
       });
@@ -398,7 +398,7 @@ export function table(
     columns.forEach((coluna, indice) => {
       document
         .font(coluna.mono ? FONTS.mono : FONTS.regular)
-        .fontSize(8)
+        .fontSize(8.5)
         .fillColor(theme.ink)
         .text(String(linha[indice] ?? '—'), x + paddingX, topo + paddingY, {
           width: larguras[indice]! - paddingX * 2,
@@ -437,7 +437,7 @@ export function noteBlock(
   const largura = contentWidth(document);
   const padding = 10;
 
-  document.font(FONTS.regular).fontSize(9);
+  document.font(FONTS.regular).fontSize(9.5);
   const alturaDoTexto = document.heightOfString(texto, {
     width: largura - padding * 2,
   });
@@ -471,7 +471,7 @@ export function noteBlock(
 
   document
     .font(FONTS.regular)
-    .fontSize(9)
+    .fontSize(9.5)
     .fillColor(theme.ink)
     .text(texto, esquerda + padding, topo + padding + alturaDoTitulo, {
       width: largura - padding * 2,
@@ -545,7 +545,7 @@ export function checkList(
   const larguraDoTexto = colunaLargura - recuo;
 
   const medidos = itens.map((item) => {
-    document.font(FONTS.regular).fontSize(8.5);
+    document.font(FONTS.regular).fontSize(9);
     let altura = document.heightOfString(item.label, {
       width: larguraDoTexto,
     });
@@ -575,7 +575,7 @@ export function checkList(
 
       document
         .font(FONTS.regular)
-        .fontSize(8.5)
+        .fontSize(9)
         .fillColor(theme.ink)
         .text(medido.item.label, x + recuo, topo, { width: larguraDoTexto });
 

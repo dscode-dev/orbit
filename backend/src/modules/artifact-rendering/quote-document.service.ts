@@ -19,7 +19,7 @@
  */
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
-import { METRICS, buildTheme } from './renderers/pdf/kit/theme';
+import { METRICS, buildTheme, registerFonts } from './renderers/pdf/kit/theme';
 import { paintFrames } from './renderers/pdf/kit/page-frame';
 import type { DocumentEmitter } from './renderers/pdf/kit/document-context';
 import {
@@ -58,6 +58,8 @@ export class QuoteDocumentService {
           Producer: 'pdf.premium@2.0.0',
         },
       });
+
+      registerFonts(document);
 
       const chunks: Buffer[] = [];
       document.on('data', (chunk: Buffer) => chunks.push(chunk));

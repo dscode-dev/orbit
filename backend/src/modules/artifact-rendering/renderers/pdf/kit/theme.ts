@@ -15,6 +15,7 @@
  * continue legível quando a cor escolhida for clara demais, escura demais ou
  * simplesmente feia. A marca decora; o contraste é responsabilidade nossa.
  */
+import { resolve } from 'node:path';
 import { safeColor } from '../../html/html-safe';
 
 export interface DocumentTheme {
@@ -305,7 +306,7 @@ export const METRICS = {
    * que repetir o timbre inteiro em toda folha de um documento de seis
    * páginas.
    */
-  headerHeight: 132,
+  headerHeight: 150,
   /** Altura reservada no rodapé para a linha de identificação. */
   footerHeight: 44,
   gutter: 18,
@@ -315,8 +316,61 @@ export const METRICS = {
   radius: 6,
 } as const;
 
+/**
+ * A tipografia do documento é a do produto: Inter.
+ *
+ * ## Por que sair da Helvetica
+ *
+ * Helvetica é uma das catorze fontes que todo leitor de PDF já tem, então não
+ * precisa ser embutida — foi por isso que estava ali. Mas ela é do começo dos
+ * anos 1960, desenhada para tipos de metal e sinalização: em corpo pequeno
+ * sobre papel, os traços afinam e as contraformas fecham. É o "muito fina"
+ * que se vê num rótulo de 7 pontos.
+ *
+ * Inter foi desenhada para texto pequeno em tela e imprime bem: altura de x
+ * maior, contraformas abertas, e um peso `Medium` que dá corpo sem virar
+ * negrito. E é a fonte que o produto já usa no web e no mobile — o documento
+ * deixa de ser a única peça com tipografia própria.
+ *
+ * ## O custo
+ *
+ * Embutir a fonte acrescenta cerca de 100 KB por arquivo por peso usado. Num
+ * documento que o cliente arquiva e imprime, é troca barata: sem embutir, o
+ * PDF depende de o leitor ter a fonte, e quando não tem ele substitui por
+ * outra — e aí a paginação que medimos aqui deixa de valer.
+ *
+ * Licenciada em SIL Open Font License; o texto acompanha os arquivos.
+ */
 export const FONTS = {
-  regular: 'Helvetica',
-  bold: 'Helvetica-Bold',
+  regular: 'Inter',
+  /** Para rótulos e títulos: Semibold segura melhor que Bold em caixa alta. */
+  bold: 'Inter-Semibold',
+  strong: 'Inter-Bold',
+  /** Identificadores e códigos. Courier continua: é o que diz "isto é um
+      código", e não há mono da marca com arquivo no repositório. */
   mono: 'Courier',
 } as const;
+
+/** Onde os arquivos da fonte vivem, a partir da raiz do backend. */
+export const FONT_FILES = {
+  Inter: 'assets/fonts/Inter-500.ttf',
+  'Inter-Semibold': 'assets/fonts/Inter-600.ttf',
+  'Inter-Bold': 'assets/fonts/Inter-700.ttf',
+} as const;
+
+/**
+ * Registra a tipografia no documento.
+ *
+ * Chamada uma vez por documento, antes de qualquer texto. Se um arquivo
+ * faltar, o documento sai em Helvetica em vez de não sair: uma fonte ausente
+ * não é motivo para o cliente ficar sem o papel.
+ */
+export function registerFonts(document: PDFKit.PDFDocument): void {
+  for (const [nome, caminho] of Object.entries(FONT_FILES)) {
+    try {
+      document.registerFont(nome, resolve(process.cwd(), caminho));
+    } catch {
+      /* Sem a fonte, o pdfkit cai nas catorze padrão do PDF. */
+    }
+  }
+}

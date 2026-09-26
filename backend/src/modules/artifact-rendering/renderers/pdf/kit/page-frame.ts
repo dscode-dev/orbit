@@ -157,9 +157,12 @@ function paintHeader(
 
   /* E o fim do cabeçalho é um fio quase invisível: a divisão precisa existir,
      não precisa ser vista. */
+  /* De canto a canto, como a faixa do topo: um fio que para nas margens
+     desenha uma caixa em volta do cabeçalho, e o que ele marca é o fim de uma
+     região, não o contorno de um bloco. */
   document
-    .moveTo(esquerda, alturaDaFaixa)
-    .lineTo(direita, alturaDaFaixa)
+    .moveTo(0, alturaDaFaixa)
+    .lineTo(document.page.width, alturaDaFaixa)
     .lineWidth(0.5)
     .strokeColor(theme.hairline)
     .stroke();
@@ -233,8 +236,20 @@ function paintHeader(
     ANTES_DA_PILULA +
     ALTURA_DA_PILULA;
 
-  /* Centrado na vertical da faixa, respeitando uma folga mínima no topo. */
-  let y = Math.max(14, (alturaDaFaixa - alturaDoBloco) / 2);
+  /**
+   * O conteúdo respira dos dois lados, e mais embaixo que em cima.
+   *
+   * Encostado na faixa do topo ele parecia pendurado nela; encostado no fio de
+   * baixo, empurrava o conteúdo da folha. A folga inferior é maior porque é
+   * ela que separa o cabeçalho do documento — a superior separa de uma faixa
+   * de 4 pontos.
+   */
+  const FOLGA_SUPERIOR = 26;
+  const FOLGA_INFERIOR = 34;
+  let y = Math.max(
+    FOLGA_SUPERIOR,
+    (alturaDaFaixa - FOLGA_INFERIOR + FOLGA_SUPERIOR - alturaDoBloco) / 2,
+  );
 
   if (logo) {
     try {

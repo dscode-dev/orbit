@@ -7,47 +7,11 @@
  * equipamentos que estoura a página sem repetir o cabeçalho, e o JSON livre do
  * roteiro — que tem duas formas em produção e nenhuma validação no banco.
  */
-import { inflateSync } from 'node:zlib';
 import { PmocService } from './pmoc.service';
 import { PmocPlanDocumentService } from '../artifact-rendering/pmoc-plan-document.service';
 import { EntityNotFoundException } from '../../exceptions';
 import type { PmocActor } from './pmoc.service';
-
-/**
- * O texto escrito no PDF.
- *
- * Duplicado de `artifact-premium-pdf.renderer.spec.ts` de propósito: extrair
- * para um módulo compartilhado colocaria um utilitário de teste dentro do
- * bundle de produção, porque o build só exclui `*spec.ts`.
- */
-function textoDoPdf(pdf: Buffer): string {
-  const bruto = pdf.toString('latin1');
-  const partes: string[] = [];
-  const padrao = /stream\r?\n/g;
-  let achado: RegExpExecArray | null;
-
-  while ((achado = padrao.exec(bruto)) !== null) {
-    const inicio = achado.index + achado[0].length;
-    const fim = bruto.indexOf('endstream', inicio);
-    if (fim < 0) continue;
-    let conteudo: string;
-    try {
-      conteudo = inflateSync(
-        Buffer.from(bruto.slice(inicio, fim), 'latin1'),
-      ).toString('latin1');
-    } catch {
-      continue;
-    }
-    for (const hex of conteudo.match(/<[0-9a-fA-F]+>/g) ?? []) {
-      partes.push(Buffer.from(hex.slice(1, -1), 'hex').toString('latin1'));
-    }
-  }
-  return partes.join('');
-}
-
-function contarPaginas(pdf: Buffer): number {
-  return (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-}
+import { pdfText, pdfPageCount } from '../../../test/support/pdf-text';
 
 const ATOR: PmocActor = {
   organizationId: 'org-1',
@@ -151,7 +115,7 @@ describe('documento do plano de PMOC', () => {
     const { service } = servico(fonte());
 
     const documento = await service.document('plan-1', ATOR);
-    const texto = textoDoPdf(documento.bytes);
+    const texto = pdfText(documento.bytes);
 
     expect(documento.mimeType).toBe('application/pdf');
     expect(documento.fileName).toBe('PMOC-000023-plano.pdf');
@@ -169,7 +133,7 @@ describe('documento do plano de PMOC', () => {
   it('imprime o roteiro nas duas formas que o JSON livre assume', async () => {
     const { service } = servico(fonte());
 
-    const texto = textoDoPdf((await service.document('plan-1', ATOR)).bytes);
+    const texto = pdfText((await service.document('plan-1', ATOR)).bytes);
 
     expect(texto).toContain('Limpar filtros');
     expect(texto).toContain('Medir corrente');
@@ -186,7 +150,7 @@ describe('documento do plano de PMOC', () => {
       }),
     );
 
-    const texto = textoDoPdf((await service.document('plan-1', ATOR)).bytes);
+    const texto = pdfText((await service.document('plan-1', ATOR)).bytes);
 
     expect(texto).toContain('Limpar filtros');
     // Objeto sem rótulo reconhecível não vira linha: o roteiro impresso não
@@ -199,9 +163,9 @@ describe('documento do plano de PMOC', () => {
     const { service } = servico(fonte({ coberturas: 60 }));
 
     const documento = await service.document('plan-1', ATOR);
-    const texto = textoDoPdf(documento.bytes);
+    const texto = pdfText(documento.bytes);
 
-    expect(contarPaginas(documento.bytes)).toBeGreaterThan(1);
+    expect(pdfPageCount(documento.bytes)).toBeGreaterThan(1);
     /* A legenda é do documento, não de uma célula: em minúscula, acima da
        tabela. Concatenada ao cabeçalho da primeira coluna — que foi o defeito
        — ela estourava a largura reservada para "Item". */

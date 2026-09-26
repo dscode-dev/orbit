@@ -6,40 +6,9 @@
  * materiais sem preço, o desconto escondido numa linha de item, e a proposta
  * sem onde assinar.
  */
-import { inflateSync } from 'node:zlib';
 import { QuoteDocumentService } from '../../../quote-document.service';
 import type { QuoteDocumentInput } from './quote.document';
-
-function textoDoPdf(pdf: Buffer): string {
-  const bruto = pdf.toString('latin1');
-  const partes: string[] = [];
-  const padrao = /stream\r?\n/g;
-  let achado: RegExpExecArray | null;
-
-  while ((achado = padrao.exec(bruto)) !== null) {
-    const inicio = achado.index + achado[0].length;
-    const fim = bruto.indexOf('endstream', inicio);
-    if (fim < 0) continue;
-    let conteudo: string;
-    try {
-      conteudo = inflateSync(
-        Buffer.from(bruto.slice(inicio, fim), 'latin1'),
-      ).toString('latin1');
-    } catch {
-      continue;
-    }
-    for (const hex of conteudo.match(/<[0-9a-fA-F]+>/g) ?? []) {
-      partes.push(Buffer.from(hex.slice(1, -1), 'hex').toString('latin1'));
-    }
-  }
-  /* `Intl` separa o símbolo da moeda com espaço inquebrável: certo para
-     impressão, ruim para comparar em teste. */
-  return partes.join('').replace(/\u00a0/g, ' ');
-}
-
-function contarPaginas(pdf: Buffer): number {
-  return (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-}
+import { pdfText, pdfPageCount } from '../../../../../../test/support/pdf-text';
 
 function entrada(
   options: {
@@ -112,7 +81,7 @@ describe('Orçamento premium', () => {
     });
 
   it('põe o total em destaque, com o extenso', async () => {
-    const texto = textoDoPdf(await render(entrada()));
+    const texto = pdfText(await render(entrada()));
 
     expect(texto).toContain('VALOR TOTAL DA PROPOSTA');
     expect(texto).toContain('2.800,00');
@@ -122,7 +91,7 @@ describe('Orçamento premium', () => {
   });
 
   it('dá preço aos materiais, e não só quantidade', async () => {
-    const texto = textoDoPdf(await render(entrada()));
+    const texto = pdfText(await render(entrada()));
 
     expect(texto).toContain('Materiais e fornecimentos');
     /* O modelo do setor lista material só com descrição e quantidade: quem
@@ -133,9 +102,7 @@ describe('Orçamento premium', () => {
   });
 
   it('numera os itens de forma contínua entre os grupos', async () => {
-    const texto = textoDoPdf(
-      await render(entrada({ servicos: 2, materiais: 2 })),
-    );
+    const texto = pdfText(await render(entrada({ servicos: 2, materiais: 2 })));
 
     /* Reiniciar a numeração em cada grupo faria existir dois "item 01" na
        mesma proposta — e é por número que o cliente questiona uma linha. */
@@ -144,7 +111,7 @@ describe('Orçamento premium', () => {
   });
 
   it('tira o desconto da tabela e põe no resumo', async () => {
-    const texto = textoDoPdf(await render(entrada()));
+    const texto = pdfText(await render(entrada()));
 
     expect(texto).toContain('SUBTOTAL');
     expect(texto).toContain('DESCONTO');
@@ -155,7 +122,7 @@ describe('Orçamento premium', () => {
   });
 
   it('omite o resumo quando não há desconto a explicar', async () => {
-    const texto = textoDoPdf(
+    const texto = pdfText(
       await render(entrada({ desconto: 0, total: 2952.7 })),
     );
 
@@ -169,14 +136,14 @@ describe('Orçamento premium', () => {
     /* Um total que não bate com a soma dos itens é problema do domínio, e é
        lá que se corrige. Recalcular na impressão criaria uma segunda fonte de
        verdade sobre dinheiro, e a folha contradiria a tela. */
-    const texto = textoDoPdf(await render(entrada({ total: 1 })));
+    const texto = pdfText(await render(entrada({ total: 1 })));
 
     expect(texto).toContain('R$ 1,00');
     expect(texto).toContain('um real');
   });
 
   it('dá onde o cliente aprovar', async () => {
-    const texto = textoDoPdf(await render(entrada()));
+    const texto = pdfText(await render(entrada()));
 
     expect(texto).toContain('Aceite');
     expect(texto).toContain('autorizo a execução dos serviços');
@@ -187,14 +154,14 @@ describe('Orçamento premium', () => {
   });
 
   it('não repete a validade em duas seções', async () => {
-    const texto = textoDoPdf(await render(entrada()));
+    const texto = pdfText(await render(entrada()));
 
     expect(texto).toContain('25/10/2026 (30 dias)');
     expect(texto.match(/25\/10\/2026/g) ?? []).toHaveLength(1);
   });
 
   it('traduz a situação da proposta', async () => {
-    const texto = textoDoPdf(await render(entrada()));
+    const texto = pdfText(await render(entrada()));
 
     expect(texto).toContain('Enviada');
     expect(texto).not.toContain('SENT');
@@ -202,9 +169,9 @@ describe('Orçamento premium', () => {
 
   it('distribui a tabela de itens e repete o cabeçalho', async () => {
     const bytes = await render(entrada({ servicos: 60 }));
-    const texto = textoDoPdf(bytes);
+    const texto = pdfText(bytes);
 
-    expect(contarPaginas(bytes)).toBeGreaterThan(1);
+    expect(pdfPageCount(bytes)).toBeGreaterThan(1);
     /* A legenda é do documento, não de uma célula: em minúscula, acima da
        tabela. Concatenada ao cabeçalho da primeira coluna — que foi o defeito
        — ela estourava a largura reservada para a palavra "Item" e

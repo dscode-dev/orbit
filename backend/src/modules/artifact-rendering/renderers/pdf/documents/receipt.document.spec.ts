@@ -6,34 +6,9 @@
  * saindo como `NaN`, o extenso faltando, e o código de papel do banco
  * impresso ao lado da assinatura.
  */
-import { inflateSync } from 'node:zlib';
 import { ArtifactPremiumPdfRenderer } from '../artifact-premium-pdf.renderer';
 import type { RenderInput } from '../../artifact-renderer';
-
-function textoDoPdf(pdf: Buffer): string {
-  const bruto = pdf.toString('latin1');
-  const partes: string[] = [];
-  const padrao = /stream\r?\n/g;
-  let achado: RegExpExecArray | null;
-
-  while ((achado = padrao.exec(bruto)) !== null) {
-    const inicio = achado.index + achado[0].length;
-    const fim = bruto.indexOf('endstream', inicio);
-    if (fim < 0) continue;
-    let conteudo: string;
-    try {
-      conteudo = inflateSync(
-        Buffer.from(bruto.slice(inicio, fim), 'latin1'),
-      ).toString('latin1');
-    } catch {
-      continue;
-    }
-    for (const hex of conteudo.match(/<[0-9a-fA-F]+>/g) ?? []) {
-      partes.push(Buffer.from(hex.slice(1, -1), 'hex').toString('latin1'));
-    }
-  }
-  return partes.join('');
-}
+import { pdfText } from '../../../../../../test/support/pdf-text';
 
 function entrada(
   options: {
@@ -169,7 +144,7 @@ describe('Recibo premium', () => {
   const renderer = new ArtifactPremiumPdfRenderer();
 
   it('imprime o valor em número e por extenso', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('VALOR RECEBIDO');
     expect(texto).toContain('1.234,56');
@@ -184,10 +159,10 @@ describe('Recibo premium', () => {
   });
 
   it('lê o decimal tanto como texto quanto como número', async () => {
-    const comoTexto = textoDoPdf(
+    const comoTexto = pdfText(
       (await renderer.render(entrada({ valor: 'R$ 1.234,56' }))).bytes,
     );
-    const comoNumero = textoDoPdf(
+    const comoNumero = pdfText(
       (await renderer.render(entrada({ valor: 1234.56 }))).bytes,
     );
 
@@ -201,7 +176,7 @@ describe('Recibo premium', () => {
     /* `'-'` sobrevive à limpeza de caracteres e vira `Number('-')`, que é
        `NaN`: é o que exercita a guarda, e não um texto que a limpeza já
        descarta antes. */
-    const texto = textoDoPdf(
+    const texto = pdfText(
       (await renderer.render(entrada({ valor: '-' }))).bytes,
     );
 
@@ -214,7 +189,7 @@ describe('Recibo premium', () => {
   });
 
   it('monta a declaração a partir dos mesmos campos do cartão', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('Recebemos de Fictícia System Ltda');
     expect(texto).toContain('CNPJ 12.121.212/1212-12');
@@ -222,7 +197,7 @@ describe('Recibo premium', () => {
   });
 
   it('não deixa ponto no meio da oração costurada', async () => {
-    const texto = textoDoPdf(
+    const texto = pdfText(
       (await renderer.render(entrada({ referente: 'Serviços prestados.' })))
         .bytes,
     );
@@ -232,7 +207,7 @@ describe('Recibo premium', () => {
   });
 
   it('calcula até quando a garantia vale', async () => {
-    const texto = textoDoPdf(
+    const texto = pdfText(
       (await renderer.render(entrada({ garantia: 90 }))).bytes,
     );
 
@@ -244,13 +219,13 @@ describe('Recibo premium', () => {
   });
 
   it('não inventa garantia que ninguém registrou', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).not.toContain('Garantia');
   });
 
   it('não vaza o código do papel ao lado da assinatura', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('Emitente');
     expect(texto).not.toContain('ISSUER');

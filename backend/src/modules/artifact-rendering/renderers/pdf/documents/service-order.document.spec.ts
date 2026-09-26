@@ -6,38 +6,9 @@
  * pendência que precisa ser lida antes da assinatura, e os códigos de enum do
  * banco que não podem chegar ao cliente.
  */
-import { inflateSync } from 'node:zlib';
 import { ArtifactPremiumPdfRenderer } from '../artifact-premium-pdf.renderer';
 import type { RenderInput } from '../../artifact-renderer';
-
-function textoDoPdf(pdf: Buffer): string {
-  const bruto = pdf.toString('latin1');
-  const partes: string[] = [];
-  const padrao = /stream\r?\n/g;
-  let achado: RegExpExecArray | null;
-
-  while ((achado = padrao.exec(bruto)) !== null) {
-    const inicio = achado.index + achado[0].length;
-    const fim = bruto.indexOf('endstream', inicio);
-    if (fim < 0) continue;
-    let conteudo: string;
-    try {
-      conteudo = inflateSync(
-        Buffer.from(bruto.slice(inicio, fim), 'latin1'),
-      ).toString('latin1');
-    } catch {
-      continue;
-    }
-    for (const hex of conteudo.match(/<[0-9a-fA-F]+>/g) ?? []) {
-      partes.push(Buffer.from(hex.slice(1, -1), 'hex').toString('latin1'));
-    }
-  }
-  return partes.join('');
-}
-
-function contarPaginas(pdf: Buffer): number {
-  return (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-}
+import { pdfText, pdfPageCount } from '../../../../../../test/support/pdf-text';
 
 function entrada(
   options: {
@@ -186,7 +157,7 @@ describe('Ordem de Serviço premium', () => {
   const renderer = new ArtifactPremiumPdfRenderer();
 
   it('imprime a equipe inteira, e não só o responsável', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('Eduardo Silva');
     /* O modelo do setor imprime um nome só; uma equipe de três aparecendo
@@ -196,7 +167,7 @@ describe('Ordem de Serviço premium', () => {
   });
 
   it('traduz natureza, prioridade e situação para o cliente', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('Corretiva');
     expect(texto).toContain('Alta');
@@ -207,7 +178,7 @@ describe('Ordem de Serviço premium', () => {
   });
 
   it('separa o que foi pedido do que foi feito', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('Solicitação do cliente');
     expect(texto).toContain('Unidade do quarto liga e não refrigera.');
@@ -216,7 +187,7 @@ describe('Ordem de Serviço premium', () => {
   });
 
   it('põe a pendência depois da execução e antes do aceite', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     const execucao = texto.indexOf('PROCEDIMENTOS REALIZADOS');
     const pendencia = texto.indexOf('Isolamento da suíte');
@@ -229,16 +200,16 @@ describe('Ordem de Serviço premium', () => {
   });
 
   it('imprime a duração calculada, sem obrigar o leitor a subtrair', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('3 h 15 min');
   });
 
   it('omite a coluna do autor quando nenhuma etapa tem autor', async () => {
-    const comAutor = textoDoPdf((await renderer.render(entrada())).bytes);
+    const comAutor = pdfText((await renderer.render(entrada())).bytes);
     expect(comAutor).toContain('POR QUEM');
 
-    const semAutor = textoDoPdf(
+    const semAutor = pdfText(
       (
         await renderer.render(
           entrada({
@@ -258,7 +229,7 @@ describe('Ordem de Serviço premium', () => {
   });
 
   it('imprime a data de garantia em pt-BR, nunca em ISO', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('25/12/2026');
     expect(texto).not.toContain('2026-12-25');
@@ -266,9 +237,9 @@ describe('Ordem de Serviço premium', () => {
 
   it('distribui a tabela de equipamentos e repete o cabeçalho', async () => {
     const saida = await renderer.render(entrada({ equipamentos: 70 }));
-    const texto = textoDoPdf(saida.bytes);
+    const texto = pdfText(saida.bytes);
 
-    expect(contarPaginas(saida.bytes)).toBeGreaterThan(1);
+    expect(pdfPageCount(saida.bytes)).toBeGreaterThan(1);
     /* A legenda é do documento, não de uma célula: em minúscula, acima da
        tabela. Concatenada ao cabeçalho da primeira coluna — que foi o defeito
        — ela estourava a largura reservada para a palavra "Item" e
@@ -283,7 +254,7 @@ describe('Ordem de Serviço premium', () => {
       entrada({ artifactType: 'SERVICE_ORDER' }),
     );
 
-    const texto = textoDoPdf(campo.bytes);
+    const texto = pdfText(campo.bytes);
     expect(texto).toContain('Ordem de Serviço');
     expect(texto).toContain('Identificação da ordem de serviço');
     expect(texto).toContain('Andamento do atendimento');

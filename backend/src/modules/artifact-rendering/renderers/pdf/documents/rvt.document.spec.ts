@@ -6,38 +6,9 @@
  * instância ocupando o lugar do tipo no cabeçalho, a seção residual repetindo
  * um nome que já saiu, e a tabela que vira a página sem repetir o cabeçalho.
  */
-import { inflateSync } from 'node:zlib';
 import { ArtifactPremiumPdfRenderer } from '../artifact-premium-pdf.renderer';
 import type { RenderInput } from '../../artifact-renderer';
-
-function textoDoPdf(pdf: Buffer): string {
-  const bruto = pdf.toString('latin1');
-  const partes: string[] = [];
-  const padrao = /stream\r?\n/g;
-  let achado: RegExpExecArray | null;
-
-  while ((achado = padrao.exec(bruto)) !== null) {
-    const inicio = achado.index + achado[0].length;
-    const fim = bruto.indexOf('endstream', inicio);
-    if (fim < 0) continue;
-    let conteudo: string;
-    try {
-      conteudo = inflateSync(
-        Buffer.from(bruto.slice(inicio, fim), 'latin1'),
-      ).toString('latin1');
-    } catch {
-      continue;
-    }
-    for (const hex of conteudo.match(/<[0-9a-fA-F]+>/g) ?? []) {
-      partes.push(Buffer.from(hex.slice(1, -1), 'hex').toString('latin1'));
-    }
-  }
-  return partes.join('');
-}
-
-function contarPaginas(pdf: Buffer): number {
-  return (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-}
+import { pdfText, pdfPageCount } from '../../../../../../test/support/pdf-text';
 
 function equipamentos(quantidade: number) {
   return Array.from({ length: quantidade }, (_, indice) => ({
@@ -202,7 +173,7 @@ describe('RVT premium', () => {
 
   it('nomeia o documento pelo tipo, não pela instância', async () => {
     const saida = await renderer.render(entrada());
-    const texto = textoDoPdf(saida.bytes);
+    const texto = pdfText(saida.bytes);
 
     expect(texto).toContain('Relatório de Visita Técnica');
     /* O contrato continua no documento — mas na identificação, não no
@@ -214,14 +185,14 @@ describe('RVT premium', () => {
   });
 
   it('imprime a data da próxima visita em pt-BR, nunca em ISO', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('01/10/2026');
     expect(texto).not.toContain('2026-10-01');
   });
 
   it('não repete o título de uma seção que já saiu', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     /* "Encaminhamentos" sai uma vez, com as recomendações. O campo que sobra
        do template vai para o bloco residual, com nome próprio. */
@@ -233,7 +204,7 @@ describe('RVT premium', () => {
   });
 
   it('separa o roteiro das respostas livres', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('Serviços executados');
     expect(texto).toContain('Limpeza de filtro de ar');
@@ -242,7 +213,7 @@ describe('RVT premium', () => {
   });
 
   it('imprime motivo, constatações e recomendações em blocos próprios', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('MOTIVO DA VISITA');
     expect(texto).toContain('Constatações');
@@ -252,9 +223,9 @@ describe('RVT premium', () => {
 
   it('distribui a tabela de equipamentos e repete o cabeçalho', async () => {
     const saida = await renderer.render(entrada({ equipamentos: 70 }));
-    const texto = textoDoPdf(saida.bytes);
+    const texto = pdfText(saida.bytes);
 
-    expect(contarPaginas(saida.bytes)).toBeGreaterThan(1);
+    expect(pdfPageCount(saida.bytes)).toBeGreaterThan(1);
     /* A legenda é do documento, não de uma célula: em minúscula, acima da
        tabela. Concatenada ao cabeçalho da primeira coluna — que foi o defeito
        — ela estourava a largura reservada para a palavra "Item" e
@@ -268,14 +239,14 @@ describe('RVT premium', () => {
     const campo = await renderer.render(entrada({ artifactType: 'RVT' }));
     const template = await renderer.render(entrada());
 
-    const textoCampo = textoDoPdf(campo.bytes);
+    const textoCampo = pdfText(campo.bytes);
     expect(textoCampo).toContain('Serviços executados');
     expect(textoCampo).toContain('Relatório de Visita Técnica');
-    expect(contarPaginas(campo.bytes)).toBe(contarPaginas(template.bytes));
+    expect(pdfPageCount(campo.bytes)).toBe(pdfPageCount(template.bytes));
   });
 
   it('não vaza código de situação do banco', async () => {
-    const texto = textoDoPdf((await renderer.render(entrada())).bytes);
+    const texto = pdfText((await renderer.render(entrada())).bytes);
 
     expect(texto).toContain('Concluída');
     expect(texto).not.toContain('COMPLETED');
