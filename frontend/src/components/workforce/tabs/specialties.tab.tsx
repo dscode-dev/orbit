@@ -18,7 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAction } from "@/actions";
+import { useWorkforceManagement } from "@/hooks/workforce/use-workforce-management";
+import { ManagementBlocked } from "../management-blocked";
 import {
   useCreateSpecialty,
   useRemoveSpecialty,
@@ -30,7 +31,7 @@ import { ListState } from "@/workspace";
 
 export function SpecialtiesTab() {
   const query = useSpecialties();
-  const manage = useAction("team-member.update");
+  const workforce = useWorkforceManagement().workforce;
 
   /** `null` fechado; `"new"` criando; uma especialidade editando. */
   const [editando, setEditando] = useState<Specialty | "new" | null>(null);
@@ -70,12 +71,13 @@ export function SpecialtiesTab() {
 
   return (
     <div className="space-y-5">
+      <ManagementBlocked reason={workforce.reason} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           Especialidades são compartilhadas por toda a organização e vinculadas
           às pessoas com um nível declarado.
         </p>
-        {manage.allowed && editando === null ? (
+        {workforce.allowed && editando === null ? (
           <Button size="sm" onClick={() => abrir("new")}>
             <Plus className="size-4" />
             Nova especialidade
@@ -123,11 +125,7 @@ export function SpecialtiesTab() {
               size="sm"
               disabled={!name.trim() || mutation.isPending}
             >
-              {mutation.isPending
-                ? "Salvando…"
-                : alvo
-                  ? "Salvar"
-                  : "Criar"}
+              {mutation.isPending ? "Salvando…" : alvo ? "Salvar" : "Criar"}
             </Button>
           </div>
         </form>
@@ -146,7 +144,7 @@ export function SpecialtiesTab() {
           title: "Nenhuma especialidade",
           description:
             "Especialidades permitem encontrar quem sabe fazer o quê na hora de escalar trabalho.",
-          action: manage.allowed ? (
+          action: workforce.allowed ? (
             <Button size="sm" onClick={() => abrir("new")}>
               <Plus className="size-4" />
               Nova especialidade
@@ -182,7 +180,7 @@ export function SpecialtiesTab() {
                     : `${specialty.memberCount} pessoas`}
                 </Badge>
 
-                {manage.allowed ? (
+                {workforce.allowed ? (
                   <>
                     <Button
                       variant="ghost"
@@ -210,7 +208,8 @@ export function SpecialtiesTab() {
       </ListState>
 
       <p className="text-xs text-muted-foreground">
-        Não é possível remover uma especialidade que ainda esteja vinculada a alguém — apagá-la apagaria a informação de que aquelas pessoas a
+        Não é possível remover uma especialidade que ainda esteja vinculada a
+        alguém — apagá-la apagaria a informação de que aquelas pessoas a
         possuem.
       </p>
     </div>

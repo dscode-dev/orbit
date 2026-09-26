@@ -26,7 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAction } from "@/actions";
+import { useWorkforceManagement } from "@/hooks/workforce/use-workforce-management";
+import { ManagementBlocked } from "../management-blocked";
 import {
   useAddTeamMember,
   useRemoveTeam,
@@ -40,7 +41,7 @@ import { ListState } from "@/workspace";
 
 export function TeamsTab() {
   const query = useTeams();
-  const manage = useAction("team-member.update");
+  const workforce = useWorkforceManagement().workforce;
 
   const remove = useRemoveTeam();
 
@@ -51,11 +52,12 @@ export function TeamsTab() {
 
   return (
     <div className="space-y-5">
+      <ManagementBlocked reason={workforce.reason} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           Equipes agrupam pessoas para escala e atribuição de trabalho.
         </p>
-        {manage.allowed ? (
+        {workforce.allowed ? (
           <Button size="sm" onClick={() => setEditando("new")}>
             <Plus className="size-4" />
             Nova equipe
@@ -76,7 +78,7 @@ export function TeamsTab() {
           title: "Nenhuma equipe",
           description:
             "Equipes agrupam quem trabalha junto — útil para escalar e atribuir em bloco.",
-          action: manage.allowed ? (
+          action: workforce.allowed ? (
             <Button size="sm" onClick={() => setEditando("new")}>
               <Plus className="size-4" />
               Nova equipe
@@ -121,7 +123,7 @@ function TeamCard({
   onRemove: () => void;
   removing: boolean;
 }) {
-  const manage = useAction("team-member.update");
+  const workforce = useWorkforceManagement().workforce;
   const members = useTeamMembers({ page: 1, limit: 100 });
 
   const add = useAddTeamMember(team.id);
@@ -156,7 +158,7 @@ function TeamCard({
           </p>
         </div>
 
-        {manage.allowed ? (
+        {workforce.allowed ? (
           <div className="flex shrink-0 items-center">
             <Button
               variant="ghost"
@@ -188,7 +190,7 @@ function TeamCard({
                 {member.role ? (
                   <span className="text-muted-foreground">· {member.role}</span>
                 ) : null}
-                {manage.allowed ? (
+                {workforce.allowed ? (
                   <button
                     type="button"
                     onClick={() => removeMember.mutate(member.userId)}
@@ -207,7 +209,7 @@ function TeamCard({
         <p className="text-sm text-muted-foreground">Equipe sem pessoas.</p>
       )}
 
-      {manage.allowed && available.length > 0 ? (
+      {workforce.allowed && available.length > 0 ? (
         <div className="flex items-end gap-2 border-t border-border pt-3">
           <Select value={userId} onValueChange={setUserId}>
             <SelectTrigger

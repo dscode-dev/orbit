@@ -35,7 +35,8 @@ import { Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useAction } from "@/actions";
+import { useWorkforceManagement } from "@/hooks/workforce/use-workforce-management";
+import { ManagementBlocked } from "../management-blocked";
 import {
   useAccessCatalog,
   useRemoveRole,
@@ -51,19 +52,20 @@ export function RolesTab() {
   const catalog = useAccessCatalog();
   const roles = useMemo(() => query.data ?? [], [query.data]);
 
-  const manage = useAction("team-member.update");
+  const gate = useWorkforceManagement().roles;
   const remove = useRemoveRole();
   const [editing, setEditing] = useState<TeamRole | null>(null);
   const [creating, setCreating] = useState(false);
 
   return (
     <div className="space-y-5">
+      <ManagementBlocked reason={gate.reason} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           O papel define as permissões de quem o tem. Papéis de sistema não são
           editáveis.
         </p>
-        {manage.allowed ? (
+        {gate.allowed ? (
           <Button size="sm" onClick={() => setCreating(true)}>
             <Plus className="size-4" />
             Novo papel
@@ -129,7 +131,7 @@ function RoleCard({
   removing: boolean;
 }) {
   const session = useSession();
-  const manage = useAction("team-member.update");
+  const gate = useWorkforceManagement().roles;
   const groups = useMemo(
     () =>
       (catalog?.permissionGroups ?? [])
@@ -145,7 +147,7 @@ function RoleCard({
   );
 
   /** Papel de sistema é protegido pelo servidor; a tela reflete a condição. */
-  const editable = manage.allowed && !role.isSystem;
+  const editable = gate.allowed && !role.isSystem;
 
   return (
     <article className="glass-panel space-y-4 rounded-xl p-4">
