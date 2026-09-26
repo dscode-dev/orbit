@@ -110,6 +110,10 @@ model User {
   customerPortalInvitationsSent      CustomerPortalInvitation[]     @relation("CustomerPortalInvitationInviter")
   assignedCustomerServiceRequests    CustomerServiceRequest[]       @relation("CustomerServiceRequestAssignee")
   customerServiceRequestEvents       CustomerServiceRequestEvent[]  @relation("CustomerServiceRequestInternalActor")
+  commissionPolicies                 CommissionPolicy[]             @relation("CommissionPolicyCreatedBy")
+  commissionPaymentsReceived         CommissionPayment[]            @relation("CommissionPaymentUser")
+  commissionPaymentsCreated          CommissionPayment[]            @relation("CommissionPaymentCreatedBy")
+  commissionItems                    CommissionPaymentItem[]        @relation("CommissionPaymentItemUser")
 
   @@index([status, deletedAt])
   @@map("users")
@@ -319,9 +323,12 @@ model Organization {
   customerServiceRequests       CustomerServiceRequest[]
   customerServiceRequestEvents  CustomerServiceRequestEvent[]
 
-  pmocCodeSequences   PmocCodeSequence[]
-  pmocUnits           PmocUnit[]
-  rvtMaintenanceTypes RvtMaintenanceType[]
+  pmocCodeSequences      PmocCodeSequence[]
+  pmocUnits              PmocUnit[]
+  rvtMaintenanceTypes    RvtMaintenanceType[]
+  commissionPolicy       CommissionPolicy?
+  commissionPayments     CommissionPayment[]
+  commissionPaymentItems CommissionPaymentItem[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -404,6 +411,7 @@ model BusinessUnit {
   fieldEvidenceUploads    FieldEvidenceUpload[]
   fieldEvidence           FieldEvidence[]
   customerServiceRequests CustomerServiceRequest[]
+  commissionPayments      CommissionPayment[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, documentType, documentNumber])
@@ -1453,6 +1461,7 @@ model Operation {
 
   pmocExecution          PmocExecution?
   pmocEquipmentExecution PmocEquipmentExecution?
+  commissionItems        CommissionPaymentItem[]
 
   @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, scheduledStart])
@@ -3204,6 +3213,139 @@ model FinancialSettings {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("financial_settings")
+}
+
+// -----------------------------------------------------------------------------
+// COMISSÃO DE TÉCNICOS
+//
+// ## A comissão pendente é derivada, não gravada
+//
+// Não existe tabela de comissões a pagar. Ela é calculada a partir do que já é
+// verdade no banco — atendimento concluído, técnico responsável, auxiliares
+// ativos, receita confirmada — cruzado com a política vigente. Materializar uma
+// linha por atendimento concluído exigiria um gatilho na conclusão, e o dia em
+// que ele falhasse a comissão simplesmente não existiria: ninguém procura o que
+// nunca apareceu.
+//
+// O que **é** gravado é o pagamento. A partir dele o valor congela: `amount` no
+// item é o que foi pago, e não recalcula quando a política muda. Comissão paga é
+// fato histórico; comissão pendente é sempre a política de hoje.
+//
+// ## O que impede pagar duas vezes
+//
+// O índice único de `commission_payment_items` sobre
+// `(organization_id, operation_id, user_id, role)`. Não é validação de
+// aplicação — é o banco recusando. Dois cliques simultâneos em "pagar todas"
+// terminam com um pagamento e um erro, nunca com dois pagamentos.
+// -----------------------------------------------------------------------------
+
+/// Política de comissão da organização.
+///
+/// Uma por organização: as regras de comissão são combinadas com a equipe, não
+/// por filial. Um escopo por unidade acrescentaria uma pergunta ("de qual
+/// unidade?") a toda leitura, para um caso que ninguém pediu.
+model CommissionPolicy {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organizationId String @unique @map("organization_id") @db.Uuid
+
+  /// Janela de fechamento: `WEEKLY` · `BIWEEKLY` · `MONTHLY`.
+  period String @default("MONTHLY") @db.VarChar(20)
+  /// `FIXED` (reais por atendimento) · `PERCENTAGE` (sobre a receita).
+  mode   String @default("FIXED") @db.VarChar(20)
+
+  /// Valor do técnico responsável: reais ou percentual, conforme `mode`.
+  primaryValue   Decimal @default(0) @map("primary_value") @db.Decimal(14, 4)
+  /// Valor do auxiliar. Separado porque a combinação é diferente por papel.
+  assistantValue Decimal @default(0) @map("assistant_value") @db.Decimal(14, 4)
+
+  /// Tipos de atendimento que geram comissão. Vazio significa todos.
+  eligibleKinds String[] @default([]) @map("eligible_kinds") @db.VarChar(60)
+
+  /// Só atendimento com receita confirmada gera comissão.
+  ///
+  /// Em `PERCENTAGE` é obrigatório na prática: sem receita não há base. Em
+  /// `FIXED` é escolha — pagar pelo serviço feito ou só pelo serviço recebido.
+  requiresConfirmedRevenue Boolean @default(true) @map("requires_confirmed_revenue")
+
+  /// Desligada, nenhuma comissão é calculada e a tela diz isso.
+  active Boolean @default(false)
+
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("CommissionPolicyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@map("commission_policies")
+}
+
+/// Pagamento de comissão a uma pessoa.
+///
+/// `amount` é a soma dos itens, calculada pelo servidor. O cliente nunca envia
+/// valor: enviar o que se vai pagar seria deixar o pagador decidir o preço.
+model CommissionPayment {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  businessUnitId String? @map("business_unit_id") @db.Uuid
+  /// Quem recebe.
+  userId         String  @map("user_id") @db.Uuid
+
+  amount   Decimal @db.Decimal(14, 2)
+  currency String  @default("BRL") @db.VarChar(3)
+  /// `PIX` · `TRANSFER` · `CASH` · `PAYROLL` · `OTHER`.
+  method   String? @db.VarChar(20)
+  notes    String? @db.Text
+
+  /// Recorte que o pagamento fecha, quando foi pago por período.
+  periodStart DateTime? @map("period_start") @db.Date
+  periodEnd   DateTime? @map("period_end") @db.Date
+
+  paidAt      DateTime @default(now()) @map("paid_at") @db.Timestamptz(3)
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit?           @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  user         User                    @relation("CommissionPaymentUser", fields: [userId], references: [id], onDelete: Restrict)
+  createdBy    User                    @relation("CommissionPaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  items        CommissionPaymentItem[]
+
+  @@index([organizationId, userId, paidAt])
+  @@map("commission_payments")
+}
+
+/// A comissão de um atendimento, congelada no pagamento.
+///
+/// `role` distingue o técnico responsável do auxiliar: a mesma pessoa pode
+/// receber pelos dois papéis em atendimentos diferentes, e o valor é outro.
+model CommissionPaymentItem {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  paymentId      String @map("payment_id") @db.Uuid
+  operationId    String @map("operation_id") @db.Uuid
+  userId         String @map("user_id") @db.Uuid
+  /// `PRIMARY` (responsável) · `ASSISTANT` (auxiliar).
+  role           String @db.VarChar(20)
+
+  /// Como foi calculado, para o histórico não depender da política de hoje.
+  mode       String   @db.VarChar(20)
+  rate       Decimal  @db.Decimal(14, 4)
+  /// Receita considerada, quando percentual.
+  baseAmount Decimal? @map("base_amount") @db.Decimal(14, 2)
+  amount     Decimal  @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payment      CommissionPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  operation    Operation         @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  user         User              @relation("CommissionPaymentItemUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  /// O que impede pagar a mesma comissão duas vezes.
+  @@unique([organizationId, operationId, userId, role])
+  @@index([organizationId, userId, createdAt])
+  @@map("commission_payment_items")
 }
 
 // -----------------------------------------------------------------------------

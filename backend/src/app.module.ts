@@ -10,6 +10,7 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { TechnicalCatalogsModule } from './modules/technical-catalogs/technical-catalogs.module';
 import { WorkforceModule } from './modules/workforce/workforce.module';
+import { CommissionsModule } from './modules/commissions/commissions.module';
 import { FinancialModule } from './modules/financial/financial.module';
 import { QuotesModule } from './modules/quotes/quotes.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
@@ -56,6 +57,7 @@ import {
     OrganizationsModule,
     TechnicalCatalogsModule,
     WorkforceModule,
+    CommissionsModule,
     FinancialModule,
     QuotesModule,
     InventoryModule,
