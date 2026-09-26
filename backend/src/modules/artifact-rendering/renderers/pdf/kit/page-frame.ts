@@ -17,12 +17,7 @@
  * moldura porque ela não existe para o fluxo — existe só no fim.
  */
 import type { DocumentEmitter } from './document-context';
-import {
-  FONTS,
-  METRICS,
-  brandGradient,
-  type DocumentTheme,
-} from './theme';
+import { FONTS, METRICS, brandGradient, type DocumentTheme } from './theme';
 
 export interface FrameIdentity {
   /** "PMOC", "Ordem de Serviço" — o que o documento é. */
