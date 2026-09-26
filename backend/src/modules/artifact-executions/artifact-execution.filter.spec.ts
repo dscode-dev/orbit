@@ -14,7 +14,7 @@ const ORG = '11111111-1111-1111-1111-111111111111';
 function query(
   overrides: Partial<ArtifactExecutionQueryDto> = {},
 ): ArtifactExecutionQueryDto {
-  return { page: 1, limit: 20, ...overrides } as ArtifactExecutionQueryDto;
+  return { page: 1, limit: 20, ...overrides };
 }
 
 describe('executionFilter', () => {

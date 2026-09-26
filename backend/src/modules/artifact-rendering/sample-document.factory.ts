@@ -86,7 +86,7 @@ function field(
     hidden: false,
     value,
     ...extra,
-  } as Field;
+  };
 }
 
 /**

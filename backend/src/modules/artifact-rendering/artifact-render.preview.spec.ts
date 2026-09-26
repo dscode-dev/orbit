@@ -45,7 +45,7 @@ function montar(source: unknown) {
     { snapshot: jest.fn() } as never,
     inputs as never,
     documentContext as never,
-    quotes as never,
+    quotes,
   );
 
   return {

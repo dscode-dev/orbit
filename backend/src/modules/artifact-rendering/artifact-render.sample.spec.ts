@@ -31,19 +31,36 @@ function montar() {
     findSampleEmitter: jest.fn().mockResolvedValue(UNIDADE),
   };
   const queue = { enqueue: jest.fn() };
+  /* Tipado para que a leitura das chamadas não caia em `any`: o que este teste
+     inspeciona é justamente o argumento que chegou ao renderizador. */
   const motor = {
     id: 'pdf.premium',
-    render: jest.fn().mockResolvedValue({
-      bytes: Buffer.from('%PDF-1.3 amostra'),
-      mimeType: 'application/pdf',
-      format: 'PDF',
-    }),
+    render: jest
+      .fn<
+        Promise<unknown>,
+        [
+          {
+            execution: { code: string };
+            metadata: { documentContext: Record<string, unknown> };
+          },
+        ]
+      >()
+      .mockResolvedValue({
+        bytes: Buffer.from('%PDF-1.3 amostra'),
+        mimeType: 'application/pdf',
+        format: 'PDF',
+      }),
   };
   const renderers = { get: jest.fn().mockReturnValue(motor) };
   const manifestPolicy = { assertExecutionCanIssue: jest.fn() };
   const inputs = { build: jest.fn() };
   const documentContext = {
-    build: jest.fn().mockReturnValue({ emitter: { tradeName: 'Clima Norte' } }),
+    build: jest
+      .fn<
+        { emitter: { tradeName: string } },
+        [{ businessUnit?: unknown; logo?: { mimeType: string } }]
+      >()
+      .mockReturnValue({ emitter: { tradeName: 'Clima Norte' } }),
   };
   const quotes = {
     render: jest.fn().mockResolvedValue(Buffer.from('%PDF-1.3 orcamento')),
@@ -57,7 +74,7 @@ function montar() {
     { snapshot: jest.fn() } as never,
     inputs as never,
     documentContext as never,
-    quotes as never,
+    quotes,
   );
 
   return {
@@ -91,12 +108,12 @@ describe('amostra de modelo', () => {
     await service.sample('RELATORIO_VISITA', ATOR);
 
     expect(repository.findSampleEmitter).toHaveBeenCalledWith('org-1');
-    expect(documentContext.build).toHaveBeenCalledWith(
-      expect.objectContaining({
-        businessUnit: UNIDADE,
-        logo: expect.objectContaining({ mimeType: 'image/png' }),
-      }),
-    );
+
+    /* Sem matcher aninhado: o que importa é que a unidade real e a logo dela
+       chegaram ao construtor do contexto. */
+    const contexto = documentContext.build.mock.calls[0]![0];
+    expect(contexto.businessUnit).toBe(UNIDADE);
+    expect(contexto.logo?.mimeType).toBe('image/png');
   });
 
   it('leva o emitente real e o cliente fictício até o renderizador', async () => {
@@ -104,10 +121,7 @@ describe('amostra de modelo', () => {
 
     await service.sample('ORDEM_SERVICO', ATOR);
 
-    const entrada = motor.render.mock.calls[0]![0] as {
-      execution: { code: string };
-      metadata: { documentContext: Record<string, unknown> };
-    };
+    const entrada = motor.render.mock.calls[0]![0];
 
     expect(entrada.execution.code).toContain('AMOSTRA');
     expect(entrada.metadata.documentContext.emitter).toEqual({

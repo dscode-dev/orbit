@@ -33,7 +33,6 @@ import {
   isSampleArtifactType,
   sampleQuote,
   sampleRenderInput,
-  type SampleArtifactType,
 } from './sample-document.factory';
 import { readEmbeddedImage } from '../../common/embedded-image';
 import { defaultRendererFor } from './renderers/default-renderer';
@@ -118,7 +117,8 @@ export class ArtifactRenderService {
 
     const motor = this.renderers.get(defaultRendererFor(artifactType));
     const output = await motor.render(
-      sampleRenderInput(artifactType as SampleArtifactType, { emitter }),
+      /* `isSampleArtifactType` acima já estreitou o tipo. */
+      sampleRenderInput(artifactType, { emitter }),
     );
 
     return {
