@@ -38,7 +38,7 @@ import { SecuritySettingsTab } from "./tabs/security.tab";
 import { SubscriptionSettingsTab } from "./tabs/subscription.tab";
 
 /** Os apelidos das seções, na ordem em que aparecem. */
-const SECOES = [
+const TODAS_AS_SECOES = [
   "organizacao",
   "assinatura",
   "operacao",
@@ -51,8 +51,31 @@ const SECOES = [
   "integracoes",
 ] as const;
 
+/**
+ * Seções prontas por fora, mas não prontas para serem oferecidas.
+ *
+ * ## Por que esconder em vez de apagar
+ *
+ * Integrações tem tela, hooks e testes; o que falta é do servidor — a
+ * sincronização de dados e o catálogo de provedores não existem, então a aba
+ * aceita credenciais e não faz nada com elas. Oferecer isso é pior que não
+ * oferecer: quem cadastra acredita ter integrado.
+ *
+ * Apagar o código custaria reescrevê-lo quando o backend chegar, e o histórico
+ * não substitui código que compila. Uma linha aqui devolve a aba.
+ *
+ * A seção também sai de `SECOES`, não só da lista de abas: `?secao=integracoes`
+ * nos favoritos de alguém cairia numa aba que não existe mais e a página abriria
+ * vazia. Fora da lista, o endereço volta para a primeira seção.
+ */
+const OCULTAS: readonly (typeof TODAS_AS_SECOES)[number][] = ["integracoes"];
+
+const SECOES = TODAS_AS_SECOES.filter((secao) => !OCULTAS.includes(secao));
+
 export function SettingsWorkspace() {
   const section = useSectionFromUrl(SECOES);
+  const visivel = (secao: (typeof TODAS_AS_SECOES)[number]) =>
+    !OCULTAS.includes(secao);
 
   return (
     <ContentContainer size="wide" className="space-y-6">
@@ -67,7 +90,9 @@ export function SettingsWorkspace() {
           <TabsTrigger value="notificacoes">Notificações</TabsTrigger>
           <TabsTrigger value="automacoes">Automações</TabsTrigger>
           <TabsTrigger value="seguranca">Segurança</TabsTrigger>
-          <TabsTrigger value="integracoes">Integrações</TabsTrigger>
+          {visivel("integracoes") ? (
+            <TabsTrigger value="integracoes">Integrações</TabsTrigger>
+          ) : null}
         </TabsList>
 
         <TabsContent value="organizacao">
@@ -77,7 +102,10 @@ export function SettingsWorkspace() {
         </TabsContent>
 
         <TabsContent value="assinatura">
-          <TabBoundary id="settings-subscription" label="o plano e a assinatura">
+          <TabBoundary
+            id="settings-subscription"
+            label="o plano e a assinatura"
+          >
             <SubscriptionSettingsTab />
           </TabBoundary>
         </TabsContent>
@@ -124,11 +152,13 @@ export function SettingsWorkspace() {
           </TabBoundary>
         </TabsContent>
 
-        <TabsContent value="integracoes">
-          <TabBoundary id="settings-integrations" label="as integrações">
-            <IntegrationsSettingsTab />
-          </TabBoundary>
-        </TabsContent>
+        {visivel("integracoes") ? (
+          <TabsContent value="integracoes">
+            <TabBoundary id="settings-integrations" label="as integrações">
+              <IntegrationsSettingsTab />
+            </TabBoundary>
+          </TabsContent>
+        ) : null}
       </Tabs>
     </ContentContainer>
   );

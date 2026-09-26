@@ -3,6 +3,13 @@
 /**
  * Configurações de documentos.
  *
+ * ## O que saiu daqui
+ *
+ * Um painel "Armazenamento" que dizia, em dois parágrafos, que o local dos
+ * arquivos é definido na instalação e não pela organização. Verdade, e resposta
+ * para uma pergunta que ninguém faz nas configurações da própria empresa — quem
+ * instala o Orbit não procura isso aqui.
+ *
  * ## Não altera o Document Engine
  *
  * A PR-19 (Storage & Manifest) e a PR-20 (Rendering Engine) definiram quem
@@ -12,11 +19,20 @@
  *
  * ## Renderizadores vêm do backend
  *
- * `GET /artifact-rendering/metrics` publica os renderizadores disponíveis. A
- * lista é do servidor; o Document Registry só acrescenta apresentação.
+ * `GET /artifact-rendering/metrics` publica os renderizadores disponíveis e
+ * qual é o padrão. A lista é do servidor; o Document Registry só acrescenta
+ * apresentação.
+ *
+ * ## O que saiu da tela
+ *
+ * O identificador cru (`pdf.premium`, em monoespaçada) e o selo do formato.
+ * Nenhum dos dois respondia a uma pergunta de quem configura: o id é o que o
+ * `POST /render` recebe, e o formato já está dito na descrição. O que faltava
+ * era qual deles a plataforma usa quando ninguém escolhe — e isso o backend
+ * publica em `defaultRenderer`.
  */
 import Link from "next/link";
-import { ArrowRight, FileStack, HardDrive, PenLine } from "lucide-react";
+import { ArrowRight, FileStack, PenLine } from "lucide-react";
 
 import { PanelError, PanelFrame, PanelLoading } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
@@ -32,8 +48,8 @@ export function DocumentsSettingsTab() {
     <div className="max-w-3xl space-y-6">
       <PanelFrame
         panelId="settings-documents-renderers"
-        title="Formatos de documento"
-        description="O que a plataforma sabe produzir"
+        title="Como os documentos saem"
+        description="O acabamento que a plataforma aplica ao emitir"
       >
         {metrics.isPending ? (
           <PanelLoading rows={2} />
@@ -47,29 +63,38 @@ export function DocumentsSettingsTab() {
             <ul className="space-y-2">
               {metrics.renderers.map((id) => {
                 const renderer = resolveRenderer(id);
+                /*
+                 * O padrão vem de `defaultRenderer`, publicado pelo backend
+                 * junto da lista. A ordem de `renderers` é a de registro dos
+                 * providers no Nest — marcar o primeiro item como padrão daria
+                 * uma tela certa até alguém reordenar o módulo.
+                 */
+                const padrao = id === metrics.defaultRenderer;
                 return (
                   <li
                     key={id}
-                    className="flex items-center gap-3 rounded-lg border border-border px-3 py-2"
+                    className="flex items-start gap-3 rounded-lg border border-border px-3 py-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{renderer.label}</p>
+                      <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                        {renderer.label}
+                        {padrao ? (
+                          <Badge variant="secondary">padrão</Badge>
+                        ) : null}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {renderer.description}
                       </p>
                     </div>
-                    <Badge variant="outline">{renderer.format}</Badge>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {id}
-                    </span>
                   </li>
                 );
               })}
             </ul>
 
             <p className="text-xs text-muted-foreground">
-              O formato é escolhido no momento de emitir cada documento, não
-              como política geral da organização.
+              O acabamento é escolhido ao emitir cada documento. Não há política
+              geral da organização: um mesmo modelo pode sair em PDF hoje e como
+              página amanhã.
             </p>
           </div>
         )}
@@ -77,57 +102,46 @@ export function DocumentsSettingsTab() {
 
       <PanelFrame
         panelId="settings-documents-policies"
-        title="Políticas de emissão e retenção"
-        description="Regras aplicadas a todos os documentos"
+        title="Regras da emissão"
+        description="Valem para todos os documentos e não se configuram"
       >
         <div className="space-y-3">
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li>
-              <strong className="text-foreground">Quando se emite.</strong>{" "}
-              Uma execução em rascunho não emite documento: é preciso enviá-la
-              para revisão antes. Não é configurável.
+              <strong className="text-foreground">Rascunho não emite.</strong>{" "}
+              Uma execução em andamento, pausada ou em rascunho pode ser
+              pré-visualizada quantas vezes quiser — o rascunho sai igual ao
+              documento final —, mas só emite depois de enviada para revisão.
             </li>
             <li>
-              <strong className="text-foreground">Versionamento.</strong> Cada
-              emissão cria uma revisão nova; a anterior permanece. Apenas uma
-              fica ativa por vez.
+              <strong className="text-foreground">
+                Emitir de novo não sobrescreve.
+              </strong>{" "}
+              Cada emissão abre uma revisão nova e aposenta a anterior, que
+              continua guardada. Uma só fica valendo por vez.
             </li>
             <li>
-              <strong className="text-foreground">Distribuição.</strong> Sempre
-              por link temporário e pessoal. O arquivo nunca é acessado
-              diretamente.
+              <strong className="text-foreground">
+                Nada é apagado automaticamente.
+              </strong>{" "}
+              Um documento cancelado sai de circulação e continua registrado,
+              com quem cancelou e quando. Não há prazo de descarte.
+            </li>
+            <li>
+              <strong className="text-foreground">
+                O link é temporário e pessoal.
+              </strong>{" "}
+              O arquivo nunca fica num endereço fixo: cada download gera um link
+              que expira em poucos minutos. Expirou, gera outro.
+            </li>
+            <li>
+              <strong className="text-foreground">
+                Assinatura é do modelo, não da organização.
+              </strong>{" "}
+              Cada modelo declara de quem precisa de assinatura, e ela é
+              coletada em campo, com a localização de quem assinou.
             </li>
           </ul>
-
-          <p className="text-xs text-muted-foreground">
-            <strong>Não há política de expurgo:</strong> um documento revogado
-            continua registrado para auditoria, e nada é apagado
-            automaticamente.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            <strong>Assinaturas</strong> são coletadas durante a execução em
-            campo, com a localização de quem assinou. Não há política de
-            assinatura a configurar: cada modelo declara se pede assinatura.
-          </p>
-        </div>
-      </PanelFrame>
-
-      <PanelFrame
-        panelId="settings-documents-storage"
-        title="Armazenamento"
-        description="Onde os arquivos ficam"
-      >
-        <div className="space-y-2">
-          <p className="flex items-center gap-2 text-sm">
-            <HardDrive className="size-4 text-muted-foreground" aria-hidden />
-            O local de armazenamento é definido na instalação do Orbit, não
-            pela organização.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Trocar o local de armazenamento no meio da operação tornaria
-            inalcançáveis os arquivos já gravados. Por isso a escolha não é
-            feita por organização.
-          </p>
         </div>
       </PanelFrame>
 
@@ -139,7 +153,7 @@ export function DocumentsSettingsTab() {
         <ul className="space-y-2">
           {[
             {
-              label: "Templates oficiais",
+              label: "Modelos de documento",
               hint: "Estrutura, campos, versões e publicação",
               href: ROUTES.artifacts,
               icon: PenLine,

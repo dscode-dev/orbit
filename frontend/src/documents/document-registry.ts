@@ -203,19 +203,21 @@ const RENDERERS: readonly RendererDefinition[] = [
     id: "pdf.premium",
     label: "PDF premium",
     description:
-      "Documento com timbre da unidade, tabela de equipamentos que pagina e rodapé numerado.",
+      "A logo da sua organização no cabeçalho, faixa da marca, tabelas que continuam na página seguinte sem perder o título e rodapé numerado. É o que a plataforma usa por padrão.",
     format: "PDF",
   },
   {
     id: "pdf.default",
-    label: "PDF padrão",
-    description: "Documento paginado, com cabeçalho, rodapé e assinaturas.",
+    label: "PDF simples",
+    description:
+      "Mesmo conteúdo, sem a identidade visual: cabeçalho de texto, tabelas e assinaturas.",
     format: "PDF",
   },
   {
     id: "html.default",
-    label: "HTML padrão",
-    description: "Mesma composição em marcação, sem paginação física.",
+    label: "Página web",
+    description:
+      "O documento como página, para abrir no navegador. Não tem paginação nem numeração.",
     format: "HTML",
   },
 ];
