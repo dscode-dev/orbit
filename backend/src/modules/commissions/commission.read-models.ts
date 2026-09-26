@@ -118,7 +118,8 @@ export interface CommissionPaymentReadModel {
   readonly userId: string;
   readonly amount: number;
   readonly currency: string;
-  readonly method: string | null;
+  /** A lista é fechada pelo `CHECK` do banco, e o cliente a usa para rotular. */
+  readonly method: CommissionPaymentMethod | null;
   readonly notes: string | null;
   readonly periodStart: string | null;
   readonly periodEnd: string | null;

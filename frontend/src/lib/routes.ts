@@ -141,6 +141,16 @@ const startsWith = (pathname: string, prefixes: readonly string[]): boolean =>
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 
+/**
+ * A comissão de um técnico.
+ *
+ * Duas telas apontam para cá — a tabela da aba Comissão e a da Equipe —, e o
+ * caminho montado à mão nas duas divergiria na primeira renomeação da rota.
+ */
+export function technicianCommissionsRoute(userId: string): string {
+  return `${ROUTES.team}/tecnicos/${encodeURIComponent(userId)}/comissoes`;
+}
+
 export function isProtectedPath(pathname: string): boolean {
   return startsWith(pathname, PROTECTED_PREFIXES);
 }

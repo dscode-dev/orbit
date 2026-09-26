@@ -10,7 +10,7 @@
  * O backend registra o **fato financeiro** — entrou ou saiu, quanto, quando, de
  * que categoria, por qual origem — e é exatamente isso que a tela mostra.
  *
- * ## Cinco abas, uma fonte
+ * ## Seis abas, uma fonte
  *
  * ```
  * GET /financial/analytics/summary     visão geral: realizado × previsto
@@ -18,7 +18,12 @@
  * GET /financial/analytics/categories  distribuição
  * GET /financial/entries               lançamentos (paginado)
  * GET /financial/categories            catálogo de categorias
+ * GET /commissions/overview            comissão por técnico
  * ```
+ *
+ * A comissão tem raiz própria (`/commissions`) porque é um controller próprio:
+ * lê atendimento, técnico e receita, e não é lançamento do Financeiro. A
+ * permissão continua sendo a financeira — é dinheiro a pagar.
  *
  * **Receitas e Despesas não são módulos separados.** São a mesma listagem com
  * `type` fixo — um filtro do servidor, não um recorte local. Escrever três
@@ -31,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabBoundary } from "@/workspace";
 import { FinancialCategoriesTab } from "./tabs/categories.tab";
 import { FinancialEntriesTab } from "./tabs/entries.tab";
+import { FinancialCommissionsTab } from "./tabs/commissions.tab";
 import { FinancialOverviewTab } from "./tabs/overview.tab";
 
 export function FinancialWorkspace() {
@@ -42,6 +48,7 @@ export function FinancialWorkspace() {
           <TabsTrigger value="lancamentos">Lançamentos</TabsTrigger>
           <TabsTrigger value="receitas">Receitas</TabsTrigger>
           <TabsTrigger value="despesas">Despesas</TabsTrigger>
+          <TabsTrigger value="comissao">Comissão</TabsTrigger>
           <TabsTrigger value="categorias">Categorias</TabsTrigger>
         </TabsList>
 
@@ -82,6 +89,12 @@ export function FinancialWorkspace() {
               emptyTitle="Nenhuma despesa"
               emptyDescription="Peças, deslocamento, mão de obra — o que sai do caixa é registrado manualmente."
             />
+          </TabBoundary>
+        </TabsContent>
+
+        <TabsContent value="comissao">
+          <TabBoundary id="financial-commissions" label="a comissão">
+            <FinancialCommissionsTab />
           </TabBoundary>
         </TabsContent>
 

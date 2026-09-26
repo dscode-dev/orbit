@@ -1,25 +1,41 @@
 "use client";
 
 /**
- * Visão operacional da equipe técnica.
+ * A equipe técnica, em tabela.
  *
  * ## Quem é "técnico"
  *
- * O backend **não tem esse conceito**: não há flag, especialidade nem tipo de
- * pessoa. O que existe é papel, e é ele que a aba usa — a lista mostra quem
- * está na organização com a carga de trabalho de cada um, e o filtro de papel
- * permite recortar a equipe de campo.
+ * O `ProfessionalProfile` responde: perfil ativo com `fieldTechnicianEnabled`.
+ * É a mesma definição que o seletor de atribuição usa, e é por isso que a tabela
+ * de comissão lista exatamente quem pode ser atribuído a um atendimento.
  *
- * Inventar uma regra de "quem é técnico" aqui — pelo nome do papel, por
- * exemplo — seria criar uma classificação que o servidor não reconhece e que
+ * O comentário que estava aqui dizia que o backend não tinha esse conceito e que
+ * a aba recortava por papel. Era verdade antes do domínio profissional (PR-27):
+ * o perfil existe, e usar papel de acesso para adivinhar quem é técnico
  * quebraria no primeiro papel renomeado.
+ *
+ * ## Tabela, e não cartões
+ *
+ * Eram cartões com quatro indicadores cada. A pergunta de quem abre esta aba é
+ * comparativa — quem está com mais trabalho, quem tem mais a receber — e
+ * comparar é o que uma tabela faz. Os cartões também custavam **quatro
+ * requisições por pessoa** (uma consulta com `limit: 1` por número, lendo
+ * `meta.total`): quarenta numa equipe de dez.
+ *
+ * ## Por que a tabela vem do Financeiro
+ *
+ * É o mesmo componente da aba Comissão, e os números vêm do mesmo endpoint —
+ * comissão e carga na mesma linha. Duas implementações divergiriam no primeiro
+ * número novo, e a desta aba seria a que ficaria para trás.
+ *
+ * Quem não tem acesso financeiro não pode ver quanto cada pessoa recebe: para
+ * esse caso a aba mostra a lista da equipe com a carga de cada um, sem dinheiro.
  *
  * ## Carga, não produtividade
  *
- * Cada número é `meta.total` de uma consulta filtrada por `assignedUserId` ou
- * `responsibleUserId`. Produtividade exigiria tempo gasto por tarefa, que
- * nenhum contrato publica — e um indicador de desempenho inventado é a pior
- * classe de número inventado, porque alguém decide sobre pessoas com ele.
+ * Cada número conta trabalho atribuído. Produtividade exigiria tempo gasto por
+ * tarefa, que nenhum contrato publica — e um indicador de desempenho inventado é
+ * a pior classe de número inventado, porque alguém decide sobre pessoas com ele.
  */
 import { useMemo } from "react";
 import { HardHat } from "lucide-react";
@@ -39,6 +55,8 @@ import {
   useListController,
 } from "@/workspace";
 import { useState } from "react";
+import { useSession } from "@/providers/session-provider";
+import { CommissionTechniciansSection } from "@/components/financial/commission-technicians.section";
 import { MemberSheet } from "../member.sheet";
 import { WorkloadCards } from "../workload-cards";
 
@@ -50,6 +68,23 @@ interface TechnicianFilters {
 }
 
 export function TechniciansTab() {
+  const session = useSession();
+
+  /* A tabela inteira depende de leitura financeira, porque comissão é dinheiro.
+     Sem ela, resta a carga de trabalho. */
+  return session.hasPermission("financial.read") ? (
+    <CommissionTechniciansSection
+      canManage={
+        session.hasPermission("financial.manage") &&
+        session.hasCapability("financial.manage")
+      }
+    />
+  ) : (
+    <WorkloadList />
+  );
+}
+
+function WorkloadList() {
   const list = useListController<TechnicianFilters>({ limit: 10 });
   const members = useTeamMembers({
     page: list.query.page,
@@ -84,8 +119,8 @@ export function TechniciansTab() {
           Carga de trabalho de cada pessoa.
         </p>
         <p className="text-xs text-muted-foreground">
-          O Orbit não classifica ninguém como &ldquo;técnico&rdquo;: não existe essa marcação. Use o filtro de papel para
-          recortar a equipe de campo.
+          A comissão de cada técnico é informação financeira, e o seu acesso não
+          a inclui.
         </p>
       </div>
 

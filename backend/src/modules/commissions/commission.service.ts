@@ -36,6 +36,7 @@ import {
 } from './commission.repository';
 import type {
   CommissionOverviewReadModel,
+  CommissionPaymentMethod,
   CommissionPaymentReadModel,
   CommissionPolicyReadModel,
   CommissionReadModel,
@@ -319,7 +320,9 @@ export class CommissionService {
       userId: row.userId,
       amount: Number(row.amount),
       currency: row.currency,
-      method: row.method,
+      /* A coluna é `VARCHAR` com `CHECK`; o contrato publica a lista fechada. O
+         `as` afirma o que o banco garante. */
+      method: row.method as CommissionPaymentMethod | null,
       notes: row.notes,
       periodStart: row.periodStart?.toISOString() ?? null,
       periodEnd: row.periodEnd?.toISOString() ?? null,
@@ -604,7 +607,7 @@ export class CommissionService {
       userId: payment.userId,
       amount: Number(payment.amount),
       currency: payment.currency,
-      method: payment.method,
+      method: payment.method as CommissionPaymentMethod | null,
       notes: payment.notes,
       periodStart: payment.periodStart?.toISOString() ?? null,
       periodEnd: payment.periodEnd?.toISOString() ?? null,
