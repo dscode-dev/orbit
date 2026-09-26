@@ -7,6 +7,7 @@ import {
   ValidationException,
 } from '../../../exceptions';
 import { SlugHelper } from '../../../helpers';
+import { readEmbeddedImage } from '../../../common/embedded-image';
 import type {
   CreateBusinessUnitDto,
   UpdateBusinessUnitDto,
@@ -115,6 +116,34 @@ export class BusinessUnitService {
       );
     }
     await this.repository.softDelete(id);
+  }
+
+  /**
+   * Define a marca da unidade.
+   *
+   * O que chega é data URI, e `readEmbeddedImage` decide se entra: recusa URL
+   * — que o servidor teria de buscar, com o endereço escolhido pelo inquilino
+   * — recusa SVG, que carrega script, e limita o tamanho. A mesma função
+   * valida na leitura, dentro do gerador de documento; aqui ela impede que o
+   * inválido chegue a ser gravado.
+   */
+  async setLogo(id: string, organizationId: string, image: string) {
+    await this.require(id, organizationId);
+
+    const imagem = readEmbeddedImage(image);
+    if (!imagem) {
+      throw new ValidationException(
+        'A imagem precisa ser um PNG ou JPEG de até 512 KB, enviado como data URI.',
+      );
+    }
+
+    return this.repository.setLogo(id, imagem.dataUrl);
+  }
+
+  /** Volta a emitir sem timbre. */
+  async removeLogo(id: string, organizationId: string) {
+    await this.require(id, organizationId);
+    return this.repository.setLogo(id, null);
   }
 
   private async require(id: string, organizationId: string) {

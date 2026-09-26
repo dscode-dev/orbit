@@ -114,6 +114,26 @@ export class CreateBusinessUnitDto {
 
 export class UpdateBusinessUnitDto extends PartialType(CreateBusinessUnitDto) {}
 
+/**
+ * A marca que vai no cabeçalho dos documentos emitidos pela unidade.
+ *
+ * Rota própria, e não mais um campo do `PATCH`: o corpo tem centenas de
+ * quilobytes, e misturá-lo ao update de nome e endereço faria toda edição de
+ * cadastro carregar a imagem junto — inclusive quando ninguém quis trocá-la.
+ *
+ * Chega como data URI. O porquê — e o que isso impede — está em
+ * `common/embedded-image.ts`.
+ */
+export class UpdateBusinessUnitLogoDto {
+  @ApiProperty({
+    description: 'Imagem em data URI (PNG ou JPEG).',
+    example: 'data:image/png;base64,iVBORw0KGgo…',
+  })
+  @IsString()
+  @MaxLength(1_400_000)
+  image!: string;
+}
+
 export class CreateOrganizationDto {
   @ApiProperty()
   @Transform(trim)
