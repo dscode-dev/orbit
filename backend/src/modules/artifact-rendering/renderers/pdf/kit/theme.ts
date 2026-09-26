@@ -306,7 +306,30 @@ export const METRICS = {
    * que repetir o timbre inteiro em toda folha de um documento de seis
    * páginas.
    */
-  headerHeight: 150,
+  headerHeight: 164,
+  /**
+   * A margem real do documento, e a altura do cabeçalho compacto.
+   *
+   * Da segunda página em diante só há o filete, a identificação da folha e a
+   * régua — cabe em muito menos que os 164 da primeira. Como a margem do
+   * pdfkit vale para o documento inteiro, ela é **esta**, a menor: a primeira
+   * página empurra o cursor para `headerHeight` antes de compor.
+   *
+   * Sem isso, ou a página 1 comprimia o timbre ou as seguintes começavam o
+   * texto 120 pontos abaixo da própria régua.
+   */
+  compactHeaderHeight: 72,
+  /**
+   * Distância entre o fio que fecha o cabeçalho e a primeira linha do
+   * conteúdo — e, da segunda página em diante, entre a régua do cabeçalho
+   * compacto e o conteúdo.
+   *
+   * Vale para todas as páginas de propósito: era 14 na primeira e 109 nas
+   * demais, porque o compacto era desenhado no topo da área reservada em vez
+   * de junto do conteúdo. A folha virava e o texto começava num lugar
+   * diferente.
+   */
+  headerGap: 28,
   /** Altura reservada no rodapé para a linha de identificação. */
   footerHeight: 44,
   gutter: 18,

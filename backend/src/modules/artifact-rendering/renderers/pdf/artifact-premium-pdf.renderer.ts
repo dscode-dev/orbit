@@ -63,7 +63,7 @@ export class ArtifactPremiumPdfRenderer implements ArtifactRenderer {
          * aqui, antes de qualquer coisa ser escrita.
          */
         margins: {
-          top: METRICS.headerHeight,
+          top: METRICS.compactHeaderHeight,
           bottom: METRICS.footerHeight + 8,
           left: METRICS.pageMargin,
           right: METRICS.pageMargin,
@@ -78,6 +78,10 @@ export class ArtifactPremiumPdfRenderer implements ArtifactRenderer {
       });
 
       registerFonts(document);
+      /* A margem do documento é a do cabeçalho compacto, que vale da segunda
+         página em diante. A primeira reserva mais espaço para o timbre, e é
+         aqui que o cursor desce até ele. */
+      document.y = METRICS.headerHeight;
 
       const chunks: Buffer[] = [];
       document.on('data', (chunk: Buffer) => chunks.push(chunk));

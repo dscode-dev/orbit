@@ -126,7 +126,7 @@ function paintHeader(
     return;
   }
 
-  const alturaDaFaixa = METRICS.headerHeight - 14;
+  const alturaDaFaixa = METRICS.headerHeight - METRICS.headerGap;
 
   /**
    * O cabeçalho é branco.
@@ -347,7 +347,10 @@ function paintCompactHeader(
     .fill(brandGradient(document, theme));
   document.restore();
 
-  const y = 26;
+  /* A régua do compacto fica à mesma distância do conteúdo que o fio da
+     primeira página: assim o texto começa no mesmo lugar em toda folha. */
+  const linhaY = METRICS.compactHeaderHeight - METRICS.headerGap;
+  const y = linhaY - 15;
   const rotulo = [identity.emitter?.tradeName, identity.documentTitle]
     .filter(Boolean)
     .join('  ·  ');
@@ -372,11 +375,10 @@ function paintCompactHeader(
       lineBreak: false,
     });
 
-  const linhaY = y + 15;
   document
     .save()
-    .moveTo(esquerda, linhaY)
-    .lineTo(direita, linhaY)
+    .moveTo(0, linhaY)
+    .lineTo(document.page.width, linhaY)
     .lineWidth(0.5)
     .strokeColor(theme.border)
     .stroke()
@@ -409,9 +411,15 @@ function pill(
     .fill(brandGradient(document, theme))
     .restore();
 
+  /* Centrado na vertical pela altura real da linha: o deslocamento fixo de
+     4,5 valia para a métrica da Helvetica e deixou o texto colado na base
+     quando a fonte mudou. */
+  const alturaDaLinha = document.currentLineHeight();
   document
     .fillColor('#FFFFFF')
-    .text(texto, x + padding, y + 4.5, { lineBreak: false });
+    .text(texto, x + padding, y + (altura - alturaDaLinha) / 2, {
+      lineBreak: false,
+    });
 }
 
 function paintFooter(
