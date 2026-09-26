@@ -75,6 +75,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
   ],
   exports: [
     ArtifactRenderService,
+    /* O Management Reports monta o timbre do relatório com o mesmo construtor
+       dos documentos de campo — um segundo teria de repetir endereço, documento
+       e telefone, e divergiria no primeiro campo novo. */
+    DocumentContextBuilder,
     PmocPlanDocumentService,
     QuoteDocumentService,
     ArtifactRendererRegistry,

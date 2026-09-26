@@ -35,12 +35,22 @@ export type ReportFormat = (typeof REPORT_FORMATS)[number];
 /**
  * Renderizador de cada formato.
  *
- * São os mesmos do Artifact Rendering Engine — `pdf.default` é o motor que já
- * produz os documentos de campo. **Não existe segundo gerador de PDF**: o que
- * esta PR acrescenta é o que alimenta o renderizador, não o renderizador.
+ * São os mesmos do Artifact Rendering Engine. **Não existe segundo gerador de
+ * PDF**: o que este módulo acrescenta é o que alimenta o renderizador, não o
+ * renderizador.
+ *
+ * O PDF passou de `pdf.default` para `pdf.premium`. O relatório gerencial saía
+ * com o desenho antigo — título, seções, pares rótulo/valor — enquanto todo
+ * documento de campo já saía com timbre, faixa da marca, tabela que continua na
+ * página seguinte e rodapé numerado. Era o mesmo sistema entregando dois níveis
+ * de acabamento, e o pior deles justamente no papel que vai para uma reunião.
+ *
+ * O premium não conhece `MANAGEMENT_REPORT` e cai na composição genérica — que
+ * é o caminho previsto para tipo sem compositor próprio, e já desenha dentro da
+ * moldura de marca.
  */
 export const RENDERER_BY_FORMAT: Readonly<Record<ReportFormat, string>> = {
-  PDF: 'pdf.default',
+  PDF: 'pdf.premium',
   HTML: 'html.default',
 };
 

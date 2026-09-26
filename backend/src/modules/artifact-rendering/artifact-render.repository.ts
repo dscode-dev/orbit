@@ -42,16 +42,15 @@ export class ArtifactRenderRepository {
    * A amostra imprime o emitente **real** — é o que a pergunta "como o meu
    * documento vai sair" quer ver. Só o cliente e o atendimento são fictícios.
    *
-   * A unidade é a mais antiga que a RLS deixa esta sessão ver: é a matriz na
-   * esmagadora maioria das instalações, e quem tem várias unidades reconhece o
-   * timbre de qualquer uma delas. Escolher por parâmetro acrescentaria um
-   * seletor a uma tela de demonstração.
+   * A unidade é a **matriz** (`isPrimary`), com a mais antiga como desempate —
+   * a mesma regra que os relatórios gerenciais já usavam para decidir o fuso.
+   * Escolher por parâmetro acrescentaria um seletor a uma tela de demonstração.
    */
   findSampleEmitter(organizationId: string) {
     return this.rls.run((tx) =>
       tx.businessUnit.findFirst({
         where: { organizationId, deletedAt: null },
-        orderBy: { createdAt: 'asc' },
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
         select: {
           legalName: true,
           tradeName: true,

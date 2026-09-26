@@ -29,12 +29,8 @@
  * confundir com "quebrou".
  */
 import { Suspense, useState } from "react";
-import { ArrowRight, CalendarClock, FileBarChart, LayoutGrid } from "lucide-react";
-import Link from "next/link";
-
 import { ContentContainer } from "@/components/layout/page-primitives";
 import { PanelError, PanelFrame, PanelLoading } from "@/components/panels";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAction } from "@/actions";
 import {
@@ -47,6 +43,7 @@ import { useSession } from "@/providers/session-provider";
 import type { ManagementReportSummary } from "@/types/management-reports";
 import { MetricCard, TabBoundary } from "@/workspace";
 import { formatDate, formatDateTime } from "@/lib/formatters";
+import { PeriodSnapshot } from "./period-snapshot";
 import { ReportGenerator } from "./report-generator";
 import { ReportHistory } from "./report-history";
 import { ReportStatusBadge } from "./report-presentation";
@@ -90,6 +87,8 @@ function Workspace() {
 
   const [tab, setTab] = useState(requestedType ? "gerar" : "visao-geral");
   const [seedType, setSeedType] = useState<string | undefined>(requestedType);
+  /** O recorte escolhido na Visão geral, quando veio de lá. */
+  const [seedPeriod, setSeedPeriod] = useState<{ from: string; to: string }>();
 
   const catalog = useReportCatalog(canRead);
 
@@ -133,7 +132,10 @@ function Workspace() {
           <TabBoundary id="reports-overview" label="a visão geral">
             <Overview
               canGenerate={canManage && create.allowed}
-              onGenerate={() => setTab("gerar")}
+              onGenerate={(period) => {
+                setSeedPeriod(period);
+                setTab("gerar");
+              }}
               onOpen={openReport}
             />
           </TabBoundary>
@@ -144,6 +146,7 @@ function Workspace() {
             <ReportGenerator
               canManage={canManage}
               initialType={seedType}
+              initialPeriod={seedPeriod}
               onGenerated={(id) =>
                 router.push(`${ROUTES.managementReports}/${id}`)
               }
@@ -183,7 +186,7 @@ function Overview({
   onOpen,
 }: {
   canGenerate: boolean;
-  onGenerate: () => void;
+  onGenerate: (period?: { from: string; to: string }) => void;
   onOpen: (report: { id: string }) => void;
 }) {
   const total = useManagementReportCount({});
@@ -238,49 +241,16 @@ function Overview({
         />
       </div>
 
-      <PanelFrame
-        panelId="reports-what-is-this"
-        title="Relatório gerencial não é dashboard exportado"
-        description="A diferença muda o que cada um serve para responder"
-        actions={
-          canGenerate ? (
-            <Button size="sm" onClick={onGenerate}>
-              <FileBarChart className="size-4" />
-              Gerar relatório
-            </Button>
-          ) : null
-        }
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2 rounded-lg border border-border p-3">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <LayoutGrid className="size-4 text-muted-foreground" aria-hidden />
-              Dashboard
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Situação atual e acompanhamento contínuo. Os números mudam
-              sozinhos, porque a operação continua acontecendo.
-            </p>
-            <Button asChild variant="ghost" size="sm">
-              <Link href={ROUTES.dashboard}>
-                Abrir o painel
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          </div>
-
-          <div className="space-y-2 rounded-lg border border-border p-3">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <CalendarClock className="size-4 text-chart-1" aria-hidden />
-              Relatório gerencial
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Fotografia de um período, com código de verificação e procedência de cada número. Não muda depois — é isso que permite levá-lo a uma reunião
-              e voltar a ele meses depois.
-            </p>
-          </div>
-        </div>
-      </PanelFrame>
+      {/*
+       * Aqui havia um painel explicando a diferença entre dashboard e
+       * relatório gerencial: dois cartões de texto, um link para o painel e
+       * nenhum número. Documentação numa tela de trabalho — a distinção vale, e
+       * o lugar dela é o comentário no topo deste arquivo.
+       *
+       * No lugar entrou a operação real do período, que é o que decide se vale
+       * gerar o relatório e de qual recorte.
+       */}
+      <PeriodSnapshot onGenerate={canGenerate ? onGenerate : undefined} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <PanelFrame
