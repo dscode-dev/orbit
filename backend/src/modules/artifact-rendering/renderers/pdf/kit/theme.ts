@@ -329,7 +329,7 @@ export const METRICS = {
    * de junto do conteúdo. A folha virava e o texto começava num lugar
    * diferente.
    */
-  headerGap: 28,
+  headerGap: 22,
   /** Altura reservada no rodapé para a linha de identificação. */
   footerHeight: 44,
   gutter: 18,
