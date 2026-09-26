@@ -64,6 +64,7 @@ import {
 } from "@/types/commissions";
 import { FORMATTERS } from "@/metrics";
 import { formatDate, formatDateTime } from "@/lib/formatters";
+import { sectionHref } from "@/lib/section-navigation";
 import { ROUTES } from "@/lib/routes";
 import { useSession } from "@/providers/session-provider";
 
@@ -153,7 +154,7 @@ export function CommissionDetail({ userId }: { userId: string }) {
           </p>
         </div>
         <Button variant="ghost" size="sm" asChild>
-          <Link href={`${ROUTES.team}?secao=tecnicos`}>
+          <Link href={sectionHref(ROUTES.team, "tecnicos")}>
             <ArrowLeft className="size-4" />
             Voltar para a equipe
           </Link>

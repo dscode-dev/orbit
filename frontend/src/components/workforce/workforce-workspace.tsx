@@ -52,6 +52,7 @@ import { ContentContainer } from "@/components/layout/page-primitives";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabBoundary } from "@/workspace";
 import { WorkforceKpis } from "./workforce-kpis";
+import { useSectionFromUrl } from "@/hooks/use-section-from-url";
 import { CertificationsTab } from "./tabs/certifications.tab";
 import { MembersTab } from "./tabs/members.tab";
 import { ShiftsTab } from "./tabs/shifts.tab";
@@ -59,14 +60,34 @@ import { SpecialtiesTab } from "./tabs/specialties.tab";
 import { TeamsTab } from "./tabs/teams.tab";
 import { TechniciansTab } from "./tabs/technicians.tab";
 
+/** Os apelidos das seções, na ordem em que aparecem. */
+const SECOES = [
+  "usuarios",
+  "tecnicos",
+  "equipes",
+  "especialidades",
+  "certificacoes",
+  "escalas",
+] as const;
+
 export function WorkforceWorkspace() {
+  /*
+   * A aba aberta vive no endereço.
+   *
+   * Era `defaultValue`: a página abria sempre em Usuários, e um link para a aba
+   * Técnicos — o que a página de comissão de um técnico usa para voltar — caía
+   * na primeira aba. Com a seção no endereço, a volta chega onde saiu, e a aba
+   * pode ser guardada nos favoritos.
+   */
+  const section = useSectionFromUrl(SECOES);
+
   return (
     <ContentContainer size="wide" className="space-y-6">
       <TabBoundary id="workforce-kpis" label="os indicadores">
         <WorkforceKpis />
       </TabBoundary>
 
-      <Tabs defaultValue="usuarios">
+      <Tabs value={section.current} onValueChange={section.go}>
         <TabsList>
           <TabsTrigger value="usuarios">Usuários</TabsTrigger>
           <TabsTrigger value="tecnicos">Técnicos</TabsTrigger>
@@ -81,7 +102,6 @@ export function WorkforceWorkspace() {
             <MembersTab />
           </TabBoundary>
         </TabsContent>
-
 
         <TabsContent value="tecnicos">
           <TabBoundary id="workforce-technicians" label="a equipe técnica">
@@ -112,12 +132,7 @@ export function WorkforceWorkspace() {
             <ShiftsTab />
           </TabBoundary>
         </TabsContent>
-
-
-
-
       </Tabs>
     </ContentContainer>
   );
 }
-
