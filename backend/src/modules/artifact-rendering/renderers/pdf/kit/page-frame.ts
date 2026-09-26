@@ -143,12 +143,26 @@ function paintHeader(
    * compete com nada.
    */
   document.save();
-  /* O filete fecha o cabeçalho e é onde o degradê tem largura para ser visto.
-     Mais espesso que antes: sozinho sobre o branco, ele é o que marca a
-     divisão que a faixa fazia por preenchimento. */
+  /**
+   * A faixa de marca vai no **topo da folha**, acima do cabeçalho.
+   *
+   * Embaixo ela competia com o conteúdo logo abaixo — duas linhas coloridas
+   * fortes na mesma região, a dela e o marcador da primeira seção. No topo ela
+   * faz o que uma faixa de marca faz num papel timbrado: assina a folha antes
+   * de qualquer coisa ser lida.
+   */
   document
-    .rect(0, alturaDaFaixa, document.page.width, 4)
+    .rect(0, 0, document.page.width, 4)
     .fill(brandGradient(document, theme));
+
+  /* E o fim do cabeçalho é um fio quase invisível: a divisão precisa existir,
+     não precisa ser vista. */
+  document
+    .moveTo(esquerda, alturaDaFaixa)
+    .lineTo(direita, alturaDaFaixa)
+    .lineWidth(0.5)
+    .strokeColor(theme.hairline)
+    .stroke();
   document.restore();
   /**
    * O logo do cliente vem **acima** do nome do documento, centrado nele.

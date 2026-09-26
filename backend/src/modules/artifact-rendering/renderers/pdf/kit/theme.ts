@@ -34,6 +34,14 @@ export interface DocumentTheme {
   readonly inkMuted: string;
   readonly inkFaint: string;
   readonly border: string;
+  /**
+   * Um fio mais claro que a régua comum.
+   *
+   * Fecha o cabeçalho sem disputar com ele: ali a divisão precisa existir e
+   * não precisa ser vista, porque quem marca o começo da folha é a faixa de
+   * marca no topo.
+   */
+  readonly hairline: string;
   readonly surface: string;
   readonly surfaceStrong: string;
   /**
@@ -120,6 +128,7 @@ export function buildTheme(primaryColor?: string): DocumentTheme {
     inkMuted: '#565E6F',
     inkFaint: '#61697B',
     border: '#CCD1DC',
+    hairline: '#E9EBF1',
     surface: '#F5F7FB',
     surfaceStrong: '#EDF0F8',
     /**
