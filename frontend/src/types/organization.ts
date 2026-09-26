@@ -38,6 +38,12 @@ export type Organization = OrganizationContextReadModel;
 export type OrganizationMember = OrganizationMemberReadModel;
 
 export type BusinessUnit = BusinessUnitReadModel;
+
+/** O que a rota da marca devolve: só o que mudou. */
+export interface BusinessUnitLogo {
+  readonly id: string;
+  readonly logoUrl: string | null;
+}
 export type OrganizationPlan = OrganizationPlanReadModel;
 
 /**

@@ -167,6 +167,28 @@ export function useUpdateBusinessUnit(id: string) {
   );
 }
 
+/**
+ * Envia a marca da unidade.
+ *
+ * `scope` por unidade, como o update: duas telas abertas na mesma organização
+ * editando unidades diferentes não devem se bloquear.
+ */
+export function useSetBusinessUnitLogo(id: string) {
+  const invalidate = useBusinessUnitInvalidation();
+  return useApiMutation(
+    (image: string) => organizationService.setBusinessUnitLogo(id, image),
+    { scope: { id: `business-units:${id}` }, onSuccess: invalidate },
+  );
+}
+
+export function useRemoveBusinessUnitLogo(id: string) {
+  const invalidate = useBusinessUnitInvalidation();
+  return useApiMutation(
+    () => organizationService.removeBusinessUnitLogo(id),
+    { scope: { id: `business-units:${id}` }, onSuccess: invalidate },
+  );
+}
+
 export function useRemoveBusinessUnit() {
   const invalidate = useBusinessUnitInvalidation();
   return useApiMutation(

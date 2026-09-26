@@ -29,6 +29,15 @@ export interface BusinessUnitReadModel {
   locale: string;
   currency: string;
   status: string;
+  /**
+   * Se a unidade tem marca cadastrada — não a imagem.
+   *
+   * O data URI tem centenas de quilobytes e esta leitura devolve a lista
+   * inteira de unidades: mandar a imagem aqui faria a tela de configurações
+   * baixar megabytes para desenhar meia dúzia de linhas. Quem precisa da
+   * imagem busca a unidade por id.
+   */
+  hasLogo: boolean;
   createdAt: string;
   updatedAt: string;
 }

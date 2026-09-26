@@ -19,6 +19,7 @@ import { queryKeys, type QueryKey } from "@/api/query-keys";
 import type { RequestOptions } from "@/types/api";
 import type {
   BusinessUnit,
+  BusinessUnitLogo,
   CreateBusinessUnitInput,
   Integration,
   Organization,
@@ -100,6 +101,19 @@ export const organizationService = {
 
   removeBusinessUnit: (id: string): Promise<void> =>
     apiClient.delete<void>(unit(id)),
+
+  /**
+   * A marca que timbra os documentos da unidade.
+   *
+   * Rota própria, e não campo do `PATCH`: o corpo tem centenas de quilobytes,
+   * e misturá-lo à edição de nome e endereço faria toda alteração de cadastro
+   * carregar a imagem junto.
+   */
+  setBusinessUnitLogo: (id: string, image: string): Promise<BusinessUnitLogo> =>
+    apiClient.put<BusinessUnitLogo>(`${unit(id)}/logo`, { image }),
+
+  removeBusinessUnitLogo: (id: string): Promise<BusinessUnitLogo> =>
+    apiClient.delete<BusinessUnitLogo>(`${unit(id)}/logo`),
 
   integrations: (options?: RequestOptions): Promise<readonly Integration[]> =>
     apiClient.get<readonly Integration[]>("/integrations", options),

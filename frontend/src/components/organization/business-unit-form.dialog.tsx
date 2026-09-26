@@ -21,6 +21,7 @@
  */
 import { useState } from "react";
 
+import { BusinessUnitLogoField } from "./business-unit-logo.field";
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { Button } from "@/components/ui/button";
 import {
@@ -305,6 +306,19 @@ function Body({
           o contrato de escrita não os aceita.
         </p>
       </div>
+
+      {/* A marca só aparece na edição: enviar imagem exige a unidade já
+          criada, e um upload que precisa ser refeito depois de salvar é pior
+          que um campo ausente. */}
+      {unit ? (
+        <div className="border-border border-t pt-4">
+          <BusinessUnitLogoField
+            unitId={unit.id}
+            hasLogo={unit.hasLogo}
+            canManage
+          />
+        </div>
+      ) : null}
 
       <MutationError error={mutation.error} />
 

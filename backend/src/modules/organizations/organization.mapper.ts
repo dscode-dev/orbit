@@ -13,6 +13,7 @@ type DecimalValue = { toString(): string } | string | number | null;
 
 interface BusinessUnitSource {
   id: string;
+  logoUrl?: string | null;
   organizationId: string;
   parentId: string | null;
   slug: string;
@@ -158,6 +159,9 @@ export class OrganizationReadModelMapper {
       timezone: source.timezone,
       locale: source.locale,
       currency: source.currency,
+      /* Só o fato, não a imagem: a lista de unidades não deve carregar
+         centenas de quilobytes por linha. */
+      hasLogo: Boolean(source.logoUrl),
       status: source.status,
       createdAt: this.date(source.createdAt),
       updatedAt: this.date(source.updatedAt),
