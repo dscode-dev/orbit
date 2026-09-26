@@ -27,14 +27,27 @@ LABEL org.opencontainers.image.revision=$ORBIT_COMMIT_SHA \
 ENV ORBIT_COMMIT_SHA=$ORBIT_COMMIT_SHA
 ENV ORBIT_BUILD_TIME=$ORBIT_BUILD_TIME
 
-# Migrar, provisionar e reconciliar o catálogo obrigatório são o mesmo passo,
+# Migrar, provisionar e reconciliar os catálogos obrigatórios são o mesmo passo,
 # nesta ordem.
 #
 # O provisionamento roda **depois** para que uma tabela criada pela migration
 # recém-aplicada já receba os GRANTs do papel de runtime — sem passo manual
 # depois do `docker compose up`. É idempotente: rodar de novo reconcilia.
+#
+# O catálogo oficial de artefatos entrou aqui, ao lado do de planos: os sete
+# modelos do Orbit — Ordem de Serviço, PMOC, RVT, Laudo Técnico, Qualidade do
+# Ar, Recibo e Orçamento — são o que a operação usa para emitir documento. Sem
+# eles a tela de Modelos abre vazia numa instalação nova, e o passo que os
+# criava era manual (`npm run seed:artifact-templates`), o que significa que em
+# algum ambiente ele não foi dado.
+#
+# É aqui e não na subida da API por um motivo de segurança: escrever template
+# global exige `app_is_platform_admin()` na política de RLS, e o runtime conecta
+# com o papel restrito `orbit_app`, sem BYPASSRLS — por decisão da PR-26.6, que
+# `DATABASE_ENFORCE_RESTRICTED_ROLE` transforma em erro de inicialização. A
+# credencial administrativa existe neste passo, e só nele.
 USER node
-CMD ["sh", "-c", "DATABASE_ROLE_BOOTSTRAP_ONLY=true node dist/src/scripts/provision-database-roles.js && ./node_modules/.bin/prisma migrate deploy && node dist/src/scripts/provision-database-roles.js && node dist/src/scripts/seed-plan-catalog.js"]
+CMD ["sh", "-c", "DATABASE_ROLE_BOOTSTRAP_ONLY=true node dist/src/scripts/provision-database-roles.js && ./node_modules/.bin/prisma migrate deploy && node dist/src/scripts/provision-database-roles.js && node dist/src/scripts/seed-plan-catalog.js && node dist/src/scripts/seed-artifact-templates.js"]
 
 FROM builder AS production-dependencies
 

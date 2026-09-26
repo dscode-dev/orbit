@@ -582,7 +582,14 @@ const DEFINITIONS: readonly EntityDefinition[] = [
       delete: "artifact_templates.delete",
     },
     badges: {},
-    href: (id) => `${ROUTES.artifacts}/${id}`,
+    /*
+     * Sem `href`: o modelo não tem mais tela própria.
+     *
+     * O editor de estrutura deixou de ter porta de entrada, e o que existe é a
+     * galeria de modelos. `href` ausente é previsto pelo registry — a entidade
+     * aparece com nome e ícone, e sem link, em vez de levar a um endereço que
+     * redireciona.
+     */
   },
   {
     /**

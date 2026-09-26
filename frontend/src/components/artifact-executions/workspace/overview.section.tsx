@@ -37,18 +37,14 @@ export function OverviewSection({
     >
       <dl className="grid gap-4 sm:grid-cols-2">
         <Entry label="Código" value={execution.code} mono />
-        <Entry
-          label="Artefato"
-          value={
-            <Link
-              href={`${ROUTES.artifacts}/${execution.snapshot.templateId}`}
-              className="inline-flex items-center gap-1 hover:underline"
-            >
-              {execution.snapshot.templateName}
-              <ExternalLink className="size-3" aria-hidden />
-            </Link>
-          }
-        />
+        {/*
+         * O nome do modelo, sem link.
+         *
+         * Levava ao editor de estrutura, que deixou de ter porta de entrada —
+         * o link passaria a redirecionar para a galeria, o que é pior que não
+         * ter link: promete um destino e entrega outro.
+         */}
+        <Entry label="Artefato" value={execution.snapshot.templateName} />
         <Entry
           label="Versão do template"
           value={
@@ -150,9 +146,13 @@ function LinkedOperation({ operationId }: { operationId: string }) {
           {operation.assets.length > 0 ? (
             <p>
               <span className="text-muted-foreground">
-                {operation.assets.length > 1 ? "Equipamentos: " : "Equipamento: "}
+                {operation.assets.length > 1
+                  ? "Equipamentos: "
+                  : "Equipamento: "}
               </span>
-              {operation.assets.map((equipamento) => equipamento.name).join(", ")}
+              {operation.assets
+                .map((equipamento) => equipamento.name)
+                .join(", ")}
             </p>
           ) : null}
         </div>

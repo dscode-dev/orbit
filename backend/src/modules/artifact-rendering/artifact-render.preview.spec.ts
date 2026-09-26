@@ -17,6 +17,7 @@ function montar(source: unknown) {
   const repository = {
     findRenderSource: jest.fn().mockResolvedValue(source),
     findState: jest.fn(),
+    findSampleEmitter: jest.fn().mockResolvedValue(null),
   };
   const queue = { enqueue: jest.fn() };
   const motor = {
@@ -31,6 +32,11 @@ function montar(source: unknown) {
   const manifestPolicy = { assertExecutionCanIssue: jest.fn() };
   const inputs = { build: jest.fn().mockResolvedValue({ execution: {} }) };
 
+  const documentContext = { build: jest.fn().mockReturnValue({}) };
+  const quotes = {
+    render: jest.fn().mockResolvedValue(Buffer.from('%PDF-1.3 orcamento')),
+  };
+
   const service = new ArtifactRenderService(
     repository as never,
     queue as never,
@@ -38,9 +44,19 @@ function montar(source: unknown) {
     manifestPolicy as never,
     { snapshot: jest.fn() } as never,
     inputs as never,
+    documentContext as never,
+    quotes as never,
   );
 
-  return { service, repository, queue, renderers, motor, manifestPolicy };
+  return {
+    service,
+    repository,
+    queue,
+    renderers,
+    motor,
+    manifestPolicy,
+    quotes,
+  };
 }
 
 const FONTE = {

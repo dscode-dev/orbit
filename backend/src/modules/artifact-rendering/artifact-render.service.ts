@@ -27,6 +27,15 @@ import { ArtifactRenderMetrics } from './artifact-render.metrics';
 import { ArtifactRenderRepository } from './artifact-render.repository';
 import { ArtifactRendererRegistry } from './renderers/renderer.registry';
 import { RenderInputFactory } from './render-input.factory';
+import { DocumentContextBuilder } from './document-context.builder';
+import { QuoteDocumentService } from './quote-document.service';
+import {
+  isSampleArtifactType,
+  sampleQuote,
+  sampleRenderInput,
+  type SampleArtifactType,
+} from './sample-document.factory';
+import { readEmbeddedImage } from '../../common/embedded-image';
 import { defaultRendererFor } from './renderers/default-renderer';
 import type {
   ArtifactRenderStateReadModel,
@@ -54,7 +63,70 @@ export class ArtifactRenderService {
     private readonly manifestPolicy: ArtifactManifestPolicy,
     private readonly metrics: ArtifactRenderMetrics,
     private readonly inputs: RenderInputFactory,
+    private readonly documentContext: DocumentContextBuilder,
+    private readonly quotes: QuoteDocumentService,
   ) {}
+
+  /**
+   * A amostra de um modelo, para ver o documento antes de existir um.
+   *
+   * ## Por que não abrir um documento real
+   *
+   * A pergunta é "como o meu documento sai". Responder com a emissão de um
+   * cliente exporia dado de terceiro para demonstrar desenho. Aqui o emitente é
+   * o **real** — timbre e logo da organização, que é justamente o que se quer
+   * conferir — e todo o resto é fictício, com o código marcado como `AMOSTRA`
+   * para que uma impressão nunca passe por documento emitido.
+   *
+   * ## Mesmo motor da emissão
+   *
+   * O renderizador é o mesmo, escolhido pelo mesmo `defaultRendererFor`. Uma
+   * segunda implementação "só para mostrar" divergiria do documento final na
+   * primeira mudança do kit, e divergiria calada.
+   *
+   * Nada é gravado: amostra não abre revisão, não consome código de documento e
+   * não aparece no histórico do cliente.
+   */
+  async sample(
+    artifactType: string,
+    actor: RenderActor,
+  ): Promise<{ bytes: Buffer; mimeType: string; fileName: string }> {
+    if (!isSampleArtifactType(artifactType)) {
+      throw new EntityNotFoundException('Artifact sample', artifactType);
+    }
+
+    const unidade = await this.repository.findSampleEmitter(
+      actor.organizationId,
+    );
+    const logo = readEmbeddedImage(unidade?.logoUrl ?? null);
+    const { emitter } = this.documentContext.build({
+      businessUnit: unidade ?? undefined,
+      logo: logo ?? undefined,
+    });
+
+    const nome = `amostra-${artifactType.toLowerCase()}.pdf`;
+
+    /* Orçamento não nasce de execução: é documento do próprio módulo de
+       orçamentos, com o seu serviço. A amostra usa o mesmo. */
+    if (artifactType === 'ORCAMENTO') {
+      return {
+        bytes: await this.quotes.render({ emitter, quote: sampleQuote() }),
+        mimeType: 'application/pdf',
+        fileName: nome,
+      };
+    }
+
+    const motor = this.renderers.get(defaultRendererFor(artifactType));
+    const output = await motor.render(
+      sampleRenderInput(artifactType as SampleArtifactType, { emitter }),
+    );
+
+    return {
+      bytes: output.bytes,
+      mimeType: output.mimeType,
+      fileName: nome,
+    };
+  }
 
   /**
    * O rascunho, para o owner ver antes de emitir.

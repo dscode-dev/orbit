@@ -36,6 +36,42 @@ const renderSource = {
 export class ArtifactRenderRepository {
   constructor(private readonly rls: RlsTransaction) {}
 
+  /**
+   * O timbre da organização, para a amostra de um modelo.
+   *
+   * A amostra imprime o emitente **real** — é o que a pergunta "como o meu
+   * documento vai sair" quer ver. Só o cliente e o atendimento são fictícios.
+   *
+   * A unidade é a mais antiga que a RLS deixa esta sessão ver: é a matriz na
+   * esmagadora maioria das instalações, e quem tem várias unidades reconhece o
+   * timbre de qualquer uma delas. Escolher por parâmetro acrescentaria um
+   * seletor a uma tela de demonstração.
+   */
+  findSampleEmitter(organizationId: string) {
+    return this.rls.run((tx) =>
+      tx.businessUnit.findFirst({
+        where: { organizationId, deletedAt: null },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          legalName: true,
+          tradeName: true,
+          documentType: true,
+          documentNumber: true,
+          email: true,
+          phone: true,
+          website: true,
+          logoUrl: true,
+          city: true,
+          stateCode: true,
+          district: true,
+          street: true,
+          number: true,
+          timezone: true,
+        },
+      }),
+    );
+  }
+
   /** Estado atual, para responder consulta de status. */
   findState(executionId: string, organizationId: string) {
     return this.rls.run((tx) =>

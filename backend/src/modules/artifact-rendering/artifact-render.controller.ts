@@ -114,6 +114,42 @@ export class ArtifactRenderController {
     return new StreamableFile(rascunho.bytes);
   }
 
+  /**
+   * A amostra de um modelo, com o timbre da organização e dados fictícios.
+   *
+   * ## Por que não pede `artifact_executions.read`
+   *
+   * Quem escolhe modelo administra modelos — a capability é
+   * `artifact_templates.read`, a mesma da tela que abre esta amostra. Nada de
+   * execução é lido: não há execução nenhuma envolvida.
+   *
+   * `no-store` porque a logo e o timbre mudam quando a organização os troca, e
+   * uma amostra em cache mostraria a marca antiga justamente para quem acabou de
+   * subir a nova.
+   */
+  @Get('artifact-rendering/samples/:artifactType')
+  @Capabilities('artifact_templates.read')
+  @Permissions('artifact_templates.read')
+  @ApiOperation({ summary: 'Sample document for a premium model' })
+  async sample(
+    @Param('artifactType') artifactType: string,
+    @Req() request: IdentityRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const amostra = await this.rendering.sample(
+      artifactType,
+      this.actor(request),
+    );
+
+    response.set({
+      'Content-Type': amostra.mimeType,
+      'Content-Disposition': `inline; filename="${amostra.fileName}"`,
+      'Cache-Control': 'no-store',
+    });
+
+    return new StreamableFile(amostra.bytes);
+  }
+
   @Get('artifact-executions/:id/render')
   @Capabilities('artifact_executions.read')
   @Permissions('artifact_executions.read')

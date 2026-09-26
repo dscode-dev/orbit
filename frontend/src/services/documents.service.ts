@@ -101,6 +101,26 @@ export const documentsService = {
     return response.blob();
   },
 
+  /**
+   * A amostra de um modelo premium, com o timbre da organização.
+   *
+   * Blob, e não JSON: o backend devolve o PDF pronto — o mesmo renderizador da
+   * emissão, com dados fictícios. A tela não desenha aproximação em HTML, que
+   * seria um segundo motor de layout divergindo do documento real.
+   */
+  sampleDocument: async (
+    artifactType: string,
+    options?: RequestOptions,
+  ): Promise<Blob> => {
+    const response = await httpRequest({
+      method: "GET",
+      path: `/artifact-rendering/samples/${encodeURIComponent(artifactType)}`,
+      ...options,
+    });
+    if (!response.ok) await readEnvelope<never>(response);
+    return response.blob();
+  },
+
   /** Contadores do processo — usados para saber quais renderers existem. */
   metrics: (options?: RequestOptions): Promise<RenderMetrics> =>
     apiClient.get<RenderMetrics>("/artifact-rendering/metrics", options),
