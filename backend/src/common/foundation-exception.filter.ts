@@ -9,7 +9,7 @@ import {
 import { redactSensitivePath } from './redact-sensitive-path';
 import type { Request, Response } from 'express';
 import { classifyInternalError, internalErrorStack } from '../errors';
-import { PublicErrorMapper } from './public-errors';
+import { exposedClientStatus, PublicErrorMapper } from './public-errors';
 
 interface RequestWithId extends Request {
   id?: string;
@@ -39,10 +39,12 @@ export class FoundationExceptionFilter implements ExceptionFilter {
     const http = host.switchToHttp();
     const response = http.getResponse<Response>();
     const request = http.getRequest<RequestWithId>();
+    /* O mesmo cálculo do mapeador: se os dois divergirem, a resposta sai com um
+       status no cabeçalho e outro no corpo. */
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+        : (exposedClientStatus(exception) ?? HttpStatus.INTERNAL_SERVER_ERROR);
     const payload = this.publicErrors.map(exception);
     if (
       payload.code === 'RATE_LIMITED' &&

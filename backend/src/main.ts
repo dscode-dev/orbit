@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { json } from 'express';
+/* `useBodyParser` é do adaptador Express, e não da interface genérica. */
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { configureApiVersioning } from './configure-api';
 import { validateReleaseEnvironment } from './release-environment';
@@ -8,29 +9,44 @@ import { validateReleaseEnvironment } from './release-environment';
 async function bootstrap() {
   validateReleaseEnvironment(process.env);
   /**
-   * `rawBody` guarda os bytes originais além do JSON já interpretado.
+   * O corpo é interpretado por parsers que este arquivo registra, e não pelos
+   * padrões do Nest.
    *
-   * O webhook de cobrança precisa verificar a assinatura sobre exatamente os
-   * bytes recebidos: reserializar o JSON muda espaços, ordem de chaves e
-   * escapes, e a assinatura deixaria de bater para eventos legítimos. Todas as
-   * outras rotas continuam recebendo o corpo interpretado como sempre — este
-   * ajuste **acrescenta** o buffer, não substitui o parser.
+   * ## Por que `bodyParser: false`
+   *
+   * Duas exigências se encontram aqui. `rawBody` guarda os bytes originais além
+   * do JSON interpretado — o webhook de cobrança verifica a assinatura sobre
+   * exatamente o que chegou, e reserializar o JSON muda espaços, ordem de chaves
+   * e escapes, fazendo a assinatura falhar para eventos legítimos. E o limite de
+   * tamanho precisa caber a logo da unidade, que chega como data URI.
+   *
+   * O padrão do Express são 100 KB. Havia aqui um `app.use(regex, json(...))`
+   * tentando abrir mais espaço só no caminho da marca. **Não funcionava e
+   * quebrava tudo**: com `bodyParser: true` o parser do Nest já está registrado
+   * quando esta linha roda, então ele interpretava o corpo primeiro — o limite
+   * maior nunca valia para ninguém — e o segundo parser sobre o mesmo pedido
+   * deixava `req.body` vazio em **todas** as rotas. O login passou a responder
+   * 400 com "informe um e-mail válido" para credenciais corretas, porque não
+   * chegava campo nenhum.
+   *
+   * Registrando aqui, o limite é um só, declarado, e o `rawBody` continua: o
+   * Nest o repassa de `appOptions` para `useBodyParser`.
+   *
+   * ## Por que 1 MB
+   *
+   * É o teto da imagem embutida traduzido para o corpo que a carrega.
+   * `readEmbeddedImage` recusa imagem acima de 512 KB, e 512 KB em base64 são
+   * ~683 KB — com o limite em 100 KB, a política de imagem declarava um teto
+   * que o parser tornava inalcançável, e o cliente recebia 413 sem explicação.
+   * Quem decide o que é imagem grande continua sendo `readEmbeddedImage`, que
+   * recusa com mensagem; este limite é a primeira barreira, não a única.
    */
-  const app = await NestFactory.create(AppModule, { rawBody: true });
-
-  /**
-   * O corpo grande é permitido **só** onde ele existe.
-   *
-   * O padrão do Express é 100 KB, e a logo de uma unidade chega como data URI
-   * — passa disso com facilidade e o cliente recebia 413 sem explicação. Subir
-   * o limite global para acomodá-la abriria todas as rotas de escrita a
-   * corpos de megabytes, que é convite a esgotar memória de graça.
-   *
-   * Aqui o limite maior vale para o caminho da marca e mais nada. O tamanho
-   * real da imagem continua sendo checado depois, por
-   * `readEmbeddedImage` — este limite é a primeira barreira, não a única.
-   */
-  app.use(/\/business-units\/[^/]+\/logo$/, json({ limit: '1mb' }));
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+    bodyParser: false,
+  });
+  app.useBodyParser('json', { limit: '1mb' });
+  app.useBodyParser('urlencoded', { extended: true, limit: '1mb' });
 
   configureApiVersioning(app);
   app.enableShutdownHooks();

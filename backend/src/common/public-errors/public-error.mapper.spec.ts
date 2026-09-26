@@ -111,3 +111,49 @@ describe('PublicErrorMapper', () => {
     });
   });
 });
+
+describe('erro de fora do Nest que declara status', () => {
+  /**
+   * `body-parser` recusa corpo grande com um `Error` comum de `http-errors`:
+   * `status: 413`, `expose: true`. Sem ler isso, o filtro achatava para 500, e
+   * "não foi possível concluir a solicitação" não conta a ninguém que mandou
+   * 2 MB onde cabe 1.
+   */
+  function httpError(status: number, expose: boolean): Error {
+    return Object.assign(new Error('request entity too large'), {
+      status,
+      expose,
+      type: 'entity.too.large',
+    });
+  }
+
+  it('traduz corpo grande demais para 413 com mensagem de tamanho', () => {
+    const mapper = new PublicErrorMapper();
+
+    const resultado = mapper.map(httpError(413, true));
+
+    expect(resultado.status).toBe(413);
+    expect(resultado.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(resultado.message).toMatch(/tamanho/i);
+  });
+
+  it('ignora status pendurado em erro que não é para mostrar', () => {
+    /* `expose: false` é a marca de erro interno. Honrar o status dele vazaria
+       detalhe de implementação como se fosse recusa de negócio. */
+    const mapper = new PublicErrorMapper();
+
+    expect(mapper.map(httpError(404, false)).status).toBe(500);
+  });
+
+  it('ignora status de servidor pendurado em erro exposto', () => {
+    /* A leitura é só de 4xx — recusa do cliente. Um 5xx anunciado por um erro
+       comum continua sendo falha interna: quem declara indisponibilidade de
+       serviço é uma `HttpException`, não um objeto com um campo `status`. */
+    const mapper = new PublicErrorMapper();
+
+    const resultado = mapper.map(httpError(503, true));
+
+    expect(resultado.status).toBe(500);
+    expect(resultado.code).toBe('INTERNAL_SERVER_ERROR');
+  });
+});

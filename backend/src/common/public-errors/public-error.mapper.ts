@@ -11,13 +11,45 @@ import {
 
 const knownCodes = new Set<string>(PUBLIC_ERROR_CODES);
 
+/**
+ * O status de um erro que não é `HttpException`, mas declara um.
+ *
+ * `body-parser` e o resto da pilha do Express usam `http-errors`: corpo grande
+ * demais chega como um `Error` comum com `status: 413` e `expose: true`, e não
+ * como exceção do Nest. Sem olhar para isso, o filtro achatava para 500 — e
+ * "não foi possível concluir a solicitação" não diz a ninguém que mandou 2 MB
+ * onde cabe 1.
+ *
+ * `expose === true` é a marca do que a biblioteca considera seguro mostrar ao
+ * cliente, e é o que limita esta leitura: um status qualquer pendurado num erro
+ * interno continua virando 500.
+ */
+export function exposedClientStatus(exception: unknown): number | null {
+  if (typeof exception !== 'object' || exception === null) return null;
+  const candidato = exception as {
+    status?: unknown;
+    statusCode?: unknown;
+    expose?: unknown;
+  };
+  if (candidato.expose !== true) return null;
+
+  const status =
+    typeof candidato.status === 'number'
+      ? candidato.status
+      : typeof candidato.statusCode === 'number'
+        ? candidato.statusCode
+        : null;
+
+  return status !== null && status >= 400 && status < 500 ? status : null;
+}
+
 /** Converte falhas internas para o único contrato público da API v1. */
 export class PublicErrorMapper {
   map(exception: unknown): PublicErrorReadModel {
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+        : (exposedClientStatus(exception) ?? HttpStatus.INTERNAL_SERVER_ERROR);
 
     if (status >= 500) {
       return this.fromCode(
@@ -173,6 +205,8 @@ export class PublicErrorMapper {
         return 'ENTITY_NOT_FOUND';
       case 409:
         return 'CONFLICT';
+      case 413:
+        return 'PAYLOAD_TOO_LARGE';
       case 422:
         return 'BUSINESS_RULE_VIOLATION';
       case 429:
