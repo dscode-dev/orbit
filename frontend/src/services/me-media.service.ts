@@ -53,6 +53,22 @@ export interface SignatureStatus {
   version: number | null;
   updatedAt: string | null;
   roles: readonly string[];
+  /**
+   * Onde buscar a imagem da assinatura.
+   *
+   * O servidor sempre enviou este campo; o tipo daqui o omitia, então o dado
+   * chegava e era descartado — a tela dizia "assinatura cadastrada" e não
+   * mostrava nada. A URL é assinada e expira, como a do avatar.
+   */
+  preview: SignaturePreview | null;
+}
+
+export interface SignaturePreview {
+  url: string;
+  expiresAt: string;
+  mimeType: string;
+  sizeBytes: string;
+  sha256: string;
 }
 
 /** Os formatos que o servidor aceita — e confere pelos primeiros bytes. */

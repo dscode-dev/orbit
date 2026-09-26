@@ -22,6 +22,16 @@
 import { useRef, useState } from "react";
 import { PenLine, Upload } from "lucide-react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { PanelFrame, PanelState, toPanelQuery } from "@/components/panels";
 import {
@@ -54,13 +64,30 @@ export function SignatureSection() {
           <div className="space-y-5">
             <div className="rounded-lg border border-border bg-muted/30 p-3">
               {status.signatureAvailable ? (
-                <p className="text-sm text-foreground">
-                  Assinatura cadastrada
-                  {status.version ? ` · versão ${status.version}` : ""}
-                  {status.updatedAt
-                    ? ` · atualizada em ${formatDateTime(status.updatedAt)}`
-                    : ""}
-                </p>
+                <div className="space-y-2">
+                  {/* Sobre branco, que é o fundo em que ela vai ser aplicada:
+                      traço claro sobre cinza parece legível e some no
+                      documento. */}
+                  {status.preview ? (
+                    <div className="flex h-24 items-center justify-center rounded-md border border-border bg-white p-2">
+                      {/* `<img>`, e não `next/image`: o endereço é assinado e
+                          expira, então não há o que otimizar em rota estática. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={status.preview.url}
+                        alt="Sua assinatura"
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                  ) : null}
+                  <p className="text-sm text-foreground">
+                    Assinatura cadastrada
+                    {status.version ? ` · versão ${status.version}` : ""}
+                    {status.updatedAt
+                      ? ` · atualizada em ${formatDateTime(status.updatedAt)}`
+                      : ""}
+                  </p>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   Você ainda não cadastrou sua assinatura.
@@ -86,6 +113,36 @@ function SignatureForms({ substituindo }: { substituindo: boolean }) {
   const input = useRef<HTMLInputElement | null>(null);
   const [temTraco, setTemTraco] = useState(false);
   const [recusa, setRecusa] = useState<string | null>(null);
+  /**
+   * O envio que espera confirmação.
+   *
+   * Substituir abre versão nova, e quem tinha acabado de desenhar perde o
+   * traço se errar o botão. Guardar o envio aqui deixa o diálogo decidir sem
+   * que o formulário precise saber que ele existe.
+   */
+  const [confirmando, setConfirmando] = useState<
+    | { blob: Blob; fileName: string; aoConfirmar?: () => void }
+    | null
+  >(null);
+
+  const enviar = (
+    envio: { blob: Blob; fileName: string; aoConfirmar?: () => void },
+  ) => {
+    upload.mutate(
+      { blob: envio.blob, fileName: envio.fileName },
+      { onSuccess: envio.aoConfirmar },
+    );
+  };
+
+  const pedirEnvio = (
+    envio: { blob: Blob; fileName: string; aoConfirmar?: () => void },
+  ) => {
+    if (substituindo) {
+      setConfirmando(envio);
+      return;
+    }
+    enviar(envio);
+  };
 
   const confirmarDesenho = async () => {
     const blob = await pad.current?.exportar();
@@ -94,10 +151,11 @@ function SignatureForms({ substituindo }: { substituindo: boolean }) {
       return;
     }
     setRecusa(null);
-    upload.mutate(
-      { blob, fileName: "assinatura.png" },
-      { onSuccess: () => pad.current?.limpar() },
-    );
+    pedirEnvio({
+      blob,
+      fileName: "assinatura.png",
+      aoConfirmar: () => pad.current?.limpar(),
+    });
   };
 
   const escolherArquivo = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,7 +172,7 @@ function SignatureForms({ substituindo }: { substituindo: boolean }) {
       return;
     }
     setRecusa(null);
-    upload.mutate({ blob: file, fileName: file.name });
+    pedirEnvio({ blob: file, fileName: file.name });
   };
 
   return (
@@ -190,6 +248,35 @@ function SignatureForms({ substituindo }: { substituindo: boolean }) {
         </p>
       ) : null}
       <MutationError error={upload.error} />
+
+      <AlertDialog
+        open={confirmando !== null}
+        onOpenChange={(aberto) => {
+          if (!aberto) setConfirmando(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Substituir sua assinatura?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A assinatura atual deixa de ser usada e a nova passa a valer nos
+              próximos documentos. Os documentos já emitidos continuam com a
+              assinatura que tinham — nada muda no que já foi entregue.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Manter a atual</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmando) enviar(confirmando);
+                setConfirmando(null);
+              }}
+            >
+              Substituir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Tabs>
   );
 }

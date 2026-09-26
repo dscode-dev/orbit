@@ -34,14 +34,19 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
+  Res,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { ApiPublicErrors } from '../../common/public-errors';
 import { ForbiddenException } from '../../exceptions';
 import type { IdentityRequest } from '../identity/infrastructure/jwt-authentication.guard';
 import type { MobileFieldActor } from './mobile-field.service';
+import { PROFILE_PREVIEW_PATH } from './mobile-signature.service';
 import {
+  MobileSignaturePreviewQueryDto,
   MobileSignatureUploadDto,
   MobileSignatureUploadReservationDto,
 } from './mobile-signature.dto';
@@ -56,7 +61,40 @@ export class ProfessionalSignatureController {
   @Get()
   @ApiOperation({ summary: 'Situação da própria assinatura profissional' })
   status(@Req() request: IdentityRequest) {
-    return this.signatures.status(this.actor(request));
+    /* A prévia tem de apontar para a rota daqui, e não para a do aplicativo
+       de campo: é este o caminho que o proxy da Web encaminha. */
+    return this.signatures.status(this.actor(request), PROFILE_PREVIEW_PATH);
+  }
+
+  /**
+   * A prévia da assinatura, pelo caminho do perfil.
+   *
+   * O `status` já devolve uma URL assinada, mas ela aponta para
+   * `/mobile/field/…` — e o proxy do web não encaminha esse prefixo, de
+   * propósito: é a superfície do aplicativo de campo. Sem esta rota, a tela de
+   * perfil recebia o endereço da prévia e não conseguia alcançá-lo, então
+   * mostrava "assinatura cadastrada" e nenhuma imagem.
+   *
+   * Mesma checagem do outro caminho: a concessão é assinada e expira, e os
+   * bytes são conferidos contra o hash antes de sair.
+   */
+  @Get('preview')
+  @ApiOperation({ summary: 'Lê a prévia temporária da própria assinatura' })
+  async preview(
+    @Req() request: IdentityRequest,
+    @Query() query: MobileSignaturePreviewQueryDto,
+    @Res() response: Response,
+  ): Promise<void> {
+    const preview = await this.signatures.previewBytes(
+      this.actor(request),
+      query,
+    );
+    response.setHeader('Content-Type', preview.mimeType);
+    response.setHeader('Content-Length', String(preview.body.length));
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Cache-Control', 'private, max-age=0, no-store');
+    response.setHeader('Content-Disposition', 'inline');
+    response.send(preview.body);
   }
 
   @Post('uploads')

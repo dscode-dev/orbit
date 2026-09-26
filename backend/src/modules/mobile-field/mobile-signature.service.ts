@@ -29,6 +29,12 @@ import type {
 } from './mobile-signature.read-models';
 import { MobileSignatureRepository } from './mobile-signature.repository';
 
+/** Onde o aplicativo de campo busca a prévia. */
+export const MOBILE_PREVIEW_PATH = '/api/v1/mobile/field/me/signature/preview';
+
+/** Onde a tela de perfil busca a mesma prévia. */
+export const PROFILE_PREVIEW_PATH = '/api/v1/identity/me/signature/preview';
+
 @Injectable()
 export class MobileSignatureService {
   private readonly logger = new Logger(MobileSignatureService.name);
@@ -38,8 +44,18 @@ export class MobileSignatureService {
     @Inject(STORAGE_CONFIG) private readonly storageConfig: StorageConfig,
   ) {}
 
+  /**
+   * `basePath` diz por onde a prévia será buscada.
+   *
+   * A mesma assinatura é consultada pelo aplicativo de campo e pela tela de
+   * perfil, e cada um alcança o servidor por um caminho: o proxy da Web não
+   * encaminha `mobile/field`, de propósito. Devolver sempre o caminho do
+   * aplicativo fazia a Web receber um endereço que não conseguia abrir — a
+   * tela dizia "assinatura cadastrada" e não mostrava imagem nenhuma.
+   */
   async status(
     actor: MobileFieldActor,
+    basePath = MOBILE_PREVIEW_PATH,
   ): Promise<MobileSignatureStatusReadModel> {
     const context = await this.requireProfessional(actor);
     const signature = context.signature;
@@ -49,7 +65,12 @@ export class MobileSignatureService {
       updatedAt: signature?.updatedAt.toISOString() ?? null,
       roles: this.roles(context.profile),
       preview: signature
-        ? this.preview(actor, signature.storageObject, signature.sha256)
+        ? this.preview(
+            actor,
+            signature.storageObject,
+            signature.sha256,
+            basePath,
+          )
         : null,
     };
   }
@@ -420,15 +441,14 @@ export class MobileSignatureService {
       status: string;
     },
     signatureHash: string,
+    basePath: string = MOBILE_PREVIEW_PATH,
   ) {
     if (!this.previewable(file, signatureHash)) return null;
     const expires =
       Math.floor(Date.now() / 1000) + this.storageConfig.signedUrlTtlSeconds;
     const signature = this.signPreviewGrant(actor, expires, signatureHash);
     return {
-      url:
-        '/api/v1/mobile/field/me/signature/preview' +
-        `?expires=${expires}&signature=${signature}`,
+      url: `${basePath}?expires=${expires}&signature=${signature}`,
       expiresAt: new Date(expires * 1000).toISOString(),
       requiredHeaders: {},
       mimeType: file.mimeType,
