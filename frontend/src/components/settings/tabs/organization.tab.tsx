@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Organização — dados, capabilities e unidades.
+ * Organização — dados, recursos do plano e unidades.
  *
  * ## Reusa, não copia
  *
