@@ -21,7 +21,6 @@ import {
   FONTS,
   METRICS,
   brandGradient,
-  shellGradient,
   type DocumentTheme,
 } from './theme';
 
@@ -134,17 +133,28 @@ function paintHeader(
 
   const alturaDaFaixa = METRICS.headerHeight - 14;
 
+  /**
+   * O cabeçalho é branco.
+   *
+   * A faixa escura dava presença e cobrava caro por ela: reduzia o contraste
+   * de tudo o que vinha depois, porque o olho chegava ao conteúdo vindo de uma
+   * mancha de tinta. E logo de cliente costuma ser desenhado para fundo claro
+   * — sobre o escuro, boa parte fica ilegível ou ganha um halo branco.
+   *
+   * O que segura o cabeçalho agora é o filete da marca na base, a hierarquia
+   * de corpo entre o nome do documento e o timbre, e o espaço. Tabelas, blocos
+   * de destaque e cabeçalhos de página seguintes continuam como estavam: o
+   * escuro ali é funcional — separa a linha de cabeçalho dos dados — e não
+   * compete com nada.
+   */
   document.save();
+  /* O filete fecha o cabeçalho e é onde o degradê tem largura para ser visto.
+     Mais espesso que antes: sozinho sobre o branco, ele é o que marca a
+     divisão que a faixa fazia por preenchimento. */
   document
-    .rect(0, 0, document.page.width, alturaDaFaixa)
-    .fill(shellGradient(document, theme));
-  /* O filete da marca fecha a faixa por baixo: é a transição do grafite para o
-     branco do papel, e é onde o degradê tem largura para ser visto. */
-  document
-    .rect(0, alturaDaFaixa, document.page.width, 3)
+    .rect(0, alturaDaFaixa, document.page.width, 4)
     .fill(brandGradient(document, theme));
   document.restore();
-
   /**
    * O logo do cliente vem **acima** do nome do documento, centrado nele.
    *
@@ -231,7 +241,7 @@ function paintHeader(
   document
     .font(FONTS.bold)
     .fontSize(corpoDoTitulo)
-    .fillColor(theme.onShell)
+    .fillColor(theme.ink)
     .text(identity.documentTitle, colunaDoTitulo, y, {
       width: larguraDaColuna,
       lineBreak: false,
@@ -279,7 +289,7 @@ function paintHeader(
       document
         .font(FONTS.bold)
         .fontSize(10.5)
-        .fillColor(theme.onShell)
+        .fillColor(theme.ink)
         .text(emitter.tradeName, colunaX, yDireita, {
           width: colunaLargura,
           align: 'right',
@@ -287,7 +297,7 @@ function paintHeader(
       yDireita = document.y + 3;
     }
 
-    document.font(FONTS.regular).fontSize(7.5).fillColor(theme.onShellMuted);
+    document.font(FONTS.regular).fontSize(7.5).fillColor(theme.inkMuted);
     for (const linha of linhas) {
       document.text(linha, colunaX, yDireita, {
         width: colunaLargura,
