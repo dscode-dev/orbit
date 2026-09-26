@@ -24,6 +24,32 @@ import {
 
 type Doc = PDFKit.PDFDocument;
 
+/**
+ * O ritmo vertical do documento.
+ *
+ * ## Por que o espaço acima do título é o maior de todos
+ *
+ * É a lei da proximidade: o que está perto pertence junto. Com o mesmo espaço
+ * acima e abaixo, o título flutua entre dois blocos e o leitor precisa ler o
+ * texto para descobrir a qual deles ele se refere — era o caso, com 14pt
+ * antes e 10 depois.
+ *
+ * Três distâncias, e a diferença entre elas é o que faz a página ter
+ * estrutura sem precisar de caixa, linha ou cor:
+ *
+ * ```
+ * ENTRE_SECOES  28  ── separa assuntos
+ * ENTRE_BLOCOS  12  ── separa peças do mesmo assunto
+ * APOS_TITULO    7  ── cola o título no que ele nomeia
+ * ```
+ */
+const RITMO = {
+  /** Somado ao que o bloco anterior deixou (`ENTRE_BLOCOS`). */
+  antesDaSecao: 16,
+  aposTitulo: 7,
+  entreBlocos: 12,
+} as const;
+
 /* ------------------------------------------------------------------ */
 /* Títulos                                                             */
 /* ------------------------------------------------------------------ */
@@ -46,6 +72,12 @@ export function sectionTitle(
   theme: DocumentTheme,
   options: { readonly espacoMinimo?: number } = {},
 ): void {
+  /* O respiro que separa assuntos. No topo da página não entra: a margem já
+     é o espaço, e somar os dois deixaria a primeira seção afundada. */
+  if (document.y > document.page.margins.top + 1) {
+    document.y += RITMO.antesDaSecao;
+  }
+
   ensureSpace(document, options.espacoMinimo ?? 112);
 
   /**
@@ -86,7 +118,7 @@ export function sectionTitle(
     .restore();
 
   document.x = esquerdaDoTitulo;
-  document.y = y + 10;
+  document.y = y + RITMO.aposTitulo;
 }
 
 /* ------------------------------------------------------------------ */
@@ -163,13 +195,17 @@ export function definitionCard(
   if (pendente.length) linhas.push(pendente);
 
   const espacoEntreLinhas = 13;
-  const alturaTotal = linhas.reduce(
-    (total, linha) =>
-      total +
-      Math.max(...linha.map((medido) => medido.altura)) +
-      espacoEntreLinhas,
-    0,
-  );
+  /* O espaço entre linhas entra entre elas, não depois da última: somá-lo ao
+     fim empilharia com o respiro de seção e abriria um vão de 40pt onde
+     deviam ser 28. */
+  const alturaTotal =
+    linhas.reduce(
+      (total, linha) =>
+        total +
+        Math.max(...linha.map((medido) => medido.altura)) +
+        espacoEntreLinhas,
+      0,
+    ) - espacoEntreLinhas;
 
   ensureSpace(document, alturaTotal + 8);
 
@@ -218,7 +254,7 @@ export function definitionCard(
     y += Math.max(...linha.map((medido) => medido.altura)) + espacoEntreLinhas;
   }
 
-  document.y = topo + alturaTotal + 8;
+  document.y = topo + alturaTotal + RITMO.entreBlocos;
   document.x = esquerda;
 }
 
@@ -383,7 +419,7 @@ export function table(
     document.y = topo + alturaDaLinha;
   });
 
-  document.y += 14;
+  document.y += RITMO.entreBlocos;
   document.x = esquerda;
 }
 
@@ -441,7 +477,7 @@ export function noteBlock(
       width: largura - padding * 2,
     });
 
-  document.y = topo + alturaTotal + 14;
+  document.y = topo + alturaTotal + RITMO.entreBlocos;
   document.x = esquerda;
 }
 
@@ -558,7 +594,7 @@ export function checkList(
     document.x = esquerda;
   }
 
-  document.y += 6;
+  document.y += RITMO.entreBlocos - 6;
 }
 
 function desenharCaixa(
@@ -695,7 +731,7 @@ export function amountBlock(
       });
   }
 
-  document.y = topo + alturaTotal + 14;
+  document.y = topo + alturaTotal + RITMO.entreBlocos;
   document.x = esquerda;
 }
 
@@ -804,7 +840,7 @@ export function totalsBlock(
     y += alturas[indice]!;
   });
 
-  document.y = topo + alturaTotal + 14;
+  document.y = topo + alturaTotal + RITMO.entreBlocos;
   document.x = document.page.margins.left;
 }
 
@@ -881,6 +917,6 @@ export function statementBlock(
       lineGap: 1.5,
     });
 
-  document.y = topo + alturaTotal + 14;
+  document.y = topo + alturaTotal + RITMO.entreBlocos;
   document.x = esquerda;
 }
