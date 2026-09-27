@@ -87,9 +87,9 @@ const SCHEDULE_HORIZON_DAYS = 30;
  * `GET /organizations/current/members` passou a paginar; a key inclui a
  * consulta, então páginas diferentes não se sobrescrevem no cache.
  *
- * `useOrganizationMembers` (sem paginação) continua existindo para quem só
- * precisa resolver um nome — o `UserReference` é o caso — e usa a chamada sem
- * parâmetros, que o backend atende com a primeira página.
+ * `useOrganizationMembers` continua existindo para quem só precisa resolver um
+ * nome — o `UserReference` é o caso — e pede uma página única e ampla, porque
+ * ali não há como saber em que página está a pessoa procurada.
  */
 export function useTeamMembers(query?: MemberQuery) {
   return useApiQuery(

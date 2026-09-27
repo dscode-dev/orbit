@@ -896,7 +896,7 @@ function MemberField({
           />
         </SelectTrigger>
         <SelectContent>
-          {(members.data ?? []).map((member) => (
+          {(members.data?.data ?? []).map((member) => (
             <SelectItem key={member.userId} value={member.userId}>
               {member.displayName}
             </SelectItem>

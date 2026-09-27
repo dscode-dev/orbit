@@ -59,16 +59,27 @@ export function useOrganization() {
 }
 
 /**
+ * O limite é explícito e alto porque quem usa esta consulta precisa
+ * **encontrar** a pessoa, não paginar. Com o padrão do servidor (20), uma
+ * organização de trinta pessoas mostraria o id truncado no lugar do nome das
+ * dez últimas — e o defeito pareceria aleatório, dependendo de quem tivesse
+ * caído na primeira página.
+ */
+const MEMBER_LOOKUP_LIMIT = 100;
+
+/**
  * Membros da organização.
  *
  * Única fonte de identificadores de usuário do tenant — é o que permite
  * atribuir e reatribuir uma operação. Somente leitura: convidar, remover e
  * trocar papel não têm endpoint.
  */
+
 export function useOrganizationMembers() {
+  const query = { page: 1, limit: MEMBER_LOOKUP_LIMIT };
   return useApiQuery(
-    organizationService.keys.members(),
-    ({ signal }) => organizationService.members({ signal }),
+    organizationService.keys.members(query),
+    ({ signal }) => organizationService.members(query, { signal }),
     ORGANIZATION_REFRESH.members,
   );
 }

@@ -16,7 +16,7 @@
  */
 import { apiClient } from "@/api/client";
 import { queryKeys, type QueryKey } from "@/api/query-keys";
-import type { RequestOptions } from "@/types/api";
+import type { PaginatedResult, QueryParams, RequestOptions } from "@/types/api";
 import type {
   BusinessUnit,
   BusinessUnitLogo,
@@ -54,10 +54,22 @@ export const organizationService = {
    * fonte de identificadores de usuário do tenant — sem ela não há como
    * atribuir uma operação a alguém.
    */
-  members: (options?: RequestOptions): Promise<readonly OrganizationMember[]> =>
-    apiClient.get<readonly OrganizationMember[]>(
+  /**
+   * Membros da organização — **paginado**.
+   *
+   * O tipo dizia `OrganizationMember[]`, e o endpoint sempre respondeu
+   * `PaginationHelper.result(...)`: `{ data, meta }`. A anotação era uma mentira
+   * que o compilador aceitava, então `members.data.find(...)` compilava e
+   * estourava `find is not a function` em execução — a tela de Certificações
+   * caía inteira na primeira linha que mostrasse o nome de uma pessoa.
+   */
+  members: (
+    query?: { page?: number; limit?: number },
+    options?: RequestOptions,
+  ): Promise<PaginatedResult<OrganizationMember>> =>
+    apiClient.get<PaginatedResult<OrganizationMember>>(
       "/organizations/current/members",
-      options,
+      { ...options, query: query as QueryParams | undefined },
     ),
 
   entitlements: (options?: RequestOptions): Promise<OrganizationEntitlements> =>
@@ -127,7 +139,8 @@ export const organizationService = {
   keys: {
     module: (): QueryKey => queryKeys.module(RESOURCE),
     current: (): QueryKey => queryKeys.query(RESOURCE, "current"),
-    members: (): QueryKey => queryKeys.query(RESOURCE, "members"),
+    members: (query?: { page?: number; limit?: number }): QueryKey =>
+      queryKeys.list(`${RESOURCE}-members`, query as QueryParams | undefined),
     entitlements: (): QueryKey => queryKeys.query(RESOURCE, "subscription"),
     usage: (): QueryKey => queryKeys.query(RESOURCE, "usage"),
     plans: (): QueryKey => queryKeys.query(PLANS_RESOURCE, "catalog"),
