@@ -35,6 +35,7 @@ import {
   sampleRenderInput,
 } from './sample-document.factory';
 import { readEmbeddedImage } from '../../common/embedded-image';
+import { issuerLogo } from '../../common/issuer-brand';
 import { defaultRendererFor } from './renderers/default-renderer';
 import type {
   ArtifactRenderStateReadModel,
@@ -97,7 +98,7 @@ export class ArtifactRenderService {
     const unidade = await this.repository.findSampleEmitter(
       actor.organizationId,
     );
-    const logo = readEmbeddedImage(unidade?.logoUrl ?? null);
+    const logo = readEmbeddedImage(issuerLogo(unidade));
     const { emitter } = this.documentContext.build({
       businessUnit: unidade ?? undefined,
       logo: logo ?? undefined,

@@ -24,6 +24,7 @@ import type {
   Integration,
   Organization,
   OrganizationEntitlements,
+  OrganizationLogo,
   OrganizationMember,
   OrganizationPlan,
   PlanUsageRecord,
@@ -100,6 +101,22 @@ export const organizationService = {
       options,
     ),
 
+  /**
+   * A marca que timbra os documentos da empresa.
+   *
+   * Vale para toda unidade que não tenha logo próprio — o caso de quem opera com
+   * uma unidade só, que é a maioria. Rota separada de `current` pelo mesmo
+   * motivo do logo de unidade: o corpo tem centenas de quilobytes.
+   */
+  logo: (options?: RequestOptions): Promise<OrganizationLogo> =>
+    apiClient.get<OrganizationLogo>("/organizations/current/logo", options),
+
+  setLogo: (image: string): Promise<OrganizationLogo> =>
+    apiClient.put<OrganizationLogo>("/organizations/current/logo", { image }),
+
+  removeLogo: (): Promise<OrganizationLogo> =>
+    apiClient.delete<OrganizationLogo>("/organizations/current/logo"),
+
   createBusinessUnit: (input: CreateBusinessUnitInput): Promise<BusinessUnit> =>
     apiClient.post<BusinessUnit>(
       "/organizations/current/business-units",
@@ -139,6 +156,7 @@ export const organizationService = {
   keys: {
     module: (): QueryKey => queryKeys.module(RESOURCE),
     current: (): QueryKey => queryKeys.query(RESOURCE, "current"),
+    logo: (): QueryKey => queryKeys.query(RESOURCE, "logo"),
     members: (query?: { page?: number; limit?: number }): QueryKey =>
       queryKeys.list(`${RESOURCE}-members`, query as QueryParams | undefined),
     entitlements: (): QueryKey => queryKeys.query(RESOURCE, "subscription"),

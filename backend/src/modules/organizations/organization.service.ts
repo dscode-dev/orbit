@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuthorizationService } from '../../common';
+import { readEmbeddedImage } from '../../common/embedded-image';
 import type { AuthenticatedIdentity } from '../identity/domain/identity.types';
 import {
   ConflictException,
@@ -470,6 +471,50 @@ export class OrganizationService {
       throw new ConflictException('A role with this name already exists');
     }
     throw error;
+  }
+
+  /**
+   * A marca da empresa.
+   *
+   * ## Por que tem rota própria
+   *
+   * Pelo mesmo motivo que o logo de unidade: o corpo tem centenas de
+   * quilobytes. Se fosse campo do `PATCH current`, toda troca de nome
+   * carregaria a imagem, e `GET current` — pedido em cada navegação — a
+   * devolveria. O Read Model publica só `hasLogo`; a imagem se pede aqui.
+   */
+  async getLogo(organizationId: string) {
+    const logo = await this.repository.findLogo(organizationId);
+    if (!logo) throw new EntityNotFoundException('Organization');
+    return logo;
+  }
+
+  /**
+   * `readEmbeddedImage` decide se entra: recusa URL — que o servidor teria de
+   * buscar, com o endereço escolhido pelo inquilino — recusa SVG, que carrega
+   * script, e limita o tamanho. A mesma função valida de novo na leitura,
+   * dentro do gerador de documento.
+   */
+  async setLogo(organizationId: string, image: string) {
+    await this.getLogo(organizationId);
+
+    const imagem = readEmbeddedImage(image);
+    if (!imagem) {
+      throw new ValidationException(
+        'A imagem precisa ser um PNG ou JPEG de até 512 KB, enviado como data URI.',
+      );
+    }
+
+    return this.repository.setLogo(organizationId, imagem.dataUrl);
+  }
+
+  /**
+   * Volta a emitir sem timbre — a não ser onde a unidade tenha marca própria,
+   * que não é esta.
+   */
+  async removeLogo(organizationId: string) {
+    await this.getLogo(organizationId);
+    return this.repository.setLogo(organizationId, null);
   }
 
   async update(organizationId: string, input: UpdateOrganizationDto) {

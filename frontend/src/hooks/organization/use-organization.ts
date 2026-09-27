@@ -48,6 +48,8 @@ export const ORGANIZATION_REFRESH = {
   members: CACHE.catalog,
   integrations: CACHE.stable,
   plans: CACHE.catalog,
+  /** Troca uma vez por ano, e só quem abre as configurações a pede. */
+  logo: CACHE.catalog,
 } as const;
 
 export function useOrganization() {
@@ -82,6 +84,58 @@ export function useOrganizationMembers() {
     ({ signal }) => organizationService.members(query, { signal }),
     ORGANIZATION_REFRESH.members,
   );
+}
+
+/**
+ * A marca da empresa, com a imagem.
+ *
+ * Consulta separada de `useOrganization` de propósito: `GET current` é pedido em
+ * toda navegação e publica só `hasLogo`. Quem chama isto é o painel de
+ * configurações, que precisa **desenhar** a marca — e paga o meio megabyte uma
+ * vez, onde ele serve para algo.
+ */
+export function useOrganizationLogo() {
+  return useApiQuery(
+    organizationService.keys.logo(),
+    ({ signal }) => organizationService.logo({ signal }),
+    ORGANIZATION_REFRESH.logo,
+  );
+}
+
+/**
+ * Envia a marca da empresa.
+ *
+ * Invalida `current` junto porque o `hasLogo` que ela publica acabou de mudar, e
+ * a sessão, que carrega a organização.
+ */
+export function useSetOrganizationLogo() {
+  const invalidate = useOrganizationLogoInvalidation();
+  return useApiMutation((image: string) => organizationService.setLogo(image), {
+    scope: { id: "organization:logo" },
+    onSuccess: invalidate,
+  });
+}
+
+export function useRemoveOrganizationLogo() {
+  const invalidate = useOrganizationLogoInvalidation();
+  return useApiMutation(() => organizationService.removeLogo(), {
+    scope: { id: "organization:logo" },
+    onSuccess: invalidate,
+  });
+}
+
+function useOrganizationLogoInvalidation() {
+  const queryClient = useQueryClient();
+  return async () => {
+    await queryClient.invalidateQueries({
+      queryKey: organizationService.keys.logo(),
+    });
+    /* `hasLogo` vive no Read Model da organização, e a sessão o carrega. */
+    await queryClient.invalidateQueries({
+      queryKey: organizationService.keys.current(),
+    });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.session() });
+  };
 }
 
 export function useOrganizationEntitlements() {

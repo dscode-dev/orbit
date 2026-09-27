@@ -8,8 +8,10 @@
  *
  * O que o contrato **não** tem, e por isso a tela não inventa:
  *
- * - **branding** — não há campo de logotipo, cor ou identidade em
- *   `UpdateOrganizationDto`; só `settings`, que é JSON livre;
+ * - **cor e identidade visual** — não há campo em `UpdateOrganizationDto`; só
+ *   `settings`, que é JSON livre. O **logotipo** deixou de estar nessa lista:
+ *   tem coluna e rota próprias (`/organizations/current/logo`), e timbra os
+ *   documentos de toda unidade sem marca própria;
  * - **timezone da organização** — existe por unidade, não na organização
  *   (verificado: `PATCH /organizations/current` recusa `timezone` com
  *   "property timezone should not exist");
@@ -39,8 +41,20 @@ export type OrganizationMember = OrganizationMemberReadModel;
 
 export type BusinessUnit = BusinessUnitReadModel;
 
-/** O que a rota da marca devolve: só o que mudou. */
+/** O que as rotas de marca devolvem: só o que mudou. */
 export interface BusinessUnitLogo {
+  readonly id: string;
+  readonly logoUrl: string | null;
+}
+
+/**
+ * A marca da empresa (`GET|PUT|DELETE /organizations/current/logo`).
+ *
+ * Recurso separado de `current` porque a imagem chega a meio megabyte e
+ * `GET current` é pedido em cada navegação — lá vem só `hasLogo`. Quem precisa
+ * desenhar a marca pede aqui.
+ */
+export interface OrganizationLogo {
   readonly id: string;
   readonly logoUrl: string | null;
 }

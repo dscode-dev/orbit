@@ -36,6 +36,7 @@ import { Prisma } from '@prisma/client';
 import { ArtifactRendererRegistry } from '../artifact-rendering/renderers/renderer.registry';
 import { DocumentContextBuilder } from '../artifact-rendering/document-context.builder';
 import { readEmbeddedImage } from '../../common/embedded-image';
+import { issuerLogo } from '../../common/issuer-brand';
 import {
   JOB_QUEUES,
   PermanentJobError,
@@ -263,7 +264,7 @@ export class ReportGenerationProcessor implements JobProcessor, OnModuleInit {
     );
     const { emitter } = this.documentContext.build({
       businessUnit: unidade ?? undefined,
-      logo: readEmbeddedImage(unidade?.logoUrl ?? null) ?? undefined,
+      logo: readEmbeddedImage(issuerLogo(unidade)) ?? undefined,
     });
 
     const output = await renderer.render(

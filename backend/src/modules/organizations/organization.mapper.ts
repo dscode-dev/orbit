@@ -64,6 +64,7 @@ interface OrganizationSource {
   subscriptionStartedAt: DateValue | null;
   currentPeriodStart: DateValue | null;
   currentPeriodEnd: DateValue | null;
+  logoUrl?: string | null;
   settings: unknown;
   createdAt: DateValue;
   updatedAt: DateValue;
@@ -126,6 +127,8 @@ export class OrganizationReadModelMapper {
       subscriptionStartedAt: this.nullableDate(source.subscriptionStartedAt),
       currentPeriodStart: this.nullableDate(source.currentPeriodStart),
       currentPeriodEnd: this.nullableDate(source.currentPeriodEnd),
+      /* Igual às unidades: o fato, não a imagem. */
+      hasLogo: Boolean(source.logoUrl),
       settings: source.settings,
       createdAt: this.date(source.createdAt),
       updatedAt: this.date(source.updatedAt),

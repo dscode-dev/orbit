@@ -53,6 +53,7 @@ import {
 } from './quote.repository';
 import { QuoteDocumentService } from '../artifact-rendering/quote-document.service';
 import { readEmbeddedImage } from '../../common/embedded-image';
+import { issuerLogo, type BrandedIssuer } from '../../common/issuer-brand';
 
 /** Moedas aceitas — as mesmas do Financeiro, que é onde o valor termina. */
 const SUPPORTED_CURRENCIES: readonly string[] = ['BRL', 'USD', 'EUR'];
@@ -111,13 +112,14 @@ function diasDeValidade(
 }
 
 /**
- * O logo da unidade, quando há e quando é seguro imprimir.
+ * O timbre do emissor, quando há e quando é seguro imprimir.
  *
- * `readEmbeddedImage` recusa URL — que o servidor teria de buscar, e o
- * endereço é escolhido pelo inquilino — e SVG, que carrega script.
+ * `issuerLogo` escolhe entre a marca da unidade e a da empresa;
+ * `readEmbeddedImage` recusa URL — que o servidor teria de buscar, e o endereço
+ * é escolhido pelo inquilino — e SVG, que carrega script.
  */
-function logoDoEmissor(logoUrl: string | null | undefined) {
-  const imagem = readEmbeddedImage(logoUrl);
+function logoDoEmissor(emissor: BrandedIssuer | null | undefined) {
+  const imagem = readEmbeddedImage(issuerLogo(emissor));
   return imagem
     ? { logo: imagem.bytes, logoMimeType: imagem.mimeType }
     : undefined;
@@ -216,7 +218,7 @@ export class QuoteService {
     const bytes = await this.documents.render({
       timezone: unidade?.timezone ?? 'America/Sao_Paulo',
       emitter: {
-        ...logoDoEmissor(unidade?.logoUrl),
+        ...logoDoEmissor(unidade),
         tradeName: unidade?.tradeName ?? undefined,
         legalName: unidade?.legalName ?? undefined,
         document: documentoFormatado(

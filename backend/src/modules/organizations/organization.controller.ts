@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -24,6 +25,7 @@ import {
   MemberQueryDto,
   UpdateMemberDto,
   UpdateOrganizationDto,
+  UpdateOrganizationLogoDto,
   UpdateRoleDto,
 } from './dto/organization.dto';
 import { OrganizationService } from './organization.service';
@@ -217,6 +219,48 @@ export class OrganizationController {
     return this.readModels.context(
       await this.organizations.update(this.organizationId(request), input),
     );
+  }
+
+  /**
+   * A marca que timbra os documentos da empresa.
+   *
+   * ## Recurso separado de `current`
+   *
+   * `GET current` é pedido em toda navegação e publica só `hasLogo`. A imagem
+   * chega a meio megabyte e se pede aqui, por quem vai desenhá-la — na prática,
+   * o painel de configurações.
+   *
+   * Leitura com a mesma autorização de `GET current`: é a marca da própria
+   * empresa, visível a quem já vê o nome dela. Escrita exige
+   * `organization.update`, porque trocar o timbre muda todo documento emitido
+   * daqui em diante, inclusive os que forem reimpressos.
+   */
+  @Get('current/logo')
+  @Surfaces('WEB', 'MOBILE', 'API')
+  @RequiresActivePlan()
+  async getLogo(@Req() request: IdentityRequest) {
+    return this.organizations.getLogo(this.organizationId(request));
+  }
+
+  /** `PUT` e não `PATCH`: o recurso é a imagem inteira, substituída de uma vez. */
+  @Put('current/logo')
+  @RequiresActivePlan()
+  @Permissions('organization.update')
+  async setLogo(
+    @Req() request: IdentityRequest,
+    @Body() input: UpdateOrganizationLogoDto,
+  ) {
+    return this.organizations.setLogo(
+      this.organizationId(request),
+      input.image,
+    );
+  }
+
+  @Delete('current/logo')
+  @RequiresActivePlan()
+  @Permissions('organization.update')
+  async removeLogo(@Req() request: IdentityRequest) {
+    return this.organizations.removeLogo(this.organizationId(request));
   }
 
   private organizationId(request: IdentityRequest): string {

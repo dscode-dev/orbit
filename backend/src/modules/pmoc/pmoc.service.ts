@@ -81,6 +81,7 @@ import { ArtifactRenderService } from '../artifact-rendering/artifact-render.ser
 import { PmocPlanDocumentService } from '../artifact-rendering/pmoc-plan-document.service';
 import { PMOC_PLAN_LEGAL_REFERENCE } from '../artifact-rendering/renderers/pdf/documents/legal';
 import { readEmbeddedImage } from '../../common/embedded-image';
+import { issuerLogo, type BrandedIssuer } from '../../common/issuer-brand';
 
 /** Quem pediu, e o que ele pode. */
 export interface PmocActor {
@@ -105,13 +106,14 @@ function dataSimples(valor: Date | string | null | undefined) {
 }
 
 /**
- * O logo da unidade, quando há e quando é seguro imprimir.
+ * O timbre do emissor, quando há e quando é seguro imprimir.
  *
- * `readEmbeddedImage` recusa URL — que o servidor teria de buscar, e o
- * endereço é escolhido pelo inquilino — e SVG, que carrega script.
+ * `issuerLogo` escolhe entre a marca da unidade e a da empresa;
+ * `readEmbeddedImage` recusa URL — que o servidor teria de buscar, e o endereço
+ * é escolhido pelo inquilino — e SVG, que carrega script.
  */
-function logoDoEmissor(logoUrl: string | null | undefined) {
-  const imagem = readEmbeddedImage(logoUrl);
+function logoDoEmissor(emissor: BrandedIssuer | null | undefined) {
+  const imagem = readEmbeddedImage(issuerLogo(emissor));
   return imagem
     ? { logo: imagem.bytes, logoMimeType: imagem.mimeType }
     : undefined;
@@ -754,7 +756,7 @@ export class PmocService {
     const bytes = await this.planDocument.render({
       timezone: fuso,
       emitter: {
-        ...logoDoEmissor(plan.businessUnit?.logoUrl),
+        ...logoDoEmissor(plan.businessUnit),
         tradeName: plan.businessUnit?.tradeName ?? undefined,
         legalName: plan.businessUnit?.legalName ?? undefined,
         document: documentoFormatado(

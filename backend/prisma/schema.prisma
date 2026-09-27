@@ -235,6 +235,10 @@ model Organization {
   currentPeriodEnd       DateTime? @map("current_period_end") @db.Timestamptz(3)
   externalCustomerId     String?   @map("external_customer_id") @db.VarChar(160)
   externalSubscriptionId String?   @map("external_subscription_id") @db.VarChar(160)
+  /// A marca da empresa, como data URI. Timbra os documentos de toda unidade
+  /// que não tenha logo próprio — e é a única marca que existe para quem opera
+  /// com uma unidade só.
+  logoUrl                String?   @map("logo_url") @db.Text
   settings               Json?     @db.JsonB
   createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)

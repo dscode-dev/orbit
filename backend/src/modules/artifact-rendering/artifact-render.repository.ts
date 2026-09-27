@@ -60,6 +60,9 @@ export class ArtifactRenderRepository {
           phone: true,
           website: true,
           logoUrl: true,
+          /* A marca da empresa, para quando a unidade não tiver a sua.
+             `issuerLogo` decide; aqui só se garante que o dado chegue. */
+          organization: { select: { logoUrl: true } },
           city: true,
           stateCode: true,
           district: true,
@@ -137,6 +140,9 @@ export class ArtifactRenderRepository {
               phone: true,
               website: true,
               logoUrl: true,
+              /* A marca da empresa, para quando a unidade não tiver a sua.
+                 `issuerLogo` decide; aqui só se garante que o dado chegue. */
+              organization: { select: { logoUrl: true } },
               city: true,
               stateCode: true,
               district: true,

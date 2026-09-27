@@ -135,6 +135,9 @@ export interface OrganizationContextReadModel {
   subscriptionStartedAt: string | null;
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
+  /* Só o fato, não a imagem: `GET current` é carregado em toda navegação, e a
+     marca chega a meio megabyte. Quem precisa dela pede `current/logo`. */
+  hasLogo: boolean;
   settings: unknown;
   createdAt: string;
   updatedAt: string;

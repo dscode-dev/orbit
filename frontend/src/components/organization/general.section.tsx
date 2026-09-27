@@ -15,18 +15,18 @@
  *
  * ## Branding
  *
- * **Não existe contrato de branding.** Não há campo de logotipo, cor ou
- * identidade visual no DTO nem no Read Model. O único lugar onde essas
- * informações cabem é `settings`, que é JSON livre e que o backend **não
- * interpreta**.
+ * O **logotipo** tem campo de verdade: coluna própria e
+ * `PUT /organizations/current/logo`. Ele timbra os documentos de toda unidade
+ * que não tenha marca própria, e por isso mora aqui — era o que faltava para
+ * quem opera com uma unidade só e procurava a marca da empresa nas
+ * configurações da empresa.
  *
- * Então o painel edita `settings` como JSON — o mesmo tratamento que o
- * Artifact Studio dá a `configuration`. Oferecer um seletor de cor que grava
- * `settings.branding.primaryColor` inventaria um esquema que o servidor não
- * conhece e que nenhum outro cliente saberia ler.
- *
- * Quando o backend publicar campos de branding, eles entram aqui como campos
- * de verdade e o editor de JSON deixa de ser necessário.
+ * **Cor e identidade visual continuam sem contrato.** Não há campo no DTO nem
+ * no Read Model, e o único lugar onde caberiam é `settings`, que é JSON livre e
+ * que o backend **não interpreta**. Então o painel edita `settings` como JSON —
+ * o mesmo tratamento que o Artifact Studio dá a `configuration`. Oferecer um
+ * seletor de cor que grava `settings.branding.primaryColor` inventaria um
+ * esquema que o servidor não conhece e que nenhum outro cliente saberia ler.
  */
 import { useState } from "react";
 import { Palette } from "lucide-react";
@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { lifecycleLabel } from "@/registry";
 import { Label } from "@/components/ui/label";
 import { useUpdateOrganization } from "@/hooks/organization/use-organization";
+import { OrganizationLogoField } from "./organization-logo.field";
 import { formatDate } from "@/lib/formatters";
 import {
   ORGANIZATION_LIMITS,
@@ -124,15 +125,20 @@ export function GeneralSection({
           </div>
         </div>
 
-        <section className="space-y-2 border-t border-border pt-4">
+        <section className="space-y-4 border-t border-border pt-4">
           <h3 className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase">
             <Palette className="size-3.5" aria-hidden />
-            Configurações e branding
+            Identidade visual
           </h3>
+
+          {/* Salva sozinho, na própria rota: a imagem tem centenas de
+              quilobytes e não pode viajar junto do nome a cada gravação. */}
+          <OrganizationLogoField canManage={canManage} />
+
           <JsonField
             id="organization-settings"
             label="settings"
-            description="Campos livres. Não há um formato definido: logotipo, cores e identidade visual ficam aqui por convenção da organização."
+            description="Campos livres, que o servidor guarda e não interpreta. Cores e demais preferências ficam aqui por convenção da organização — o logotipo, não: ele tem campo próprio, acima."
             value={settings}
             disabled={!canManage}
             rows={6}

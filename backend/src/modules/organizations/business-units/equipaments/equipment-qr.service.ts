@@ -281,19 +281,26 @@ export class EquipmentQrService {
     if (!identity) throw new EntityNotFoundException('Equipment QR identity');
     this.assertUnit(actor, identity.businessUnitId);
     const equipment = identity.equipment;
-    const settings = this.record(identity.organization.settings);
     const brandingName =
       query.branding === 'BUSINESS_UNIT'
         ? (equipment.businessUnit.tradeName ?? equipment.businessUnit.legalName)
         : query.branding === 'ORGANIZATION'
           ? identity.organization.displayName
           : undefined;
+    /*
+     * Aqui a marca é escolha de quem pede, não precedência: o parâmetro diz de
+     * quem é o selo. A unidade ainda cai para a marca da empresa quando não tem
+     * a sua — um QR sem selo nenhum seria pior que um com o selo da empresa.
+     *
+     * Antes disso, `ORGANIZATION` lia `settings.logoUrl`: não havia coluna, e a
+     * marca da empresa morava no JSON livre, que o servidor não valida. Agora
+     * há campo, e a migração trouxe o que estava lá.
+     */
     const logoUrl =
       query.branding === 'BUSINESS_UNIT'
-        ? equipment.businessUnit.logoUrl
-        : query.branding === 'ORGANIZATION' &&
-            typeof settings.logoUrl === 'string'
-          ? settings.logoUrl
+        ? (equipment.businessUnit.logoUrl ?? identity.organization.logoUrl)
+        : query.branding === 'ORGANIZATION'
+          ? identity.organization.logoUrl
           : null;
     const rendered = await this.renderer.render(
       {

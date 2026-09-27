@@ -25,6 +25,7 @@ import { DocumentContextBuilder } from './document-context.builder';
 import type { RenderInput } from './renderers/artifact-renderer';
 import { PMOC_EXECUTION_LEGAL_REFERENCE } from './renderers/pdf/documents/legal';
 import { readEmbeddedImage } from '../../common/embedded-image';
+import { issuerLogo } from '../../common/issuer-brand';
 
 /** A linha que o repositório devolve, com os anexos já resolvidos. */
 type RenderSource = NonNullable<
@@ -51,14 +52,11 @@ export class RenderInputFactory {
     const signatures = await this.assinaturas(source);
     const fieldAssets = await this.anexosDeCampo(source);
 
-    /* O logo vem do próprio inquilino, como data URI. `readEmbeddedImage`
+    /* O timbre vem do próprio inquilino, como data URI: da unidade emissora,
+       ou da empresa quando a unidade não tem marca própria. `readEmbeddedImage`
        recusa URL — que o servidor teria de buscar — e SVG, que é documento e
        não imagem. */
-    const logo = readEmbeddedImage(
-      typeof source.businessUnit?.logoUrl === 'string'
-        ? source.businessUnit.logoUrl
-        : null,
-    );
+    const logo = readEmbeddedImage(issuerLogo(source.businessUnit));
 
     const documentContext = this.documentContext.build({
       logo: logo ?? undefined,

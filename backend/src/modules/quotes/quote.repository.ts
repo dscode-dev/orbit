@@ -215,6 +215,9 @@ export class QuoteRepository {
               phone: true,
               website: true,
               logoUrl: true,
+              /* A marca da empresa, para quando a unidade não tiver a sua.
+                 `issuerLogo` decide; aqui só se garante que o dado chegue. */
+              organization: { select: { logoUrl: true } },
               street: true,
               number: true,
               district: true,

@@ -509,6 +509,32 @@ export class OrganizationRepository {
     );
   }
 
+  /**
+   * A marca, sozinha.
+   *
+   * Consulta própria e não `findCurrent`: a imagem chega a meio megabyte, e o
+   * `organizationView` traz plano e unidades junto. Quem quer o timbre não quer
+   * o resto, e quem quer o resto não quer meio megabyte.
+   */
+  findLogo(id: string) {
+    return this.rls.run((transaction) =>
+      transaction.organization.findFirst({
+        where: { id, deletedAt: null },
+        select: { id: true, logoUrl: true },
+      }),
+    );
+  }
+
+  setLogo(id: string, logoUrl: string | null) {
+    return this.rls.run((transaction) =>
+      transaction.organization.update({
+        where: { id },
+        data: { logoUrl },
+        select: { id: true, logoUrl: true },
+      }),
+    );
+  }
+
   updateCurrent(id: string, data: Prisma.OrganizationUpdateInput) {
     return this.rls.run((transaction) =>
       transaction.organization.update({

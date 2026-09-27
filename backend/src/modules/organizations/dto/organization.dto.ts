@@ -134,6 +134,23 @@ export class UpdateBusinessUnitLogoDto {
   image!: string;
 }
 
+/**
+ * A marca da empresa.
+ *
+ * Mesmo contrato do logo de unidade — rota própria, data URI, e o porquê em
+ * `common/embedded-image.ts`. São DTOs separados porque são recursos
+ * separados: a unidade pode ter a sua, e esta é o padrão de quem não tem.
+ */
+export class UpdateOrganizationLogoDto {
+  @ApiProperty({
+    description: 'Imagem em data URI (PNG ou JPEG).',
+    example: 'data:image/png;base64,iVBORw0KGgo…',
+  })
+  @IsString()
+  @MaxLength(1_400_000)
+  image!: string;
+}
+
 export class CreateOrganizationDto {
   @ApiProperty()
   @Transform(trim)

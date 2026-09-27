@@ -16,12 +16,15 @@ import type { RenderActor } from './artifact-render.service';
 
 const ATOR: RenderActor = { organizationId: 'org-1', actorId: 'user-1' };
 
+const MARCA_DA_EMPRESA = 'data:image/jpeg;base64,ZW1wcmVzYQ==';
+
 const UNIDADE = {
   legalName: 'Clima Norte Serviços de Refrigeração Ltda',
   tradeName: 'Clima Norte',
   documentType: 'CNPJ',
   documentNumber: '11222333000181',
   logoUrl: 'data:image/png;base64,AAAA',
+  organization: { logoUrl: MARCA_DA_EMPRESA },
 };
 
 function montar() {
@@ -149,6 +152,38 @@ describe('amostra de modelo', () => {
 
     await expect(service.sample('INVENTADO', ATOR)).rejects.toBeInstanceOf(
       EntityNotFoundException,
+    );
+  });
+
+  /*
+   * O caso de quem opera com uma unidade só: a marca foi cadastrada nas
+   * configurações da empresa — que é onde se procura — e nunca no cadastro da
+   * unidade. Sem a herança, o documento sairia sem timbre e a pessoa teria
+   * enviado a imagem no lugar certo para nada.
+   */
+  it('herda a marca da empresa quando a unidade não tem a sua', async () => {
+    const { service, repository, documentContext } = montar();
+    repository.findSampleEmitter.mockResolvedValue({
+      ...UNIDADE,
+      logoUrl: null,
+    });
+
+    await service.sample('RELATORIO_VISITA', ATOR);
+
+    /* `image/jpeg` é o da empresa; o da unidade neste teste é PNG. O mime prova
+       *qual* das duas marcas foi impressa, não só que alguma foi. */
+    expect(documentContext.build.mock.calls[0]![0].logo?.mimeType).toBe(
+      'image/jpeg',
+    );
+  });
+
+  it('a marca da unidade vence a da empresa', async () => {
+    const { service, documentContext } = montar();
+
+    await service.sample('RELATORIO_VISITA', ATOR);
+
+    expect(documentContext.build.mock.calls[0]![0].logo?.mimeType).toBe(
+      'image/png',
     );
   });
 

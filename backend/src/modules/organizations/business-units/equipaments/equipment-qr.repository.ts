@@ -64,7 +64,7 @@ export class EquipmentQrRepository {
         where: { equipmentId, organizationId, status: 'ACTIVE' },
         include: {
           equipment: { select: equipmentSelect },
-          organization: { select: { displayName: true, settings: true } },
+          organization: { select: { displayName: true, logoUrl: true } },
         },
       }),
     );
