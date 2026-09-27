@@ -71,6 +71,7 @@ model User {
   quotesCreated                      Quote[]                        @relation("QuoteCreatedBy")
   quotesSent                         Quote[]                        @relation("QuoteSentBy")
   quotesDecided                      Quote[]                        @relation("QuoteDecidedBy")
+  quotesResponsible                  Quote[]                        @relation("QuoteResponsible")
   inventoryMovements                 InventoryMovement[]            @relation("InventoryMovementActor")
   automationRules                    AutomationRule[]               @relation("AutomationRuleCreatedBy")
   managementReports                  ManagementReport[]             @relation("ManagementReportGeneratedBy")
@@ -1104,6 +1105,7 @@ model CustomerAddress {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
   operations   Operation[]
+  quotes       Quote[]
 
   @@index([organizationId, customerId, deletedAt])
   @@map("customer_addresses")
@@ -1334,6 +1336,7 @@ model Asset {
   businessUnit            BusinessUnit                   @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
   customer                Customer?                      @relation(fields: [customerId], references: [id], onDelete: SetNull)
   operationLinks          OperationAsset[]
+  quoteLinks              QuoteAsset[]
   schedulingEvents        SchedulingEvent[]
   schedulingAllocations   SchedulingResourceAllocation[]
   artifactExecutions      ArtifactExecution[]
@@ -3422,26 +3425,42 @@ model CommissionPaymentItem {
 /// orçamento aprovado e convertido continua aprovado; o que mudou é que existe
 /// trabalho a fazer por causa dele.
 model Quote {
-  id             String    @id @default(uuid(7)) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
-  businessUnitId String    @map("business_unit_id") @db.Uuid
-  customerId     String    @map("customer_id") @db.Uuid
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  businessUnitId    String    @map("business_unit_id") @db.Uuid
+  customerId        String    @map("customer_id") @db.Uuid
   /// Sequencial por organização, atribuído sob trava — nunca se repete.
-  number         Int
+  number            Int
   /// Identificador legível derivado do número (`ORC-000042`).
-  code           String    @db.VarChar(40)
+  code              String    @db.VarChar(40)
   /// `DRAFT` · `SENT` · `APPROVED` · `REJECTED` · `EXPIRED` · `CANCELLED`.
-  status         String    @default("DRAFT") @db.VarChar(20)
-  title          String    @db.VarChar(220)
-  notes          String?   @db.Text
+  status            String    @default("DRAFT") @db.VarChar(20)
+  title             String    @db.VarChar(220)
+  notes             String?   @db.Text
+  /// O parágrafo de abertura da proposta ("Atendendo à honrosa solicitação…").
+  ///
+  /// Campo do orçamento, e não constante do gerador: é texto que a empresa
+  /// negocia caso a caso, e um padrão no código obrigaria a mexer no código
+  /// para mudar uma frase. Nulo imprime o padrão.
+  introText         String?   @map("intro_text") @db.Text
+  /// Endereço de execução, entre os cadastrados do cliente.
+  ///
+  /// Antes disso o documento imprimia o primeiro endereço do cliente, o que
+  /// para quem tem duas filiais era um chute com aparência de dado.
+  serviceAddressId  String?   @map("service_address_id") @db.Uuid
+  /// Quem responde tecnicamente pela proposta, e de quem sai a assinatura.
+  ///
+  /// Separado de `createdById`: quem digita não é necessariamente quem assina,
+  /// e a assinatura impressa tem de ser a de quem responde.
+  responsibleUserId String?   @map("responsible_user_id") @db.Uuid
   /// Última data em que a proposta vale. Sem hora: validade é dia.
-  validUntil     DateTime? @map("valid_until") @db.Date
-  currency       String    @default("BRL") @db.VarChar(3)
+  validUntil        DateTime? @map("valid_until") @db.Date
+  currency          String    @default("BRL") @db.VarChar(3)
   /// Soma dos itens. Recalculado pelo servidor.
-  subtotal       Decimal   @default(0) @db.Decimal(14, 2)
+  subtotal          Decimal   @default(0) @db.Decimal(14, 2)
   /// Desconto sobre o total do orçamento, além dos descontos por item.
-  discount       Decimal   @default(0) @db.Decimal(14, 2)
-  total          Decimal   @default(0) @db.Decimal(14, 2)
+  discount          Decimal   @default(0) @db.Decimal(14, 2)
+  total             Decimal   @default(0) @db.Decimal(14, 2)
 
   sentAt        DateTime? @map("sent_at") @db.Timestamptz(3)
   sentById      String?   @map("sent_by_id") @db.Uuid
@@ -3463,20 +3482,46 @@ model Quote {
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
-  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  operation    Operation?   @relation(fields: [operationId], references: [id], onDelete: SetNull)
-  createdBy    User         @relation("QuoteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  sentBy       User?        @relation("QuoteSentBy", fields: [sentById], references: [id], onDelete: SetNull)
-  decidedBy    User?        @relation("QuoteDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
-  items        QuoteItem[]
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit   BusinessUnit     @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  customer       Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  operation      Operation?       @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  createdBy      User             @relation("QuoteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  sentBy         User?            @relation("QuoteSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  decidedBy      User?            @relation("QuoteDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  /// `SetNull`: apagar o endereço não pode apagar a proposta que o citou.
+  serviceAddress CustomerAddress? @relation(fields: [serviceAddressId], references: [id], onDelete: SetNull)
+  responsible    User?            @relation("QuoteResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  items          QuoteItem[]
+  assets         QuoteAsset[]
 
   @@unique([organizationId, number])
   @@index([organizationId, businessUnitId, status, createdAt])
   @@index([organizationId, customerId, createdAt])
   @@index([organizationId, status, validUntil])
   @@map("quotes")
+}
+
+/// Os equipamentos que a proposta cobre.
+///
+/// Pelo mesmo motivo de `OperationAsset`: um orçamento de manutenção raramente
+/// trata de um aparelho só, e obrigar uma proposta por equipamento
+/// multiplicaria o trabalho comercial sem descrever melhor o escopo.
+///
+/// É vínculo, não fotografia: diferente de `QuoteItem`, aqui o que interessa é
+/// *qual* aparelho, e o cadastro do aparelho é a fonte viva desse dado.
+model QuoteAsset {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  quoteId   String   @map("quote_id") @db.Uuid
+  assetId   String   @map("asset_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([quoteId, assetId])
+  @@index([assetId])
+  @@map("quote_assets")
 }
 
 /// Item de um orçamento — **cópia comercial**, não referência viva.

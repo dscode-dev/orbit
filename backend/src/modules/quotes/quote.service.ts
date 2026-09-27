@@ -41,6 +41,7 @@ import type {
   CancelQuoteDto,
   ConvertQuoteDto,
   CreateQuoteDto,
+  CreateQuoteFromOperationDto,
   QuoteQueryDto,
   RejectQuoteDto,
   UpdateQuoteDto,
@@ -294,6 +295,67 @@ export class QuoteService {
   /* Criação e edição                                                  */
   /* ---------------------------------------------------------------- */
 
+  /**
+   * Confere endereço, equipamentos e responsável — os três vínculos que o
+   * orçamento passou a ter.
+   *
+   * Uma função só, usada pela criação e pela edição: as regras são as mesmas, e
+   * em duas cópias elas divergiriam na primeira vez que alguém mexesse numa.
+   *
+   * Cada recusa diz **qual** id falhou. "Algum equipamento é inválido" mandaria
+   * a pessoa conferir cinquenta linhas para achar a errada.
+   */
+  private async validateScope(
+    organizationId: string,
+    customerId: string,
+    input: {
+      serviceAddressId?: string;
+      assetIds?: readonly string[];
+      responsibleUserId?: string;
+    },
+  ): Promise<void> {
+    if (input.serviceAddressId) {
+      const address = await this.repository.findCustomerAddress(
+        input.serviceAddressId,
+        organizationId,
+        customerId,
+      );
+      if (!address) {
+        throw new ValidationException(
+          'O endereço informado não é um endereço cadastrado deste cliente.',
+        );
+      }
+    }
+
+    if (input.assetIds && input.assetIds.length > 0) {
+      /* Duplicado no pedido seria recusado pelo índice único com erro de banco;
+         aqui ele simplesmente não conta duas vezes. */
+      const pedidos = [...new Set(input.assetIds)];
+      const encontrados = await this.repository.findAssetIds(
+        pedidos,
+        organizationId,
+      );
+      const faltando = pedidos.filter((id) => !encontrados.includes(id));
+      if (faltando.length > 0) {
+        throw new ValidationException(
+          `Equipamento não encontrado: ${faltando.join(', ')}`,
+        );
+      }
+    }
+
+    if (input.responsibleUserId) {
+      const member = await this.repository.findMember(
+        input.responsibleUserId,
+        organizationId,
+      );
+      if (!member) {
+        throw new ValidationException(
+          'O responsável informado não é membro desta organização.',
+        );
+      }
+    }
+  }
+
   async create(
     organizationId: string,
     fallbackBusinessUnitId: string | null,
@@ -317,6 +379,7 @@ export class QuoteService {
       throw new ValidationException('Unsupported currency');
     }
     this.requireFutureValidity(input.validUntil);
+    await this.validateScope(organizationId, input.customerId, input);
 
     return this.repository.create({
       organizationId,
@@ -324,10 +387,118 @@ export class QuoteService {
       customerId: input.customerId,
       title: input.title,
       notes: input.notes ?? null,
+      introText: input.introText ?? null,
       validUntil: input.validUntil ? this.dateOnly(input.validUntil) : null,
       currency,
       createdById: actorId,
+      serviceAddressId: input.serviceAddressId ?? null,
+      responsibleUserId: input.responsibleUserId ?? actorId,
+      assetIds: input.assetIds,
     });
+  }
+
+  /**
+   * A proposta copiada de um atendimento concluído.
+   *
+   * ## O que vem, e o que não vem
+   *
+   * Cliente, endereço, equipamentos, título e descrição vêm do atendimento. Os
+   * **materiais** vêm dos movimentos de consumo — é a única origem de linha que
+   * a operação oferece.
+   *
+   * **Serviço com valor não vem**, e a omissão é deliberada: `Operation` não
+   * guarda linha de serviço com preço (`kind` é categoria, não item de
+   * catálogo). Inventar uma linha de serviço aqui produziria valor numa proposta
+   * que ninguém combinou — pior que campo vazio, porque teria aparência de dado.
+   * Quem orça acrescenta os serviços no wizard.
+   *
+   * ## Só de concluído
+   *
+   * Copiar de um atendimento em andamento copiaria escopo que ainda vai mudar.
+   *
+   * ## Falha no meio não deixa rascunho pela metade
+   *
+   * A proposta é criada primeiro e os itens entram depois — cada um pelo mesmo
+   * caminho de um item escolhido à mão, para que a fotografia e o recálculo
+   * sejam os mesmos. Um material cujo item de catálogo foi desativado desde o
+   * atendimento é **pulado**, não recusado: a proposta ainda é útil sem ele, e
+   * derrubar a criação inteira por causa de um material obrigaria a pessoa a
+   * começar do zero sem saber qual era.
+   */
+  async createFromOperation(
+    organizationId: string,
+    fallbackBusinessUnitId: string | null,
+    actorId: string,
+    input: CreateQuoteFromOperationDto,
+  ) {
+    const operation = await this.repository.findOperationSource(
+      input.operationId,
+      organizationId,
+    );
+    if (!operation) {
+      throw new EntityNotFoundException('Operation', input.operationId);
+    }
+    if (operation.status !== 'COMPLETED') {
+      throw new ValidationException(
+        'Só um atendimento concluído pode virar orçamento — o escopo de um atendimento em andamento ainda vai mudar.',
+      );
+    }
+    if (!operation.customerId) {
+      throw new ValidationException(
+        'O atendimento não tem cliente, e uma proposta precisa de destinatário.',
+      );
+    }
+
+    this.requireFutureValidity(input.validUntil);
+    await this.validateScope(organizationId, operation.customerId, {
+      responsibleUserId: input.responsibleUserId,
+    });
+
+    const businessUnitId = await this.resolveBusinessUnit(
+      organizationId,
+      operation.businessUnitId ?? fallbackBusinessUnitId,
+    );
+
+    const quote = await this.repository.create({
+      organizationId,
+      businessUnitId,
+      customerId: operation.customerId,
+      title: input.title ?? `Orçamento — ${operation.title}`,
+      notes: operation.description ?? null,
+      introText: null,
+      validUntil: input.validUntil ? this.dateOnly(input.validUntil) : null,
+      currency: 'BRL',
+      createdById: actorId,
+      serviceAddressId: operation.customerAddressId,
+      responsibleUserId: input.responsibleUserId ?? actorId,
+      assetIds: operation.assets.map((link) => link.assetId),
+    });
+
+    const consumo = await this.repository.findOperationConsumption(
+      input.operationId,
+      organizationId,
+    );
+
+    let atual = quote;
+    for (const linha of consumo) {
+      try {
+        const snapshot = await this.snapshot(organizationId, businessUnitId, {
+          catalogItemId: linha.catalogItemId,
+          quantity: Number(linha.quantity),
+        });
+        atual = await this.repository.addItem(
+          quote.id,
+          organizationId,
+          businessUnitId,
+          actorId,
+          snapshot,
+        );
+      } catch {
+        /* Item desativado ou sem preço de venda desde o atendimento. A proposta
+           segue sem ele; quem orça vê a lista e completa o que faltar. */
+      }
+    }
+    return atual;
   }
 
   async update(
@@ -338,6 +509,7 @@ export class QuoteService {
   ) {
     const quote = await this.requireEditable(id, organizationId);
     if (input.validUntil) this.requireFutureValidity(input.validUntil);
+    await this.validateScope(organizationId, quote.customer.id, input);
 
     /**
      * O desconto é conferido contra o subtotal atual.
@@ -364,9 +536,12 @@ export class QuoteService {
       {
         title: input.title,
         notes: input.notes,
+        introText: input.introText,
         validUntil: input.validUntil
           ? this.dateOnly(input.validUntil)
           : undefined,
+        serviceAddressId: input.serviceAddressId,
+        responsibleUserId: input.responsibleUserId,
       },
       {
         title: quote.title,
@@ -374,6 +549,7 @@ export class QuoteService {
         validUntil: quote.validUntil?.toISOString() ?? null,
       },
       input.discount === undefined ? undefined : input.discount.toFixed(2),
+      input.assetIds,
     );
   }
 

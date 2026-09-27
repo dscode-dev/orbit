@@ -45,6 +45,7 @@ import {
   CancelQuoteDto,
   ConvertQuoteDto,
   CreateQuoteDto,
+  CreateQuoteFromOperationDto,
   QuoteQueryDto,
   RejectQuoteDto,
   UpdateQuoteDto,
@@ -127,6 +128,35 @@ export class QuoteController {
   async create(@Req() request: IdentityRequest, @Body() input: CreateQuoteDto) {
     return this.mapper.detail(
       await this.quotes.create(
+        this.org(request),
+        request.identity?.businessUnitId ?? null,
+        this.actor(request),
+        input,
+      ),
+    );
+  }
+
+  /**
+   * A proposta copiada de um atendimento concluído.
+   *
+   * Rota própria porque são duas operações diferentes com a mesma aparência:
+   * criar recebe os dados, copiar **lê** um registro que já existe. Um
+   * `operationId` opcional no `POST /quotes` tornaria metade dos campos
+   * condicionalmente obrigatórios, e a recusa deixaria de dizer o que fazer.
+   *
+   * Exige `operations.read` além de `quotes.manage`: quem copia um atendimento
+   * está lendo o atendimento, e o cliente, o endereço e os equipamentos dele
+   * atravessam para a proposta.
+   */
+  @Post('from-operation')
+  @Capabilities('quotes.manage')
+  @Permissions('quotes.manage', 'operations.read')
+  async createFromOperation(
+    @Req() request: IdentityRequest,
+    @Body() input: CreateQuoteFromOperationDto,
+  ) {
+    return this.mapper.detail(
+      await this.quotes.createFromOperation(
         this.org(request),
         request.identity?.businessUnitId ?? null,
         this.actor(request),
