@@ -82,6 +82,8 @@ interface MemberSource {
     email: string;
     avatarUrl: string | null;
     status: string;
+    /* Só a existência: `take: 1` na consulta, e nunca a imagem. */
+    professionalSignatures?: readonly { id: string }[];
   };
   usesCustomAccess: boolean;
   customPermissions: readonly string[];
@@ -218,6 +220,7 @@ export class OrganizationReadModelMapper {
       },
       businessUnits: businessUnits.map((unit) => ({ ...unit })),
       joinedAt: this.date(source.joinedAt),
+      hasSignature: (source.user.professionalSignatures ?? []).length > 0,
       isOwner: source.userId === ownerUserId,
       access: {
         useRoleDefaults: !source.usesCustomAccess,

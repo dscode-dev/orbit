@@ -26,6 +26,30 @@ const ROLE_VIEW = {
   _count: { select: { organizationMemberships: true } },
 } satisfies Prisma.RoleSelect;
 
+/**
+ * A pessoa, como as consultas de membro a projetam.
+ *
+ * Era a mesma seleção escrita **quatro** vezes. Cópias de uma projeção divergem
+ * na primeira vez que alguém acrescenta um campo em duas delas, e o cliente passa
+ * a receber respostas diferentes para a mesma pergunta dependendo da rota.
+ *
+ * `professionalSignatures` traz **só a existência**: `take: 1` e apenas o `id`.
+ * Quem escolhe um responsável precisa saber se o documento sairá assinado; a
+ * imagem é lida pelo gerador, no servidor, e não tem por que atravessar a rede.
+ */
+const memberUserView = {
+  id: true,
+  displayName: true,
+  email: true,
+  avatarUrl: true,
+  status: true,
+  professionalSignatures: {
+    where: { active: true, revokedAt: null },
+    take: 1,
+    select: { id: true },
+  },
+} satisfies Prisma.UserSelect;
+
 @Injectable()
 export class OrganizationRepository {
   constructor(
@@ -212,15 +236,7 @@ export class OrganizationRepository {
           userId: true,
           status: true,
           joinedAt: true,
-          user: {
-            select: {
-              id: true,
-              displayName: true,
-              email: true,
-              avatarUrl: true,
-              status: true,
-            },
-          },
+          user: { select: memberUserView },
           usesCustomAccess: true,
           customPermissions: true,
           customAllowedSurfaces: true,
@@ -291,15 +307,7 @@ export class OrganizationRepository {
           usesCustomAccess: true,
           customPermissions: true,
           customAllowedSurfaces: true,
-          user: {
-            select: {
-              id: true,
-              displayName: true,
-              email: true,
-              avatarUrl: true,
-              status: true,
-            },
-          },
+          user: { select: memberUserView },
           role: {
             select: {
               id: true,
@@ -444,15 +452,7 @@ export class OrganizationRepository {
           userId: true,
           status: true,
           joinedAt: true,
-          user: {
-            select: {
-              id: true,
-              displayName: true,
-              email: true,
-              avatarUrl: true,
-              status: true,
-            },
-          },
+          user: { select: memberUserView },
           usesCustomAccess: true,
           customPermissions: true,
           customAllowedSurfaces: true,
@@ -482,15 +482,7 @@ export class OrganizationRepository {
           userId: true,
           status: true,
           joinedAt: true,
-          user: {
-            select: {
-              id: true,
-              displayName: true,
-              email: true,
-              avatarUrl: true,
-              status: true,
-            },
-          },
+          user: { select: memberUserView },
           usesCustomAccess: true,
           customPermissions: true,
           customAllowedSurfaces: true,

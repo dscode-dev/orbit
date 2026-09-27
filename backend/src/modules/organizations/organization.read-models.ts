@@ -80,6 +80,16 @@ export interface OrganizationMemberReadModel {
   joinedAt: string;
   /** `true` para o dono da organização. */
   isOwner: boolean;
+  /**
+   * A pessoa tem assinatura profissional ativa.
+   *
+   * **Só o fato.** A imagem não é publicada aqui de propósito: quem a desenha é
+   * o gerador de documento, no servidor, e quem escolhe um responsável precisa
+   * saber se o documento sairá assinado — não ver a assinatura de outra pessoa
+   * na tela. Espalhar a imagem pelo navegador não atenderia nenhuma pergunta
+   * que esta resposta já não atenda.
+   */
+  hasSignature: boolean;
   /** Effective access after applying an optional member override. */
   access: {
     useRoleDefaults: boolean;

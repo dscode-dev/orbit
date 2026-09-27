@@ -83,6 +83,60 @@ describe('OrganizationReadModelMapper', () => {
   });
 });
 
+/*
+ * Quem escolhe um responsável precisa saber se o documento sairá assinado. O que
+ * se publica é **o fato**, nunca a imagem: espalhá-la pelo navegador não atende
+ * nenhuma pergunta que o booleano já não atenda, e o gerador a lê no servidor.
+ */
+describe('assinatura do membro', () => {
+  const mapper = new OrganizationReadModelMapper();
+
+  const membro = (assinaturas: readonly { id: string }[] | undefined) => [
+    {
+      userId: 'user-1',
+      status: 'ACTIVE',
+      joinedAt: new Date('2026-01-01T00:00:00.000Z'),
+      user: {
+        id: 'user-1',
+        displayName: 'Marcos Tavares',
+        email: 'marcos@exemplo.com',
+        avatarUrl: null,
+        status: 'ACTIVE',
+        professionalSignatures: assinaturas,
+      },
+      usesCustomAccess: false,
+      customPermissions: [],
+      customAllowedSurfaces: [],
+      role: {
+        id: 'role-1',
+        key: 'TECHNICIAN',
+        name: 'Técnico',
+        permissions: [],
+        allowedSurfaces: [],
+      },
+    },
+  ];
+
+  it('diz que há assinatura, sem devolver a imagem', () => {
+    const [resultado] = mapper.members(membro([{ id: 'sig-1' }]), 'owner-1');
+
+    expect(resultado!.hasSignature).toBe(true);
+    expect(JSON.stringify(resultado)).not.toContain('sig-1');
+  });
+
+  it('diz que não há quando a pessoa nunca cadastrou', () => {
+    expect(mapper.members(membro([]), 'owner-1')[0]!.hasSignature).toBe(false);
+  });
+
+  /* A consulta filtra por `active` e `revokedAt`, então assinatura revogada
+     chega como lista vazia. Ausente é o caso de quem projetou sem o campo. */
+  it('trata ausência do campo como sem assinatura, e não estoura', () => {
+    expect(mapper.members(membro(undefined), 'owner-1')[0]!.hasSignature).toBe(
+      false,
+    );
+  });
+});
+
 /** O mínimo que `context` aceita, para variar um campo por vez. */
 function organizacao(overrides: { logoUrl?: string | null }) {
   return {
