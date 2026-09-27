@@ -17,6 +17,36 @@ const entries = [
     HttpStatus.UNAUTHORIZED,
     'Sua sessão não é válida ou expirou.',
   ],
+  /*
+   * Credencial errada não é sessão expirada.
+   *
+   * As duas saíam como `UNAUTHORIZED`, com a mensagem "Sua sessão não é válida ou
+   * expirou" — dita a quem está na tela de login, onde ninguém tem sessão. Quem
+   * errou a senha lia que o problema era a sessão e ficava limpando cookie; quem
+   * tinha sessão velha lia a mesma frase e trocava a senha. Nenhuma das duas
+   * pessoas sabia o que fazer.
+   *
+   * Não vaza nada: a frase não diz se o e-mail existe.
+   */
+  [
+    'INVALID_CREDENTIALS',
+    HttpStatus.UNAUTHORIZED,
+    'E-mail ou senha incorretos.',
+  ],
+  /*
+   * A trava por tentativas tem mensagem própria, e isto é uma escolha.
+   *
+   * Dizer "aguarde" confirma que a conta existe — informação que a frase
+   * anterior não dá. A alternativa é pior: com "e-mail ou senha incorretos", uma
+   * pessoa travada continua digitando a senha certa e recebendo erro, sem
+   * nenhuma pista de que só precisa esperar. Quem controla a força bruta aqui é o
+   * limite de tentativas, não a ambiguidade da mensagem.
+   */
+  [
+    'ACCOUNT_LOCKED',
+    HttpStatus.UNAUTHORIZED,
+    'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.',
+  ],
   [
     'MFA_REQUIRED',
     HttpStatus.UNAUTHORIZED,

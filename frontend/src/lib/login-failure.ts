@@ -41,6 +41,19 @@ export function loginFailure(error: unknown): LoginFailure {
        obrigaria a digitar e-mail e senha de novo por causa de um dígito. */
     case "MFA_INVALID":
       return { revealMfa: true, title: "Código não confere", description };
+    /**
+     * Credencial errada e conta travada tinham a mensagem de sessão expirada —
+     * dita a quem está na tela de login, onde ninguém tem sessão. Quem errou a
+     * senha limpava cookie; quem estava travado digitava a senha certa.
+     */
+    case "INVALID_CREDENTIALS":
+      return {
+        revealMfa: false,
+        title: "Não foi possível entrar",
+        description,
+      };
+    case "ACCOUNT_LOCKED":
+      return { revealMfa: false, title: "Acesso bloqueado", description };
     default:
       return {
         revealMfa: false,

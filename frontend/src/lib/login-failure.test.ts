@@ -34,11 +34,22 @@ describe("loginFailure", () => {
 
   it("não abre o campo em credencial errada", () => {
     const acao = loginFailure(
-      recusa("UNAUTHORIZED", "Sua sessão não é válida ou expirou."),
+      recusa("INVALID_CREDENTIALS", "E-mail ou senha incorretos."),
     );
 
     expect(acao.revealMfa).toBe(false);
-    expect(acao.title).toBe("Não foi possível entrar");
+    expect(acao.description).toBe("E-mail ou senha incorretos.");
+  });
+
+  it("diz que é bloqueio quando a conta está travada", () => {
+    /* Com "e-mail ou senha incorretos", quem está travado digita a senha certa e
+       recebe erro sem nenhuma pista de que só precisa esperar. */
+    const acao = loginFailure(
+      recusa("ACCOUNT_LOCKED", "Muitas tentativas seguidas."),
+    );
+
+    expect(acao.title).toBe("Acesso bloqueado");
+    expect(acao.revealMfa).toBe(false);
   });
 
   it("ignora a mensagem interna em inglês, que o contrato não envia", () => {

@@ -86,13 +86,21 @@ export class AuthenticationService {
   ): Promise<TokenPair> {
     const user = await this.repository.findByEmail(email);
     if (!user?.credential || user.deletedAt || user.status !== 'ACTIVE') {
-      throw new UnauthorizedException('Invalid credentials');
+      /* Mesma recusa para e-mail que não existe e conta desativada: a diferença
+         entre as duas só interessa a quem está sondando endereços. */
+      throw new UnauthorizedException(
+        'Invalid credentials',
+        'INVALID_CREDENTIALS',
+      );
     }
     if (
       user.credential.lockedUntil &&
       user.credential.lockedUntil.getTime() > Date.now()
     ) {
-      throw new UnauthorizedException('Account temporarily locked');
+      throw new UnauthorizedException(
+        'Account temporarily locked',
+        'ACCOUNT_LOCKED',
+      );
     }
     const passwordValid = await this.hashes.verify(
       user.credential.passwordHash,
@@ -100,7 +108,10 @@ export class AuthenticationService {
     );
     if (!passwordValid) {
       await this.recordFailedAttempt(user);
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(
+        'Invalid credentials',
+        'INVALID_CREDENTIALS',
+      );
     }
     const factor = user.mfaFactors[0];
     if (factor) await this.mfa.verifyFactor(factor, mfaCode);
