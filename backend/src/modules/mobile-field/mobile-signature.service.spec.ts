@@ -5,7 +5,10 @@ import {
   ValidationException,
 } from '../../exceptions';
 import { createHash } from 'node:crypto';
-import { MobileSignatureService } from './mobile-signature.service';
+import {
+  MOBILE_PREVIEW_PATH,
+  MobileSignatureService,
+} from './mobile-signature.service';
 
 const actor = {
   id: '01900000-0000-7000-8000-000000000001',
@@ -41,7 +44,7 @@ describe('MobileSignatureService', () => {
       {} as never,
       storageConfig as never,
     );
-    await expect(service.status(actor)).resolves.toEqual({
+    await expect(service.status(actor, MOBILE_PREVIEW_PATH)).resolves.toEqual({
       signatureAvailable: false,
       version: null,
       updatedAt: null,
@@ -80,7 +83,7 @@ describe('MobileSignatureService', () => {
       storageConfig as never,
     );
 
-    const result = await service.status(actor);
+    const result = await service.status(actor, MOBILE_PREVIEW_PATH);
 
     expect(repository.context).toHaveBeenCalledWith(
       actor.organizationId,
@@ -152,7 +155,7 @@ describe('MobileSignatureService', () => {
       storageConfig as never,
     );
     await expect(
-      service.upload(actor, { storageObjectId: 'f' }),
+      service.upload(actor, { storageObjectId: 'f' }, MOBILE_PREVIEW_PATH),
     ).rejects.toBeInstanceOf(ValidationException);
   });
 
@@ -169,9 +172,9 @@ describe('MobileSignatureService', () => {
       {} as never,
       storageConfig as never,
     );
-    await expect(service.status(actor)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      service.status(actor, MOBILE_PREVIEW_PATH),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('detects stale acknowledgement before persisting', async () => {

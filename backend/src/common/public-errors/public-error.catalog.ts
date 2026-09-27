@@ -22,6 +22,20 @@ const entries = [
     HttpStatus.UNAUTHORIZED,
     'Informe o código do seu autenticador.',
   ],
+  /*
+   * Código errado é diferente de credencial errada.
+   *
+   * Sem este código, o TOTP inválido saía como `UNAUTHORIZED` — "sua sessão não
+   * é válida ou expirou", numa tela onde ninguém tem sessão ainda. A pessoa lia
+   * que o problema era a senha e trocava a senha.
+   *
+   * Não vaza nada: quem chega aqui já provou a senha.
+   */
+  [
+    'MFA_INVALID',
+    HttpStatus.UNAUTHORIZED,
+    'O código do autenticador não confere. Tente o próximo código.',
+  ],
   [
     'FORBIDDEN',
     HttpStatus.FORBIDDEN,

@@ -40,10 +40,8 @@ import {
 } from "@/components/signature/signature-pad";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  useSignature,
-  useUploadSignature,
-} from "@/hooks/profile/use-me-media";
+import { useSignature, useUploadSignature } from "@/hooks/profile/use-me-media";
+import { browserUrlFor } from "@/lib/backend-url";
 import { formatDateTime } from "@/lib/formatters";
 import {
   ACCEPTED_IMAGE_TYPES,
@@ -71,10 +69,16 @@ export function SignatureSection() {
                   {status.preview ? (
                     <div className="flex h-24 items-center justify-center rounded-md border border-border bg-white p-2">
                       {/* `<img>`, e não `next/image`: o endereço é assinado e
-                          expira, então não há o que otimizar em rota estática. */}
+                          expira, então não há o que otimizar em rota estática.
+
+                          `browserUrlFor` porque o backend devolve o caminho
+                          **dele** (`/api/v1/…`), certo para o aplicativo de
+                          campo e inexistente na origem do frontend: a imagem
+                          respondia 404 e a assinatura aparecia como um quadro
+                          vazio. */}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={status.preview.url}
+                        src={browserUrlFor(status.preview.url)}
                         alt="Sua assinatura"
                         className="max-h-full max-w-full object-contain"
                       />
@@ -120,23 +124,28 @@ function SignatureForms({ substituindo }: { substituindo: boolean }) {
    * traço se errar o botão. Guardar o envio aqui deixa o diálogo decidir sem
    * que o formulário precise saber que ele existe.
    */
-  const [confirmando, setConfirmando] = useState<
-    | { blob: Blob; fileName: string; aoConfirmar?: () => void }
-    | null
-  >(null);
+  const [confirmando, setConfirmando] = useState<{
+    blob: Blob;
+    fileName: string;
+    aoConfirmar?: () => void;
+  } | null>(null);
 
-  const enviar = (
-    envio: { blob: Blob; fileName: string; aoConfirmar?: () => void },
-  ) => {
+  const enviar = (envio: {
+    blob: Blob;
+    fileName: string;
+    aoConfirmar?: () => void;
+  }) => {
     upload.mutate(
       { blob: envio.blob, fileName: envio.fileName },
       { onSuccess: envio.aoConfirmar },
     );
   };
 
-  const pedirEnvio = (
-    envio: { blob: Blob; fileName: string; aoConfirmar?: () => void },
-  ) => {
+  const pedirEnvio = (envio: {
+    blob: Blob;
+    fileName: string;
+    aoConfirmar?: () => void;
+  }) => {
     if (substituindo) {
       setConfirmando(envio);
       return;

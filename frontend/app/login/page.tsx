@@ -16,6 +16,7 @@ import {
 import { motion } from "motion/react";
 import { toast } from "sonner";
 
+import { loginFailure } from "@/lib/login-failure";
 import { OrbitLogo } from "@/components/brand/orbit-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,17 +73,12 @@ function LoginView() {
         client: "WEB",
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      if (message.toLowerCase().includes("mfa code is required")) {
-        setRequiresMfa(true);
-        toast.error("Não foi possível entrar", {
-          description: "Digite o código do seu autenticador para continuar.",
-        });
-        return;
-      }
-      toast.error("Não foi possível entrar", {
-        description: message || "Verifique suas credenciais.",
-      });
+      /* A decisão é pelo código publicado do erro, e vive em `login-failure`
+         para poder ser testada sem DOM. Ver o comentário de lá: comparar a
+         mensagem interna trancava fora quem ativava o segundo fator. */
+      const acao = loginFailure(error);
+      if (acao.revealMfa) setRequiresMfa(true);
+      toast.error(acao.title, { description: acao.description });
     }
   }
 

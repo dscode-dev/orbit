@@ -112,7 +112,13 @@ export class ProfessionalSignatureController {
     @Req() request: IdentityRequest,
     @Body() input: MobileSignatureUploadDto,
   ) {
-    return this.signatures.upload(this.actor(request), input);
+    /* Mesmo caminho do `status`: a prévia que volta daqui é pedida pelo
+       navegador, pelo proxy da Web. */
+    return this.signatures.upload(
+      this.actor(request),
+      input,
+      PROFILE_PREVIEW_PATH,
+    );
   }
 
   @Delete()

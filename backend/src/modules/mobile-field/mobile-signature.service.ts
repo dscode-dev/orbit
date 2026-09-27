@@ -29,7 +29,25 @@ import type {
 } from './mobile-signature.read-models';
 import { MobileSignatureRepository } from './mobile-signature.repository';
 
-/** Onde o aplicativo de campo busca a prévia. */
+/**
+ * Onde cada cliente busca a prévia da assinatura.
+ *
+ * ## Por que são dois caminhos, e por que o parâmetro é obrigatório
+ *
+ * A mesma assinatura é servida por dois controllers: o do aplicativo de campo e
+ * o do perfil na Web. A URL assinada tem de apontar para **o caminho de quem
+ * perguntou** — a rota do mobile exige contexto de campo, e o proxy da Web
+ * encaminha o caminho do perfil.
+ *
+ * O parâmetro tinha valor padrão (`MOBILE_PREVIEW_PATH`), e só `status` o
+ * sobrescrevia. `upload` e `revoke` caíam no padrão em silêncio: logo depois de
+ * cadastrar a assinatura pela Web, a resposta trazia o caminho do mobile, a tela
+ * atualizava o cache com ele e a imagem não carregava. Recarregar a página
+ * consertava, porque aí o `GET` respondia — o que fazia o defeito parecer
+ * intermitente.
+ *
+ * Sem padrão, esquecer virou erro de compilação.
+ */
 export const MOBILE_PREVIEW_PATH = '/api/v1/mobile/field/me/signature/preview';
 
 /** Onde a tela de perfil busca a mesma prévia. */
@@ -55,7 +73,7 @@ export class MobileSignatureService {
    */
   async status(
     actor: MobileFieldActor,
-    basePath = MOBILE_PREVIEW_PATH,
+    basePath: string,
   ): Promise<MobileSignatureStatusReadModel> {
     const context = await this.requireProfessional(actor);
     const signature = context.signature;
@@ -78,6 +96,7 @@ export class MobileSignatureService {
   async upload(
     actor: MobileFieldActor,
     input: MobileSignatureUploadDto,
+    basePath: string,
   ): Promise<MobileSignatureUploadResultReadModel> {
     const context = await this.requireProfessional(actor);
     const reserved = await this.repository.signatureUploadFile(
@@ -129,7 +148,7 @@ export class MobileSignatureService {
       version: replaced.signature.version,
       updatedAt: replaced.signature.updatedAt.toISOString(),
       roles: this.roles(context.profile),
-      preview: this.preview(actor, file, file.sha256),
+      preview: this.preview(actor, file, file.sha256, basePath),
       replacedVersion: replaced.replacedVersion,
     };
   }
@@ -441,7 +460,7 @@ export class MobileSignatureService {
       status: string;
     },
     signatureHash: string,
-    basePath: string = MOBILE_PREVIEW_PATH,
+    basePath: string,
   ) {
     if (!this.previewable(file, signatureHash)) return null;
     const expires =

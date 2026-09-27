@@ -97,7 +97,7 @@ export class MfaService {
     );
     const matchedIndex = recoveryMatches.findIndex(Boolean);
     if (matchedIndex < 0) {
-      throw new UnauthorizedException('Invalid MFA code');
+      throw new UnauthorizedException('Invalid MFA code', 'MFA_INVALID');
     }
     await this.repository.consumeMfaRecoveryCode(
       factor.id,

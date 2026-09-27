@@ -25,7 +25,10 @@ import {
   MobileSignatureUploadDto,
   MobileSignatureUploadReservationDto,
 } from './mobile-signature.dto';
-import { MobileSignatureService } from './mobile-signature.service';
+import {
+  MOBILE_PREVIEW_PATH,
+  MobileSignatureService,
+} from './mobile-signature.service';
 
 @ApiTags('Mobile Field Signatures')
 @Controller('mobile/field')
@@ -39,7 +42,8 @@ export class MobileSignatureController {
     summary: 'Consulta a disponibilidade da própria assinatura profissional',
   })
   status(@Req() request: IdentityRequest) {
-    return this.service.status(this.actor(request));
+    /* Caminho do aplicativo de campo: e ele que serve esta prévia. */
+    return this.service.status(this.actor(request), MOBILE_PREVIEW_PATH);
   }
 
   @Get('me/signature/preview')
@@ -66,7 +70,7 @@ export class MobileSignatureController {
     @Req() request: IdentityRequest,
     @Body() input: MobileSignatureUploadDto,
   ) {
-    return this.service.upload(this.actor(request), input);
+    return this.service.upload(this.actor(request), input, MOBILE_PREVIEW_PATH);
   }
 
   @Post('me/signature/uploads')
