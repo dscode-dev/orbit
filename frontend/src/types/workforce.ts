@@ -264,6 +264,19 @@ export const WORKFORCE_CONTRACT_GAPS = [
 export type ProfessionalRole = PublicProfessionalRole;
 export type ProfessionalCredential = ProfessionalCredentialReadModel;
 export type ProfessionalProfile = ProfessionalProfileReadModel;
+
+/**
+ * `PATCH /workforce/members/:userId/professional-profile`
+ * (`UpdateProfessionalProfileDto`).
+ *
+ * Os dois papéis viajam juntos porque o contrato os substitui: enviar só um
+ * apagaria o outro. Quem monta a requisição parte do estado atual.
+ */
+export interface UpdateProfessionalProfileInput {
+  fieldTechnicianEnabled: boolean;
+  technicalResponsibleEnabled: boolean;
+  active?: boolean;
+}
 export type ProfessionalEligibility = ProfessionalEligibilityReadModel;
 export type BlockedReason = ProfessionalEligibilityBlockedReason;
 

@@ -114,6 +114,9 @@ model User {
   commissionPaymentsReceived         CommissionPayment[]            @relation("CommissionPaymentUser")
   commissionPaymentsCreated          CommissionPayment[]            @relation("CommissionPaymentCreatedBy")
   commissionItems                    CommissionPaymentItem[]        @relation("CommissionPaymentItemUser")
+  commissionCancellationsReceived    CommissionCancellation[]       @relation("CommissionCancellationUser")
+  commissionCancellationsMade        CommissionCancellation[]       @relation("CommissionCancelledBy")
+  commissionCancellationsRevoked     CommissionCancellation[]       @relation("CommissionCancellationRevokedBy")
 
   @@index([status, deletedAt])
   @@map("users")
@@ -323,12 +326,13 @@ model Organization {
   customerServiceRequests       CustomerServiceRequest[]
   customerServiceRequestEvents  CustomerServiceRequestEvent[]
 
-  pmocCodeSequences      PmocCodeSequence[]
-  pmocUnits              PmocUnit[]
-  rvtMaintenanceTypes    RvtMaintenanceType[]
-  commissionPolicy       CommissionPolicy?
-  commissionPayments     CommissionPayment[]
-  commissionPaymentItems CommissionPaymentItem[]
+  pmocCodeSequences       PmocCodeSequence[]
+  pmocUnits               PmocUnit[]
+  rvtMaintenanceTypes     RvtMaintenanceType[]
+  commissionPolicy        CommissionPolicy?
+  commissionPayments      CommissionPayment[]
+  commissionPaymentItems  CommissionPaymentItem[]
+  commissionCancellations CommissionCancellation[]
 
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
@@ -1459,9 +1463,10 @@ model Operation {
 
   inventoryMovements InventoryMovement[]
 
-  pmocExecution          PmocExecution?
-  pmocEquipmentExecution PmocEquipmentExecution?
-  commissionItems        CommissionPaymentItem[]
+  pmocExecution           PmocExecution?
+  pmocEquipmentExecution  PmocEquipmentExecution?
+  commissionItems         CommissionPaymentItem[]
+  commissionCancellations CommissionCancellation[]
 
   @@index([organizationId, code])
   @@index([organizationId, businessUnitId, status, scheduledStart])
@@ -3278,6 +3283,49 @@ model CommissionPolicy {
   createdBy    User?        @relation("CommissionPolicyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("commission_policies")
+}
+
+/// Comissão que a organização decidiu não pagar.
+///
+/// ## Por que uma linha, e não um status na comissão
+///
+/// A comissão pendente é derivada — não existe linha para receber um status. O
+/// cancelamento é a **decisão**, e decisão é fato: quem decidiu, quando, e por
+/// quê. Guardá-la aqui deixa a derivação continuar sendo derivação.
+///
+/// ## Desfazer é revogar, não apagar
+///
+/// `revokedAt` marca a decisão desfeita, e o índice único só vale para a
+/// cancelação em vigor — cancelar, desfazer e cancelar de novo é uma sequência
+/// legítima, e cada passo fica registrado. Apagar a linha perderia a primeira
+/// decisão, que é justamente o que alguém vai querer explicar depois.
+model CommissionCancellation {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  operationId    String @map("operation_id") @db.Uuid
+  userId         String @map("user_id") @db.Uuid
+  /// `PRIMARY` (responsável) · `ASSISTANT` (auxiliar).
+  role           String @db.VarChar(20)
+
+  reason String? @db.VarChar(500)
+
+  cancelledById String   @map("cancelled_by_id") @db.Uuid
+  cancelledAt   DateTime @default(now()) @map("cancelled_at") @db.Timestamptz(3)
+
+  /// Quando a própria cancelação foi desfeita.
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokedById String?   @map("revoked_by_id") @db.Uuid
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  operation    Operation    @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  user         User         @relation("CommissionCancellationUser", fields: [userId], references: [id], onDelete: Restrict)
+  cancelledBy  User         @relation("CommissionCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  revokedBy    User?        @relation("CommissionCancellationRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+
+  /// O índice único em vigor é criado na migração, com `WHERE revoked_at IS NULL`.
+  @@index([organizationId, operationId, userId, role])
+  @@index([organizationId, userId, cancelledAt])
+  @@map("commission_cancellations")
 }
 
 /// Pagamento de comissão a uma pessoa.

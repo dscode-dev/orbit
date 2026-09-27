@@ -21,11 +21,17 @@
  * backend publica em `professionalRoles`; a credencial aparece ao lado como
  * informação administrativa, e a tela nunca deduz um a partir do outro.
  *
- * ## Somente leitura
+ * ## Os papéis passaram a ser editáveis
  *
- * Editar perfil, credencial e assinatura exige `workforce.manage` e endpoints
- * próprios que ainda não têm superfície Web. Enquanto não tiverem, a seção
- * mostra o estado sem oferecer botão que não existe.
+ * Eram somente leitura, "enquanto não houver superfície Web" — e o endpoint
+ * existia. A consequência não era estética: sem perfil de técnico de campo a
+ * pessoa não pode ser atribuída a um atendimento, não aparece entre os técnicos e
+ * não ganha comissão. Dava para cadastrar um membro com papel de acesso
+ * "Técnico operador" e ele continuar invisível para a operação.
+ *
+ * Credencial e assinatura continuam em leitura: a credencial tem endpoint
+ * próprio com validação de conselho, e a assinatura é pessoal — quem assina é
+ * quem cadastra, no próprio perfil.
  */
 import { PanelError } from "@/components/panels";
 import {
@@ -36,8 +42,15 @@ import {
 } from "@/components/professional/professional-presentation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfessionalProfile } from "@/hooks/workforce/use-workforce";
+import { ProfessionalRolesEditor } from "./professional-roles.editor";
 
-export function MemberProfessionalSection({ userId }: { userId: string }) {
+export function MemberProfessionalSection({
+  userId,
+  canManage = false,
+}: {
+  userId: string;
+  canManage?: boolean;
+}) {
   const profile = useProfessionalProfile(userId);
 
   return (
@@ -59,10 +72,20 @@ export function MemberProfessionalSection({ userId }: { userId: string }) {
            * em vez de mostrar uma falha.
            */
           profile.error.isNotFound ? (
-            <p className="text-sm text-muted-foreground">
-              Este membro não possui perfil profissional. Papéis de campo são
-              cadastrados separadamente do acesso ao sistema.
-            </p>
+            <>
+              <p className="text-sm text-muted-foreground">
+                Este membro não possui perfil profissional. Papéis de campo são
+                cadastrados separadamente do acesso ao sistema — e sem o de
+                técnico de campo a pessoa não pode ser atribuída a um
+                atendimento.
+              </p>
+              {/* O primeiro salvamento cria o perfil. */}
+              <ProfessionalRolesEditor
+                userId={userId}
+                profile={null}
+                canManage={canManage}
+              />
+            </>
           ) : (
             <PanelError
               error={profile.error}
@@ -98,6 +121,12 @@ export function MemberProfessionalSection({ userId }: { userId: string }) {
                 </ul>
               )}
             </div>
+
+            <ProfessionalRolesEditor
+              userId={userId}
+              profile={profile.data}
+              canManage={canManage}
+            />
           </>
         ) : null}
       </div>

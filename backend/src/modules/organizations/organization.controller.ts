@@ -83,6 +83,34 @@ export class OrganizationController {
   }
 
   /**
+   * Um membro.
+   *
+   * A página de detalhe precisa de uma pessoa, e não da lista. Antes a tela
+   * recebia o objeto da listagem — o que só funciona num painel aberto a partir
+   * dela: endereço guardado, recarregar ou abrir em outra aba não tinham de onde
+   * buscar.
+   *
+   * Mesma autorização e mesmo Read Model da listagem: é a mesma leitura, de uma
+   * linha só.
+   */
+  @Get('current/members/:userId')
+  @RequiresActivePlan()
+  async member(
+    @Param('userId', ParseUUIDv7Pipe) userId: string,
+    @Req() request: IdentityRequest,
+  ) {
+    const { member, unitMemberships, ownerUserId } =
+      await this.organizations.getMember(this.organizationId(request), userId);
+
+    const [readModel] = this.readModels.members(
+      [member],
+      ownerUserId,
+      unitMemberships,
+    );
+    return readModel;
+  }
+
+  /**
    * Altera papel e situação de um membro.
    *
    * Só isso: nome, e-mail e avatar são do **perfil**, que cada pessoa

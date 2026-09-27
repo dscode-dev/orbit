@@ -1,85 +1,89 @@
 "use client";
 
 /**
- * Detalhe de um membro — e a sua carga de trabalho.
+ * Detalhe de um membro — em página, e não em painel lateral.
  *
- * É também a **visão técnica** que o Stage 1 pede: operações atribuídas,
- * execuções sob responsabilidade e agenda, cada uma vinda do módulo dono com
- * o filtro por pessoa que o contrato já aceita.
+ * ## Por que deixou de ser drawer
+ *
+ * O conteúdo é o de uma tela: carga de trabalho, perfil profissional,
+ * especialidades, certificações, permissões efetivas, unidades, listas
+ * relacionadas e agora a comissão, com histórico e pagamentos. Num painel
+ * lateral isso é uma coluna estreita com rolagem longa, que não pode ser
+ * guardada nos favoritos, aberta em outra aba nem recarregada — e era o que
+ * acontecia: o painel recebia o objeto da listagem, então um endereço direto não
+ * tinha de onde buscar a pessoa.
+ *
+ * A página carrega o membro por `GET /organizations/current/members/:userId`,
+ * rota que passou a existir para isto.
  *
  * ## Nada é calculado aqui
  *
  * Os números são `meta.total` do servidor. Não há produtividade: o Analytics
- * publica `technicians.active` e `technicians.assignment_coverage`, que são da
- * **organização**, não de uma pessoa. Derivar "operações por dia" das listas
- * carregadas seria inventar um indicador — e um indicador de desempenho
- * inventado é pior que nenhum, porque alguém decide com ele.
+ * publica indicadores **da organização**, não de uma pessoa. Derivar "operações
+ * por dia" das listas carregadas seria inventar um indicador — e um indicador de
+ * desempenho inventado é pior que nenhum, porque alguém decide com ele.
  */
 import Link from "next/link";
 import {
+  ArrowLeft,
   ArrowRight,
   CalendarClock,
   ClipboardCheck,
   Workflow,
 } from "lucide-react";
 
+import { ContentContainer } from "@/components/layout/page-primitives";
+import { PanelError, PanelLoading } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EntityBadge, entityHref } from "@/entities";
 import {
+  useAccessCatalog,
   useMemberExecutions,
   useMemberOperations,
   useMemberSchedule,
-  useAccessCatalog,
+  useTeamMember,
 } from "@/hooks/workforce/use-workforce";
 import { formatDateTime } from "@/lib/formatters";
 import { ROUTES } from "@/lib/routes";
+import { sectionHref } from "@/lib/section-navigation";
+import { useSession } from "@/providers/session-provider";
 import type { TeamMember } from "@/types/workforce";
 import { MemberActions } from "./member-actions";
 import { MemberCertificationsSection } from "./member-certifications.section";
 import { MemberProfessionalSection } from "./member-professional.section";
 import { MemberSpecialtiesSection } from "./member-specialties.section";
+import { MemberCommissionSection } from "./member-commission.section";
 import { WorkloadCards } from "./workload-cards";
 
-export function MemberSheet({
-  member,
-  onOpenChange,
-  onEdit,
-}: {
-  member: TeamMember | null;
-  onOpenChange: (open: boolean) => void;
-  onEdit?: (member: TeamMember) => void;
-}) {
+export function MemberDetail({ userId }: { userId: string }) {
+  const query = useTeamMember(userId);
+
   return (
-    <Sheet open={member !== null} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
-        {member ? (
-          <Body
-            member={member}
-            onEdit={
-              onEdit
-                ? () => {
-                    onOpenChange(false);
-                    onEdit(member);
-                  }
-                : undefined
-            }
-          />
-        ) : null}
-      </SheetContent>
-    </Sheet>
+    <ContentContainer size="wide" className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href={sectionHref(ROUTES.team, "usuarios")}>
+            <ArrowLeft className="size-4" />
+            Voltar para a equipe
+          </Link>
+        </Button>
+      </div>
+
+      {query.isPending ? (
+        <PanelLoading rows={8} />
+      ) : query.error || !query.data ? (
+        <PanelError error={query.error} onRetry={() => void query.refetch()} />
+      ) : (
+        <Body member={query.data} />
+      )}
+    </ContentContainer>
   );
 }
 
-function Body({ member, onEdit }: { member: TeamMember; onEdit?: () => void }) {
+function Body({ member }: { member: TeamMember }) {
+  const session = useSession();
   const catalog = useAccessCatalog();
   const permissionLabels = new Map(
     (catalog.data?.permissionGroups ?? []).flatMap((group) =>
@@ -89,10 +93,15 @@ function Body({ member, onEdit }: { member: TeamMember; onEdit?: () => void }) {
     ),
   );
 
+  /* Administrar a equipe e ver dinheiro são permissões diferentes. */
+  const podeAdministrarEquipe =
+    session.hasPermission("organization.members.update") &&
+    session.hasCapability("workforce.manage");
+
   return (
     <>
-      <SheetHeader>
-        <SheetTitle className="flex flex-wrap items-center gap-2">
+      <header className="space-y-1">
+        <h1 className="flex flex-wrap items-center gap-2 text-lg font-semibold">
           {member.displayName}
           {member.isOwner ? <Badge variant="secondary">Dono</Badge> : null}
           <EntityBadge
@@ -100,18 +109,23 @@ function Body({ member, onEdit }: { member: TeamMember; onEdit?: () => void }) {
             group="status"
             value={member.status}
           />
-        </SheetTitle>
-        <SheetDescription>
+        </h1>
+        <p className="text-sm text-muted-foreground">
           {member.email} · na equipe desde {formatDateTime(member.joinedAt)}
-        </SheetDescription>
-      </SheetHeader>
+        </p>
+      </header>
 
-      <div className="space-y-6 px-4 pb-6">
-        <MemberActions member={member} onEdit={onEdit} />
+      <div className="space-y-6">
+        <MemberActions member={member} />
 
         <WorkloadCards userId={member.userId} />
 
-        <MemberProfessionalSection userId={member.userId} />
+        <MemberCommissionSection userId={member.userId} />
+
+        <MemberProfessionalSection
+          userId={member.userId}
+          canManage={podeAdministrarEquipe}
+        />
 
         <MemberSpecialtiesSection userId={member.userId} />
 

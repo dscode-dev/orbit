@@ -30,6 +30,7 @@ import {
   COMMISSION_PAYMENT_METHODS,
   COMMISSION_PERIODS,
   COMMISSION_ROLES,
+  COMMISSION_STATUSES,
 } from './commission.read-models';
 
 const upper = ({ value }: { value: unknown }) =>
@@ -108,6 +109,21 @@ export class CommissionQueryDto {
   businessUnitId?: string;
 }
 
+export class CommissionListQueryDto extends CommissionQueryDto {
+  /**
+   * Recorte por situação.
+   *
+   * Ausente, devolve as três: a lista serve tanto para pagar quanto para
+   * conferir, e separar por padrão obrigaria a tela a somar duas consultas para
+   * responder "o que aconteceu com este atendimento?".
+   */
+  @ApiPropertyOptional({ enum: COMMISSION_STATUSES })
+  @IsOptional()
+  @Transform(upper)
+  @IsIn(COMMISSION_STATUSES)
+  status?: string;
+}
+
 export class CommissionPaymentQueryDto extends CommissionQueryDto {
   @ApiPropertyOptional({ default: 50 })
   @IsOptional()
@@ -128,6 +144,34 @@ export class CommissionSelectionDto {
   @Transform(upper)
   @IsIn(COMMISSION_ROLES)
   role!: string;
+}
+
+/**
+ * A comissão que se decide não pagar.
+ *
+ * Identificada como em todo lugar: atendimento, pessoa e papel. Não há `amount`
+ * — cancelar é decisão, não valor.
+ */
+export class CancelCommissionDto {
+  @ApiProperty()
+  @IsUUID()
+  operationId!: string;
+
+  @ApiProperty()
+  @IsUUID()
+  userId!: string;
+
+  @ApiProperty({ enum: COMMISSION_ROLES })
+  @Transform(upper)
+  @IsIn(COMMISSION_ROLES)
+  role!: string;
+
+  /** Por que não vai ser paga. Opcional, e é o que se lê meses depois. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
 }
 
 export class PayCommissionsDto {

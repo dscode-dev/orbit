@@ -204,6 +204,140 @@ export class CommissionRepository {
     );
   }
 
+  /**
+   * Quando o atendimento foi concluído.
+   *
+   * É o que permite achar uma comissão sem saber a janela dela: quem cancela
+   * aponta o atendimento, e a derivação faz o resto.
+   */
+  async findCompletionDate(
+    organizationId: string,
+    operationId: string,
+  ): Promise<Date | null> {
+    const row = await this.rls.run((tx) =>
+      tx.operation.findFirst({
+        where: { id: operationId, organizationId, deletedAt: null },
+        select: { completedAt: true },
+      }),
+    );
+    return row?.completedAt ?? null;
+  }
+
+  /** As cancelações em vigor das comissões consultadas. */
+  findCancellations(input: {
+    organizationId: string;
+    operationIds: readonly string[];
+  }) {
+    if (input.operationIds.length === 0) return Promise.resolve([]);
+    return this.rls.run((tx) =>
+      tx.commissionCancellation.findMany({
+        where: {
+          organizationId: input.organizationId,
+          operationId: { in: [...input.operationIds] },
+          revokedAt: null,
+        },
+        select: {
+          id: true,
+          operationId: true,
+          userId: true,
+          role: true,
+          reason: true,
+          cancelledAt: true,
+        },
+      }),
+    );
+  }
+
+  /**
+   * Registra a decisão de não pagar.
+   *
+   * O índice único parcial recusa uma segunda cancelação em vigor para a mesma
+   * comissão — dois cliques terminam com uma decisão e um erro.
+   */
+  createCancellation(input: {
+    organizationId: string;
+    operationId: string;
+    userId: string;
+    role: string;
+    reason?: string;
+    actorId: string;
+  }) {
+    return this.rls.run(async (tx) => {
+      const id = generateUuidV7();
+      const row = await tx.commissionCancellation.create({
+        data: {
+          id,
+          organizationId: input.organizationId,
+          operationId: input.operationId,
+          userId: input.userId,
+          role: input.role,
+          reason: input.reason,
+          cancelledById: input.actorId,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          organizationId: input.organizationId,
+          userId: input.actorId,
+          action: 'commission.cancelled',
+          entityType: 'COMMISSION',
+          entityId: input.operationId,
+          after: {
+            userId: input.userId,
+            role: input.role,
+            reason: input.reason ?? null,
+          },
+        },
+      });
+
+      return row;
+    });
+  }
+
+  /**
+   * Desfaz a decisão, sem apagá-la.
+   *
+   * Devolve quantas linhas mudaram: zero significa que não havia cancelação em
+   * vigor, e quem pediu precisa saber a diferença entre "desfeito" e "não havia
+   * o que desfazer".
+   */
+  revokeCancellation(input: {
+    organizationId: string;
+    operationId: string;
+    userId: string;
+    role: string;
+    actorId: string;
+  }) {
+    return this.rls.run(async (tx) => {
+      const { count } = await tx.commissionCancellation.updateMany({
+        where: {
+          organizationId: input.organizationId,
+          operationId: input.operationId,
+          userId: input.userId,
+          role: input.role,
+          revokedAt: null,
+        },
+        data: { revokedAt: new Date(), revokedById: input.actorId },
+      });
+
+      if (count > 0) {
+        await tx.auditLog.create({
+          data: {
+            organizationId: input.organizationId,
+            userId: input.actorId,
+            action: 'commission.cancellation.revoked',
+            entityType: 'COMMISSION',
+            entityId: input.operationId,
+            after: { userId: input.userId, role: input.role },
+          },
+        });
+      }
+
+      return count;
+    });
+  }
+
   listPayments(input: {
     organizationId: string;
     userId?: string;

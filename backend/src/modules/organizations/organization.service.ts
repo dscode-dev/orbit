@@ -102,6 +102,29 @@ export class OrganizationService {
   }
 
   /**
+   * Um membro, com o mesmo Read Model da listagem.
+   *
+   * O vínculo de unidade vem inteiro porque o mapeador o cruza por pessoa — é a
+   * mesma consulta que a listagem faz, e uma variante "só as unidades deste
+   * membro" seria um segundo caminho para o mesmo dado.
+   */
+  async getMember(organizationId: string, userId: string) {
+    const organization = await this.getCurrent(organizationId);
+    const member = await this.repository.findMember(organizationId, userId);
+    if (!member) {
+      throw new EntityNotFoundException('Organization member', userId);
+    }
+    const unitMemberships =
+      await this.repository.listBusinessUnitMemberships(organizationId);
+
+    return {
+      member,
+      unitMemberships,
+      ownerUserId: organization.ownerUserId,
+    };
+  }
+
+  /**
    * Altera papel e situação de um membro.
    *
    * ## O dono não muda

@@ -29,6 +29,9 @@ export type CommissionMode = (typeof COMMISSION_MODES)[number];
 export const COMMISSION_ROLES = ['PRIMARY', 'ASSISTANT'] as const;
 export type CommissionRole = (typeof COMMISSION_ROLES)[number];
 
+export const COMMISSION_STATUSES = ['PENDING', 'PAID', 'CANCELLED'] as const;
+export type CommissionStatus = (typeof COMMISSION_STATUSES)[number];
+
 export const COMMISSION_PAYMENT_METHODS = [
   'PIX',
   'TRANSFER',
@@ -66,10 +69,19 @@ export interface CommissionReadModel {
   readonly rate: number;
   readonly baseAmount: number | null;
   readonly amount: number;
-  /** `PENDING` ou `PAID`. Não há estado intermediário: paga-se ou não. */
-  readonly status: 'PENDING' | 'PAID';
+  /**
+   * `PENDING`, `PAID` ou `CANCELLED`.
+   *
+   * Não há estado intermediário: a comissão existe e espera, foi paga, ou a
+   * organização decidiu não pagar. "Aprovada" seria um estado que nada no
+   * sistema consulta.
+   */
+  readonly status: CommissionStatus;
   readonly paidAt: string | null;
   readonly paymentId: string | null;
+  /** Preenchidos quando `CANCELLED`. */
+  readonly cancelledAt: string | null;
+  readonly cancelReason: string | null;
 }
 
 /** O que a linha de um técnico mostra na tabela da Equipe. */
@@ -85,6 +97,9 @@ export interface CommissionSummaryReadModel {
   /** Já paga na janela — o que o fechamento anterior fechou. */
   readonly paidAmount: number;
   readonly paidCount: number;
+  /** O que foi decidido não pagar na janela. */
+  readonly cancelledAmount: number;
+  readonly cancelledCount: number;
   readonly assignedOperations: number;
   readonly operationsInProgress: number;
   readonly executionsResponsible: number;

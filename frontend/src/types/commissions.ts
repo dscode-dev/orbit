@@ -16,6 +16,7 @@ export type {
   CommissionPolicyReadModel as CommissionPolicy,
   CommissionReadModel as Commission,
   CommissionRole,
+  CommissionStatus,
   CommissionSummaryReadModel as CommissionSummary,
   CommissionWindowReadModel as CommissionWindow,
 } from "./contracts/modules/commissions/commission.read-models";
@@ -25,12 +26,14 @@ export {
   COMMISSION_PAYMENT_METHODS,
   COMMISSION_PERIODS,
   COMMISSION_ROLES,
+  COMMISSION_STATUSES,
 } from "./contracts/modules/commissions/commission.read-models";
 
 import type {
   CommissionMode,
   CommissionPeriod,
   CommissionRole,
+  CommissionStatus,
   CommissionPaymentMethod,
 } from "./contracts/modules/commissions/commission.read-models";
 
@@ -53,6 +56,21 @@ export interface CommissionQuery {
   to?: string;
   userId?: string;
   businessUnitId?: string;
+}
+
+/** `GET /commissions` (`CommissionListQueryDto`). */
+export interface CommissionListQuery extends CommissionQuery {
+  /** Ausente devolve as três situações. */
+  status?: CommissionStatus;
+}
+
+/** `POST /commissions/cancellations` e `/revocations` (`CancelCommissionDto`). */
+export interface CancelCommissionInput {
+  operationId: string;
+  userId: string;
+  role: CommissionRole;
+  /** Por que não vai ser paga — é o que se lê meses depois. */
+  reason?: string;
 }
 
 /** `GET /commissions/payments` (`CommissionPaymentQueryDto`). */
@@ -99,4 +117,12 @@ export const COMMISSION_METHOD_LABELS: Readonly<
   CASH: "Dinheiro",
   PAYROLL: "Folha de pagamento",
   OTHER: "Outro",
+};
+
+export const COMMISSION_STATUS_LABELS: Readonly<
+  Record<CommissionStatus, string>
+> = {
+  PENDING: "A pagar",
+  PAID: "Paga",
+  CANCELLED: "Cancelada",
 };

@@ -19,7 +19,11 @@
  * chegado — a requisição escolhe **quais** comissões pagar, nunca quanto.
  */
 import { Injectable } from '@nestjs/common';
-import { ConflictException, ValidationException } from '../../exceptions';
+import {
+  ConflictException,
+  EntityNotFoundException,
+  ValidationException,
+} from '../../exceptions';
 import {
   currentWindow,
   linesFor,
@@ -43,6 +47,8 @@ import type {
   CommissionSummaryReadModel,
 } from './commission.read-models';
 import type {
+  CancelCommissionDto,
+  CommissionListQueryDto,
   CommissionQueryDto,
   CommissionPaymentQueryDto,
   PayCommissionsDto,
@@ -144,7 +150,7 @@ export class CommissionService {
    */
   async list(
     actor: CommissionActor,
-    query: CommissionQueryDto,
+    query: CommissionListQueryDto,
   ): Promise<{
     window: { from: string; to: string; period: CommissionPeriod };
     policy: CommissionPolicyReadModel;
@@ -161,15 +167,23 @@ export class CommissionService {
       };
     }
 
-    const { lines, paid, names } = await this.compute(actor, policy, {
-      from: window.from,
-      to: window.to,
-      userId: query.userId,
-      businessUnitId: query.businessUnitId,
-    });
+    const { lines, paid, cancelled, names } = await this.compute(
+      actor,
+      policy,
+      {
+        from: window.from,
+        to: window.to,
+        userId: query.userId,
+        businessUnitId: query.businessUnitId,
+      },
+    );
 
     const commissions = lines.map<CommissionReadModel>((line) => {
       const pago = paid.get(keyOf(line));
+      /* Pago vence cancelado: não se cancela o que já foi pago, e se as duas
+         linhas existirem por um caminho que ninguém previu, o dinheiro que saiu
+         é o fato mais forte. */
+      const cancelada = pago ? undefined : cancelled.get(keyOf(line));
       return {
         operationId: line.operationId,
         operationCode: line.operationCode,
@@ -185,16 +199,20 @@ export class CommissionService {
         /* Pago, o valor é o que foi pago — e não o que a política de hoje
            calcularia. Mostrar o recalculado faria o histórico mudar sozinho. */
         amount: pago ? pago.amount : line.amount,
-        status: pago ? 'PAID' : 'PENDING',
+        status: pago ? 'PAID' : cancelada ? 'CANCELLED' : 'PENDING',
         paidAt: pago?.paidAt ?? null,
         paymentId: pago?.paymentId ?? null,
+        cancelledAt: cancelada?.cancelledAt ?? null,
+        cancelReason: cancelada?.reason ?? null,
       };
     });
 
     return {
       window: { ...this.serializeWindow(window), period: policy.period },
       policy,
-      commissions,
+      commissions: query.status
+        ? commissions.filter((item) => item.status === query.status)
+        : commissions,
     };
   }
 
@@ -218,7 +236,7 @@ export class CommissionService {
         ? 'A política de comissão está desligada.'
         : null;
 
-    const { lines, paid, members, workload } = await this.compute(
+    const { lines, paid, cancelled, members, workload } = await this.compute(
       actor,
       policy,
       {
@@ -254,6 +272,8 @@ export class CommissionService {
         pendingCount: 0,
         paidAmount: 0,
         paidCount: 0,
+        cancelledAmount: 0,
+        cancelledCount: 0,
         ...carga,
       };
       porTecnico.set(userId, nova);
@@ -272,6 +292,11 @@ export class CommissionService {
       if (pago) {
         linha.paidAmount = Number((linha.paidAmount + pago.amount).toFixed(2));
         linha.paidCount += 1;
+      } else if (cancelled.has(keyOf(line))) {
+        linha.cancelledAmount = Number(
+          (linha.cancelledAmount + line.amount).toFixed(2),
+        );
+        linha.cancelledCount += 1;
       } else {
         linha.pendingAmount = Number(
           (linha.pendingAmount + line.amount).toFixed(2),
@@ -367,7 +392,7 @@ export class CommissionService {
 
     const window = this.windowFor(policy.period, input);
 
-    const { lines, paid } = await this.compute(actor, policy, {
+    const { lines, paid, cancelled } = await this.compute(actor, policy, {
       from: window.from,
       to: window.to,
       userId: input.userId,
@@ -390,6 +415,10 @@ export class CommissionService {
        mesma regra — e a que não tem teste é a que fica errada. */
     const pagar = lines.filter((line) => {
       if (paid.has(keyOf(line))) return false;
+      /* Cancelada não entra nem quando vem marcada: a seleção da tela pode ter
+         sido feita antes de alguém cancelar, e "pagar todas" não pode ressuscitar
+         uma decisão de não pagar. */
+      if (cancelled.has(keyOf(line))) return false;
       return escolhidas ? escolhidas.has(keyOf(line)) : true;
     });
 
@@ -420,6 +449,99 @@ export class CommissionService {
     });
 
     return lido ?? this.mapPayment(payment);
+  }
+
+  /**
+   * Registra a decisão de não pagar uma comissão.
+   *
+   * Recusa o que já foi pago: dinheiro que saiu não se cancela, se estorna — e
+   * estorno é lançamento financeiro, não uma linha de comissão. Recusa também o
+   * que não existe como comissão na janela, para que um `operationId` digitado
+   * errado não crie uma decisão sobre nada.
+   */
+  async cancel(
+    actor: CommissionActor,
+    input: CancelCommissionDto,
+  ): Promise<CommissionReadModel> {
+    const alvo = await this.locate(actor, input);
+
+    if (alvo.status === 'PAID') {
+      throw new ConflictException(
+        'Esta comissão já foi paga; o caminho é estornar o pagamento',
+      );
+    }
+    if (alvo.status === 'CANCELLED') {
+      throw new ConflictException('Esta comissão já está cancelada');
+    }
+
+    await this.repository.createCancellation({
+      organizationId: actor.organizationId,
+      operationId: input.operationId,
+      userId: input.userId,
+      role: input.role,
+      reason: input.reason,
+      actorId: actor.actorId,
+    });
+
+    return this.locate(actor, input);
+  }
+
+  /** Desfaz a decisão: a comissão volta a ser pendente. */
+  async restore(
+    actor: CommissionActor,
+    input: CancelCommissionDto,
+  ): Promise<CommissionReadModel> {
+    const desfeitas = await this.repository.revokeCancellation({
+      organizationId: actor.organizationId,
+      operationId: input.operationId,
+      userId: input.userId,
+      role: input.role,
+      actorId: actor.actorId,
+    });
+
+    if (desfeitas === 0) {
+      throw new ConflictException('Esta comissão não está cancelada');
+    }
+
+    return this.locate(actor, input);
+  }
+
+  /**
+   * A comissão de um atendimento, pela derivação.
+   *
+   * Vai buscar pela **data de conclusão do atendimento**, e não pela janela
+   * vigente: cancelar uma comissão de dois meses atrás é legítimo, e exigir que
+   * quem cancela acerte a janela seria transformar uma decisão em adivinhação.
+   */
+  private async locate(
+    actor: CommissionActor,
+    input: { operationId: string; userId: string; role: string },
+  ): Promise<CommissionReadModel> {
+    const conclusao = await this.repository.findCompletionDate(
+      actor.organizationId,
+      input.operationId,
+    );
+    if (!conclusao) {
+      throw new EntityNotFoundException('Operation', input.operationId);
+    }
+
+    const { commissions } = await this.list(actor, {
+      from: conclusao.toISOString(),
+      to: conclusao.toISOString(),
+      userId: input.userId,
+    });
+
+    const alvo = commissions.find(
+      (item) =>
+        item.operationId === input.operationId && item.role === input.role,
+    );
+    if (!alvo) {
+      throw new EntityNotFoundException(
+        'Commission',
+        `${input.operationId}:${input.role}`,
+      );
+    }
+    return alvo;
   }
 
   /* ---------------------------------------------------------------- */
@@ -537,6 +659,23 @@ export class CommissionService {
       ]),
     );
 
+    /* As decisões de não pagar. Só as em vigor: uma cancelação revogada é
+       histórico, e a comissão volta a ser pendente. */
+    const canceladas = await this.repository.findCancellations({
+      organizationId: actor.organizationId,
+      operationIds: [...new Set(doFiltro.map((line) => line.operationId))],
+    });
+
+    const cancelled = new Map(
+      canceladas.map((item) => [
+        keyOf(item),
+        {
+          cancelledAt: item.cancelledAt.toISOString(),
+          reason: item.reason,
+        },
+      ]),
+    );
+
     const userIds = new Set(doFiltro.map((line) => line.userId));
     if (options.includeAllTechnicians) {
       for (const id of await this.repository.findFieldTechnicianIds(
@@ -577,7 +716,7 @@ export class CommissionService {
         ])
       : new Map<string, CommissionWorkload>();
 
-    return { lines: doFiltro, paid, members, names, workload };
+    return { lines: doFiltro, paid, cancelled, members, names, workload };
   }
 
   private mapPayment(payment: {

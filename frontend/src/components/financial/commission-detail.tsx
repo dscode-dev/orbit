@@ -22,11 +22,19 @@
  * pagaria abril.
  */
 import { useMemo, useState } from "react";
-import { ArrowLeft, Wallet } from "lucide-react";
-import Link from "next/link";
+import { Wallet } from "lucide-react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MutationError } from "@/components/artifact-studio/mutation-error";
-import { ContentContainer } from "@/components/layout/page-primitives";
 import { PanelError, PanelFrame, PanelLoading } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,24 +57,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  useCancelCommission,
   useCommissionPayments,
   useCommissions,
   usePayCommissions,
+  useRestoreCommission,
 } from "@/hooks/commissions/use-commissions";
-import { UserReference } from "@/components/identity/user-reference";
 import {
   COMMISSION_METHOD_LABELS,
   COMMISSION_PAYMENT_METHODS,
   COMMISSION_PERIOD_LABELS,
   COMMISSION_ROLE_LABELS,
+  COMMISSION_STATUS_LABELS,
+  COMMISSION_STATUSES,
   type Commission,
   type CommissionPaymentMethod,
+  type CommissionStatus,
 } from "@/types/commissions";
 import { FORMATTERS } from "@/metrics";
 import { formatDate, formatDateTime } from "@/lib/formatters";
-import { sectionHref } from "@/lib/section-navigation";
-import { ROUTES } from "@/lib/routes";
 import { useSession } from "@/providers/session-provider";
+
+/** `Select` não aceita item de valor vazio — "todas" precisa de um valor. */
+const TODAS = "__todas__";
 
 /** A chave de uma comissão na tela: a mesma do servidor. */
 const keyOf = (commission: Commission): string =>
@@ -83,17 +96,24 @@ export function CommissionDetail({ userId }: { userId: string }) {
   const [method, setMethod] = useState<CommissionPaymentMethod | "">("");
   const [notes, setNotes] = useState("");
   const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
+  /** `undefined` mostra as três situações — ver o comentário do módulo. */
+  const [situacao, setSituacao] = useState<CommissionStatus | undefined>();
+  /** O cancelamento em curso, para o diálogo pedir o motivo. */
+  const [cancelando, setCancelando] = useState<Commission | null>(null);
+  const [motivo, setMotivo] = useState("");
 
   /** Recorte só viaja completo: uma data sozinha cairia na janela da política. */
   const recorte = useMemo(() => (from && to ? { from, to } : {}), [from, to]);
 
-  const query = useCommissions({ userId, ...recorte });
+  const query = useCommissions({ userId, ...recorte, status: situacao });
   const payments = useCommissionPayments({ userId, limit: 20 });
   const pay = usePayCommissions();
+  const cancel = useCancelCommission();
+  const restore = useRestoreCommission();
 
   if (!session.hasPermission("financial.read")) {
     return (
-      <ContentContainer size="wide">
+      <>
         <PanelFrame
           panelId="commission-detail-denied"
           title="Comissão"
@@ -104,7 +124,7 @@ export function CommissionDetail({ userId }: { userId: string }) {
             Financeiro.
           </p>
         </PanelFrame>
-      </ContentContainer>
+      </>
     );
   }
 
@@ -142,25 +162,10 @@ export function CommissionDetail({ userId }: { userId: string }) {
     );
   };
 
+  /* Sem nome nem botão de voltar: quem mostra a pessoa é a página que embute
+     esta seção, e repetir o nome seria dizer duas vezes de quem é a tela. */
   return (
-    <ContentContainer size="wide" className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold">
-            <UserReference userId={userId} />
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Comissões, pagamentos e histórico.
-          </p>
-        </div>
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={sectionHref(ROUTES.team, "tecnicos")}>
-            <ArrowLeft className="size-4" />
-            Voltar para a equipe
-          </Link>
-        </Button>
-      </div>
-
+    <div className="space-y-6">
       <PanelFrame
         panelId="commission-detail-period"
         title="Período"
@@ -189,15 +194,40 @@ export function CommissionDetail({ userId }: { userId: string }) {
               onChange={(event) => setTo(event.target.value)}
             />
           </div>
-          {from || to ? (
+          <div className="space-y-2">
+            <Label htmlFor="commission-status">Situação</Label>
+            <Select
+              value={situacao ?? TODAS}
+              onValueChange={(valor) =>
+                setSituacao(
+                  valor === TODAS ? undefined : (valor as CommissionStatus),
+                )
+              }
+            >
+              <SelectTrigger id="commission-status" className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODAS}>Todas</SelectItem>
+                {COMMISSION_STATUSES.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {COMMISSION_STATUS_LABELS[item]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {from || to || situacao ? (
             <Button
               variant="ghost"
               onClick={() => {
                 setFrom("");
                 setTo("");
+                setSituacao(undefined);
               }}
             >
-              Usar a janela da política
+              Limpar recorte
             </Button>
           ) : null}
         </div>
@@ -232,7 +262,7 @@ export function CommissionDetail({ userId }: { userId: string }) {
               </p>
             ) : null}
 
-            <MutationError error={pay.error} />
+            <MutationError error={pay.error ?? cancel.error ?? restore.error} />
 
             {commissions.length === 0 ? (
               <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
@@ -303,27 +333,46 @@ export function CommissionDetail({ userId }: { userId: string }) {
                               {FORMATTERS.currency(item.amount)}
                             </TableCell>
                             <TableCell>
-                              {pendente ? (
-                                <Badge variant="outline">a pagar</Badge>
-                              ) : (
-                                <Badge variant="secondary">
-                                  pago
-                                  {item.paidAt
-                                    ? ` em ${formatDate(item.paidAt)}`
-                                    : ""}
-                                </Badge>
-                              )}
+                              <SituacaoDaComissao comissao={item} />
                             </TableCell>
                             {canManage ? (
-                              <TableCell className="text-right">
+                              <TableCell className="text-right whitespace-nowrap">
                                 {pendente ? (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={pay.isPending}
+                                      onClick={() => pagar([item])}
+                                    >
+                                      Pagar
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={cancel.isPending}
+                                      onClick={() => {
+                                        setMotivo("");
+                                        setCancelando(item);
+                                      }}
+                                    >
+                                      Cancelar
+                                    </Button>
+                                  </>
+                                ) : item.status === "CANCELLED" ? (
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    disabled={pay.isPending}
-                                    onClick={() => pagar([item])}
+                                    disabled={restore.isPending}
+                                    onClick={() =>
+                                      restore.mutate({
+                                        operationId: item.operationId,
+                                        userId,
+                                        role: item.role,
+                                      })
+                                    }
                                   >
-                                    Pagar
+                                    Reativar
                                   </Button>
                                 ) : null}
                               </TableCell>
@@ -396,6 +445,61 @@ export function CommissionDetail({ userId }: { userId: string }) {
           </div>
         )}
       </PanelFrame>
+
+      {/*
+       * O motivo é pedido, e não exigido.
+       *
+       * Exigir travaria a correção de um lançamento óbvio; não pedir deixaria o
+       * histórico com uma decisão sem explicação, que é o que alguém vai
+       * procurar meses depois. O campo aparece, e quem quiser segue sem ele.
+       */}
+      <AlertDialog
+        open={cancelando !== null}
+        onOpenChange={(aberto) => {
+          if (!aberto) setCancelando(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Não pagar esta comissão?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {cancelando
+                ? `${cancelando.operationCode} · ${COMMISSION_ROLE_LABELS[cancelando.role]} · ${FORMATTERS.currency(cancelando.amount)}. A comissão sai do que há a pagar e fica registrada como cancelada. Pode ser reativada depois.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="commission-cancel-reason">Motivo</Label>
+            <Input
+              id="commission-cancel-reason"
+              value={motivo}
+              onChange={(event) => setMotivo(event.target.value)}
+              placeholder="Ex.: serviço refeito sem custo"
+            />
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!cancelando) return;
+                cancel.mutate(
+                  {
+                    operationId: cancelando.operationId,
+                    userId,
+                    role: cancelando.role,
+                    ...(motivo.trim() ? { reason: motivo.trim() } : {}),
+                  },
+                  { onSuccess: () => setCancelando(null) },
+                );
+              }}
+            >
+              Cancelar a comissão
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <PanelFrame
         panelId="commission-detail-history"
@@ -470,6 +574,46 @@ export function CommissionDetail({ userId }: { userId: string }) {
           </ul>
         )}
       </PanelFrame>
-    </ContentContainer>
+    </div>
   );
+}
+
+/**
+ * A situação de uma comissão, com o que a explica.
+ *
+ * Cancelada mostra o motivo: é a única das três em que alguém tomou uma decisão,
+ * e é a pergunta seguinte de quem lê a lista meses depois.
+ */
+function SituacaoDaComissao({ comissao }: { comissao: Commission }) {
+  if (comissao.status === "PAID") {
+    return (
+      <Badge variant="secondary">
+        {COMMISSION_STATUS_LABELS.PAID}
+        {comissao.paidAt ? ` em ${formatDate(comissao.paidAt)}` : ""}
+      </Badge>
+    );
+  }
+
+  if (comissao.status === "CANCELLED") {
+    return (
+      <span className="space-y-1">
+        <Badge
+          variant="outline"
+          className="border-destructive/40 text-destructive"
+        >
+          {COMMISSION_STATUS_LABELS.CANCELLED}
+          {comissao.cancelledAt
+            ? ` em ${formatDate(comissao.cancelledAt)}`
+            : ""}
+        </Badge>
+        {comissao.cancelReason ? (
+          <span className="block max-w-56 truncate text-xs text-muted-foreground">
+            {comissao.cancelReason}
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+
+  return <Badge variant="outline">{COMMISSION_STATUS_LABELS.PENDING}</Badge>;
 }

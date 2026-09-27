@@ -16,7 +16,16 @@
  * nenhuma permissão é derivada ou inferida aqui.
  */
 import { useMemo, useState } from "react";
-import { KeyRound, Mail, UserMinus, UserPlus, Users } from "lucide-react";
+import Link from "next/link";
+import {
+  ArrowRight,
+  KeyRound,
+  Mail,
+  Pencil,
+  UserMinus,
+  UserPlus,
+  Users,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +45,9 @@ import {
   useTeamMembers,
   useTeamRoles,
 } from "@/hooks/workforce/use-workforce";
+import { useWorkforceManagement } from "@/hooks/workforce/use-workforce-management";
 import { formatDateTime } from "@/lib/formatters";
+import { teamMemberRoute } from "@/lib/routes";
 import type { TeamMember } from "@/types/workforce";
 import {
   FilterBar,
@@ -58,7 +69,6 @@ import { ConfirmDialog } from "@/components/financial/confirm.dialog";
 import { CreateMemberDialog } from "../create-member.dialog";
 import { InviteMemberDialog } from "../invite-member.dialog";
 import { MemberFormDialog } from "../member-form.dialog";
-import { MemberSheet } from "../member.sheet";
 import { PasswordLinkDialog } from "../password-link.dialog";
 
 interface MemberFilters {
@@ -80,7 +90,6 @@ export function MembersTab() {
   const invite = useAction("team-member.create");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [selected, setSelected] = useState<TeamMember | null>(null);
   const [editing, setEditing] = useState<TeamMember | null>(null);
   const [desligando, setDesligando] = useState<TeamMember | null>(null);
 
@@ -208,17 +217,18 @@ export function MembersTab() {
                   <TableHead>Unidades</TableHead>
                   <TableHead>Situação</TableHead>
                   <TableHead>Desde</TableHead>
-                  <TableHead className="w-12" />
+                  <TableHead className="text-right">Ação</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((member) => (
                   <TableRow key={member.userId}>
                     <TableCell>
-                      <button
-                        type="button"
-                        onClick={() => setSelected(member)}
-                        className="text-left"
+                      {/* O nome é link para a página da pessoa: endereço que se
+                          guarda, recarrega e abre em outra aba. */}
+                      <Link
+                        href={teamMemberRoute(member.userId)}
+                        className="block"
                       >
                         <span className="flex items-center gap-2 font-medium hover:underline">
                           {member.displayName}
@@ -229,7 +239,7 @@ export function MembersTab() {
                         <span className="block text-xs text-muted-foreground">
                           {member.email}
                         </span>
-                      </button>
+                      </Link>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{member.role.name}</Badge>
@@ -251,10 +261,22 @@ export function MembersTab() {
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDateTime(member.joinedAt)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      {/*
+                       * O caminho principal é um botão, não um item escondido
+                       * atrás de três pontinhos: abrir o detalhe é o que se faz
+                       * com uma pessoa na lista, e estava a dois cliques e uma
+                       * adivinhação. O menu fica ao lado, com o que é menos
+                       * frequente e mais consequente.
+                       */}
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={teamMemberRoute(member.userId)}>
+                          Detalhes
+                          <ArrowRight className="size-4" />
+                        </Link>
+                      </Button>
                       <MemberRowActions
                         member={member}
-                        onOpen={() => setSelected(member)}
                         onEdit={() => setEditing(member)}
                         onPasswordLink={() =>
                           passwordLink.mutate(member.userId)
@@ -310,14 +332,6 @@ export function MembersTab() {
         }}
       />
 
-      <MemberSheet
-        member={selected}
-        onOpenChange={(open) => {
-          if (!open) setSelected(null);
-        }}
-        onEdit={setEditing}
-      />
-
       <MemberFormDialog
         member={editing}
         onOpenChange={(open) => {
@@ -337,19 +351,28 @@ export function MembersTab() {
  */
 function MemberRowActions({
   member,
-  onOpen,
   onEdit,
   onPasswordLink,
   onDismiss,
 }: {
   member: TeamMember;
-  onOpen: () => void;
   onEdit: () => void;
   onPasswordLink: () => void;
   onDismiss: () => void;
 }) {
-  const edit = useAction("team-member.update");
-  const editable = edit.allowed && !member.isOwner;
+  /*
+   * O gate era `useAction("team-member.update")`, ação declarada
+   * `available: false` — então `editable` respondia `false` para todo mundo e o
+   * menu só mostrava "Detalhes". Papel, link de senha e desligamento existiam no
+   * servidor e não tinham botão.
+   *
+   * O dono continua fora: `updateMember` recusa rebaixá-lo, e desligá-lo deixaria
+   * a conta sem ninguém capaz de administrá-la.
+   */
+  const { members } = useWorkforceManagement();
+  const editable = members.allowed && !member.isOwner;
+
+  if (!editable) return null;
 
   return (
     <DropdownMenu>
@@ -363,28 +386,21 @@ function MemberRowActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={onOpen}>Detalhes</DropdownMenuItem>
-        {editable ? (
-          <DropdownMenuItem onSelect={onEdit}>
-            <edit.definition.icon className="size-4" />
-            Papel e situação
-          </DropdownMenuItem>
-        ) : null}
-        {editable ? (
-          <DropdownMenuItem onSelect={onPasswordLink}>
-            <KeyRound className="size-4" />
-            Gerar link de senha
-          </DropdownMenuItem>
-        ) : null}
-        {editable ? (
-          <DropdownMenuItem
-            onSelect={onDismiss}
-            className="text-destructive focus:text-destructive"
-          >
-            <UserMinus className="size-4" />
-            Desligar
-          </DropdownMenuItem>
-        ) : null}
+        <DropdownMenuItem onSelect={onEdit}>
+          <Pencil className="size-4" />
+          Papel e situação
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onPasswordLink}>
+          <KeyRound className="size-4" />
+          Gerar link de senha
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={onDismiss}
+          className="text-destructive focus:text-destructive"
+        >
+          <UserMinus className="size-4" />
+          Desligar
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

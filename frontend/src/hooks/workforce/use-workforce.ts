@@ -29,6 +29,7 @@ import { CACHE, MINUTE, every } from "@/hooks/api/cache-policy";
 import { artifactExecutionsService } from "@/services/artifact-executions.service";
 import { operationsService } from "@/services/operations.service";
 import { schedulingService } from "@/services/scheduling.service";
+import { commissionsService } from "@/services/commissions.service";
 import { workforceService } from "@/services/workforce.service";
 import type { ArtifactExecutionQuery } from "@/types/artifact-executions";
 import type { OperationQuery } from "@/types/operations";
@@ -46,6 +47,7 @@ import type {
   ProfessionalSelectorQuery,
   UpdateCertificationInput,
   UpdateMemberInput,
+  UpdateProfessionalProfileInput,
   UpdateRoleInput,
   UpdateSpecialtyInput,
   UpdateTeamInput,
@@ -133,11 +135,50 @@ export function useTechnicalResponsibles(
   );
 }
 
+/** Um membro, pela pessoa. É o que a página de detalhe carrega. */
+export function useTeamMember(userId: string | null) {
+  return useApiQuery(
+    workforceService.keys.member(userId ?? ""),
+    ({ signal }) => workforceService.member(userId!, { signal }),
+    { ...WORKFORCE_REFRESH.members, enabled: Boolean(userId) },
+  );
+}
+
 export function useProfessionalProfile(userId: string | null) {
   return useApiQuery(
     workforceService.keys.professionalProfile(userId ?? ""),
     ({ signal }) => workforceService.professionalProfile(userId!, { signal }),
     { ...WORKFORCE_REFRESH.professionals, enabled: Boolean(userId) },
+  );
+}
+
+/**
+ * Liga ou desliga os papéis profissionais de um membro.
+ *
+ * É a superfície que faltava: sem perfil de técnico de campo, a pessoa **não
+ * pode ser atribuída** a um atendimento (`validateTechnicianAssignments` recusa)
+ * e não aparece na lista de técnicos nem ganha comissão. O endpoint existia
+ * desde o domínio profissional; a tela era somente leitura.
+ *
+ * Invalida a raiz do Workforce e as comissões: mudar quem é técnico muda quem
+ * aparece na tabela de comissão.
+ */
+export function useUpdateProfessionalProfile(userId: string) {
+  const invalidate = useWorkforceInvalidation();
+  const client = useQueryClient();
+
+  return useApiMutation(
+    (input: UpdateProfessionalProfileInput) =>
+      workforceService.updateProfessionalProfile(userId, input),
+    {
+      onSuccess: async () => {
+        await invalidate();
+        await client.invalidateQueries({
+          queryKey: commissionsService.keys.all(),
+        });
+      },
+      scope: { id: "professional-profile" },
+    },
   );
 }
 

@@ -33,6 +33,8 @@ import { useApiQuery } from "@/hooks/api/use-api-query";
 import { CACHE } from "@/hooks/api/cache-policy";
 import { commissionsService } from "@/services/commissions.service";
 import type {
+  CancelCommissionInput,
+  CommissionListQuery,
   CommissionPaymentQuery,
   CommissionQuery,
   PayCommissionsInput,
@@ -74,7 +76,7 @@ export function useCommissionOverview(query: CommissionQuery = {}) {
   );
 }
 
-export function useCommissions(query: CommissionQuery, enabled = true) {
+export function useCommissions(query: CommissionListQuery, enabled = true) {
   return useApiQuery(
     commissionsService.keys.list(query),
     ({ signal }) => commissionsService.list(query, { signal }),
@@ -116,5 +118,21 @@ export function usePayCommissions() {
        */
       scope: { id: "commission-payment" },
     },
+  );
+}
+
+export function useCancelCommission() {
+  const invalidate = useCommissionInvalidation();
+  return useApiMutation(
+    (input: CancelCommissionInput) => commissionsService.cancel(input),
+    { onSuccess: invalidate, scope: { id: "commission-decision" } },
+  );
+}
+
+export function useRestoreCommission() {
+  const invalidate = useCommissionInvalidation();
+  return useApiMutation(
+    (input: CancelCommissionInput) => commissionsService.restore(input),
+    { onSuccess: invalidate, scope: { id: "commission-decision" } },
   );
 }

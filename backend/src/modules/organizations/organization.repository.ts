@@ -425,6 +425,51 @@ export class OrganizationRepository {
     );
   }
 
+  /**
+   * Um membro, pela pessoa.
+   *
+   * A mesma projeção da listagem: a página de detalhe mostra o que a lista
+   * mostra, e uma segunda projeção divergiria no primeiro campo novo.
+   *
+   * Existe porque a página precisa carregar **uma** pessoa. Antes a tela recebia
+   * o objeto da listagem, o que só funciona em drawer aberto a partir dela —
+   * endereço direto, recarregar a página ou abrir em outra aba não tinham de
+   * onde buscar.
+   */
+  findMember(organizationId: string, userId: string) {
+    return this.rls.run((transaction) =>
+      transaction.organizationMembership.findFirst({
+        where: { organizationId, userId, deletedAt: null },
+        select: {
+          userId: true,
+          status: true,
+          joinedAt: true,
+          user: {
+            select: {
+              id: true,
+              displayName: true,
+              email: true,
+              avatarUrl: true,
+              status: true,
+            },
+          },
+          usesCustomAccess: true,
+          customPermissions: true,
+          customAllowedSurfaces: true,
+          role: {
+            select: {
+              id: true,
+              key: true,
+              name: true,
+              permissions: true,
+              allowedSurfaces: true,
+            },
+          },
+        },
+      }),
+    );
+  }
+
   listMembers(
     organizationId: string,
     pagination?: { skip: number; take: number },

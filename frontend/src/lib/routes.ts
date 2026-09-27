@@ -142,13 +142,14 @@ const startsWith = (pathname: string, prefixes: readonly string[]): boolean =>
   );
 
 /**
- * A comissão de um técnico.
+ * A página de um membro da equipe.
  *
- * Duas telas apontam para cá — a tabela da aba Comissão e a da Equipe —, e o
- * caminho montado à mão nas duas divergiria na primeira renomeação da rota.
+ * Três telas apontam para cá — a lista de usuários, a tabela de técnicos e a de
+ * comissão —, e o caminho montado à mão nas três divergiria na primeira
+ * renomeação.
  */
-export function technicianCommissionsRoute(userId: string): string {
-  return `${ROUTES.team}/tecnicos/${encodeURIComponent(userId)}/comissoes`;
+export function teamMemberRoute(userId: string): string {
+  return `${ROUTES.team}/membros/${encodeURIComponent(userId)}`;
 }
 
 export function isProtectedPath(pathname: string): boolean {

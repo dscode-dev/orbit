@@ -22,6 +22,7 @@ import type {
   ProfessionalEligibility,
   ProfessionalEligibilityQuery,
   ProfessionalProfile,
+  UpdateProfessionalProfileInput,
   ProfessionalRole,
   ProfessionalSelectorQuery,
   AssignSpecialtyInput,
@@ -329,12 +330,41 @@ export const workforceService = {
       { ...options, query: query as QueryParams | undefined },
     ),
 
+  /**
+   * Um membro, para a página de detalhe.
+   *
+   * A listagem continua existindo para a tabela; esta rota atende o endereço
+   * direto — recarregar a página ou abrir em outra aba.
+   */
+  member: (userId: string, options?: RequestOptions): Promise<TeamMember> =>
+    apiClient.get<TeamMember>(
+      `/organizations/current/members/${encodeURIComponent(userId)}`,
+      options,
+    ),
+
   professionalProfile: (
     userId: string,
     options?: RequestOptions,
   ): Promise<ProfessionalProfile> =>
     apiClient.get<ProfessionalProfile>(
       `/workforce/members/${userId}/professional-profile`,
+      options,
+    ),
+
+  /**
+   * Liga ou desliga os papéis profissionais de um membro.
+   *
+   * O contrato **substitui** os dois: é por isso que a entrada exige os dois, e
+   * não aceita um patch parcial que apagaria o papel que ninguém tocou.
+   */
+  updateProfessionalProfile: (
+    userId: string,
+    input: UpdateProfessionalProfileInput,
+    options?: RequestOptions,
+  ): Promise<ProfessionalProfile> =>
+    apiClient.patch<ProfessionalProfile>(
+      `/workforce/members/${userId}/professional-profile`,
+      input,
       options,
     ),
 
@@ -392,6 +422,8 @@ export const workforceService = {
         role,
         ...(query as QueryParams | undefined),
       }),
+    member: (userId: string): QueryKey =>
+      queryKeys.detail("workforce-members", userId),
     professionalProfile: (userId: string): QueryKey =>
       queryKeys.query(WORKFORCE, "professional-profile", { userId }),
     documentEligibility: (

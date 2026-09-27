@@ -60,6 +60,13 @@ function montar(
       paymentId: string;
       payment: { paidAt: Date } | null;
     }[];
+    cancelled?: {
+      operationId: string;
+      userId: string;
+      role: string;
+      reason: string | null;
+      cancelledAt: Date;
+    }[];
   } = {},
 ) {
   const criados: Record<string, unknown>[] = [];
@@ -75,6 +82,12 @@ function montar(
       .fn()
       .mockResolvedValue(options.operations ?? [operacao()]),
     findPaidItems: jest.fn().mockResolvedValue(options.paid ?? []),
+    findCancellations: jest.fn().mockResolvedValue(options.cancelled ?? []),
+    findCompletionDate: jest
+      .fn()
+      .mockResolvedValue(new Date('2026-03-10T15:00:00Z')),
+    createCancellation: jest.fn().mockResolvedValue({ id: 'canc-1' }),
+    revokeCancellation: jest.fn().mockResolvedValue(1),
     findTechnicians: jest.fn().mockResolvedValue([
       {
         userId: 'tec-1',
@@ -353,5 +366,225 @@ describe('CommissionService.overview', () => {
       pendingAmount: 20,
     });
     expect(resumo.pendingTotal).toBe(70);
+  });
+});
+
+describe('CommissionService.cancel', () => {
+  const alvo = { operationId: 'op-1', userId: 'tec-1', role: 'PRIMARY' };
+
+  it('registra a decisão e a comissão passa a CANCELLED', async () => {
+    const { service, repository } = montar();
+
+    /* Antes de gravar não há cancelação; depois, há. É a sequência do banco, e
+       sem ela o próprio guarda de "já está cancelada" recusaria o primeiro
+       cancelamento. */
+    repository.createCancellation.mockImplementation(() => {
+      repository.findCancellations.mockResolvedValue([
+        {
+          operationId: 'op-1',
+          userId: 'tec-1',
+          role: 'PRIMARY',
+          reason: 'serviço refeito sem custo',
+          cancelledAt: new Date('2026-03-20T10:00:00Z'),
+        },
+      ]);
+      return Promise.resolve({ id: 'canc-1' });
+    });
+
+    const resultado = await service.cancel(ATOR, {
+      ...alvo,
+      reason: 'serviço refeito sem custo',
+    });
+
+    expect(repository.createCancellation).toHaveBeenCalledWith(
+      expect.objectContaining({ ...alvo, reason: 'serviço refeito sem custo' }),
+    );
+    expect(resultado.status).toBe('CANCELLED');
+    expect(resultado.cancelReason).toBe('serviço refeito sem custo');
+  });
+
+  it('recusa cancelar o que já foi pago', async () => {
+    /* Dinheiro que saiu não se cancela, se estorna — e estorno é lançamento
+       financeiro, não linha de comissão. */
+    const { service, repository } = montar({
+      paid: [
+        {
+          operationId: 'op-1',
+          userId: 'tec-1',
+          role: 'PRIMARY',
+          amount: 50,
+          paymentId: 'pay-0',
+          payment: { paidAt: new Date('2026-03-18T10:00:00Z') },
+        },
+      ],
+    });
+
+    await expect(service.cancel(ATOR, alvo)).rejects.toThrow(/estornar/);
+    expect(repository.createCancellation).not.toHaveBeenCalled();
+  });
+
+  it('recusa cancelar duas vezes', async () => {
+    const { service } = montar({
+      cancelled: [
+        {
+          operationId: 'op-1',
+          userId: 'tec-1',
+          role: 'PRIMARY',
+          reason: null,
+          cancelledAt: new Date('2026-03-20T10:00:00Z'),
+        },
+      ],
+    });
+
+    await expect(service.cancel(ATOR, alvo)).rejects.toThrow(/já está/);
+  });
+
+  it('recusa cancelar comissão que não existe no atendimento', async () => {
+    /* `operationId` digitado errado criaria uma decisão sobre nada. */
+    const { service } = montar();
+
+    await expect(
+      service.cancel(ATOR, { ...alvo, role: 'ASSISTANT' }),
+    ).rejects.toThrow();
+  });
+});
+
+describe('CommissionService.restore', () => {
+  const alvo = { operationId: 'op-1', userId: 'tec-1', role: 'PRIMARY' };
+
+  it('desfaz a decisão e a comissão volta a pendente', async () => {
+    const { service, repository } = montar({
+      cancelled: [
+        {
+          operationId: 'op-1',
+          userId: 'tec-1',
+          role: 'PRIMARY',
+          reason: null,
+          cancelledAt: new Date('2026-03-20T10:00:00Z'),
+        },
+      ],
+    });
+    /* Depois de revogar, a consulta não vê mais cancelação em vigor. */
+    repository.revokeCancellation.mockImplementation(() => {
+      repository.findCancellations.mockResolvedValue([]);
+      return Promise.resolve(1);
+    });
+
+    const resultado = await service.restore(ATOR, alvo);
+
+    expect(resultado.status).toBe('PENDING');
+  });
+
+  it('recusa desfazer o que não está cancelado', async () => {
+    /* Zero linhas mudadas é diferente de "desfeito": quem pediu precisa saber. */
+    const { service, repository } = montar();
+    repository.revokeCancellation.mockResolvedValue(0);
+
+    await expect(service.restore(ATOR, alvo)).rejects.toThrow(/não está/);
+  });
+});
+
+describe('comissão cancelada e o pagamento', () => {
+  it('não paga o que foi cancelado, nem quando vem selecionada', async () => {
+    /* A seleção da tela pode ter sido feita antes de alguém cancelar. */
+    const { service } = montar({
+      cancelled: [
+        {
+          operationId: 'op-1',
+          userId: 'tec-1',
+          role: 'PRIMARY',
+          reason: null,
+          cancelledAt: new Date('2026-03-20T10:00:00Z'),
+        },
+      ],
+    });
+
+    await expect(
+      service.pay(ATOR, {
+        userId: 'tec-1',
+        selection: [{ operationId: 'op-1', role: 'PRIMARY' }],
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('soma a cancelada em coluna própria no resumo', async () => {
+    const { service } = montar({
+      cancelled: [
+        {
+          operationId: 'op-1',
+          userId: 'tec-1',
+          role: 'PRIMARY',
+          reason: null,
+          cancelledAt: new Date('2026-03-20T10:00:00Z'),
+        },
+      ],
+    });
+
+    const resumo = await service.overview(ATOR, {});
+    const linha = resumo.technicians.find((item) => item.userId === 'tec-1');
+
+    expect(linha).toMatchObject({
+      pendingAmount: 0,
+      cancelledAmount: 50,
+      cancelledCount: 1,
+    });
+    expect(resumo.pendingTotal).toBe(20);
+  });
+
+  it('pago vence cancelado, se as duas linhas existirem', async () => {
+    /* O serviço impede chegar aqui: cancelar recusa o que foi pago, e pagar
+       ignora o cancelado. Mas são duas tabelas, e nenhum `CHECK` do banco
+       relaciona as duas — um conserto manual ou um caminho futuro pode criar o
+       par. Quando criar, o fato mais forte é o dinheiro que saiu: dizer
+       "cancelada" sobre uma comissão paga faria alguém pagar de novo. */
+    const { service } = montar({
+      paid: [
+        {
+          operationId: 'op-1',
+          userId: 'tec-1',
+          role: 'PRIMARY',
+          amount: 50,
+          paymentId: 'pay-0',
+          payment: { paidAt: new Date('2026-03-18T10:00:00Z') },
+        },
+      ],
+      cancelled: [
+        {
+          operationId: 'op-1',
+          userId: 'tec-1',
+          role: 'PRIMARY',
+          reason: 'cancelada por engano depois de paga',
+          cancelledAt: new Date('2026-03-20T10:00:00Z'),
+        },
+      ],
+    });
+
+    const { commissions } = await service.list(ATOR, {});
+    const linha = commissions.find((item) => item.userId === 'tec-1');
+
+    expect(linha?.status).toBe('PAID');
+    expect(linha?.cancelReason).toBeNull();
+  });
+
+  it('a lista filtra por situação quando pedido', async () => {
+    const { service } = montar({
+      cancelled: [
+        {
+          operationId: 'op-1',
+          userId: 'tec-1',
+          role: 'PRIMARY',
+          reason: null,
+          cancelledAt: new Date('2026-03-20T10:00:00Z'),
+        },
+      ],
+    });
+
+    const canceladas = await service.list(ATOR, { status: 'CANCELLED' });
+    const pendentes = await service.list(ATOR, { status: 'PENDING' });
+
+    expect(canceladas.commissions.map((item) => item.userId)).toEqual([
+      'tec-1',
+    ]);
+    expect(pendentes.commissions.map((item) => item.userId)).toEqual(['aux-1']);
   });
 });

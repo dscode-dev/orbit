@@ -9,6 +9,12 @@
  * números é o que uma tabela faz. Cartão por técnico obrigaria a percorrer a
  * página somando de cabeça.
  *
+ * ## "Detalhes" leva à página da pessoa
+ *
+ * E não a uma página só de comissão: quem confere um pagamento costuma querer
+ * ver a carga, o perfil e as certificações da mesma pessoa. A página do membro
+ * tem a comissão dentro, com o histórico completo.
+ *
  * ## Pagar todas é o caminho principal
  *
  * No fechamento, o ato é "pagar o que este técnico tem". Pagar uma comissão
@@ -40,7 +46,7 @@ import { COMMISSION_PERIOD_LABELS } from "@/types/commissions";
 import type { CommissionSummary } from "@/types/commissions";
 import { FORMATTERS } from "@/metrics";
 import { formatDate } from "@/lib/formatters";
-import { technicianCommissionsRoute } from "@/lib/routes";
+import { teamMemberRoute } from "@/lib/routes";
 
 export function CommissionTechniciansSection({
   canManage,
@@ -239,7 +245,7 @@ function Row({
             </Button>
           ) : null}
           <Button variant="ghost" size="sm" asChild>
-            <Link href={technicianCommissionsRoute(row.userId)}>
+            <Link href={teamMemberRoute(row.userId)}>
               Detalhes
               <ArrowRight className="size-4" />
             </Link>

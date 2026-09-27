@@ -9,10 +9,12 @@ import { apiClient } from "@/api/client";
 import { queryKeys, type QueryKey } from "@/api/query-keys";
 import type { QueryParams, RequestOptions } from "@/types/api";
 import type {
+  CancelCommissionInput,
   Commission,
   CommissionOverview,
   CommissionPayment,
   CommissionPaymentQuery,
+  CommissionListQuery,
   CommissionPolicy,
   CommissionQuery,
   CommissionWindow,
@@ -37,7 +39,7 @@ export const commissionsService = {
     policy: (): QueryKey => queryKeys.module(`${RESOURCE}-policy`),
     overview: (query?: CommissionQuery): QueryKey =>
       queryKeys.list(`${RESOURCE}-overview`, asParams(query)),
-    list: (query?: CommissionQuery): QueryKey =>
+    list: (query?: CommissionListQuery): QueryKey =>
       queryKeys.list(RESOURCE, asParams(query)),
     payments: (query?: CommissionPaymentQuery): QueryKey =>
       queryKeys.list(`${RESOURCE}-payments`, asParams(query)),
@@ -64,7 +66,7 @@ export const commissionsService = {
     }),
 
   list: (
-    query?: CommissionQuery,
+    query?: CommissionListQuery,
     options?: RequestOptions,
   ): Promise<CommissionListResult> =>
     apiClient.get<CommissionListResult>(PATH, {
@@ -86,4 +88,27 @@ export const commissionsService = {
     options?: RequestOptions,
   ): Promise<CommissionPayment> =>
     apiClient.post<CommissionPayment>(`${PATH}/payments`, input, options),
+
+  /** Decide não pagar. Devolve a comissão já com a situação nova. */
+  cancel: (
+    input: CancelCommissionInput,
+    options?: RequestOptions,
+  ): Promise<Commission> =>
+    apiClient.post<Commission>(`${PATH}/cancellations`, input, options),
+
+  /**
+   * Desfaz a decisão.
+   *
+   * `POST` e não `DELETE`: registra uma segunda decisão, e a primeira fica no
+   * histórico com quem a desfez.
+   */
+  restore: (
+    input: CancelCommissionInput,
+    options?: RequestOptions,
+  ): Promise<Commission> =>
+    apiClient.post<Commission>(
+      `${PATH}/cancellations/revocations`,
+      input,
+      options,
+    ),
 } as const;

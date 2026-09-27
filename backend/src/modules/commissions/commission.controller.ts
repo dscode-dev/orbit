@@ -24,6 +24,8 @@ import {
   RequiresActivePlan,
 } from '../subscription-plans/plan-access';
 import {
+  CancelCommissionDto,
+  CommissionListQueryDto,
   CommissionPaymentQueryDto,
   CommissionQueryDto,
   PayCommissionsDto,
@@ -95,11 +97,37 @@ export class CommissionController {
     return this.commissions.pay(this.actor(request), input);
   }
 
+  @Post('cancellations')
+  @Capabilities('financial.manage')
+  @Permissions('financial.manage')
+  @ApiOperation({ summary: 'Decide não pagar uma comissão' })
+  cancel(@Req() request: IdentityRequest, @Body() input: CancelCommissionDto) {
+    return this.commissions.cancel(this.actor(request), input);
+  }
+
+  /**
+   * Desfaz o cancelamento.
+   *
+   * `POST` e não `DELETE`: o que acontece é o registro de uma segunda decisão —
+   * a cancelação fica no histórico com quem a desfez. `DELETE` sugeriria que a
+   * primeira decisão desaparece.
+   */
+  @Post('cancellations/revocations')
+  @Capabilities('financial.manage')
+  @Permissions('financial.manage')
+  @ApiOperation({ summary: 'Desfaz o cancelamento de uma comissão' })
+  restore(@Req() request: IdentityRequest, @Body() input: CancelCommissionDto) {
+    return this.commissions.restore(this.actor(request), input);
+  }
+
   @Get()
   @Capabilities('financial.read')
   @Permissions('financial.read')
   @ApiOperation({ summary: 'Commissions in the window, pending and paid' })
-  list(@Req() request: IdentityRequest, @Query() query: CommissionQueryDto) {
+  list(
+    @Req() request: IdentityRequest,
+    @Query() query: CommissionListQueryDto,
+  ) {
     return this.commissions.list(this.actor(request), query);
   }
 

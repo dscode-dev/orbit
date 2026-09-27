@@ -43,6 +43,8 @@ export interface Gate {
 export interface WorkforceManagement {
   /** Equipes, especialidades e certificações. */
   readonly workforce: Gate;
+  /** Papel, situação, link de senha e desligamento de um membro. */
+  readonly members: Gate;
   /** Escalas — quem decide é o motor de agenda, não o Workforce. */
   readonly shifts: Gate;
   /** Papéis de acesso da organização. */
@@ -74,6 +76,16 @@ export function useWorkforceManagement(): WorkforceManagement {
       session.hasCapability("workforce.manage"),
       session.hasPermission("organization.update"),
       "administrar a equipe",
+    ),
+    /* `PATCH /organizations/current/members/:id`,
+       `POST /workforce/members/:id/password-link` e `DELETE` do membro exigem
+       `organization.members.update` e plano ativo — **nenhuma capability de
+       módulo**. Exigir `workforce.manage` aqui seria mais rígido que o servidor,
+       e esconderia o botão de quem ele aceitaria. */
+    members: gate(
+      true,
+      session.hasPermission("organization.members.update"),
+      "administrar os membros",
     ),
     /* `POST /scheduling/availability`:
        @Capabilities('scheduling.manage') @Permissions('scheduling.availability.manage'). */
