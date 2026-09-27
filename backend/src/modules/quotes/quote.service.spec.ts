@@ -10,6 +10,7 @@ import { ConflictException, ValidationException } from '../../exceptions';
 import type { QuoteRepository } from './quote.repository';
 import { QuoteService } from './quote.service';
 import type { QuoteDocumentService } from '../artifact-rendering/quote-document.service';
+import type { StorageProvider } from '../storage/storage.types';
 
 const decimal = (value: string) => ({ toString: () => value });
 
@@ -79,9 +80,17 @@ describe('QuoteService', () => {
      outro método, o stub para de compilar em vez de passar mudo. */
   const documents: QuoteDocumentService = { render: jest.fn() };
 
+  /* Nem o caminho de impressão é exercitado aqui, então o armazenamento também
+     é stub de construtor. `get` recusa de propósito: se algum teste passar a
+     imprimir, ele falha em vez de ler um buffer inventado. */
+  const storage = {
+    get: jest.fn(() => Promise.reject(new Error('sem armazenamento no teste'))),
+  };
+
   const service = new QuoteService(
     repository as unknown as QuoteRepository,
     documents,
+    storage as unknown as StorageProvider,
   );
 
   beforeEach(() => {

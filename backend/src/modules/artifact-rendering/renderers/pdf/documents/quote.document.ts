@@ -59,9 +59,41 @@ export interface QuoteDocumentInput {
     readonly validUntil?: string;
     readonly validityDays?: number;
     readonly notes?: string;
+    /**
+     * O parágrafo de abertura.
+     *
+     * Ausente imprime o padrão; string vazia imprime **nada** — quem apagou o
+     * texto está dizendo que não quer abertura, e reinserir o padrão desfaria a
+     * escolha em silêncio.
+     */
+    readonly introText?: string;
     readonly author?: string;
     readonly operationCode?: string;
   };
+  /**
+   * Quem responde tecnicamente, e de quem sai a assinatura.
+   *
+   * `signatureImage` é opcional: quem não cadastrou assinatura recebe a linha em
+   * branco para assinar à mão, que é o que o papel sempre permitiu.
+   */
+  readonly responsible?: {
+    readonly name: string;
+    readonly roleLabel?: string;
+    readonly signatureImage?: Buffer;
+    readonly signatureImageMimeType?: string;
+  };
+  /**
+   * Os equipamentos que a proposta cobre.
+   *
+   * Sem valor: preço é dos itens, e repeti-lo aqui daria duas respostas para
+   * "quanto custa". Esta seção responde outra pergunta — *em que* se vai mexer —
+   * que é a primeira que o cliente faz numa proposta de manutenção.
+   */
+  readonly assets?: readonly {
+    readonly name: string;
+    readonly identifier?: string;
+    readonly location?: string;
+  }[];
   readonly customer: {
     readonly name?: string;
     readonly legalName?: string;
@@ -88,6 +120,24 @@ export interface QuoteDocumentInput {
   };
 }
 
+/**
+ * A fórmula que o setor usa para abrir uma proposta.
+ *
+ * Mora aqui, e não no banco, porque é o **padrão** — o que se imprime quando a
+ * proposta não diz outra coisa. Uma linha por organização no banco teria de ser
+ * semeada em toda instalação, e uma instalação nova sairia sem abertura.
+ */
+const ABERTURA_PADRAO =
+  'Atendendo à honrosa solicitação de V.Sa., apresentamos nosso orçamento ' +
+  'conforme solicitado.';
+
+const COLUNAS_DO_EQUIPAMENTO: readonly TableColumn[] = [
+  { header: 'Item', weight: 0.7, align: 'center' },
+  { header: 'Equipamento', weight: 4.4 },
+  { header: 'Identificação', weight: 2.2 },
+  { header: 'Local', weight: 3 },
+];
+
 const COLUNAS_DO_ITEM: readonly TableColumn[] = [
   { header: 'Item', weight: 0.7, align: 'center' },
   { header: 'Descrição', weight: 4.6 },
@@ -105,6 +155,8 @@ export function composeQuote(
 ): void {
   identificacao(document, input, theme);
   cliente(document, input, theme);
+  abertura(document, input, theme);
+  equipamentos(document, input, theme);
   objeto(document, input, theme);
   itens(document, input, theme);
   resumo(document, input, theme);
@@ -156,6 +208,55 @@ function cliente(
 
   sectionTitle(document, 'Cliente', theme);
   definitionCard(document, itensDoCartao, theme);
+}
+
+/**
+ * A abertura — a frase de cortesia que abre a proposta.
+ *
+ * Vem antes do escopo porque é o que se lê primeiro, e é o que distingue uma
+ * proposta comercial de uma listagem de preços. O padrão existe porque é a
+ * fórmula que o setor usa; o campo existe porque ela não serve para todo
+ * cliente.
+ */
+function abertura(
+  document: Doc,
+  input: QuoteDocumentInput,
+  theme: DocumentTheme,
+): void {
+  const texto = input.quote.introText ?? ABERTURA_PADRAO;
+  /* String vazia é escolha: quem apagou não quer abertura. */
+  if (texto.trim().length === 0) return;
+  noteBlock(document, texto, theme);
+}
+
+/**
+ * Os equipamentos cobertos.
+ *
+ * Tabela, e não parágrafo: identificação e local são o que o cliente confere
+ * item por item — "é o da recepção ou o do depósito?" — e num texto corrido
+ * essa conferência obriga a reler a frase inteira.
+ */
+function equipamentos(
+  document: Doc,
+  input: QuoteDocumentInput,
+  theme: DocumentTheme,
+): void {
+  const lista = input.assets ?? [];
+  if (lista.length === 0) return;
+
+  sectionTitle(document, 'Equipamentos', theme);
+  table(
+    document,
+    COLUNAS_DO_EQUIPAMENTO,
+    lista.map((equipamento, indice) => [
+      String(indice + 1).padStart(2, '0'),
+      equipamento.name,
+      equipamento.identifier ?? '',
+      equipamento.location ?? '',
+    ]),
+    theme,
+    { continuationLabel: '(continuação)' },
+  );
 }
 
 /** O objeto da proposta — o texto que o vendedor escreveu. */
@@ -289,14 +390,36 @@ function aceite(
     theme,
   );
 
+  /*
+   * Quem assina é o responsável, não a empresa.
+   *
+   * Antes daqui a linha do proponente levava o nome fantasia do emissor e o
+   * autor como "credencial" — ou seja, a proposta era assinada por uma pessoa
+   * jurídica, e a pessoa que responde por ela aparecia em letra miúda. Quem
+   * recebe a proposta precisa saber com quem falar, e a assinatura registrada
+   * é dessa pessoa.
+   *
+   * Sem responsável definido, cai no emissor: uma proposta antiga não perde o
+   * bloco de aceite por causa de um campo que ainda não existia quando ela
+   * nasceu.
+   */
+  const responsavel = input.responsible;
+
   signatureBlock(
     document,
     [
       {
         label: 'Proponente',
-        signerName: emitter?.tradeName ?? emitter?.legalName,
-        roleLabel: 'Responsável pela proposta',
-        credential: input.quote.author,
+        signerName:
+          responsavel?.name ?? emitter?.tradeName ?? emitter?.legalName,
+        roleLabel: responsavel?.roleLabel ?? 'Responsável pela proposta',
+        /* Com responsável, a credencial é a empresa que ele representa; sem
+           ele, o autor — que era a única pessoa que o documento conhecia. */
+        credential: responsavel
+          ? (emitter?.tradeName ?? emitter?.legalName)
+          : input.quote.author,
+        image: responsavel?.signatureImage,
+        imageMimeType: responsavel?.signatureImageMimeType,
       },
       {
         label: 'Aceite do cliente',

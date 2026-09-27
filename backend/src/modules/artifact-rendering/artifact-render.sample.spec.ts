@@ -171,7 +171,7 @@ describe('amostra de modelo', () => {
     await service.sample('RELATORIO_VISITA', ATOR);
 
     /* `image/jpeg` é o da empresa; o da unidade neste teste é PNG. O mime prova
-       *qual* das duas marcas foi impressa, não só que alguma foi. */
+     *qual* das duas marcas foi impressa, não só que alguma foi. */
     expect(documentContext.build.mock.calls[0]![0].logo?.mimeType).toBe(
       'image/jpeg',
     );

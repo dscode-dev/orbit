@@ -28,7 +28,11 @@
  * não move estoque e não mantém funil de vendas. Propõe um valor e registra a
  * resposta.
  */
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  STORAGE_PROVIDER,
+  type StorageProvider,
+} from '../storage/storage.types';
 import { Prisma } from '@prisma/client';
 import {
   ConflictException,
@@ -177,6 +181,7 @@ export class QuoteService {
   constructor(
     private readonly repository: QuoteRepository,
     private readonly documents: QuoteDocumentService,
+    @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
   ) {}
 
   /* ---------------------------------------------------------------- */
@@ -211,7 +216,12 @@ export class QuoteService {
     if (!fonte) throw new EntityNotFoundException('Quote', id);
 
     const unidade = fonte.businessUnit;
-    const endereco = fonte.customer.addresses[0];
+    /* O endereço escolhido vence o principal do cliente. Imprimir
+       `addresses[0]` para quem tem duas filiais era um chute com aparência de
+       dado; o principal continua sendo o recurso das propostas que nasceram
+       antes de haver escolha. */
+    const endereco = fonte.serviceAddress ?? fonte.customer.addresses[0];
+    const responsavel = await this.responsibleSignature(fonte.responsible);
     const validUntil = fonte.validUntil
       ? toDateOnlyString(fonte.validUntil)
       : undefined;
@@ -249,9 +259,19 @@ export class QuoteService {
             validUntil,
           ),
           notes: fonte.notes ?? undefined,
+          /* `?? undefined` e não `?? PADRÃO`: quem decide o padrão é o
+             compositor, que é quem sabe o que imprime. String vazia atravessa,
+             porque apagar o texto é escolha. */
+          introText: fonte.introText ?? undefined,
           author: fonte.createdBy?.displayName ?? undefined,
           operationCode: fonte.operation?.code ?? undefined,
         },
+        responsible: responsavel,
+        assets: fonte.assets.map(({ asset }) => ({
+          name: asset.name,
+          identifier: asset.identifier ?? undefined,
+          location: asset.location ?? undefined,
+        })),
         customer: {
           name: fonte.customer.tradeName ?? fonte.customer.legalName,
           legalName: fonte.customer.tradeName
@@ -289,6 +309,56 @@ export class QuoteService {
       mimeType: 'application/pdf',
       fileName: `${fonte.code}.pdf`,
     };
+  }
+
+  /**
+   * O responsável, com a assinatura carregada quando existe.
+   *
+   * ## Assinatura ausente não impede imprimir
+   *
+   * Quem não cadastrou assinatura recebe a linha em branco para assinar à mão —
+   * é o que o papel sempre permitiu, e recusar a emissão por isso deixaria a
+   * proposta presa a uma configuração de perfil.
+   *
+   * ## Falha de leitura também não
+   *
+   * O objeto pode estar inacessível — bucket fora do ar, chave apagada à mão. A
+   * proposta inteira não pode depender disso: sai com a linha em branco, que é
+   * o mesmo resultado de quem nunca cadastrou.
+   */
+  private async responsibleSignature(
+    responsible:
+      | {
+          displayName: string;
+          professionalSignatures: readonly {
+            storageObject: {
+              bucket: string;
+              objectKey: string;
+              mimeType: string;
+            };
+          }[];
+        }
+      | null
+      | undefined,
+  ) {
+    if (!responsible) return undefined;
+
+    const assinatura = responsible.professionalSignatures[0];
+    if (!assinatura) return { name: responsible.displayName };
+
+    try {
+      const bytes = await this.storage.get({
+        bucket: assinatura.storageObject.bucket,
+        objectKey: assinatura.storageObject.objectKey,
+      });
+      return {
+        name: responsible.displayName,
+        signatureImage: bytes,
+        signatureImageMimeType: assinatura.storageObject.mimeType,
+      };
+    } catch {
+      return { name: responsible.displayName };
+    }
   }
 
   /* ---------------------------------------------------------------- */

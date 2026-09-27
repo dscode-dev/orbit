@@ -17,6 +17,7 @@ import { QuoteFinancialProcessor } from './quote-financial.processor';
 import { QuoteMapper } from './quote.mapper';
 import { QuoteRepository } from './quote.repository';
 import { QuoteService } from './quote.service';
+import { StorageModule } from '../storage/storage.module';
 import { ArtifactRenderingModule } from '../artifact-rendering/artifact-rendering.module';
 
 @Module({
@@ -25,6 +26,8 @@ import { ArtifactRenderingModule } from '../artifact-rendering/artifact-renderin
     SubscriptionPlansModule,
     FinancialModule,
     ArtifactRenderingModule,
+    /* Para ler os bytes da assinatura do responsável na hora de imprimir. */
+    StorageModule,
   ],
   controllers: [QuoteController],
   providers: [

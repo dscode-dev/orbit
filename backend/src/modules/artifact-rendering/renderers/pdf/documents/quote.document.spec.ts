@@ -180,4 +180,112 @@ describe('Orçamento premium', () => {
     expect(texto).not.toContain('ITEM (');
     expect(texto).toContain('Serviço 60');
   });
+
+  /* ---------------------------------------------------------------- */
+  /* Abertura                                                          */
+  /* ---------------------------------------------------------------- */
+
+  it('abre com a fórmula do setor quando a proposta não traz outra', async () => {
+    const texto = pdfText(await render(entrada()));
+
+    expect(texto).toContain('Atendendo à honrosa solicitação de V.Sa.');
+  });
+
+  it('a abertura da proposta vence o padrão', async () => {
+    const base = entrada();
+    const texto = pdfText(
+      await render({
+        ...base,
+        quote: { ...base.quote, introText: 'Conforme conversamos na visita,' },
+      }),
+    );
+
+    expect(texto).toContain('Conforme conversamos na visita,');
+    expect(texto).not.toContain('honrosa solicitação');
+  });
+
+  it('abertura apagada imprime nada, e não o padrão de volta', async () => {
+    /* String vazia é escolha. Reinserir o padrão desfaria em silêncio o que a
+       pessoa apagou de propósito. */
+    const base = entrada();
+    const texto = pdfText(
+      await render({ ...base, quote: { ...base.quote, introText: '   ' } }),
+    );
+
+    expect(texto).not.toContain('honrosa solicitação');
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Equipamentos                                                      */
+  /* ---------------------------------------------------------------- */
+
+  it('lista os equipamentos com identificação e local', async () => {
+    const base = entrada();
+    const texto = pdfText(
+      await render({
+        ...base,
+        assets: [
+          {
+            name: 'Split Hi-Wall 12k',
+            identifier: 'AC-014',
+            location: 'Recepção',
+          },
+          {
+            name: 'Chiller 40TR',
+            identifier: 'CH-002',
+            location: 'Casa de máquinas',
+          },
+        ],
+      }),
+    );
+
+    expect(texto).toContain('Equipamentos');
+    /* Identificação e local são o que o cliente confere item por item — "é o da
+       recepção ou o do depósito?". Só o nome não responde. */
+    expect(texto).toContain('AC-014');
+    expect(texto).toContain('Recepção');
+    expect(texto).toContain('CH-002');
+    expect(texto).toContain('Casa de máquinas');
+  });
+
+  it('sem equipamento, não imprime a seção vazia', async () => {
+    const texto = pdfText(await render(entrada()));
+
+    /* O título da seção, como o PDF o escreve. Em maiúscula o asserto passaria
+       à toa — só o cabeçalho da tabela é maiúsculo. */
+    expect(texto).not.toContain('Equipamentos');
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Quem assina                                                       */
+  /* ---------------------------------------------------------------- */
+
+  it('quem assina é o responsável, não a empresa', async () => {
+    const base = entrada();
+    const texto = pdfText(
+      await render({
+        ...base,
+        responsible: {
+          name: 'Marcos Tavares',
+          roleLabel: 'Engenheiro mecânico',
+        },
+      }),
+    );
+
+    /* Antes daqui a linha do proponente levava o nome fantasia do emissor, e a
+       pessoa que responde aparecia em letra miúda como "credencial". Quem
+       recebe a proposta precisa saber com quem falar. */
+    expect(texto).toContain('Marcos Tavares');
+    expect(texto).toContain('Engenheiro mecânico');
+  });
+
+  it('sem responsável, o emissor continua assinando', async () => {
+    /* Proposta anterior a este campo não perde o bloco de aceite. */
+    const texto = pdfText(await render(entrada()));
+
+    expect(texto).toContain('Clima Norte');
+    expect(texto).toContain('Responsável pela proposta');
+    /* A linha do cliente existe, com a data para preencher à mão. */
+    expect(texto).toContain('Data: ____ / ____ / ________');
+  });
 });

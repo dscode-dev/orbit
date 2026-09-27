@@ -199,8 +199,63 @@ export class QuoteRepository {
           sentAt: true,
           decidedAt: true,
           createdAt: true,
+          introText: true,
           createdBy: { select: { displayName: true } },
           operation: { select: { code: true, title: true } },
+          /*
+           * O endereço **escolhido**, além do principal do cliente.
+           *
+           * Os dois vêm porque a proposta pode não ter escolhido nenhum — as
+           * que nasceram antes deste campo não escolheram — e aí o principal
+           * segue valendo. Com escolha, ela vence: era o defeito de imprimir
+           * `addresses[0]` para quem tem duas filiais.
+           */
+          serviceAddress: {
+            select: {
+              label: true,
+              street: true,
+              number: true,
+              complement: true,
+              district: true,
+              city: true,
+              stateCode: true,
+              postalCode: true,
+            },
+          },
+          /*
+           * A assinatura ativa de quem responde.
+           *
+           * `active` e `revokedAt: null` no `where`: uma assinatura revogada é
+           * exatamente a que não pode sair impressa. `take: 1` porque o índice
+           * único garante uma ativa por pessoa.
+           */
+          responsible: {
+            select: {
+              displayName: true,
+              professionalSignatures: {
+                where: { active: true, revokedAt: null },
+                orderBy: { version: 'desc' as const },
+                take: 1,
+                select: {
+                  storageObject: {
+                    select: {
+                      bucket: true,
+                      objectKey: true,
+                      mimeType: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          assets: {
+            orderBy: { createdAt: 'asc' as const },
+            select: {
+              asset: {
+                select: { name: true, identifier: true, location: true },
+              },
+            },
+          },
           items: {
             orderBy: { position: 'asc' as const },
             select: {
