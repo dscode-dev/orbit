@@ -3460,6 +3460,9 @@ model Quote {
   subtotal          Decimal   @default(0) @db.Decimal(14, 2)
   /// Desconto sobre o total do orçamento, além dos descontos por item.
   discount          Decimal   @default(0) @db.Decimal(14, 2)
+  /// Por que houve desconto. Separado de `notes`, que é o objeto da proposta:
+  /// a justificativa comercial não é parte do serviço contratado.
+  discountReason    String?   @map("discount_reason") @db.VarChar(500)
   total             Decimal   @default(0) @db.Decimal(14, 2)
 
   sentAt        DateTime? @map("sent_at") @db.Timestamptz(3)

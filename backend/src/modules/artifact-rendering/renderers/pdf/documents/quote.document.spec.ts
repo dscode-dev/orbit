@@ -182,6 +182,36 @@ describe('Orçamento premium', () => {
   });
 
   /* ---------------------------------------------------------------- */
+  /* Desconto                                                          */
+  /* ---------------------------------------------------------------- */
+
+  it('imprime o motivo ao lado do desconto', async () => {
+    const base = entrada();
+    const texto = pdfText(
+      await render({
+        ...base,
+        quote: {
+          ...base.quote,
+          discountReason: 'contrato anual de manutenção',
+        },
+      }),
+    );
+
+    /* Junto do valor, não numa seção própria: quem lê o abatimento é quem
+       pergunta o motivo, e separá-los deixaria a resposta meia página adiante
+       da pergunta. */
+    expect(texto).toContain('contrato anual de manutenção');
+    expect(texto).toContain('152,70');
+  });
+
+  it('sem motivo, não imprime a linha de explicação', async () => {
+    const texto = pdfText(await render(entrada()));
+
+    expect(texto).toContain('152,70');
+    expect(texto).not.toContain('Desconto:');
+  });
+
+  /* ---------------------------------------------------------------- */
   /* Abertura                                                          */
   /* ---------------------------------------------------------------- */
 

@@ -60,6 +60,14 @@ export interface QuoteDocumentInput {
     readonly validityDays?: number;
     readonly notes?: string;
     /**
+     * Por que houve desconto.
+     *
+     * Impresso ao lado do abatimento, não numa seção própria: quem lê o valor é
+     * quem pergunta o motivo, e separá-los faria a resposta ficar meia página
+     * adiante da pergunta.
+     */
+    readonly discountReason?: string;
+    /**
      * O parágrafo de abertura.
      *
      * Ausente imprime o padrão; string vazia imprime **nada** — quem apagou o
@@ -353,6 +361,19 @@ function resumo(
      linha "Total" aqui e o mesmo total um centímetro abaixo seria repetição:
      este bloco mostra a conta, aquele dá a resposta. */
   totalsBlock(document, linhas, theme);
+
+  /*
+   * O motivo do desconto, entre o abatimento e o total.
+   *
+   * Não vai no rótulo da linha: `totalsBlock` escreve rótulos em caixa alta —
+   * certo para "SUBTOTAL", péssimo para uma frase, que sai gritada e mais difícil
+   * de ler. E não vai em seção própria, que deixaria a resposta meia página
+   * depois da pergunta. Aqui é o lugar exato onde alguém pergunta "por quê?":
+   * logo abaixo do valor abatido, logo acima do que se vai pagar.
+   */
+  if (input.quote.discountReason) {
+    noteBlock(document, `Desconto: ${input.quote.discountReason}`, theme);
+  }
 }
 
 function totalEmDestaque(

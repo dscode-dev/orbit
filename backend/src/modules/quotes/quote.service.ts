@@ -259,6 +259,7 @@ export class QuoteService {
             validUntil,
           ),
           notes: fonte.notes ?? undefined,
+          discountReason: fonte.discountReason ?? undefined,
           /* `?? undefined` e não `?? PADRÃO`: quem decide o padrão é o
              compositor, que é quem sabe o que imprime. String vazia atravessa,
              porque apagar o texto é escolha. */
@@ -607,6 +608,7 @@ export class QuoteService {
         title: input.title,
         notes: input.notes,
         introText: input.introText,
+        discountReason: input.discountReason,
         validUntil: input.validUntil
           ? this.dateOnly(input.validUntil)
           : undefined,

@@ -233,6 +233,20 @@ export class UpdateQuoteDto {
   @Min(0)
   @Max(999_999_999.99)
   discount?: number;
+
+  /**
+   * Por que houve desconto.
+   *
+   * Não é obrigatório: um abatimento de centavos para fechar a conta não precisa
+   * de justificativa. Exigi-lo faria alguém digitar "desconto" só para passar
+   * pela validação — pior que o campo vazio, porque parece explicação.
+   */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(500)
+  discountReason?: string;
 }
 
 /* -------------------------------------------------------------------- */

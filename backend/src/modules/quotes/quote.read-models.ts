@@ -110,6 +110,8 @@ export interface QuoteReadModel {
   currency: string;
   subtotal: string;
   discount: string;
+  /** Por que houve desconto. `null` quando não houve, ou quando não se disse. */
+  discountReason: string | null;
   total: string;
   customer: { id: string; displayName: string };
   businessUnit: { id: string; name: string };

@@ -62,6 +62,7 @@ export class QuoteMapper {
       currency: source.currency,
       subtotal: this.money(source.subtotal),
       discount: this.money(source.discount),
+      discountReason: source.discountReason,
       total: this.money(source.total),
       customer: {
         id: source.customer.id,
