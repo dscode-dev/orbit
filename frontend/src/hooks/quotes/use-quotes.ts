@@ -255,6 +255,21 @@ export function useQuoteTransition(id: string) {
   );
 }
 
+/**
+ * Baixa a proposta impressa.
+ *
+ * Mutação, e não consulta: produz um efeito — o arquivo salvo — e repetir é
+ * pedir de novo, não reler um cache. Como consulta, o React Query guardaria o
+ * blob e o segundo clique não baixaria nada.
+ *
+ * `scope` por proposta: baixar uma não trava o botão da linha de baixo.
+ */
+export function useQuoteDocument(id: string) {
+  return useApiMutation(() => quotesService.document(id), {
+    scope: { id: `quote-document-${id}` },
+  });
+}
+
 /** Situações agrupadas na aba "Encerrados". */
 export const CLOSED_STATUSES: readonly QuoteStatus[] = [
   "REJECTED",

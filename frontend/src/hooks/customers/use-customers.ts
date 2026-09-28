@@ -21,7 +21,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
-import { useApiQuery } from "@/hooks/api/use-api-query";
+import {
+  useApiQuery,
+  useInfiniteApiQuery,
+} from "@/hooks/api/use-api-query";
 import { CACHE } from "@/hooks/api/cache-policy";
 import { artifactExecutionsService } from "@/services/artifact-executions.service";
 import { assetsService } from "@/services/assets.service";
@@ -69,6 +72,35 @@ export function useCustomersList(query: CustomerQuery) {
     },
   );
 }
+
+/**
+ * Clientes por rolagem infinita, para os seletores.
+ *
+ * Separado de `useCustomersList`: aquele serve a tabela, que pagina com botões e
+ * quer `placeholderData` para não piscar entre páginas. Aqui as páginas se
+ * **acumulam**, e a key inclui o termo — trocar a busca recomeça da primeira em
+ * vez de somar resultados de buscas diferentes na mesma lista.
+ *
+ * `enabled` porque o seletor só consulta quando abre: um formulário com quatro
+ * seletores fechados não deve disparar quatro consultas ao montar.
+ */
+export function useInfiniteCustomers(search: string | undefined, enabled = true) {
+  return useInfiniteApiQuery<Customer>(
+    customersService.keys.list({ search, limit: CUSTOMER_PICKER_PAGE }),
+    "/customers",
+    { search, limit: CUSTOMER_PICKER_PAGE },
+    { ...CUSTOMERS_REFRESH.list, enabled },
+  );
+}
+
+/**
+ * Vinte por página.
+ *
+ * Enche a altura do painel com sobra e mantém a primeira resposta curta — é a
+ * que a pessoa espera olhando. Cinco pediria página nova a cada gesto; cem
+ * anularia o motivo de paginar.
+ */
+const CUSTOMER_PICKER_PAGE = 20;
 
 export function useCustomer(id: string) {
   return useApiQuery(

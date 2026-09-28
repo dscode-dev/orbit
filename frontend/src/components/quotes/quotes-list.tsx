@@ -15,10 +15,24 @@
  *
  * Todo filtro é parâmetro do contrato, `meta.total` é do servidor, e os
  * valores da linha vêm calculados. A tela não soma coluna.
+ *
+ * ## A linha abre um resumo; a proposta tem página
+ *
+ * Clicar abre o painel, que responde "o que é esta proposta" sem sair da lista.
+ * O código continua sendo link para a página, onde se trabalha nela — e o painel
+ * leva para lá. Duas portas para dois usos, não duas telas para o mesmo.
+ *
+ * ## Equipamentos cabem na linha; itens não
+ *
+ * `QuoteSummary` publica `assets` e **não** `items`. São poucos equipamentos por
+ * proposta, e "quais aparelhos" é a primeira pergunta de quem lê um orçamento de
+ * manutenção. Os itens só o detalhe carrega.
  */
 import { useState } from "react";
 import { Plus, ReceiptText } from "lucide-react";
 
+import { CustomerPicker } from "@/components/customers/customer-picker";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,10 +48,12 @@ import { useAction } from "@/actions";
 import { EntityBadge, EntityLink } from "@/entities";
 import { useQuotes } from "@/hooks/quotes/use-quotes";
 import { useActiveScope } from "@/providers/use-active-scope";
+import { cn } from "@/lib/utils";
 import {
   QUOTE_STATUS_LABELS,
   type QuoteQuery,
   type QuoteStatus,
+  type QuoteSummary,
 } from "@/types/quotes";
 import {
   FilterBar,
@@ -49,11 +65,19 @@ import {
   optionsFrom,
   useListController,
 } from "@/workspace";
-import { Money, Quantity, ValidUntil } from "./quote-presentation";
+import { Money, ValidUntil } from "./quote-presentation";
+import { QuoteDetailSheet } from "./quote-detail.sheet";
 import { QuoteFormDialog } from "./quote-form.dialog";
+import { QuoteRowActions } from "./quote-row-actions";
 
 const CLOSED_OPTIONS = optionsFrom(
   ["REJECTED", "EXPIRED", "CANCELLED"],
+  QUOTE_STATUS_LABELS,
+);
+
+/** Situações que a aba "Visão geral" oferece como filtro. */
+const ALL_STATUS_OPTIONS = optionsFrom(
+  ["DRAFT", "SENT", "APPROVED", "REJECTED", "EXPIRED", "CANCELLED"],
   QUOTE_STATUS_LABELS,
 );
 
@@ -78,14 +102,26 @@ export function QuotesList({
   const { businessUnits } = useActiveScope();
   const create = useAction("quote.create");
   const [formOpen, setFormOpen] = useState(false);
+  const [opened, setOpened] = useState<QuoteSummary | null>(null);
+
+  /**
+   * O nome do cliente filtrado, para o seletor mostrar sem uma consulta a mais.
+   *
+   * O `CustomerPicker` devolve o cliente inteiro ao escolher; guardar o rótulo
+   * evita que reabrir a tela mostre o id, ou pareça vazio, quando a pessoa
+   * escolhida está na página doze da listagem de clientes.
+   */
+  const [customerLabel, setCustomerLabel] = useState<string>();
 
   /**
    * A situação da aba vence a do filtro.
    *
-   * Em "Encerrados" o usuário escolhe qual desfecho ver; nas demais, a aba já
-   * respondeu essa pergunta.
+   * Em "Encerrados" o usuário escolhe qual desfecho ver; na "Visão geral" ele
+   * escolhe qualquer uma; nas demais, a aba já respondeu essa pergunta.
    */
-  const effectiveStatus = closed ? (list.query.status ?? "REJECTED") : status;
+  const effectiveStatus = closed
+    ? (list.query.status ?? "REJECTED")
+    : (status ?? list.query.status);
 
   const query = useQuotes({
     ...list.query,
@@ -95,6 +131,7 @@ export function QuotesList({
 
   const quotes = query.data?.data ?? [];
   const meta = query.data?.meta;
+  const prefix = `quotes-${status ?? (closed ? "closed" : "all")}`;
 
   return (
     <div className="space-y-5">
@@ -112,9 +149,15 @@ export function QuotesList({
         ) : null}
       </div>
 
-      <FilterBar onClear={list.reset} canClear={list.isFiltered}>
+      <FilterBar
+        onClear={() => {
+          list.reset();
+          setCustomerLabel(undefined);
+        }}
+        canClear={list.isFiltered}
+      >
         <SearchField
-          id={`quotes-${status ?? "all"}-search`}
+          id={`${prefix}-search`}
           value={list.searchTerm}
           onChange={list.setSearchTerm}
           placeholder="Título, código ou observações"
@@ -134,9 +177,45 @@ export function QuotesList({
           />
         ) : null}
 
+        {/* Sem aba fixa, a situação é escolha — é a "Visão geral". */}
+        {!closed && !status ? (
+          <FilterSelect
+            id={`${prefix}-status`}
+            label="Situação"
+            value={list.query.status}
+            onChange={(value) =>
+              list.setFilter("status", value as QuoteStatus | undefined)
+            }
+            options={ALL_STATUS_OPTIONS}
+            anyLabel="Todas"
+          />
+        ) : null}
+
+        {/* Dentro do cliente a pergunta já está respondida pela rota. */}
+        {customerId ? null : (
+          <div className="space-y-2">
+            <Label htmlFor={`${prefix}-customer`}>Cliente</Label>
+            <CustomerPicker
+              id={`${prefix}-customer`}
+              value={list.query.customerId}
+              selectedLabel={customerLabel}
+              anyLabel="Todos os clientes"
+              placeholder="Todos os clientes"
+              onChange={(customer) => {
+                list.setFilter("customerId", customer?.id);
+                setCustomerLabel(
+                  customer
+                    ? (customer.tradeName ?? customer.legalName)
+                    : undefined,
+                );
+              }}
+            />
+          </div>
+        )}
+
         {businessUnits.length > 1 ? (
           <FilterSelect
-            id={`quotes-${status ?? "all"}-unit`}
+            id={`${prefix}-unit`}
             label="Unidade"
             value={list.query.businessUnitId}
             onChange={(value) => list.setFilter("businessUnitId", value)}
@@ -149,9 +228,9 @@ export function QuotesList({
         ) : null}
 
         <div className="space-y-2">
-          <Label htmlFor={`quotes-${status ?? "all"}-from`}>Criados de</Label>
+          <Label htmlFor={`${prefix}-from`}>Criados de</Label>
           <Input
-            id={`quotes-${status ?? "all"}-from`}
+            id={`${prefix}-from`}
             type="date"
             value={list.query.from ?? ""}
             onChange={(event) =>
@@ -160,9 +239,9 @@ export function QuotesList({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor={`quotes-${status ?? "all"}-to`}>até</Label>
+          <Label htmlFor={`${prefix}-to`}>até</Label>
           <Input
-            id={`quotes-${status ?? "all"}-to`}
+            id={`${prefix}-to`}
             type="date"
             value={list.query.to ?? ""}
             onChange={(event) =>
@@ -176,9 +255,9 @@ export function QuotesList({
           responde "o que vence primeiro" — a pergunta de quem cobra decisão.
         */}
         <div className="space-y-2">
-          <Label htmlFor={`quotes-${status ?? "all"}-valid`}>Vence até</Label>
+          <Label htmlFor={`${prefix}-valid`}>Vence até</Label>
           <Input
-            id={`quotes-${status ?? "all"}-valid`}
+            id={`${prefix}-valid`}
             type="date"
             value={list.query.validUntilBefore ?? ""}
             onChange={(event) =>
@@ -214,18 +293,27 @@ export function QuotesList({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Proposta</TableHead>
+                  <TableHead>Número</TableHead>
                   {customerId ? null : <TableHead>Cliente</TableHead>}
+                  <TableHead>Equipamentos</TableHead>
                   <TableHead>Situação</TableHead>
-                  <TableHead>Validade</TableHead>
-                  <TableHead className="text-right">Itens</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Valor total</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead>Responsável</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((quote) => (
-                  <TableRow key={quote.id}>
+                  <TableRow
+                    key={quote.id}
+                    onClick={() => setOpened(quote)}
+                    className="cursor-pointer"
+                  >
                     <TableCell>
+                      {/* Link, e não só a linha clicável: o código é endereço de
+                          uma página, e quem quer abrir em outra aba precisa de
+                          um `<a>` de verdade. */}
                       <EntityLink
                         entity="quote"
                         id={quote.id}
@@ -239,11 +327,12 @@ export function QuotesList({
                     </TableCell>
                     {customerId ? null : (
                       <TableCell className="text-muted-foreground">
-                        <EntityLink entity="customer" id={quote.customer.id}>
-                          {quote.customer.displayName}
-                        </EntityLink>
+                        {quote.customer.displayName}
                       </TableCell>
                     )}
+                    <TableCell>
+                      <Equipment assets={quote.assets} />
+                    </TableCell>
                     <TableCell>
                       <EntityBadge
                         entity="quote"
@@ -251,17 +340,20 @@ export function QuotesList({
                         value={quote.status}
                       />
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      <ValidUntil quote={quote} />
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      <Quantity value={`${quote.itemCount}`} />
-                    </TableCell>
                     <TableCell className="text-right">
                       <Money
                         value={quote.total}
                         muted={quote.status === "CANCELLED"}
                       />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      <ValidUntil quote={quote} />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {quote.responsible?.displayName ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      <QuoteRowActions quote={quote} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -283,6 +375,53 @@ export function QuotesList({
         onOpenChange={setFormOpen}
         customerId={customerId}
       />
+
+      <QuoteDetailSheet
+        quote={opened}
+        onOpenChange={(open) => !open && setOpened(null)}
+      />
+    </div>
+  );
+}
+
+/**
+ * Os equipamentos, na largura de uma célula.
+ *
+ * Dois nomes e a contagem do resto. A lista inteira empurraria as outras colunas
+ * para fora da tela numa proposta com oito aparelhos — e quem precisa de todos
+ * abre o resumo, que os mostra com identificação e local.
+ */
+function Equipment({
+  assets,
+}: {
+  assets: readonly { id: string; name: string; identifier: string | null }[];
+}) {
+  if (assets.length === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  const shown = assets.slice(0, 2);
+  const rest = assets.length - shown.length;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {shown.map((asset) => (
+        <Badge
+          key={asset.id}
+          variant="outline"
+          className={cn("max-w-[10rem] truncate font-normal")}
+          title={
+            asset.identifier
+              ? `${asset.name} · ${asset.identifier}`
+              : asset.name
+          }
+        >
+          {asset.identifier ?? asset.name}
+        </Badge>
+      ))}
+      {rest > 0 ? (
+        <span className="text-xs text-muted-foreground">+{rest}</span>
+      ) : null}
     </div>
   );
 }

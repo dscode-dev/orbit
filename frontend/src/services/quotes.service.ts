@@ -11,6 +11,7 @@
  * remendar o estado local.
  */
 import { apiClient } from "@/api/client";
+import { downloadAndSave, type DownloadResult } from "@/api/transfer";
 import { queryKeys, type QueryKey } from "@/api/query-keys";
 import type { PaginatedResult, QueryParams, RequestOptions } from "@/types/api";
 import type {
@@ -101,4 +102,21 @@ export const quotesService = {
   /** Idempotente no servidor: repetir devolve a mesma operação. */
   convert: (id: string, input: ConvertQuoteInput = {}): Promise<Quote> =>
     apiClient.post<Quote>(`${quote(id)}/convert-to-operation`, input),
+
+  /* ---------------------------------------------------------------- */
+  /* Documento                                                         */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Baixa a proposta impressa.
+   *
+   * Desenhada na hora, do estado atual — não passa pela fila nem abre revisão,
+   * porque um orçamento é editado enquanto é rascunho e cada reimpressão viraria
+   * versão de um documento que ninguém executou.
+   *
+   * O nome do arquivo vem do `Content-Disposition`: é o servidor que decide como
+   * o arquivo se chama, e montar `ORC-000042.pdf` aqui duplicaria essa regra.
+   */
+  document: (id: string): Promise<DownloadResult> =>
+    downloadAndSave(`${quote(id)}/document`),
 };

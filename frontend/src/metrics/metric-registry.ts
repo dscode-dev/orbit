@@ -890,6 +890,30 @@ const DEFINITIONS: readonly MetricDefinition[] = [
     priority: 3,
     capability: "quotes.read",
   }),
+  /**
+   * O recorte acionável de "aguardando decisão".
+   *
+   * Vinte propostas com o cliente não dizem o que fazer hoje; três que vencem
+   * esta semana dizem. É contagem do **servidor** — `status=SENT` cruzado com
+   * `validUntilBefore` —, não um recorte da página carregada.
+   *
+   * Continua sem indicador de **valor**, e a ausência é a mesma de sempre:
+   * `/quotes` não publica soma por situação, e somar a página daria o valor da
+   * página. O valor previsto que existe de verdade é o do Financeiro.
+   */
+  define({
+    id: "quotes.expiring.total",
+    label: "Vencendo em 7 dias",
+    description:
+      "Propostas com o cliente cujo prazo termina nesta semana — é onde cobrar decisão.",
+    category: "COMMERCIAL",
+    unit: "count",
+    icon: CalendarClock,
+    color: "text-amber-400",
+    trendColor: lowerIsBetter,
+    priority: 3,
+    capability: "quotes.read",
+  }),
   define({
     id: "quotes.expired.total",
     label: "Expiradas",
