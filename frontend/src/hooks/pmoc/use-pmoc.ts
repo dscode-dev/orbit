@@ -189,6 +189,21 @@ function coverageKeys(id: string) {
   ];
 }
 
+/**
+ * Baixa o relatório de configuração do plano.
+ *
+ * Mutação, e não consulta: produz um efeito — o arquivo salvo — e repetir é pedir
+ * de novo, não reler um cache. Como consulta, o React Query guardaria o blob e o
+ * segundo clique não baixaria nada.
+ *
+ * `scope` por plano: baixar um não trava o botão do outro na listagem.
+ */
+export function usePmocPlanDocument(id: string) {
+  return useApiMutation(() => pmocService.document(id), {
+    scope: { id: `pmoc-document-${id}` },
+  });
+}
+
 export function useAddPmocCoverage(id: string) {
   return useApiMutation(
     (input: { assetId: string; notes?: string }) =>

@@ -12,6 +12,13 @@
  * regra que o servidor publica pronta, e ela envelheceria na primeira mudança
  * do domínio. É a mesma doutrina da PR-FE-01, aplicada ao PMOC.
  *
+ * ## Baixar o contrato não é administrar
+ *
+ * O relatório de configuração exige `pmoc.read`, e por isso o botão fica **fora**
+ * do portão de `pmoc.manage`: quem só consulta o plano tem direito ao contrato
+ * impresso. Dentro do portão, o componente inteiro desaparecia para essa pessoa —
+ * e com ele um documento que o servidor entrega.
+ *
  * ## Editar não tem autoridade publicada
  *
  * O backend recusa edição de plano encerrado ou cancelado
@@ -21,8 +28,9 @@
  * `docs/pmoc-v2-web.md`.
  */
 import { useState } from "react";
-import { MoreHorizontal, Pencil } from "lucide-react";
+import { FileDown, Loader2, MoreHorizontal, Pencil } from "lucide-react";
 
+import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { ConfirmDialog } from "@/components/financial/confirm.dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +42,7 @@ import {
 import {
   useActivatePmocPlan,
   useCancelPmocPlan,
+  usePmocPlanDocument,
   useSuspendPmocPlan,
 } from "@/hooks/pmoc/use-pmoc";
 import { useSession } from "@/providers/session-provider";
@@ -78,15 +87,15 @@ export function PmocPlanActions({ plan }: { plan: PmocPlan }) {
   const suspend = useSuspendPmocPlan(plan.id);
   const cancel = useCancelPmocPlan(plan.id);
 
+  const document = usePmocPlanDocument(plan.id);
+
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
 
-  if (!canManage) return null;
-
   /** Só o que o servidor publicou como transição possível agora. */
-  const transitions = plan.allowedTransitions.filter(
-    (status) => status in TRANSITIONS,
-  );
+  const transitions = canManage
+    ? plan.allowedTransitions.filter((status) => status in TRANSITIONS)
+    : [];
 
   const mutationFor = (status: string) =>
     status === "ACTIVE" ? activate : status === "SUSPENDED" ? suspend : cancel;
@@ -97,10 +106,29 @@ export function PmocPlanActions({ plan }: { plan: PmocPlan }) {
   return (
     <>
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-          <Pencil className="size-3.5" />
-          Editar
+        {/* O contrato impresso: partes, vigência, periodicidade, equipamentos
+            cobertos e o roteiro de cada unidade. Não é o relatório de execução —
+            esse nasce de uma manutenção feita, um por equipamento atendido. */}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={document.isPending}
+          onClick={() => document.mutate(undefined)}
+        >
+          {document.isPending ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <FileDown className="size-3.5" />
+          )}
+          Baixar contrato
         </Button>
+
+        {canManage ? (
+          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Pencil className="size-3.5" />
+            Editar
+          </Button>
+        ) : null}
 
         {transitions.length > 0 ? (
           <DropdownMenu>
@@ -131,6 +159,11 @@ export function PmocPlanActions({ plan }: { plan: PmocPlan }) {
           </DropdownMenu>
         ) : null}
       </div>
+
+      {/* A falha do download precisa aparecer: sem isto, um 403 de plano de outra
+          unidade ou uma queda do gerador de PDF deixariam o botão piscar e nada
+          acontecer — e a pessoa clicaria de novo achando que não apertou. */}
+      <MutationError error={document.error} />
 
       <ConfirmDialog
         open={pending !== null}

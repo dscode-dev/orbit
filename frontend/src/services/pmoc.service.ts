@@ -16,6 +16,7 @@
  * ```
  */
 import { apiClient } from "@/api/client";
+import { downloadAndSave, type DownloadResult } from "@/api/transfer";
 import { queryKeys, type QueryKey } from "@/api/query-keys";
 import type { PaginatedResult, QueryParams, RequestOptions } from "@/types/api";
 import type {
@@ -156,6 +157,19 @@ export const pmocService = {
       ...options,
       query: query as QueryParams | undefined,
     }),
+
+  /**
+   * O relatório de **configuração** do plano.
+   *
+   * É o contrato impresso: partes, vigência, periodicidade, equipamentos cobertos
+   * e o roteiro de cada unidade. Não é o relatório de execução — esse nasce de
+   * uma manutenção feita, um por equipamento atendido.
+   *
+   * O nome do arquivo vem do `Content-Disposition`: é o servidor que decide como
+   * o documento se chama, e montá-lo aqui duplicaria essa regra.
+   */
+  document: (id: string): Promise<DownloadResult> =>
+    downloadAndSave(`${plan(id)}/document`),
 
   addCoverage: (id: string, assetId: string, notes?: string) =>
     apiClient.post<PmocCoverage>(`${plan(id)}/equipment`, { assetId, notes }),
