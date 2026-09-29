@@ -89,6 +89,14 @@ export interface PmocExecutionReadModel {
 export interface PmocEquipmentExecutionReadModel {
   id: string;
   status: string;
+  /**
+   * Qual manutenção deste equipamento esta é — 1, 2, 3…
+   *
+   * **Não** é o número do ciclo, que é o mesmo para todos os equipamentos dele.
+   * Um aparelho que entra no plano no meio da vigência, ou que fica de fora de um
+   * ciclo, tem contagem própria — e é ela que o relatório imprime.
+   */
+  sequenceNumber: number;
   performedAt: string | null;
   startedAt: string;
   completedAt: string | null;

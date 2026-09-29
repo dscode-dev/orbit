@@ -30,7 +30,11 @@ import { PaginationHelper, RlsTransaction } from '../../database';
 import type { PrismaTransactionClient } from '../../database/prisma.types';
 import { generateUuidV7 } from '../../utils';
 import { DomainEventEmitter } from '../automations/domain-event.emitter';
-import { buildSuggestedCode } from './pmoc.domain';
+import {
+  buildSuggestedCode,
+  plannedExecutionCount,
+  toDateOnly,
+} from './pmoc.domain';
 import type { FrequencyUnit } from './pmoc.domain';
 import type {
   PmocAnalyticsQueryDto,
@@ -117,6 +121,8 @@ const executionView = {
 const equipmentExecutionView = {
   id: true,
   status: true,
+  /* A posição desta execução na história **deste** equipamento no plano. */
+  sequenceNumber: true,
   performedAt: true,
   startedAt: true,
   completedAt: true,
@@ -1267,19 +1273,52 @@ export class PmocRepository {
           details: { cycleId: input.cycleId, assetId: input.assetId },
         },
       });
-      const execution = await tx.pmocEquipmentExecution.create({
-        data: {
-          organizationId: input.organizationId,
-          businessUnitId: input.businessUnitId,
-          cycleId: input.cycleId,
-          coverageId: input.coverageId,
-          assetId: input.assetId,
-          operationId: operation.id,
-          responsibleFieldTechnicianId: input.responsibleFieldTechnicianId,
-          procedureSnapshot: input.procedureSnapshot,
-          technicalResponsibleSnapshot: input.technicalResponsibleSnapshot,
-          startedById: input.actorId,
-        },
+      /*
+       * A contagem do equipamento é alocada **dentro do insert**.
+       *
+       * `max(sequence_number)+1` na própria instrução, como `openCycle` faz para
+       * o ciclo: ler o máximo antes e gravar depois abriria a janela em que duas
+       * execuções do mesmo aparelho recebem o mesmo número. Aqui quem perde a
+       * corrida viola o índice único `(plan_id, asset_id, sequence_number)` e a
+       * transação falha — em vez de repetir o número em silêncio.
+       *
+       * É por isso que este insert não passa pelo `create` do Prisma: ele não
+       * sabe expressar um valor derivado de uma subconsulta sobre a própria
+       * tabela.
+       */
+      const inserido = await tx.$queryRaw<{ id: string }[]>`
+        INSERT INTO pmoc_equipment_executions (
+          id, organization_id, business_unit_id, cycle_id, plan_id,
+          coverage_id, asset_id, operation_id,
+          responsible_field_technician_id, status,
+          procedure_snapshot, technical_responsible_snapshot,
+          started_by_id, sequence_number, started_at, created_at, updated_at
+        ) VALUES (
+          ${generateUuidV7()}::uuid,
+          ${input.organizationId}::uuid,
+          ${input.businessUnitId}::uuid,
+          ${input.cycleId}::uuid,
+          ${input.planId}::uuid,
+          ${input.coverageId}::uuid,
+          ${input.assetId}::uuid,
+          ${operation.id}::uuid,
+          ${input.responsibleFieldTechnicianId}::uuid,
+          'IN_PROGRESS',
+          ${JSON.stringify(input.procedureSnapshot ?? {})}::jsonb,
+          ${JSON.stringify(input.technicalResponsibleSnapshot ?? {})}::jsonb,
+          ${input.actorId}::uuid,
+          COALESCE((
+            SELECT max(sequence_number) + 1
+              FROM pmoc_equipment_executions
+             WHERE plan_id = ${input.planId}::uuid
+               AND asset_id = ${input.assetId}::uuid
+          ), 1),
+          now(), now(), now()
+        )
+        RETURNING id
+      `;
+      const execution = await tx.pmocEquipmentExecution.findUniqueOrThrow({
+        where: { id: inserido[0]!.id },
         select: equipmentExecutionView,
       });
       await this.audit(
@@ -1473,6 +1512,28 @@ export class PmocRepository {
           sequenceNumber: physical.cycle.sequenceNumber,
           dueOn: physical.cycle.dueOn.toISOString().slice(0, 10),
         },
+        /*
+         * Qual manutenção **deste equipamento** é esta.
+         *
+         * Separado de `cycle.sequenceNumber`, que é a do ciclo e vale para todos
+         * os aparelhos atendidos no mesmo período. Um equipamento que entrou no
+         * plano no meio da vigência está na sua primeira manutenção dentro do
+         * sétimo ciclo, e é a primeira que o relatório precisa afirmar.
+         *
+         * O total sai da vigência com a periodicidade — `null` em plano sem prazo
+         * final, e aí o documento imprime só a posição.
+         */
+        maintenance: {
+          sequence: physical.sequenceNumber,
+          total: plannedExecutionCount({
+            startsOn: toDateOnly(physical.cycle.plan.startsOn),
+            endsOn: physical.cycle.plan.endsOn
+              ? toDateOnly(physical.cycle.plan.endsOn)
+              : null,
+            frequencyAmount: physical.cycle.plan.frequencyAmount,
+            frequencyUnit: physical.cycle.plan.frequencyUnit as FrequencyUnit,
+          }),
+        },
         performedAt: physical.performedAt?.toISOString() ?? null,
         customer: {
           id: physical.cycle.plan.customer.id,
@@ -1558,7 +1619,10 @@ export class PmocRepository {
             typeof technical.userId === 'string' ? technical.userId : null,
           createdById: actorId,
           code: `PMOC-${physical.id.replaceAll('-', '').slice(0, 20).toUpperCase()}`,
-          title: `PMOC — Execução ${physical.cycle.sequenceNumber} — ${physical.asset.name}`,
+          /* A contagem do **equipamento**, não a do ciclo: era o número do ciclo
+             aqui, e o documento de um aparelho que entrou no meio da vigência
+             saía intitulado "Execução 7" na sua primeira manutenção. */
+          title: `PMOC — Manutenção ${physical.sequenceNumber} — ${physical.asset.name}`,
           status: physical.cycle.plan.reviewRequired
             ? 'UNDER_REVIEW'
             : 'COMPLETED',

@@ -29,6 +29,7 @@ export class DocumentContextBuilder {
     operation?: Linha;
     logo?: { bytes: Buffer; mimeType: string };
     plan?: DocumentContext['plan'];
+    maintenance?: DocumentContext['maintenance'];
     legalReference?: string;
   }): DocumentContext {
     const unidade = source.businessUnit ?? undefined;
@@ -112,6 +113,7 @@ export class DocumentContextBuilder {
           }
         : undefined,
       plan: source.plan,
+      maintenance: source.maintenance,
       equipment: this.equipamentos(source.operation),
       legalReference: source.legalReference,
     };

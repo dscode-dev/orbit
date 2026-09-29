@@ -102,6 +102,15 @@ function identificacao(
     { label: 'Cliente', value: cliente?.name },
     { label: 'Documento do cliente', value: cliente?.document },
     { label: 'Plano', value: plano?.code },
+    /*
+     * Qual manutenção do equipamento é esta.
+     *
+     * Fica na identificação, ao lado do plano: é a pergunta que quem recebe o
+     * relatório faz primeiro — "esta máquina está em dia?" — e a resposta é a
+     * posição dela na vigência, não o número do ciclo, que é igual para todos os
+     * aparelhos atendidos no mesmo período.
+     */
+    { label: 'Manutenção', value: manutencao(context) },
     {
       label: 'Responsável técnico',
       value: context.operation?.technicalResponsible,
@@ -111,6 +120,21 @@ function identificacao(
 
   sectionTitle(document, 'Identificação', theme);
   definitionCard(document, itens, theme);
+}
+
+/**
+ * "3 de 12", ou apenas "3".
+ *
+ * Sem total — plano de vigência aberta — imprime só a posição. "3 de 120" por
+ * causa do teto interno do gerador de cronograma afirmaria um contrato com dez
+ * anos que ninguém assinou.
+ */
+function manutencao(context: DocumentContext): string | undefined {
+  const dados = context.maintenance;
+  if (!dados?.sequence) return undefined;
+  return dados.total
+    ? `${dados.sequence} de ${dados.total}`
+    : String(dados.sequence);
 }
 
 function dadosOperacionais(

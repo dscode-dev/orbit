@@ -20,6 +20,89 @@ import {
 
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
+import { plannedExecutionCount } from './pmoc.domain';
+
+/*
+ * O "de 12" do relatório.
+ *
+ * O número que o cliente confere para saber se o contrato está sendo cumprido.
+ * Errar por um aqui significa um relatório afirmando que faltam manutenções que
+ * já foram feitas — ou que o contrato terminou antes do prazo.
+ */
+describe('plannedExecutionCount', () => {
+  it('um ano mensal prevê doze manutenções', () => {
+    expect(
+      plannedExecutionCount({
+        startsOn: '2026-01-01',
+        endsOn: '2026-12-31',
+        frequencyAmount: 1,
+        frequencyUnit: 'MONTHS',
+      }),
+    ).toBe(12);
+  });
+
+  it('um ano trimestral prevê quatro', () => {
+    expect(
+      plannedExecutionCount({
+        startsOn: '2026-01-01',
+        endsOn: '2026-12-31',
+        frequencyAmount: 3,
+        frequencyUnit: 'MONTHS',
+      }),
+    ).toBe(4);
+  });
+
+  /*
+   * Plano sem prazo final não tem total.
+   *
+   * Cair no teto de `PREVIEW_MAX_CYCLES` faria o relatório afirmar "3 de 120"
+   * para um contrato que ninguém disse que acaba — um número inventado com
+   * aparência de cláusula.
+   */
+  it('vigência aberta não tem total', () => {
+    expect(
+      plannedExecutionCount({
+        startsOn: '2026-01-01',
+        endsOn: null,
+        frequencyAmount: 1,
+        frequencyUnit: 'MONTHS',
+      }),
+    ).toBeNull();
+  });
+
+  it('o último vencimento dentro da vigência conta; o de fora, não', () => {
+    /* 01/01 + 11 meses = 01/12, dentro. O décimo terceiro cairia em 01/01/2027,
+       fora de uma vigência que termina em 31/12. */
+    expect(
+      plannedExecutionCount({
+        startsOn: '2026-01-01',
+        endsOn: '2026-12-01',
+        frequencyAmount: 1,
+        frequencyUnit: 'MONTHS',
+      }),
+    ).toBe(12);
+    expect(
+      plannedExecutionCount({
+        startsOn: '2026-01-01',
+        endsOn: '2026-11-30',
+        frequencyAmount: 1,
+        frequencyUnit: 'MONTHS',
+      }),
+    ).toBe(11);
+  });
+
+  it('vigência invertida não prevê nada', () => {
+    expect(
+      plannedExecutionCount({
+        startsOn: '2026-12-31',
+        endsOn: '2026-01-01',
+        frequencyAmount: 1,
+        frequencyUnit: 'MONTHS',
+      }),
+    ).toBeNull();
+  });
+});
+
 describe('máquina de estados do plano', () => {
   it('rascunho vira ativo ou cancelado', () => {
     expect(canTransition('DRAFT', 'ACTIVE')).toBe(true);

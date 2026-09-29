@@ -3899,9 +3899,10 @@ model PmocPlan {
   technicalResponsible User?        @relation("PmocPlanTechnicalResponsible", fields: [technicalResponsibleUserId], references: [id], onDelete: SetNull)
   createdBy            User         @relation("PmocPlanCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
-  coverages  PmocEquipmentCoverage[]
-  executions PmocExecution[]
-  units      PmocPlanUnit[]
+  coverages           PmocEquipmentCoverage[]
+  executions          PmocExecution[]
+  equipmentExecutions PmocEquipmentExecution[]
+  units               PmocPlanUnit[]
 
   @@index([organizationId, status, nextDueOn])
   @@index([organizationId, businessUnitId, status])
@@ -4084,8 +4085,17 @@ model PmocEquipmentExecution {
   organizationId               String    @map("organization_id") @db.Uuid
   businessUnitId               String    @map("business_unit_id") @db.Uuid
   cycleId                      String    @map("cycle_id") @db.Uuid
+  /// Denormalizado do ciclo para que a contagem por equipamento possa ser
+  /// garantida por índice. Sai sempre da mesma preparação que cria a linha.
+  planId                       String    @map("plan_id") @db.Uuid
   coverageId                   String    @map("coverage_id") @db.Uuid
   assetId                      String    @map("asset_id") @db.Uuid
+  /// A posição desta execução na história **deste equipamento** neste plano.
+  ///
+  /// Não é o número do ciclo: um equipamento que entra no plano depois, ou que
+  /// fica de fora de um ciclo, tem contagem própria. É o número que o relatório
+  /// de execução imprime.
+  sequenceNumber               Int       @map("sequence_number")
   operationId                  String?   @unique @map("operation_id") @db.Uuid
   artifactExecutionId          String?   @unique @map("artifact_execution_id") @db.Uuid
   responsibleFieldTechnicianId String    @map("responsible_field_technician_id") @db.Uuid
@@ -4104,6 +4114,7 @@ model PmocEquipmentExecution {
   organization               Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   businessUnit               BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   cycle                      PmocExecution           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  plan                       PmocPlan                @relation(fields: [planId], references: [id], onDelete: Cascade)
   coverage                   PmocEquipmentCoverage   @relation(fields: [coverageId], references: [id], onDelete: Restrict)
   asset                      Asset                   @relation(fields: [assetId], references: [id], onDelete: Restrict)
   operation                  Operation?              @relation(fields: [operationId], references: [id], onDelete: SetNull)
@@ -4116,6 +4127,10 @@ model PmocEquipmentExecution {
   fieldEvidence              FieldEvidence[]
 
   @@unique([cycleId, coverageId])
+  /// A autoridade contra duas execuções com o mesmo número para o mesmo
+  /// equipamento — o que torna `max+1` seguro sob concorrência.
+  @@unique([planId, assetId, sequenceNumber])
+  @@index([organizationId, planId, assetId, sequenceNumber])
   @@index([organizationId, cycleId, status])
   @@index([organizationId, responsibleFieldTechnicianId, status])
   @@map("pmoc_equipment_executions")

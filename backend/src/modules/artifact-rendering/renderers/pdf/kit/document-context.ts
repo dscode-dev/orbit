@@ -99,11 +99,28 @@ export interface DocumentPlan {
   readonly notes?: string;
 }
 
+/**
+ * Qual manutenção deste equipamento é esta.
+ *
+ * `sequence` é a contagem **do equipamento** no plano, não a do ciclo: um
+ * aparelho que entra no contrato no meio da vigência, ou que fica de fora de um
+ * ciclo, tem história própria — e é a dele que o relatório afirma.
+ *
+ * `total` vem da vigência com a periodicidade e é **ausente** em plano sem prazo
+ * final: imprimir "3 de 120" por causa de um teto interno seria inventar uma
+ * cláusula.
+ */
+export interface DocumentMaintenance {
+  readonly sequence?: number;
+  readonly total?: number;
+}
+
 export interface DocumentContext {
   readonly emitter?: DocumentEmitter;
   readonly customer?: DocumentCustomer;
   readonly operation?: DocumentOperation;
   readonly plan?: DocumentPlan;
+  readonly maintenance?: DocumentMaintenance;
   readonly equipment?: readonly DocumentEquipment[];
   /** Referência legal impressa ao pé do documento, quando há. */
   readonly legalReference?: string;

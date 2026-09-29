@@ -421,6 +421,42 @@ export function previewSchedule(input: SchedulePreviewInput): SchedulePreview {
 }
 
 /**
+ * Quantas manutenções a vigência prevê.
+ *
+ * ## Para que serve
+ *
+ * O relatório de execução afirma "manutenção 3 de 12". O 3 é a contagem do
+ * equipamento; o 12 é isto — e ele não está em coluna nenhuma, porque é
+ * consequência da vigência e da periodicidade. Guardá-lo ficaria errado no dia
+ * em que alguém corrigisse a data final do plano.
+ *
+ * ## Plano sem prazo final não tem total
+ *
+ * Devolve `null`, e o documento imprime "manutenção 3" sem o "de". Inventar um
+ * teto — o de `PREVIEW_MAX_CYCLES`, por exemplo — faria o relatório afirmar
+ * "3 de 120" para um contrato que ninguém disse que acaba.
+ */
+export function plannedExecutionCount(input: {
+  readonly startsOn: string;
+  readonly endsOn: string | null;
+  readonly frequencyAmount: number;
+  readonly frequencyUnit: FrequencyUnit;
+}): number | null {
+  /*
+   * Sem prazo final não há total, e é esta linha que diz isso.
+   *
+   * Havia também uma guarda contra `truncated`, que `previewSchedule` só levanta
+   * quando a vigência é aberta — ou seja, exatamente o caso que esta linha já
+   * resolve. Duas guardas para uma regra significam que uma é morta: mutar a
+   * primeira não reprovava nenhum teste, porque a segunda a cobria.
+   */
+  if (!input.endsOn) return null;
+
+  const { cycles } = previewSchedule(input);
+  return cycles.length > 0 ? cycles.length : null;
+}
+
+/**
  * O fim da vigência, a partir da duração.
  *
  * ## A conta que quase todo mundo erra

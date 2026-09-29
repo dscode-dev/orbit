@@ -28,6 +28,9 @@ describe('PMOC V2 public mapping', () => {
     const result = mapper.equipmentExecution({
       id: 'physical',
       status: 'IN_PROGRESS',
+      /* A contagem é **do equipamento**, não do ciclo: o ciclo acima é o 3, e
+         esta é a primeira manutenção deste aparelho no plano. */
+      sequenceNumber: 1,
       performedAt: null,
       startedAt: new Date('2026-08-27T10:00:00Z'),
       completedAt: null,
@@ -67,5 +70,9 @@ describe('PMOC V2 public mapping', () => {
     });
     expect(result.evidence[0]?.file.sizeBytes).toBe('42');
     expect(result.auxiliaryTechnicians).toEqual([]);
+    /* A contagem publicada é a do equipamento. Se o mapeador pegasse a do ciclo,
+       este número seria 3 — e o relatório afirmaria a terceira manutenção de uma
+       máquina que está na primeira. */
+    expect(result.sequenceNumber).toBe(1);
   });
 });

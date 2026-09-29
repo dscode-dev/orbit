@@ -237,6 +237,7 @@ export class PmocMapper {
     return {
       id: source.id,
       status: source.status,
+      sequenceNumber: source.sequenceNumber,
       performedAt: source.performedAt?.toISOString() ?? null,
       startedAt: source.startedAt.toISOString(),
       completedAt: source.completedAt?.toISOString() ?? null,
