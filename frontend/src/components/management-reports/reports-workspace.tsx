@@ -20,6 +20,18 @@
  * continua respondendo isso em setembro. Um relatório não é o dashboard
  * exportado.
  *
+ * ## Modelos mora aqui
+ *
+ * O modelo é o que define o documento que o relatório gera, e quem ajusta um
+ * está olhando o outro na mesma sessão. Eram dois itens de menu no mesmo grupo
+ * descrevendo as duas pontas do mesmo ciclo.
+ *
+ * A aba pede `artifact_templates.read` por conta própria. E herda o guard da
+ * página — `reports.management.read` —, que é a consequência de morar aqui:
+ * quem não alcança relatórios gerenciais deixa de alcançar os modelos por esta
+ * porta. Hoje nenhum plano separa as duas; `/artefatos/:id` continua aberto a
+ * quem tem só `artifact_templates.read`.
+ *
  * ## Isolamento de falha
  *
  * Cada aba tem `TabBoundary` própria, e dentro delas catálogo, histórico e
@@ -48,6 +60,9 @@ import { ReportGenerator } from "./report-generator";
 import { ReportHistory } from "./report-history";
 import { ReportStatusBadge } from "./report-presentation";
 import { useRouter, useSearchParams } from "next/navigation";
+import { TemplatesList } from "@/components/artifact-studio/templates-list";
+import { useSectionFromUrl } from "@/hooks/use-section-from-url";
+import { SECTION_PARAM } from "@/lib/section-navigation";
 
 /**
  * `useSearchParams` exige um limite de Suspense: a leitura do parâmetro só
@@ -85,7 +100,28 @@ function Workspace() {
   const canManage = session.hasCapability("reports.management.manage");
   const create = useAction("management-report.create");
 
-  const [tab, setTab] = useState(requestedType ? "gerar" : "visao-geral");
+  const canTemplates = session.hasCapability("artifact_templates.read");
+
+  /* Os apelidos são públicos: entram em link guardado e não mudam. */
+  const sections = [
+    "visao-geral",
+    "gerar",
+    "historico",
+    ...(canTemplates ? ["modelos"] : []),
+  ];
+
+  const section = useSectionFromUrl(sections);
+
+  /*
+   * `?tipo=` abre a geração sem `?secao=`.
+   *
+   * É o retorno de "gerar de novo", um link que já existe e que só carrega o
+   * tipo. Exigir `?secao=gerar` junto quebraria esses links; então o tipo pedido
+   * decide a aba quando ninguém pediu seção nenhuma.
+   */
+  const tab =
+    requestedType && !params.get(SECTION_PARAM) ? "gerar" : section.current;
+  const setTab = section.go;
   const [seedType, setSeedType] = useState<string | undefined>(requestedType);
   /** O recorte escolhido na Visão geral, quando veio de lá. */
   const [seedPeriod, setSeedPeriod] = useState<{ from: string; to: string }>();
@@ -126,6 +162,9 @@ function Workspace() {
           <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
           <TabsTrigger value="gerar">Gerar relatório</TabsTrigger>
           <TabsTrigger value="historico">Histórico</TabsTrigger>
+          {canTemplates ? (
+            <TabsTrigger value="modelos">Modelos</TabsTrigger>
+          ) : null}
         </TabsList>
 
         <TabsContent value="visao-geral">
@@ -163,6 +202,24 @@ function Workspace() {
             />
           </TabBoundary>
         </TabsContent>
+
+        {canTemplates ? (
+          <TabsContent value="modelos">
+            {/* Só monta na aba ativa: a lista carrega o catálogo de modelos, e
+                abrir Relatórios não deveria disparar essa consulta. */}
+            {tab === "modelos" ? (
+              <TabBoundary id="reports-templates" label="os modelos">
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Os modelos que a sua operação pode emitir. Abra um para ver
+                    como o documento sai.
+                  </p>
+                  <TemplatesList />
+                </div>
+              </TabBoundary>
+            ) : null}
+          </TabsContent>
+        ) : null}
       </Tabs>
     </ContentContainer>
   );

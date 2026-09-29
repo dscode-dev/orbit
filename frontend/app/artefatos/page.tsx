@@ -1,28 +1,18 @@
-import { TemplatesList } from "@/components/artifact-studio/templates-list";
-import { WorkspacePage } from "@/workspace";
+import { redirect } from "next/navigation";
+
+import { ROUTES } from "@/lib/routes";
+import { SECTION_PARAM } from "@/lib/section-navigation";
 
 /**
- * Modelos de documento — os que a operação pode emitir.
+ * Modelos de documento viraram aba de Relatórios.
  *
- * Server Component: o `WorkspacePage` compõe guards, shell e cabeçalho. A lista
- * é Client Component porque abrir o exemplo é interação.
+ * A rota fica e redireciona: está em favorito e em link colado numa conversa, e
+ * apagá-la daria 404 para quem não fez nada de errado.
  *
- * ## O botão de novo modelo saiu
- *
- * A tela oferecia criar um modelo do zero. Quem administra uma empresa de
- * refrigeração não desenha um formulário de PMOC campo por campo — usa o modelo
- * que já atende a norma, e é isso que o Orbit instala junto com o sistema. O
- * diálogo de criação continua no repositório, sem porta de entrada.
+ * `/artefatos/:id` **não** muda — é a página do modelo, com o registro na tela,
+ * e ela continua exigindo apenas `artifact_templates.read`. Só a porta de
+ * entrada se mudou de lugar.
  */
-export default function ArtifactTemplatesPage() {
-  return (
-    <WorkspacePage
-      title="Modelos de documento"
-      description="Os modelos que a sua operação pode emitir. Abra um para ver como o documento sai."
-      capability="artifact_templates.read"
-      activeLabel="Modelos de documento"
-    >
-      <TemplatesList />
-    </WorkspacePage>
-  );
+export default function ArtifactTemplatesPage(): never {
+  redirect(`${ROUTES.managementReports}?${SECTION_PARAM}=modelos`);
 }

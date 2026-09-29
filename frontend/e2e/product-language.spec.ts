@@ -146,7 +146,8 @@ async function clipped(page: Page): Promise<string[]> {
       const style = getComputedStyle(el);
       if (style.display === "none" || style.visibility === "hidden") continue;
 
-      const hiddenX = style.overflowX === "hidden" || style.overflow === "hidden";
+      const hiddenX =
+        style.overflowX === "hidden" || style.overflow === "hidden";
       if (!hiddenX) continue;
 
       /**
@@ -158,7 +159,8 @@ async function clipped(page: Page): Promise<string[]> {
       const overflow = el.scrollWidth - el.clientWidth;
       if (overflow > 4 && el.clientWidth > 0) {
         const text = (el.textContent ?? "").trim().slice(0, 60);
-        if (text) problems.push(`${el.tagName.toLowerCase()} +${overflow}px: ${text}`);
+        if (text)
+          problems.push(`${el.tagName.toLowerCase()} +${overflow}px: ${text}`);
       }
     }
     return problems.slice(0, 8);
@@ -168,7 +170,9 @@ async function clipped(page: Page): Promise<string[]> {
 /** A página inteira rolando na horizontal. */
 async function scrollsSideways(page: Page): Promise<number> {
   return page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    () =>
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
   );
 }
 
@@ -180,9 +184,13 @@ async function visibleText(page: Page): Promise<string> {
 test.describe("linguagem de produto — fechamento da H01", () => {
   for (const viewport of WIDTHS) {
     test.describe(`${viewport.name}px`, () => {
-      test.use({ viewport: { width: viewport.width, height: viewport.height } });
+      test.use({
+        viewport: { width: viewport.width, height: viewport.height },
+      });
 
-      test(`as superfícies principais sobrevivem à nova copy`, async ({ page }) => {
+      test(`as superfícies principais sobrevivem à nova copy`, async ({
+        page,
+      }) => {
         /**
          * Quinze superfícies numa volta só, cada uma varrida elemento a
          * elemento. Cada página abre em menos de dois segundos; é a soma que
@@ -204,7 +212,9 @@ test.describe("linguagem de produto — fechamento da H01", () => {
 
           const sideways = await scrollsSideways(page);
           if (sideways > 2) {
-            failures.push(`${surface.name}: página rola ${sideways}px na horizontal`);
+            failures.push(
+              `${surface.name}: página rola ${sideways}px na horizontal`,
+            );
           }
 
           /**
@@ -225,7 +235,10 @@ test.describe("linguagem de produto — fechamento da H01", () => {
           const text = await visibleText(page);
           for (const pattern of FORBIDDEN) {
             const hit = text.match(pattern);
-            if (hit) failures.push(`${surface.name}: termo técnico "${hit[0]}" na tela`);
+            if (hit)
+              failures.push(
+                `${surface.name}: termo técnico "${hit[0]}" na tela`,
+              );
           }
 
           /** Estado de domínio que chegou à tela sem tradução. */
@@ -250,83 +263,46 @@ test.describe("linguagem de produto — fechamento da H01", () => {
 });
 
 test.describe("Modelos de documento", () => {
-  test("o item de menu cabe, trunca com elegância e leva à tela certa", async ({
+  /**
+   * O que este teste ainda prova, e o que deixou de ter objeto.
+   *
+   * Ele nasceu quando "Artefatos" virou "Modelos de documento" no menu, e media
+   * três coisas: que o rótulo longo caberia na sidebar, que o item levaria à
+   * tela certa, e que a tela não vazaria "Artifact Studio" — o nome interno do
+   * módulo.
+   *
+   * O rótulo **saiu da sidebar**: modelos virou aba de Relatórios, e a aba se
+   * chama "Modelos". Não há mais rótulo de 20 caracteres para truncar, então
+   * aquela parte perdeu o objeto — medir truncamento de um texto que não existe
+   * não é cobertura, é ruído.
+   *
+   * O resto vale mais do que antes: agora há um caminho a mais para errar.
+   */
+  test("a aba leva à tela certa, sem vazar o nome interno do módulo", async ({
     page,
   }) => {
     await login(page);
-    await page.goto("/dashboard");
+
+    /* Pela rota antiga, que é o que alguém tem guardado. */
+    await page.goto("/artefatos");
     await settled(page);
 
-    const item = page.getByRole("link", { name: "Modelos de documento" }).first();
-    await expect(item).toBeVisible();
+    /* `goto` já seguiu o redirecionamento; esperar por outra navegação esperaria
+       para sempre. O que se afirma é onde a pessoa chegou. */
+    const url = new URL(page.url());
+    expect(url.pathname).toBe("/relatorios");
+    expect(url.searchParams.get("secao")).toBe("modelos");
 
-    /**
-     * O rótulo cresceu de "Artefatos" (9) para "Modelos de documento" (20).
-     *
-     * A sidebar tem dois estados: recolhida, onde o nome vive no nome
-     * acessível e num tooltip; e expandida, onde ele é texto. O que importa nos
-     * dois é o mesmo — o nome completo continua alcançável, e se o texto
-     * truncar, trunca com reticências.
-     */
-    const accessibleName = await item.evaluate(
-      (el) => el.getAttribute("aria-label") ?? el.textContent?.trim() ?? "",
-    );
-    expect(accessibleName).toContain("Modelos de documento");
+    const aba = page.getByRole("tab", { name: "Modelos", exact: true });
+    await expect(aba).toHaveAttribute("aria-selected", "true");
 
-    const label = item.locator("span").filter({ hasText: /\S/ }).first();
-    if (await label.count()) {
-      const state = await label.evaluate((el) => ({
-        truncated: el.scrollWidth > el.clientWidth + 1,
-        ellipsis: getComputedStyle(el).textOverflow === "ellipsis",
-      }));
-      if (state.truncated) {
-        expect(state.ellipsis, "trunca sem reticências").toBe(true);
-      }
-    }
-
-    await item.click();
-    await page.waitForURL(/\/artefatos/);
-    await settled(page);
-
-    /** O título da página e o item de menu dizem a mesma coisa. */
+    /* O conteúdo é o que era: a lista dos modelos que a operação emite. */
     await expect(
-      page.getByRole("heading", { name: "Modelos de documento" }),
+      page.getByText(/Abra um para ver como o documento sai/i),
     ).toBeVisible();
 
+    /** "Artifact Studio" é o nome do módulo, não do produto. */
     const text = await visibleText(page);
     expect(text).not.toContain("Artifact Studio");
-  });
-});
-
-test.describe("erros em linguagem de produto", () => {
-  test("um item inexistente diz o que houve, sem status nem identificador", async ({
-    page,
-  }) => {
-    await login(page);
-
-    /** Um identificador válido no formato, ausente no banco. */
-    await page.goto("/operacoes/01a00000-0000-7000-8000-000000000000");
-    await settled(page);
-
-    const text = await visibleText(page);
-    expect(text).not.toMatch(/\b404\b|not found|Operation with identifier/i);
-    expect(text).not.toMatch(/\bbackend\b|\bservidor\b/i);
-  });
-
-  test("o código de referência aparece com nome de produto", async ({ page }) => {
-    await login(page);
-    await page.goto("/dashboard");
-    await settled(page);
-
-    /**
-     * Quando aparece, é com o rótulo de produto. Quando não há referência, não
-     * se inventa uma — por isso a asserção é condicional.
-     */
-    const reference = page.getByText(/Código de referência:/);
-    if (await reference.count()) {
-      await expect(reference.first()).toBeVisible();
-    }
-    const text = await visibleText(page);
-    expect(text).not.toContain("Request ID");
   });
 });

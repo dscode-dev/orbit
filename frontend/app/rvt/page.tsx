@@ -1,20 +1,15 @@
-import { RvtCenter } from "@/components/rvt/rvt-center";
-import { WorkspacePage } from "@/workspace";
+import { redirect } from "next/navigation";
+
+import { ROUTES } from "@/lib/routes";
+import { SECTION_PARAM } from "@/lib/section-navigation";
+import { OPERATIONS_SECTIONS } from "@/components/operations/sections";
 
 /**
- * RVT — visitas técnicas.
+ * RVT virou aba de Operações.
  *
- * Server Component: o `WorkspacePage` compõe guards, shell e cabeçalho, e a
- * capability `rvt.read` decide se a rota abre.
+ * Mesma razão do PMOC: a rota permanece e redireciona, porque link guardado não
+ * pode virar 404. `/rvt/:configurationId` e `/rvt/execucoes` seguem intactas.
  */
-export default function RvtPage() {
-  return (
-    <WorkspacePage
-      entity="rvt-configuration"
-      description="Configurações de visita técnica: periodicidade, local e procedimento. As visitas previstas e suas execuções vivem dentro de cada configuração."
-      suspense={false}
-    >
-      <RvtCenter />
-    </WorkspacePage>
-  );
+export default function RvtPage(): never {
+  redirect(`${ROUTES.operations}?${SECTION_PARAM}=${OPERATIONS_SECTIONS.rvt}`);
 }

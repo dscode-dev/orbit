@@ -19,7 +19,7 @@ import {
   provisionPmocPlan,
   provisionRvtVisit,
 } from "./provision";
-import { assertClean, login, record } from "./support";
+import { assertClean, login, record, settled } from "./support";
 
 /**
  * Uma leitura pelo BFF, com a sessão do navegador.
@@ -66,9 +66,7 @@ async function openFirst(page: Page, base: string): Promise<string | null> {
   return null;
 }
 
-test("as execuções do PMOC são vistas dentro do plano", async ({
-  page,
-}) => {
+test("as execuções do PMOC são vistas dentro do plano", async ({ page }) => {
   const recorder = record(page);
   await login(page);
 
@@ -79,7 +77,9 @@ test("as execuções do PMOC são vistas dentro do plano", async ({
   await page.getByRole("tab", { name: "Execuções" }).click();
 
   /** A seção é da execução selecionada — a granularidade é o equipamento. */
-  const section = page.locator('section[aria-label="Equipamentos desta execução"]');
+  const section = page.locator(
+    'section[aria-label="Equipamentos desta execução"]',
+  );
   await expect(section).toBeVisible({ timeout: 20_000 });
 
   /** O contexto do plano não é pedido de novo: a URL continua a do plano. */
@@ -118,7 +118,9 @@ test("as consultas do PMOC são recortadas pelo servidor, por plano e execução
   assertClean(recorder, "recorte do PMOC");
 });
 
-test("as visitas do RVT são vistas dentro da configuração", async ({ page }) => {
+test("as visitas do RVT são vistas dentro da configuração", async ({
+  page,
+}) => {
   const recorder = record(page);
   await login(page);
 
@@ -194,21 +196,39 @@ test("a rota global leva ao Centro de Documentos", async ({ page }) => {
   assertClean(recorder, "rota global redirecionada");
 });
 
-test("a navegação nomeia os domínios, e não a arquitetura", async ({ page }) => {
+test("a navegação nomeia os domínios, e não a arquitetura", async ({
+  page,
+}) => {
   const recorder = record(page);
   await login(page);
   await page.goto("/dashboard");
 
   const nav = page.locator("nav").first();
 
-  /** PMOC e RVT têm as suas áreas — é assim que a pessoa fala do trabalho. */
-  await expect(nav.getByRole("link", { name: "PMOC" })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "RVT" })).toBeVisible();
+  /**
+   * PMOC e RVT continuam nomeados, agora como **abas** de Operações.
+   *
+   * Eram itens de menu quando este teste nasceu. O que ele mede não mudou — a
+   * navegação chama o trabalho pelo nome que a pessoa usa —, mudou onde os nomes
+   * aparecem: os três são o mesmo assunto visto de três ângulos, e quem trabalha
+   * neles alterna entre os três no mesmo dia.
+   */
   await expect(nav.getByRole("link", { name: "Documentos" })).toBeVisible();
+
+  await page.goto("/operacoes");
+  await settled(page);
+  for (const dominio of ["PMOC", "RVT"]) {
+    await expect(
+      page.getByRole("tab", { name: dominio, exact: true }),
+    ).toBeVisible();
+  }
 
   /** "Execuções de artefato" era o nome do modelo, não o do trabalho. */
   await expect(
     nav.getByRole("link", { name: "Execuções de artefato" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("tab", { name: "Execuções de artefato" }),
   ).toHaveCount(0);
 
   assertClean(recorder, "navegação");
@@ -238,7 +258,8 @@ test("a operação mostra as suas execuções de artefato, e só as suas", async
   const recorder = record(page);
   await login(page);
 
-  const { a: operationA, b: operationB } = await twoOperationsWithExecutions(page);
+  const { a: operationA, b: operationB } =
+    await twoOperationsWithExecutions(page);
 
   const scoped: string[] = [];
   page.on("request", (request) => {
@@ -268,7 +289,9 @@ test("a operação mostra as suas execuções de artefato, e só as suas", async
   assertClean(recorder, "execuções de artefato da operação");
 });
 
-test("a operação não oferece um “Ver tudo” que não existe", async ({ page }) => {
+test("a operação não oferece um “Ver tudo” que não existe", async ({
+  page,
+}) => {
   const recorder = record(page);
   await login(page);
 
@@ -324,7 +347,9 @@ test("execuções de artefato e checklists continuam seções distintas", async 
     page.locator('[data-panel="operation-artifact-executions"]'),
   ).toBeVisible({ timeout: 20_000 });
   /** `ChecklistExecution` é outro conceito, e continua no seu lugar. */
-  await expect(page.locator('[data-panel="operation-checklists"]')).toBeVisible();
+  await expect(
+    page.locator('[data-panel="operation-checklists"]'),
+  ).toBeVisible();
 
   assertClean(recorder, "seções distintas");
 });
@@ -382,9 +407,11 @@ test("a disponibilidade da lista concorda com a preparação canônica", async (
   expect(cycles.ok()).toBe(true);
   const cycleBody = await cycles.json();
   const cycleId = (cycleBody.data?.data ?? cycleBody.data ?? [])[0]?.id as
-    | string
-    | undefined;
-  expect(cycleId, "o plano ativado precisa ter uma execução aberta").toBeTruthy();
+    string | undefined;
+  expect(
+    cycleId,
+    "o plano ativado precisa ter uma execução aberta",
+  ).toBeTruthy();
 
   const listResponse = await bff(
     page,

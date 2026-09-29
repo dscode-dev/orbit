@@ -92,8 +92,11 @@ const fromEntity = (id: EntityId, access?: AccessRequirement): NavItem => {
  * grupo "Documentos" reúne o que de fato é documento: os emitidos, os
  * relatórios do período e os modelos que os geram.
  *
- * **"Operação" fica com o que é operação:** o atendimento e os dois planos
- * que o originam.
+ * **"Operação" deixou de existir.** Ela ficou com o atendimento e os dois
+ * planos que o originam — e então os dois planos viraram abas do atendimento,
+ * porque são o mesmo assunto visto de três ângulos e quem trabalha nele alterna
+ * entre os três no mesmo dia. Sobrando um item, o rótulo do grupo repetia o nome
+ * do item. Operações subiu para o topo, junto de Visão geral e Agenda.
  */
 export const defaultNavigation: { group: string; items: NavItem[] }[] = [
   {
@@ -110,27 +113,26 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
         },
       },
       fromEntity("scheduling-event"),
-    ],
-  },
-  {
-    group: "Operação",
-    items: [
-      fromEntity("operation"),
       /*
-       * "Execuções de artefato" não é item de menu.
+       * Operações também é porta de entrada.
        *
-       * Era uma entrada de produto para um conceito de arquitetura: o que a
-       * pessoa procura é a **ordem de serviço**, o **PMOC** ou a **visita
-       * técnica** — e o documento de cada um já aparece dentro deles, e em
-       * "Documentos". Uma área global de "execuções" reunia as três sob um
-       * nome que ninguém usa para falar do próprio trabalho.
+       * Ficava sob "Operação" — um grupo cujo único conteúdo era ela e os dois
+       * planos que agora vivem dentro dela. Sobrando um item, o rótulo do grupo
+       * repetia o nome do item, e um grupo de um não agrupa nada.
        *
-       * A entidade continua registrada: o deep link contextual
-       * (`/execucoes/:id`, aberto a partir do cliente, da equipe e do ciclo
-       * PMOC) depende dela, e o backend não foi tocado.
+       * PMOC e RVT viraram **abas** de Operações. Eram três portas para o mesmo
+       * assunto — o atendimento, o contrato preventivo e a visita —, e quem
+       * trabalha nelas alterna entre as três no mesmo dia. Como itens
+       * paralelos, cada troca custava uma navegação e perdia o contexto.
+       *
+       * As rotas `/pmoc` e `/rvt` continuam existindo e levam à aba
+       * correspondente: link guardado e favorito não quebram.
+       *
+       * "Execuções de artefato" nunca foi item de menu, e continua não sendo:
+       * era uma entrada de produto para um conceito de arquitetura. A entidade
+       * segue registrada, porque `/execucoes/:id` é destino de deep link.
        */
-      fromEntity("pmoc-plan"),
-      fromEntity("rvt-configuration"),
+      fromEntity("operation"),
     ],
   },
   {
@@ -166,11 +168,11 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
     group: "Documentos",
     items: [
       /**
-       * Os três, juntos, e na ordem em que se pensa neles.
+       * O emitido e o relatório, na ordem em que se pensa neles.
        *
        * O emitido é o que se procura no dia a dia; o relatório é o retrato do
-       * período; o modelo é o que define os dois. Ficavam em dois grupos
-       * diferentes, um deles chamado igual a um item do outro.
+       * período. O **modelo**, que define os dois, virou aba de Relatórios: quem
+       * ajusta um modelo está olhando o relatório que ele gera.
        */
       /**
        * "Documentos emitidos", e não "Documentos".
@@ -189,7 +191,13 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
         },
       },
       fromEntity("management-report"),
-      fromEntity("artifact-template"),
+      /*
+       * "Modelos de documento" virou aba de Relatórios.
+       *
+       * O modelo é o que define o relatório, e quem mexe num olha o outro na
+       * mesma sessão — era o terceiro item de um grupo cujos três membros
+       * descreviam o mesmo ciclo. `/artefatos` continua levando à aba.
+       */
     ],
   },
   {
