@@ -17,6 +17,14 @@
  * porque parece resposta. `search` é parâmetro do contrato, e trocar o termo
  * recomeça a rolagem da primeira página.
  *
+ * ## `modal` porque isto abre dentro de diálogos
+ *
+ * O conteúdo do `Popover` monta num portal, fora da árvore do `Dialog`. Sem
+ * `modal`, o clique para abri-lo conta como interação **fora** do diálogo, e o
+ * diálogo se fecha: o wizard desaparecia inteiro ao escolher o cliente. Com
+ * `modal`, o Radix isola os ponteiros enquanto o painel está aberto, e o diálogo
+ * deixa de ver o clique como saída.
+ *
  * ## O cliente já escolhido aparece mesmo fora da lista
  *
  * Quem reabre um formulário salvo tem um `value` que pode estar na página doze,
@@ -84,7 +92,7 @@ export function CustomerPicker({
     (chosen ? (chosen.tradeName ?? chosen.legalName) : undefined);
 
   return (
-    <Popover open={open} onOpenChange={disabled ? undefined : setOpen}>
+    <Popover open={open} onOpenChange={disabled ? undefined : setOpen} modal>
       <PopoverTrigger asChild>
         <Button
           id={id}

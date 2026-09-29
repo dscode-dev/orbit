@@ -41,7 +41,10 @@ import type { DocumentTheme } from '../kit/theme';
 import type { RenderFieldInput, RenderInput } from '../../artifact-renderer';
 import { formatAnswer } from '../../html/html-safe';
 import { answerText } from './answer-text';
-import { moeda, valorPorExtenso } from './amount-in-words';
+import {
+  moeda,
+  valorPorExtenso,
+} from '../../../../../contracts/amount-in-words';
 import { roleLabel } from './labels';
 
 type Doc = PDFKit.PDFDocument;

@@ -45,7 +45,10 @@ import {
 import { signatureBlock } from '../kit/media-blocks';
 import type { DocumentEmitter } from '../kit/document-context';
 import type { DocumentTheme } from '../kit/theme';
-import { moeda, valorPorExtenso } from './amount-in-words';
+import {
+  moeda,
+  valorPorExtenso,
+} from '../../../../../contracts/amount-in-words';
 
 type Doc = PDFKit.PDFDocument;
 

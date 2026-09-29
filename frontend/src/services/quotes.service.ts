@@ -17,6 +17,7 @@ import type { PaginatedResult, QueryParams, RequestOptions } from "@/types/api";
 import type {
   AddQuoteItemInput,
   ConvertQuoteInput,
+  CreateQuoteFromOperationInput,
   CreateQuoteInput,
   Quote,
   QuoteQuery,
@@ -59,6 +60,15 @@ export const quotesService = {
 
   create: (input: CreateQuoteInput): Promise<Quote> =>
     apiClient.post<Quote>(PATH, input),
+
+  /**
+   * A proposta copiada de um atendimento concluído.
+   *
+   * Rota própria porque são duas operações diferentes com a mesma aparência:
+   * criar recebe os dados, copiar **lê** um registro que já existe.
+   */
+  createFromOperation: (input: CreateQuoteFromOperationInput): Promise<Quote> =>
+    apiClient.post<Quote>(`${PATH}/from-operation`, input),
 
   update: (id: string, input: UpdateQuoteInput): Promise<Quote> =>
     apiClient.patch<Quote>(quote(id), input),

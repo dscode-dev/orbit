@@ -9,6 +9,14 @@
  * que cheque, recibo e contrato repetem o número em palavras, e é por isso que
  * um recibo sem extenso vale menos como prova.
  *
+ * ## Por que mora nos contratos
+ *
+ * O documento imprime o extenso e a tela o mostra na revisão, antes de emitir.
+ * Duas implementações escreveriam o mesmo número de formas diferentes na
+ * primeira vez que alguém corrigisse uma só — e a divergência apareceria como
+ * "a tela diz uma coisa e o PDF diz outra" sobre dinheiro. Aqui é código puro,
+ * sem import nenhum, sincronizado para o cliente como qualquer contrato.
+ *
  * ## Por que escrito aqui e não com biblioteca
  *
  * As regras do "e" em português não são as do inglês, e é justamente nelas que

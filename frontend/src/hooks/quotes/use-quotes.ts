@@ -139,7 +139,14 @@ export function useQuoteForecast(quoteId: string | null, enabled = true) {
  * e as operações são invalidados. O Financeiro entra porque aprovar e cancelar
  * mexem na receita prevista; as operações, porque converter cria uma.
  */
-function useQuoteWrite() {
+/**
+ * Exportado porque o wizard também escreve.
+ *
+ * A invalidação depois de gravar uma proposta é a mesma, venha de onde vier — e
+ * uma segunda cópia esqueceria de invalidar o Financeiro na primeira vez que
+ * alguém mexesse numa delas.
+ */
+export function useQuoteWrite() {
   const queryClient = useQueryClient();
 
   return {
@@ -147,7 +154,9 @@ function useQuoteWrite() {
       queryClient.setQueryData(quotesService.keys.detail(quote.id), quote);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: quotesService.keys.lists() }),
-        queryClient.invalidateQueries({ queryKey: financialService.keys.all() }),
+        queryClient.invalidateQueries({
+          queryKey: financialService.keys.all(),
+        }),
         /** A raiz do módulo: converter cria operação e muda listagens e detalhes. */
         queryClient.invalidateQueries({
           queryKey: operationsService.keys.module(),

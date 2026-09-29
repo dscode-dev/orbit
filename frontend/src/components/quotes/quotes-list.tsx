@@ -67,7 +67,7 @@ import {
 } from "@/workspace";
 import { Money, ValidUntil } from "./quote-presentation";
 import { QuoteDetailSheet } from "./quote-detail.sheet";
-import { QuoteFormDialog } from "./quote-form.dialog";
+import { QuoteWizardDialog } from "./wizard/quote-wizard.dialog";
 import { QuoteRowActions } from "./quote-row-actions";
 
 const CLOSED_OPTIONS = optionsFrom(
@@ -370,7 +370,7 @@ export function QuotesList({
         isFetching={query.isFetching}
       />
 
-      <QuoteFormDialog
+      <QuoteWizardDialog
         open={formOpen}
         onOpenChange={setFormOpen}
         customerId={customerId}
