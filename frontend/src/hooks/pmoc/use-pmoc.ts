@@ -20,7 +20,9 @@ import type {
   PmocPlanQuery,
   PmocTimelineQuery,
   UpdatePmocPlanInput,
+  CompletePmocExecutionInput,
   CreatePmocUnitInput,
+  StartPmocExecutionInput,
   UpdatePmocUnitInput,
 } from "@/types/pmoc";
 import { useMemo } from "react";
@@ -179,6 +181,98 @@ export function useCancelPmocPlan(id: string) {
   return useApiMutation(() => pmocService.cancel(id), {
     invalidate: transitionKeys(id),
   });
+}
+
+/**
+ * Atender um equipamento move muita coisa.
+ *
+ * A linha do equipamento (`equipmentExecutions`), a lista de ciclos — porque
+ * concluir o último equipamento fecha o ciclo e abre o seguinte —, o plano, que
+ * carrega `lastExecutedAt` e `nextDueOn`, e a linha do tempo.
+ *
+ * Invalidar só a linha deixaria a tela afirmando que o ciclo está pendente depois
+ * de o servidor tê-lo fechado, e o próximo vencimento com a data antiga.
+ */
+function executionKeys(planId: string, cycleId: string, assetId?: string) {
+  return [
+    /*
+     * A **preparação** entra primeiro, e é a que mais importa.
+     *
+     * Ela carrega `allowedActions`, que é o que decide em que passo o diálogo
+     * abre. Sem invalidá-la, abrir a execução gravava no servidor e a tela
+     * continuava oferecendo "abrir" — porque a resposta em cache ainda dizia
+     * `START`. O wizard nunca avançava, e nada indicava por quê.
+     */
+    ...(assetId
+      ? [pmocService.keys.preparation(planId, cycleId, assetId)]
+      : []),
+    pmocService.keys.equipmentExecutions(planId, cycleId),
+    pmocService.keys.cycles(planId),
+    ...planKeys(planId),
+    queryKeys.query("pmoc", "timeline", { id: planId }),
+  ];
+}
+
+/**
+ * Abre a execução de um equipamento.
+ *
+ * `scope` por equipamento: abrir a manutenção de uma máquina não trava o botão da
+ * de baixo — e num ciclo com vinte equipamentos é comum abrir várias em sequência.
+ */
+export function useStartPmocExecution(
+  planId: string,
+  cycleId: string,
+  assetId: string,
+) {
+  return useApiMutation(
+    (input: StartPmocExecutionInput) =>
+      pmocService.startExecution(planId, cycleId, assetId, input),
+    {
+      scope: { id: `pmoc-start-${cycleId}-${assetId}` },
+      invalidate: executionKeys(planId, cycleId, assetId),
+    },
+  );
+}
+
+/**
+ * Conclui a execução de um equipamento.
+ *
+ * O servidor recusa quem não é o técnico escalado — nem o dono — com 403, e a
+ * recusa chega à tela como veio. A interface não reimplementa essa regra: ela
+ * depende de quem está na sessão, e deduzi-la aqui produziria uma segunda
+ * autoridade que divergiria da do servidor.
+ */
+export function useCompletePmocExecution(
+  planId: string,
+  cycleId: string,
+  /** O equipamento, para invalidar a preparação — é ela que move o passo. */
+  assetId: string,
+  executionId: string,
+) {
+  return useApiMutation(
+    (input: CompletePmocExecutionInput) =>
+      pmocService.completeExecution(planId, cycleId, executionId, input),
+    {
+      scope: { id: `pmoc-complete-${executionId}` },
+      invalidate: executionKeys(planId, cycleId, assetId),
+    },
+  );
+}
+
+/** Emite o relatório de execução deste equipamento. */
+export function useGeneratePmocExecutionArtifact(
+  planId: string,
+  cycleId: string,
+  assetId: string,
+  executionId: string,
+) {
+  return useApiMutation(
+    () => pmocService.generateExecutionArtifact(executionId),
+    {
+      scope: { id: `pmoc-artifact-${executionId}` },
+      invalidate: executionKeys(planId, cycleId, assetId),
+    },
+  );
 }
 
 /** Cobertura: invalida a cobertura e o plano (o contador `coveredEquipment`). */

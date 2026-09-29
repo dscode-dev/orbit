@@ -1535,6 +1535,19 @@ export class PmocRepository {
           }),
         },
         performedAt: physical.performedAt?.toISOString() ?? null,
+        /*
+         * A observação de quem atendeu.
+         *
+         * O documento já tem a seção "Observações e conclusão" e a lê de
+         * `metadata.executionNotes` — que **ninguém preenchia** fora da fábrica de
+         * amostras. O técnico escrevia o que encontrou, o texto ficava na
+         * execução, e o relatório saía sem ele: a substância do atendimento
+         * gravada e não impressa.
+         *
+         * O assembler espalha os metadados do snapshot no render input, então
+         * nomear o campo aqui é o que faz a seção existir em produção.
+         */
+        executionNotes: physical.notes,
         customer: {
           id: physical.cycle.plan.customer.id,
           name:

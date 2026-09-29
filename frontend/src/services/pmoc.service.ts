@@ -27,7 +27,10 @@ import type {
   PmocCursorPage,
   PmocCycle,
   PmocCycleEquipmentRow,
+  PmocEquipmentExecution,
   PmocExecutionPreparation,
+  StartPmocExecutionInput,
+  CompletePmocExecutionInput,
   PmocPlan,
   PmocPlanQuery,
   PmocPlanSummary,
@@ -213,6 +216,59 @@ export const pmocService = {
     apiClient.get<PmocExecutionPreparation>(
       `${cycle(planId, cycleId)}/equipment/${encodeURIComponent(assetId)}/execution-preparation`,
       options,
+    ),
+
+  /* ---------------------------------------------------------------- */
+  /* O atendimento                                                     */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Abre a execução deste equipamento e a ordem de serviço 1:1 dela.
+   *
+   * Escala o técnico em campo, que é quem responde pela manutenção e cujo nome vai
+   * no documento. A partir daqui, **só ele ou o dono** concluem.
+   */
+  startExecution: (
+    planId: string,
+    cycleId: string,
+    assetId: string,
+    input: StartPmocExecutionInput,
+  ): Promise<PmocEquipmentExecution> =>
+    apiClient.post<PmocEquipmentExecution>(
+      `${cycle(planId, cycleId)}/equipment/${encodeURIComponent(assetId)}/executions`,
+      input,
+    ),
+
+  /**
+   * Conclui a execução. O ciclo fecha sozinho quando todos os equipamentos dele
+   * estiverem resolvidos — não há passo separado para isso.
+   */
+  completeExecution: (
+    planId: string,
+    cycleId: string,
+    executionId: string,
+    input: CompletePmocExecutionInput,
+  ): Promise<{ execution: PmocEquipmentExecution; cycleCompleted: boolean }> =>
+    apiClient.post<{
+      execution: PmocEquipmentExecution;
+      cycleCompleted: boolean;
+    }>(
+      `${cycle(planId, cycleId)}/equipment-executions/${encodeURIComponent(executionId)}/complete`,
+      input,
+    ),
+
+  /**
+   * Emite o relatório de execução deste equipamento.
+   *
+   * Só depois de concluída: o documento afirma o que foi conferido, e um relatório
+   * de manutenção em andamento seria uma declaração sobre o futuro.
+   */
+  generateExecutionArtifact: (
+    executionId: string,
+  ): Promise<PmocEquipmentExecution> =>
+    apiClient.post<PmocEquipmentExecution>(
+      `/pmoc/equipment-executions/${encodeURIComponent(executionId)}/artifact/generate`,
+      {},
     ),
 
   /* ---------------------------------------------------------------- */

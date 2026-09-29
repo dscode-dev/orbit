@@ -186,7 +186,17 @@ export interface PmocExecutionPreparation {
   serviceLocation: unknown;
   scope: unknown;
   serviceTypes: unknown;
+  /** O JSON cru, como o plano o guarda. A tela usa `procedureGroups`. */
   procedure: unknown;
+  /**
+   * O roteiro já lido pelo servidor, em grupos.
+   *
+   * `procedure` é JSON livre com duas formas em produção, e o leitor tolerante
+   * mora no backend — o mesmo que o documento usa. Ler de novo aqui produziria
+   * um segundo leitor, e no dia em que divergissem a tela mostraria um roteiro e
+   * o PDF imprimiria outro.
+   */
+  procedureGroups: readonly { group: string; items: readonly string[] }[];
   technicalResponsible: { id: string; displayName: string } | null;
   technicalResponsibleEligibility: {
     eligible: boolean;
@@ -227,6 +237,28 @@ export interface PmocExecutionPreparation {
    * enquanto a execução corre; `VIEW` depois. A tela lê; não deduz de status.
    */
   allowedActions: readonly string[];
+}
+
+/**
+ * `POST /pmoc/plans/:id/cycles/:cycleId/equipment/:assetId/executions`.
+ *
+ * Abrir a execução **escala** alguém: o técnico em campo responde por ela, e é o
+ * nome dele que o documento carrega. Auxiliares são opcionais e não assinam.
+ */
+export interface StartPmocExecutionInput {
+  responsibleFieldTechnicianId: string;
+  auxiliaryTechnicianIds?: readonly string[];
+}
+
+/**
+ * `POST .../equipment-executions/:executionId/complete`.
+ *
+ * `performedAt` ausente significa agora. O servidor recusa data no futuro — uma
+ * manutenção que ainda não aconteceu não se registra como feita.
+ */
+export interface CompletePmocExecutionInput {
+  performedAt?: string;
+  notes?: string;
 }
 
 /**

@@ -25,7 +25,7 @@
  * requisição nenhuma.
  */
 import { useState } from "react";
-import { CalendarClock, Package } from "lucide-react";
+import { CalendarClock, Package, Play } from "lucide-react";
 
 import {
   CycleStatusBadge,
@@ -38,6 +38,8 @@ import {
   usePmocCycles,
   usePmocEquipmentExecutions,
 } from "@/hooks/pmoc/use-pmoc";
+import { PmocAttendanceDialog } from "./attendance/attendance.dialog";
+import { useSession } from "@/providers/session-provider";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { executionBlockedLabel, knownBlockedReason } from "@/registry";
@@ -137,6 +139,8 @@ function EquipmentExecutions({
   const rows = usePmocEquipmentExecutions(planId, cycleId);
   const items = rows.data ?? [];
   const done = items.filter((row) => row.status === "COMPLETED").length;
+  /** Qual equipamento está sendo atendido agora. `null` fecha o diálogo. */
+  const [attending, setAttending] = useState<string | null>(null);
 
   return (
     <section className="space-y-3" aria-label="Equipamentos desta execução">
@@ -164,11 +168,23 @@ function EquipmentExecutions({
         {(equipment) => (
           <ul className="space-y-3">
             {equipment.map((row) => (
-              <EquipmentRow key={row.coverageId} row={row} />
+              <EquipmentRow
+                key={row.coverageId}
+                row={row}
+                onAttend={() => setAttending(row.equipment.id)}
+              />
             ))}
           </ul>
         )}
       </ListState>
+
+      <PmocAttendanceDialog
+        planId={planId}
+        cycleId={cycleId}
+        assetId={attending}
+        open={attending !== null}
+        onOpenChange={(open) => !open && setAttending(null)}
+      />
     </section>
   );
 }
@@ -186,8 +202,27 @@ function EquipmentExecutions({
  * domínio. A preparação continua existindo onde decide algo: no momento de
  * iniciar a execução.
  */
-function EquipmentRow({ row }: { row: PmocCycleEquipmentRow }) {
+function EquipmentRow({
+  row,
+  onAttend,
+}: {
+  row: PmocCycleEquipmentRow;
+  onAttend: () => void;
+}) {
   const eligibility = row.eligibility;
+  const session = useSession();
+
+  /*
+   * O portão espelha o que o servidor exige para abrir a execução.
+   *
+   * A rota pede `pmoc.manage` **e** `operations.create` — ela cria a ordem de
+   * serviço 1:1 do atendimento. Exigir menos ofereceria um botão cujo destino é
+   * uma recusa; exigir mais esconderia o botão de quem o servidor aceitaria, que
+   * é o erro mais difícil de descobrir, porque nada aparece.
+   */
+  const canAttend =
+    session.hasPermission("pmoc.manage") &&
+    session.hasPermission("operations.create");
 
   return (
     <li className="space-y-3 rounded-xl border border-border p-4">
@@ -210,6 +245,12 @@ function EquipmentRow({ row }: { row: PmocCycleEquipmentRow }) {
       {row.execution ? (
         <>
           <div className="grid gap-2 text-xs sm:grid-cols-2">
+            <p className="min-w-0 truncate">
+              <span className="text-muted-foreground">Manutenção: </span>
+              <span className="tabular-nums">
+                {row.execution.sequenceNumber}
+              </span>
+            </p>
             <p className="min-w-0 truncate">
               <span className="text-muted-foreground">Técnico em Campo: </span>
               {row.execution.responsibleFieldTechnician.displayName}
@@ -267,14 +308,52 @@ function EquipmentRow({ row }: { row: PmocCycleEquipmentRow }) {
                 Documento ainda não emitido
               </span>
             )}
+
+            {/*
+             * A porta para uma execução **já aberta**.
+             *
+             * É o caso mais provável: o técnico começou em campo e o dono fecha na
+             * web, ou emite o relatório que ficou pendente. Sem isto, uma execução
+             * em andamento não tinha como ser concluída pela página — e um
+             * documento não emitido ficava assim para sempre.
+             *
+             * O mesmo diálogo atende os dois estados, porque é a preparação que
+             * decide em qual passo ele abre.
+             */}
+            {canAttend &&
+            (row.status === "IN_PROGRESS" ||
+              !row.execution.artifactExecution) ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-auto"
+                onClick={onAttend}
+              >
+                <Play className="size-3.5" />
+                {row.status === "IN_PROGRESS"
+                  ? "Continuar atendimento"
+                  : "Emitir relatório"}
+              </Button>
+            ) : null}
           </div>
         </>
       ) : (
-        <div className="text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
           {eligibility.ready ? (
-            <span className="text-muted-foreground">
-              Pronto para execução em campo.
-            </span>
+            <>
+              <span className="text-muted-foreground">
+                Pronto para execução.
+              </span>
+              {/* A porta que faltava: a tela dizia "pronto para execução em
+                  campo" e não oferecia como executar. O dono precisava do
+                  aplicativo — ou de ninguém, quando o técnico faltou. */}
+              {canAttend ? (
+                <Button size="sm" onClick={onAttend}>
+                  <Play className="size-3.5" />
+                  Atender
+                </Button>
+              ) : null}
+            </>
           ) : (
             <ul className="space-y-0.5">
               {eligibility.blockedReasons.map((reason) => (

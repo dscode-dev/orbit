@@ -1365,6 +1365,15 @@ export class PmocService {
       scope: data.plan.scope,
       serviceTypes: data.plan.serviceTypes,
       procedure: data.plan.procedure,
+      /*
+       * O roteiro já lido, em grupos.
+       *
+       * `procedure` é JSON livre e tem duas formas em produção. O leitor tolerante
+       * que o documento usa mora aqui; publicar o resultado evita um segundo
+       * leitor no navegador — e garante que a tela mostre exatamente os itens que
+       * o PDF vai imprimir, que é o que o técnico confere em campo.
+       */
+      procedureGroups: roteiroDoPlano(data.plan.procedure),
       technicalResponsible: data.plan.technicalResponsible,
       technicalResponsibleEligibility,
       fieldTechnicians,

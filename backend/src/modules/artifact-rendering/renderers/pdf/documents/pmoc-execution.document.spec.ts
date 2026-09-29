@@ -128,6 +128,37 @@ describe('PMOC de execução — contagem de manutenção', () => {
     expect(texto).not.toContain('de 12');
   });
 
+  /*
+   * A observação de quem atendeu.
+   *
+   * A seção existia e lia `metadata.executionNotes`, que nenhum caminho real
+   * preenchia — o técnico escrevia o que encontrou e o relatório saía sem. É a
+   * substância do atendimento.
+   */
+  it('imprime a observação de quem atendeu', async () => {
+    const base = entrada({ sequence: 1, total: 12 });
+    const texto = pdfText(
+      (
+        await renderer.render({
+          ...base,
+          metadata: {
+            ...base.metadata,
+            executionNotes: 'Filtros lavados; dreno desobstruído.',
+          },
+        })
+      ).bytes,
+    );
+
+    expect(texto).toContain('Observações e conclusão');
+    expect(texto).toContain('Filtros lavados');
+  });
+
+  it('sem observação, não imprime a seção vazia', async () => {
+    const texto = await render({ sequence: 1, total: 12 });
+
+    expect(texto).not.toContain('Observações e conclusão');
+  });
+
   it('o plano continua identificado ao lado da contagem', async () => {
     const texto = await render({ sequence: 1, total: 4 });
 
