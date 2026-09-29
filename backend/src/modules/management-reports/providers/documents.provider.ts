@@ -84,6 +84,9 @@ export class DocumentsReportProvider implements ReportProvider {
           actorId: 'report',
           permissions: ['pmoc.read'],
           businessUnitIds: [],
+          /* Ator sintético de leitura: compõe relatório, nunca executa
+             manutenção. Dono nenhum — e nada aqui pede a exceção do dono. */
+          isOrganizationOwner: false,
         },
         {
           from: context.scope.from,
@@ -104,6 +107,9 @@ export class DocumentsReportProvider implements ReportProvider {
           actorId: 'report',
           permissions: ['pmoc.read'],
           businessUnitIds: [],
+          /* Ator sintético de leitura: compõe relatório, nunca executa
+             manutenção. Dono nenhum — e nada aqui pede a exceção do dono. */
+          isOrganizationOwner: false,
         },
         { businessUnitId: context.scope.businessUnitId ?? undefined },
       ),

@@ -591,6 +591,7 @@ export class PmocController {
       actorId,
       permissions: request.identity?.permissions ?? [],
       businessUnitIds: request.identity?.businessUnitIds ?? [],
+      isOrganizationOwner: request.identity?.isOrganizationOwner ?? false,
     };
   }
 }

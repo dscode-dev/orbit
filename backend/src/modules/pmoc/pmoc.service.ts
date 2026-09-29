@@ -89,6 +89,15 @@ export interface PmocActor {
   actorId: string;
   permissions: readonly string[];
   businessUnitIds: readonly string[];
+  /**
+   * O dono da organização atende qualquer execução, atribuída a quem for.
+   *
+   * Não é o mesmo que ter `pmoc.manage`: essa permissão diz que a pessoa
+   * administra o módulo — cria plano, cobre equipamento, encerra contrato. Quem
+   * **executa** a manutenção de um aparelho é quem foi escalado para ela, e o
+   * dono, que responde pela operação quando ninguém mais pode.
+   */
+  isOrganizationOwner: boolean;
 }
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -1632,17 +1641,42 @@ export class PmocService {
       throw new ValidationException(
         'A maintenance cannot be recorded in the future',
       );
+    /*
+     * Quem atende é quem foi escalado — ou o dono.
+     *
+     * `pmoc.manage` diz que a pessoa **administra** o módulo: cria plano, cobre
+     * equipamento, encerra contrato. Executar a manutenção de um aparelho é outra
+     * coisa, e quem responde por ela é o técnico escalado para aquela execução.
+     * Sem esta linha, qualquer pessoa com acesso ao módulo assinava a manutenção
+     * de um aparelho que nunca viu — e o documento sai com o nome dela.
+     *
+     * O dono passa sem atribuição: é ele que atende quando o técnico escalado
+     * faltou, e negar isso deixaria a operação parada esperando uma reatribuição.
+     */
     const result = await this.repository.completeEquipmentExecution({
       organizationId: actor.organizationId,
       planId,
       cycleId,
       executionId,
       actorId: actor.actorId,
+      restrictToTechnicianId: actor.isOrganizationOwner ? null : actor.actorId,
       performedAt,
       notes: input.notes ?? null,
     });
-    if (!result)
+
+    if (result.refused === 'NOT_FOUND') {
+      throw new EntityNotFoundException('PmocEquipmentExecution', executionId);
+    }
+    if (result.refused === 'NOT_ASSIGNED') {
+      /* A recusa diz qual recusa é: "não está em andamento" mandaria a pessoa
+         procurar o estado errado. */
+      throw new ForbiddenException(
+        'Só o técnico escalado para esta execução — ou o dono da organização — pode concluí-la.',
+      );
+    }
+    if (result.refused === 'NOT_IN_PROGRESS') {
       throw new ConflictException('Equipment execution is not in progress');
+    }
     if (result.allResolved) {
       const refreshed = await this.plan(planId, actor);
       await this.openCycleAndSchedule(refreshed, actor);

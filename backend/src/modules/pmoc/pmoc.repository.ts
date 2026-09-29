@@ -1706,12 +1706,31 @@ export class PmocRepository {
     });
   }
 
+  /**
+   * Conclui a execução de um equipamento.
+   *
+   * ## Quem pode concluir entra no `where`
+   *
+   * `restrictToTechnicianId` é o técnico escalado, ou `null` para o dono da
+   * organização — que atende qualquer execução. A restrição viaja **dentro** do
+   * claim, junto do status: conferir antes e gravar depois deixaria a janela em
+   * que a atribuição muda entre a leitura e a escrita.
+   *
+   * ## A recusa diz qual recusa é
+   *
+   * Sem isso, quem não é o técnico escalado receberia "execução não está em
+   * andamento" — a mensagem do outro motivo, e a pessoa iria procurar o estado
+   * errado. Quando o claim não pega nada, uma leitura decide qual foi o motivo.
+   * Ela só acontece no caminho da falha, então o caminho felizes segue com uma
+   * instrução.
+   */
   completeEquipmentExecution(input: {
     organizationId: string;
     planId: string;
     cycleId: string;
     executionId: string;
     actorId: string;
+    restrictToTechnicianId: string | null;
     performedAt: Date;
     notes: string | null;
   }) {
@@ -1723,6 +1742,9 @@ export class PmocRepository {
           organizationId: input.organizationId,
           cycleId: input.cycleId,
           status: 'IN_PROGRESS',
+          ...(input.restrictToTechnicianId
+            ? { responsibleFieldTechnicianId: input.restrictToTechnicianId }
+            : {}),
         },
         data: {
           status: 'COMPLETED',
@@ -1732,7 +1754,21 @@ export class PmocRepository {
           notes: input.notes,
         },
       });
-      if (!claimed.count) return null;
+      if (!claimed.count) {
+        const atual = await tx.pmocEquipmentExecution.findFirst({
+          where: {
+            id: input.executionId,
+            organizationId: input.organizationId,
+            cycleId: input.cycleId,
+          },
+          select: { status: true, responsibleFieldTechnicianId: true },
+        });
+        if (!atual) return { refused: 'NOT_FOUND' as const } as const;
+        if (atual.status !== 'IN_PROGRESS') {
+          return { refused: 'NOT_IN_PROGRESS' as const };
+        }
+        return { refused: 'NOT_ASSIGNED' as const };
+      }
       const row = await tx.pmocEquipmentExecution.findFirstOrThrow({
         where: { id: input.executionId },
         select: { operationId: true, businessUnitId: true, assetId: true },
@@ -1843,6 +1879,7 @@ export class PmocRepository {
         });
       }
       return {
+        refused: null,
         allResolved,
         nextDueOn,
         execution: await tx.pmocEquipmentExecution.findFirstOrThrow({

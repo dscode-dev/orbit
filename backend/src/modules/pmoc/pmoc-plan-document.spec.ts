@@ -18,6 +18,7 @@ const ATOR: PmocActor = {
   actorId: 'user-1',
   permissions: ['pmoc.read'],
   businessUnitIds: ['bu-1'],
+  isOrganizationOwner: true,
 };
 
 function coberturas(quantidade: number) {

@@ -128,7 +128,10 @@ export class EquipmentQrService {
             coverage.plan.id,
             cycle.id,
             equipment.id,
-            actor,
+            /* A etiqueta só **lê** a elegibilidade para escrever uma frase. A
+               exceção do dono não muda leitura, e propagá-la aqui exigiria
+               carregá-la por um caminho que não decide nada. */
+            { ...actor, isOrganizationOwner: false },
           );
           ready = preparation.eligibility.ready;
           blockedReasons = preparation.eligibility.blockedReasons;
