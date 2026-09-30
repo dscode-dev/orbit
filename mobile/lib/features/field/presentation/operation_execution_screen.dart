@@ -19,8 +19,12 @@ import '../../../core/presentation/orbit_format.dart';
 import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../../core/contracts/mobile_evidence_contracts.dart';
+import '../../../core/contracts/mobile_field_artifact_contracts.dart';
 import '../../../core/contracts/mobile_offline_sync_contracts.dart';
 import '../../../core/routing/orbit_router.dart';
+import '../../artifact/application/artifact_providers.dart';
+import '../../artifact/data/document_name.dart';
+import '../../artifact/presentation/widgets/document_section.dart';
 import '../../evidence/presentation/widgets/evidence_section.dart';
 import '../../sync/data/command_journal.dart';
 import '../../sync/presentation/widgets/pending_badge.dart';
@@ -214,9 +218,38 @@ class _Body extends StatelessWidget {
 
       OrbitWizardStep(
         title: 'Finalização',
-        hint: 'Encerre o atendimento e veja o que foi registrado.',
+        hint: 'Encerre o atendimento, emita o relatório e entregue ao cliente.',
         complete: preparation.operation.completedAt != null,
-        child: _Timeline(operationId: operationId),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            /// O documento é a última coisa, e é aqui que ele pertence: a
+            /// política dele é `eligibleAfterCompletion`, e é neste passo que o
+            /// atendimento acaba de ser concluído.
+            ///
+            /// O nome do arquivo e o assunto vêm do atendimento porque é o que o
+            /// cliente lê antes de abrir o anexo — `documento.pdf` não diz nada a
+            /// quem recebe.
+            DocumentSection(
+              source: ArtifactSourceRef(
+                type: FieldArtifactSourceType.operation,
+                id: operationId,
+              ),
+              fileName: documentFileNameOf([
+                preparation.operation.serviceOrderCode ??
+                    preparation.operation.code,
+                preparation.customer?.name ?? '',
+              ]),
+              subject: [
+                'Ordem de Serviço',
+                preparation.operation.serviceOrderCode ??
+                    preparation.operation.code,
+                preparation.customer?.name,
+              ].whereType<String>().join(' · '),
+            ),
+            _Timeline(operationId: operationId),
+          ],
+        ),
       ),
     ];
 

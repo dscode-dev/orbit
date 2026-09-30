@@ -1,4 +1,4 @@
-/// Assinatura, aceite e documento — **três** coisas, três cartões.
+/// Assinatura e aceite — **duas** coisas, dois cartões.
 ///
 /// Juntá-las num único bloco chamado "Assinaturas" seria a forma mais rápida de
 /// apagar a distinção que o domínio mantém:
@@ -6,10 +6,16 @@
 /// ```text
 /// assinatura profissional → do usuário, vale em qualquer documento que assine
 /// aceite do cliente       → deste atendimento, registra quem recebeu
-/// documento               → emitido em separado, com sua própria política
 /// ```
 ///
-/// Concluir o atendimento não é nenhuma das três.
+/// Concluir o atendimento não é nenhuma das duas.
+///
+/// ## O documento saiu daqui
+///
+/// Ele mora na etapa de finalização, e não nesta. A política dele é
+/// `eligibleAfterCompletion`: antes de concluir, a emissão é recusada pelo
+/// servidor. Oferecê-la aqui — uma etapa antes — convidava a tentar emitir cedo e
+/// ler um bloqueio que a própria ordem das etapas já evitava.
 library;
 
 import 'package:flutter/material.dart';
@@ -20,10 +26,7 @@ import '../../../../core/contracts/field_operation_contracts.dart';
 import '../../../../core/presentation/field_registry.dart';
 import '../../../../core/presentation/orbit_format.dart';
 import '../../../../core/routing/orbit_router.dart';
-import '../../../../core/contracts/mobile_field_artifact_contracts.dart';
 import '../../../../core/theme/orbit_theme.dart';
-import '../../../artifact/application/artifact_providers.dart';
-import '../../../artifact/presentation/widgets/document_section.dart';
 import '../../../../core/widgets/section_states.dart';
 import '../../../signature/application/signature_providers.dart';
 
@@ -45,16 +48,6 @@ class ExecutionSigningSections extends ConsumerWidget {
           available: preparation.professionalSignatureAvailable,
         ),
         _Acknowledgement(operationId: operationId),
-
-        /// O documento é etapa à parte, com estado próprio vindo do servidor.
-        /// Ele deixou de ser uma frase informativa e passou a ser a seção que
-        /// mostra prontidão, bloqueios e as ações que o backend publicou.
-        DocumentSection(
-          source: ArtifactSourceRef(
-            type: FieldArtifactSourceType.operation,
-            id: operationId,
-          ),
-        ),
       ],
     );
   }

@@ -77,6 +77,10 @@ class Backend {
 
   Map<String, Object?> preparation;
   Map<String, Object?>? artifact;
+
+  /// O congelamento recusado pelo servidor — um atendimento que mudou entre a
+  /// leitura da tela e o pedido.
+  bool failPrepare = false;
   int downloadStatus;
   List<int>? downloadBody;
   String downloadContentType;
@@ -109,6 +113,7 @@ class Backend {
       return jsonResponse({'success': true, 'data': preparation});
     }
     if (path.endsWith('/prepare')) {
+      if (failPrepare) return ResponseBody.fromString('{}', 409);
       prepares.add(
         options.data is String
             ? jsonDecode(options.data as String) as Map<String, dynamic>
@@ -324,6 +329,92 @@ void main() {
       /// em segundo plano.
       await Future<void>.delayed(const Duration(seconds: 4));
       expect(backend.gets.length, before);
+    });
+  });
+
+  /// Emitir, num toque.
+  ///
+  /// Congelar e renderizar são dois pedidos ao servidor e continuam sendo. O que
+  /// mudou é a tela: com os dois expostos, o técnico congelava, achava que tinha
+  /// acabado e o atendimento ficava parado em "pronto para emitir" — o cliente sem
+  /// documento e ninguém sabendo por quê.
+  group('emitir', () {
+    test('congela e manda renderizar na sequência', () async {
+      final backend = Backend();
+      final controller = build(backend);
+      await settle(controller);
+
+      await controller.issue();
+
+      expect(backend.prepares, hasLength(1));
+      expect(backend.renders, hasLength(1));
+      controller.dispose();
+    });
+
+    test('artefato já congelado só é renderizado', () async {
+      /// Repetir o congelamento seria pedir um segundo snapshot da mesma fonte —
+      /// idempotente no servidor, mas uma ida à rede que a tela já sabe evitar.
+      final backend = Backend(
+        artifact: artifactJson(actions: const ['GENERATE_DOCUMENT']),
+        preparation: preparationJson(
+          actions: const ['GENERATE_DOCUMENT'],
+          existing: artifactJson(actions: const ['GENERATE_DOCUMENT']),
+        ),
+      );
+      final controller = build(backend);
+      await settle(controller);
+
+      await controller.issue();
+
+      expect(backend.prepares, isEmpty);
+      expect(backend.renders, hasLength(1));
+      controller.dispose();
+    });
+
+    test('falha ao congelar não vira pedido de renderização', () async {
+      /// Renderizar um artefato que não existe daria um segundo erro em cima do
+      /// primeiro, e a pessoa leria o errado. Quem recusa é o próprio `render` —
+      /// sem artefato e sem ação publicada, ele não vai à rede.
+      final backend = Backend()..failPrepare = true;
+      final controller = build(backend);
+      await settle(controller);
+
+      await controller.issue();
+
+      expect(backend.renders, isEmpty);
+      expect(controller.state.error, isNotNull);
+      controller.dispose();
+    });
+
+    test('dois toques não viram dois documentos', () async {
+      /// O toque duplo de quem está de luva. O guarda de comando em voo é de cada
+      /// comando, e é ele que faz a composição ser segura.
+      final backend = Backend();
+      final controller = build(backend);
+      await settle(controller);
+
+      await Future.wait([controller.issue(), controller.issue()]);
+
+      expect(backend.prepares, hasLength(1));
+      controller.dispose();
+    });
+
+    test('sem ação publicada, não emite', () async {
+      final backend = Backend(
+        preparation: preparationJson(
+          eligible: false,
+          blocked: const ['SOURCE_NOT_COMPLETED'],
+          actions: const [],
+        ),
+      );
+      final controller = build(backend);
+      await settle(controller);
+
+      await controller.issue();
+
+      expect(backend.prepares, isEmpty);
+      expect(backend.renders, isEmpty);
+      controller.dispose();
     });
   });
 

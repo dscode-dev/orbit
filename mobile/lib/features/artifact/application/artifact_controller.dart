@@ -192,6 +192,33 @@ class ArtifactController extends StateNotifier<ArtifactState> {
     }
   }
 
+  /// Emite o relatório: congela e manda renderizar, numa intenção só.
+  ///
+  /// ## Por que os dois passos viraram um botão
+  ///
+  /// Congelar e renderizar são dois atos do domínio, e continuam sendo dois
+  /// pedidos. Mas para quem está em campo eles são **uma** decisão — "emitir o
+  /// relatório deste atendimento" — e separá-los na tela custava dois toques com o
+  /// mesmo significado, com um estado intermediário ("pronto para emitir") no qual
+  /// muitos atendimentos ficavam parados: o técnico congelava, achava que tinha
+  /// acabado, e o cliente não recebia nada.
+  ///
+  /// ## Por que não há condição nenhuma aqui
+  ///
+  /// Porque as duas já se protegem: cada uma recusa quando o servidor não publicou
+  /// a ação dela, quando falta o artefato e quando há comando em voo. Repetir essas
+  /// checagens aqui seria a segunda cópia das mesmas regras — e foi o que a
+  /// mutação mostrou: retirá-las não mudava comportamento nenhum, porque eram
+  /// código morto.
+  ///
+  /// Continua explícito: nada emite por conta própria. E continua idempotente —
+  /// congelar duas vezes devolve o mesmo artefato, renderizar enquanto já corre não
+  /// enfileira de novo.
+  Future<void> issue() async {
+    await prepare();
+    await render();
+  }
+
   /// Consulta de novo, a pedido da pessoa.
   Future<void> refresh() async {
     _attempts = 0;

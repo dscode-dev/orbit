@@ -10,20 +10,88 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/contracts/mobile_field_artifact_contracts.dart';
+import '../../../../core/errors/orbit_exception.dart';
 import '../../../../core/presentation/field_registry.dart';
 import '../../../../core/presentation/orbit_format.dart';
 import '../../../../core/theme/orbit_theme.dart';
 import '../../../../core/widgets/section_states.dart';
+import '../../../documents/application/document_sharing.dart';
+import '../../../documents/application/documents_providers.dart';
 import '../../application/artifact_controller.dart';
 import '../../application/artifact_providers.dart';
+import '../../data/document_name.dart';
 
-class DocumentSection extends ConsumerWidget {
-  const DocumentSection({super.key, required this.source});
+class DocumentSection extends ConsumerStatefulWidget {
+  const DocumentSection({
+    super.key,
+    required this.source,
+    this.fileName,
+    this.subject,
+  });
 
   final ArtifactSourceRef source;
 
+  /// O nome do arquivo que chega a quem recebe. Sem ele, um nome genérico — o
+  /// documento continua abrindo, mas o cliente não sabe o que é antes de abrir.
+  final String? fileName;
+
+  /// O assunto da folha de compartilhamento, lido antes do anexo.
+  final String? subject;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DocumentSection> createState() => _DocumentSectionState();
+}
+
+class _DocumentSectionState extends ConsumerState<DocumentSection> {
+  bool _entregando = false;
+
+  /// Baixa e abre a folha do sistema — e-mail, WhatsApp, o que o aparelho tiver.
+  ///
+  /// Não é o mesmo que "Baixar": ali o arquivo fica no aparelho, aqui ele **sai**
+  /// dele. Em campo o segundo é o caso comum — o cliente pede a OS na hora.
+  Future<void> _compartilhar() async {
+    if (_entregando) return;
+    setState(() => _entregando = true);
+    final mensageiro = ScaffoldMessenger.maybeOf(context);
+    final artifactId = ref.read(artifactControllerProvider(widget.source)).artifact?.id;
+
+    /// Só o iPad usa a origem; é lá que a ausência lança exceção.
+    final caixa = context.findRenderObject();
+    final origem = caixa is RenderBox && caixa.hasSize
+        ? caixa.localToGlobal(Offset.zero) & caixa.size
+        : null;
+
+    try {
+      if (artifactId == null) return;
+      await for (final estado in ref
+          .read(documentSharingProvider)
+          .share(
+            artifactId: artifactId,
+            fileName: widget.fileName ?? documentFileNameOf(const ['documento']),
+            subject: widget.subject,
+            origin: origem,
+          )) {
+        if (estado.phase != SharePhase.error) continue;
+        mensageiro?.showSnackBar(
+          SnackBar(
+            content: Text(
+              OrbitException.publicCopyForAny(
+                estado.error,
+                prefixo: 'Não foi possível preparar o documento.',
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+    } finally {
+      if (mounted) setState(() => _entregando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final source = widget.source;
     final state = ref.watch(artifactControllerProvider(source));
     final controller = ref.read(artifactControllerProvider(source).notifier);
 
@@ -47,7 +115,12 @@ class DocumentSection extends ConsumerWidget {
                 ],
 
                 const SizedBox(height: OrbitSpacing.md),
-                _Actions(state: state, controller: controller),
+                _Actions(
+                  state: state,
+                  controller: controller,
+                  onShare: _compartilhar,
+                  sharing: _entregando,
+                ),
               ],
             ),
     );
@@ -214,37 +287,61 @@ class _Blockers extends StatelessWidget {
 
 /// As ações que o servidor publicou — e só elas.
 class _Actions extends StatelessWidget {
-  const _Actions({required this.state, required this.controller});
+  const _Actions({
+    required this.state,
+    required this.controller,
+    required this.onShare,
+    required this.sharing,
+  });
 
   final ArtifactState state;
   final ArtifactController controller;
+  final VoidCallback onShare;
+  final bool sharing;
 
   @override
   Widget build(BuildContext context) {
     final busy = state.mutating;
 
+    /// Congelar e renderizar viraram **um** botão.
+    ///
+    /// São dois pedidos ao servidor e continuam sendo; para quem está em campo são
+    /// uma decisão só. Com os dois expostos, o técnico congelava, achava que tinha
+    /// acabado, e o atendimento ficava parado em "pronto para emitir" — o cliente
+    /// sem documento e ninguém sabendo por quê.
+    final podeEmitir =
+        state.allows(FieldArtifactAllowedAction.prepareDocument) ||
+        state.allows(FieldArtifactAllowedAction.generateDocument);
+
     return Wrap(
       spacing: OrbitSpacing.sm,
       runSpacing: OrbitSpacing.sm,
       children: [
-        if (state.allows(FieldArtifactAllowedAction.prepareDocument))
+        if (podeEmitir)
           _Action(
-            label: documentActionLabels['prepareDocument']!,
-            icon: Icons.lock_outline,
-            busy: busy,
-            primary: true,
-            onPressed: controller.prepare,
-          ),
-
-        if (state.allows(FieldArtifactAllowedAction.generateDocument))
-          _Action(
-            label: state.status == FieldArtifactStatus.failed
-                ? 'Tentar novamente'
-                : documentActionLabels['generateDocument']!,
+            label: documentActionLabels[
+                state.status == FieldArtifactStatus.failed
+                    ? 'retryDocument'
+                    : 'issueDocument']!,
             icon: Icons.description_outlined,
             busy: busy,
             primary: true,
-            onPressed: controller.render,
+            onPressed: controller.issue,
+          ),
+
+        /// Compartilhar vem antes de baixar, e é ação de destaque quando o
+        /// documento existe: em campo o caso comum é o cliente pedir a OS na hora,
+        /// e o que resolve isso é a folha do sistema — não um arquivo guardado no
+        /// aparelho do técnico.
+        if (state.allows(FieldArtifactAllowedAction.downloadDocument))
+          _Action(
+            label: sharing
+                ? 'Preparando…'
+                : documentActionLabels['shareDocument']!,
+            icon: Icons.ios_share,
+            busy: sharing,
+            primary: true,
+            onPressed: onShare,
           ),
 
         if (state.allows(FieldArtifactAllowedAction.viewDocument))

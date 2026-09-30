@@ -526,8 +526,9 @@ const documentStatusLabels = <String, FieldLabel>{
     description: 'O documento está sendo gerado.',
   ),
   'ready': FieldLabel(
-    'Documento disponível',
-    description: 'Pode ser visualizado e baixado.',
+    'Relatório emitido',
+    description:
+        'Pode ser compartilhado com o cliente ou baixado neste aparelho.',
   ),
   'failed': FieldLabel(
     'Não foi possível emitir o documento',
@@ -567,8 +568,14 @@ String documentBlockedLabel(String code) =>
 
 /// Ações documentais publicadas pelo servidor.
 const documentActionLabels = <String, String>{
-  'prepareDocument': 'Preparar documento',
-  'generateDocument': 'Emitir documento',
+  /// Congelar e renderizar são dois pedidos ao servidor e **um** botão na tela:
+  /// para quem está em campo, emitir é uma decisão só.
+  'issueDocument': 'Emitir relatório',
+  'retryDocument': 'Tentar novamente',
+
+  /// Entregar é diferente de guardar: compartilhar manda o arquivo para fora do
+  /// aparelho, baixar o deixa nele. Em campo o primeiro é o caso comum.
+  'shareDocument': 'Compartilhar',
   'viewDocument': 'Visualizar',
   'downloadDocument': 'Baixar',
 };

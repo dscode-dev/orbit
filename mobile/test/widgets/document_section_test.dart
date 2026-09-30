@@ -230,9 +230,7 @@ void main() {
     expect(find.text('Baixar'), findsNothing);
   });
 
-  testWidgets('disponível mostra emissão e as ações de leitura', (
-    tester,
-  ) async {
+  testWidgets('emitido oferece entregar, ver e baixar', (tester) async {
     await tester.pumpWidget(
       host(
         preparationJson(
@@ -243,10 +241,27 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Documento disponível'), findsOneWidget);
+    expect(find.text('Relatório emitido'), findsOneWidget);
     expect(find.textContaining('Emitido em'), findsOneWidget);
+
+    /// Compartilhar é a ação que resolve o caso de campo: o cliente pede a OS na
+    /// hora, e o que serve é a folha do sistema — não um arquivo guardado no
+    /// aparelho do técnico.
+    expect(find.text('Compartilhar'), findsOneWidget);
     expect(find.text('Visualizar'), findsOneWidget);
     expect(find.text('Baixar'), findsOneWidget);
+  });
+
+  testWidgets('antes de emitir, não há o que entregar', (tester) async {
+    /// Sem documento, compartilhar não aparece: ele mandaria um anexo que não
+    /// existe, e o erro chegaria ao cliente em vez de ao técnico.
+    await tester.pumpWidget(
+      host(preparationJson(actions: const ['PREPARE_DOCUMENT'])),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Emitir relatório'), findsOneWidget);
+    expect(find.text('Compartilhar'), findsNothing);
   });
 
   testWidgets('falha oferece tentar novamente', (tester) async {
