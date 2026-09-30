@@ -333,6 +333,7 @@ model Organization {
 
   pmocCodeSequences       PmocCodeSequence[]
   serviceOrderSequence    ServiceOrderSequence?
+  productSkuSequences     ProductSkuSequence[]
   pmocUnits               PmocUnit[]
   rvtMaintenanceTypes     RvtMaintenanceType[]
   commissionPolicy        CommissionPolicy?
@@ -1275,12 +1276,43 @@ model ProductCategory {
   @@map("product_categories")
 }
 
+/// O contador do SKU, por organização **e por fluxo**.
+///
+/// Produto, serviço e peça moram na mesma tabela, separados por `kind`, e são
+/// catálogos diferentes: uma sequência única faria o primeiro serviço nascer com
+/// o número 47 porque existem 46 produtos.
+///
+/// Mesmo padrão de [PmocCodeSequence] e [ServiceOrderSequence]: linha por
+/// inquilino, incrementada com `ON CONFLICT DO UPDATE` dentro da transação que
+/// cria o item. A autoridade contra duplicidade continua sendo
+/// `@@unique([organizationId, sku])` em `Product` — e o SKU também pode ser
+/// digitado, então a alocação avança até achar livre.
+model ProductSkuSequence {
+  organizationId String   @map("organization_id") @db.Uuid
+  /// `PRODUCT` · `SERVICE` · `PART`. Texto, como em `Product`.
+  kind           String   @db.VarChar(40)
+  lastValue      Int      @default(0) @map("last_value")
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, kind])
+  @@map("product_sku_sequences")
+}
+
 model Product {
   id             String    @id @default(uuid(7)) @db.Uuid
   organizationId String    @map("organization_id") @db.Uuid
   businessUnitId String?   @map("business_unit_id") @db.Uuid
   categoryId     String?   @map("category_id") @db.Uuid
   kind           String    @default("PRODUCT") @db.VarChar(40)
+  /// O código do item. **Gerado** na criação, com contagem por fluxo:
+  /// `PRD-000001` para produto, `SRV-000001` para serviço, `PEC-000001` para
+  /// peça. Continua aceitando valor digitado — quem vem de outro sistema importa
+  /// os códigos antigos —, e é por isso que a geração avança até achar livre.
+  ///
+  /// Opcional na coluna por causa do histórico: itens criados antes da geração
+  /// existiam sem código, e a migração os preencheu. Nada novo nasce sem.
   sku            String?   @db.VarChar(80)
   name           String    @db.VarChar(180)
   description    String?   @db.Text

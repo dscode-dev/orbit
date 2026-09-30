@@ -87,8 +87,9 @@ describe('registro de campo de um atendimento', () => {
 
     const registro = await ler(service);
 
+    const [foto] = registro.evidence;
     expect(registro.evidence).toHaveLength(1);
-    expect(registro.evidence[0].url).toContain('storage.example');
+    expect(foto?.url).toContain('storage.example');
 
     /* Pré-visualização, não download: a imagem é exibida na página, e o servidor
        distingue as duas na assinatura. */
@@ -99,7 +100,7 @@ describe('registro de campo de um atendimento', () => {
 
     /* `sizeBytes` como texto: é `BigInt` no banco, e `JSON.stringify` recusa
        `BigInt` — a rota inteira responderia 500. */
-    expect(registro.evidence[0].sizeBytes).toBe('120');
+    expect(foto?.sizeBytes).toBe('120');
   });
 
   it('o aceite vem com a assinatura e com o resumo que o cliente leu', async () => {
