@@ -15,6 +15,7 @@ import {
   EntitlementService,
 } from '../../../subscription-plans/entitlements';
 import { AssetRepository } from './asset.repository';
+import { GENERATED_IDENTIFIER_TYPE } from './asset-internal-code';
 
 @Injectable()
 export class AssetService {
@@ -142,10 +143,28 @@ export class AssetService {
     }
   }
 
+  /**
+   * Tipo e identificador andam juntos — com **uma** exceção.
+   *
+   * Identificador sem tipo continua recusado: é um dado sem dizer o que ele é, e
+   * quem lê depois não sabe se aquele texto é série, QR ou etiqueta interna.
+   *
+   * Tipo sem identificador era recusado também, e é o que mudou: com
+   * `INTERNAL_CODE`, o código é **atribuído pela organização** e o sistema o gera.
+   * Os outros tipos seguem exigindo o valor, porque são lidos da máquina física —
+   * um número de série gerado seria um fato inventado sobre o equipamento do
+   * cliente, e um QR que não existe em etiqueta nenhuma é uma busca que nunca
+   * encontra nada.
+   */
   private validateIdentifier(type?: string, identifier?: string) {
-    if (Boolean(type) !== Boolean(identifier)) {
+    if (identifier && !type) {
       throw new ValidationException(
         'Identifier type and identifier must be provided together',
+      );
+    }
+    if (type && !identifier && type !== GENERATED_IDENTIFIER_TYPE) {
+      throw new ValidationException(
+        'Only an internal code can be generated; other identifier types require the value read from the equipment',
       );
     }
   }

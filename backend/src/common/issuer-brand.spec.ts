@@ -28,7 +28,9 @@ describe('issuerLogo', () => {
   });
 
   it('responde nulo quando nenhuma das duas tem marca', () => {
-    expect(issuerLogo({ logoUrl: null, organization: { logoUrl: null } })).toBeNull();
+    expect(
+      issuerLogo({ logoUrl: null, organization: { logoUrl: null } }),
+    ).toBeNull();
     expect(issuerLogo({ logoUrl: null, organization: null })).toBeNull();
     expect(issuerLogo(null)).toBeNull();
     expect(issuerLogo(undefined)).toBeNull();

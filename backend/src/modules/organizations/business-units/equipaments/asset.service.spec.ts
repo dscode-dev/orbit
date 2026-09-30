@@ -27,6 +27,13 @@ describe('AssetService', () => {
     repository.findBusinessUnit.mockResolvedValue({ id: 'unit-id' });
   });
 
+  /**
+   * Tipo lido da máquina exige o valor lido.
+   *
+   * QR, série, NFC, barras, RFID: o conteúdo vem da etiqueta ou da plaqueta. Aceitar
+   * o tipo sem o valor deixaria um equipamento dizendo "sou identificado por QR" sem
+   * QR nenhum — e a busca por etiqueta nunca o encontraria.
+   */
   it('requires identifier type and value together', async () => {
     await expect(
       service.create('organization-id', {
@@ -34,6 +41,42 @@ describe('AssetService', () => {
         category: AssetCategory.EQUIPMENT,
         name: 'Compressor',
         identifierType: AssetIdentifierType.QR_CODE,
+      }),
+    ).rejects.toBeInstanceOf(ValidationException);
+  });
+
+  /**
+   * O código interno é a exceção: a organização o atribui, e o sistema o gera.
+   *
+   * Antes isto era um 400 — escolher "código interno" e não digitar nada recusava o
+   * cadastro. Era o motivo pelo qual ninguém usava o campo.
+   */
+  it('accepts an internal code without a value, to be generated', async () => {
+    repository.create.mockResolvedValue({ id: 'asset-id' });
+
+    await expect(
+      service.create('organization-id', {
+        businessUnitId: 'unit-id',
+        category: AssetCategory.EQUIPMENT,
+        name: 'Compressor',
+        identifierType: AssetIdentifierType.INTERNAL_CODE,
+      }),
+    ).resolves.toMatchObject({ id: 'asset-id' });
+
+    /* O serviço não gera: quem gera é a fronteira do repositório, na mesma
+       transação da criação. Aqui só se garante que o cadastro passa. */
+    expect(repository.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('still refuses an identifier without saying what it is', async () => {
+    /* Um texto sem tipo não diz se é série, QR ou etiqueta interna, e quem ler
+       depois não tem como saber. */
+    await expect(
+      service.create('organization-id', {
+        businessUnitId: 'unit-id',
+        category: AssetCategory.EQUIPMENT,
+        name: 'Compressor',
+        identifier: 'TORRE-A-12',
       }),
     ).rejects.toBeInstanceOf(ValidationException);
   });

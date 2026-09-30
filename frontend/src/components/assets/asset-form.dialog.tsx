@@ -174,6 +174,18 @@ function Body({
     value: FormState[TKey],
   ) => setForm((current) => ({ ...current, [key]: value }));
 
+  const isInternalCode =
+    form.identifierType === AssetIdentifierType.INTERNAL_CODE;
+
+  /**
+   * O código sai do formulário: é o servidor que o gera.
+   *
+   * Só na criação e só com código interno. Na edição o campo volta — inclusive
+   * para código interno — porque quem etiquetou o parque antes precisa fazer o
+   * sistema bater com a etiqueta que já está colada.
+   */
+  const geraCodigo = !editing && isInternalCode && !form.identifier.trim();
+
   const payload = (): CreateAssetInput => ({
     businessUnitId: form.businessUnitId,
     customerId: optional(form.customerId),
@@ -182,9 +194,19 @@ function Body({
     manufacturer: optional(form.manufacturer),
     model: optional(form.model),
     serialNumber: optional(form.serialNumber),
-    identifierType: optional(form.identifier)
-      ? (form.identifierType as AssetIdentifierType)
-      : undefined,
+    /*
+      O tipo viaja sozinho quando é **código interno**: o servidor gera o código,
+      com contagem própria da organização. Antes o tipo só ia junto com o valor —
+      e como o campo ficava vazio, o equipamento nascia sem identificação nenhuma.
+
+      Nos outros tipos o par continua: o conteúdo é lido da etiqueta ou da
+      plaqueta, e um tipo sem valor seria um equipamento dizendo "sou identificado
+      por QR" sem QR nenhum.
+    */
+    identifierType:
+      optional(form.identifier) || geraCodigo
+        ? (form.identifierType as AssetIdentifierType)
+        : undefined,
     identifier: optional(form.identifier),
     installationAt: optional(form.installationAt),
     warrantyUntil: optional(form.warrantyUntil),
@@ -358,19 +380,41 @@ function Body({
           </Select>
         </Field>
 
-        <Field
-          label="Identificador"
-          htmlFor="asset-identifier"
-          hint="Conteúdo do QR Code, etiqueta ou tag NFC. É por ele que o campo localiza o equipamento."
-        >
-          <Input
-            id="asset-identifier"
-            value={form.identifier}
-            onChange={(event) => set("identifier", event.target.value)}
-            maxLength={ASSET_LIMITS.identifierMaxLength}
-            className="font-mono"
-          />
-        </Field>
+        {/*
+          Código interno é o único tipo que a organização **atribui** — os outros
+          são lidos da máquina. Por isso, e só nele, o campo sai da criação: o
+          servidor gera `EQP-000001`, contando por organização.
+
+          Na edição o campo volta, inclusive para código interno: quem etiquetou o
+          parque antes de usar o Orbit precisa fazer o sistema bater com a etiqueta
+          que já está colada.
+        */}
+        {geraCodigo ? (
+          <Field label="Identificador">
+            <p className="text-muted-foreground text-sm">
+              Gerado pelo sistema quando o equipamento for cadastrado, na contagem
+              da sua organização.
+            </p>
+          </Field>
+        ) : (
+          <Field
+            label="Identificador"
+            htmlFor="asset-identifier"
+            hint={
+              isInternalCode
+                ? "Deixe em branco para o sistema gerar, ou informe o código que já está na etiqueta."
+                : "Conteúdo do QR Code, etiqueta ou tag NFC. É por ele que o campo localiza o equipamento."
+            }
+          >
+            <Input
+              id="asset-identifier"
+              value={form.identifier}
+              onChange={(event) => set("identifier", event.target.value)}
+              maxLength={ASSET_LIMITS.identifierMaxLength}
+              className="font-mono"
+            />
+          </Field>
+        )}
 
         <Field label="Instalação" htmlFor="asset-installation">
           <Input
@@ -421,14 +465,23 @@ function Field({
   children,
 }: {
   label: string;
-  htmlFor: string;
+  /**
+   * Opcional porque há um campo que não é campo: o identificador gerado é texto
+   * informativo, sem controle para o rótulo apontar. Um `htmlFor` vazio apontaria
+   * para `id` inexistente, e leitor de tela anuncia rótulo órfão.
+   */
+  htmlFor?: string;
   hint?: string;
   className?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className={`space-y-2 ${className ?? ""}`}>
-      <Label htmlFor={htmlFor}>{label}</Label>
+      {htmlFor ? (
+        <Label htmlFor={htmlFor}>{label}</Label>
+      ) : (
+        <span className="text-sm font-medium leading-none">{label}</span>
+      )}
       {children}
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>

@@ -334,6 +334,7 @@ model Organization {
   pmocCodeSequences       PmocCodeSequence[]
   serviceOrderSequence    ServiceOrderSequence?
   productSkuSequences     ProductSkuSequence[]
+  assetInternalCodes      AssetInternalCodeSequence?
   pmocUnits               PmocUnit[]
   rvtMaintenanceTypes     RvtMaintenanceType[]
   commissionPolicy        CommissionPolicy?
@@ -1344,6 +1345,25 @@ model Product {
 // ASSETS
 // -----------------------------------------------------------------------------
 
+/// O contador do código interno de equipamento, por organização.
+///
+/// Só o código interno é gerado: os outros tipos de identificador (série, QR,
+/// NFC, barras, RFID) são lidos da máquina física, e gerá-los inventaria um fato
+/// sobre o equipamento do cliente.
+///
+/// Por organização porque a unicidade do identificador também é — e porque um
+/// contador global faria a primeira máquina de um inquilino novo nascer com o
+/// número de outra empresa, numa etiqueta que vai colada no equipamento.
+model AssetInternalCodeSequence {
+  organizationId String   @id @map("organization_id") @db.Uuid
+  lastValue      Int      @default(0) @map("last_value")
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("asset_internal_code_sequences")
+}
+
 model Asset {
   id             String    @id @default(uuid(7)) @db.Uuid
   organizationId String    @map("organization_id") @db.Uuid
@@ -1354,7 +1374,12 @@ model Asset {
   manufacturer   String?   @db.VarChar(120)
   model          String?   @db.VarChar(120)
   serialNumber   String?   @map("serial_number") @db.VarChar(120)
+  /// O que é o conteúdo de [identifier]: série, QR, NFC, barras, RFID ou código
+  /// interno. Só o **código interno** é atribuído pela organização; os demais são
+  /// lidos da máquina.
   identifierType String?   @map("identifier_type") @db.VarChar(30)
+  /// O conteúdo lido da etiqueta — ou, quando o tipo é `INTERNAL_CODE` e nada foi
+  /// informado, o código que o sistema gera (`EQP-000001`, por organização).
   identifier     String?   @db.VarChar(180)
   installationAt DateTime? @map("installation_at") @db.Date
   warrantyUntil  DateTime? @map("warranty_until") @db.Date
