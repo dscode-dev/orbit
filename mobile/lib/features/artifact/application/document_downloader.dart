@@ -13,6 +13,7 @@
 /// transporta.
 library;
 
+import '../../../core/contracts/mobile_field_artifact_contracts.dart';
 import '../../../core/errors/orbit_exception.dart';
 import '../data/artifact_repository.dart';
 import '../data/document_file.dart';
@@ -67,14 +68,29 @@ class DocumentDownloader {
     required String artifactId,
     required String fileName,
     bool preview = false,
+  }) => fetchWith(
+    access: () => _repository.access(artifactId, preview: preview),
+    fileName: fileName,
+  );
+
+  /// A mesma sequência, com o acesso vindo de **outra autoridade**.
+  ///
+  /// O PMOC não tem artefato de campo: o documento dele é uma execução de
+  /// artefato, e a URL assinada sai da revisão emitida. O que não muda é o que se
+  /// faz com ela — baixar, **conferir os bytes** e gravar. Duplicar essa parte
+  /// significaria que um dia a verificação do PDF seria corrigida num lado só, e o
+  /// outro passaria a aceitar uma página de erro HTML como se fosse documento.
+  Stream<DownloadState> fetchWith({
+    required Future<FieldArtifactAccess> Function() access,
+    required String fileName,
   }) async* {
     yield const DownloadState(phase: DownloadPhase.requestingUrl);
     try {
       /// A URL é pedida agora e usada agora. Não vira estado.
-      final access = await _repository.access(artifactId, preview: preview);
+      final signed = await access();
 
       yield const DownloadState(phase: DownloadPhase.downloading);
-      final result = await _repository.download(access);
+      final result = await _repository.download(signed);
 
       yield const DownloadState(phase: DownloadPhase.verifying);
       final problem = checkDocumentBytes(result.bytes);

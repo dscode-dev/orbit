@@ -1032,6 +1032,15 @@ class _QuickActions extends StatelessWidget {
             await showEquipmentSheet(context, token);
           },
         ),
+      /// PMOC é o atalho porque não é aba: as cinco estão ocupadas, e a lista
+      /// de contratos responde uma pergunta que a fila de trabalho não responde
+      /// — ela é filtrada por atribuição, e o dono precisa atender o que o
+      /// técnico escalado não atendeu.
+      OrbitQuickAction(
+        icon: Icons.fact_check_outlined,
+        label: 'PMOC',
+        onTap: () => context.push(OrbitRoutes.pmoc),
+      ),
       OrbitQuickAction(
         icon: Icons.description_outlined,
         label: 'Documentos',

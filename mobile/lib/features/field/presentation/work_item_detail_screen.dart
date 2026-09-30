@@ -10,10 +10,10 @@
 /// `allowedActions` decide o que aparece; `primaryAction` decide o que é
 /// destaque. Nada é habilitado por status, e nada é inventado.
 ///
-/// Execução de campo — iniciar, concluir, evidência, assinatura — é da FL-03.
-/// Enquanto não existe, as ações correspondentes aparecem descritas e
-/// desabilitadas, dizendo onde acontecem. Botão que promete e não cumpre é
-/// pior que botão ausente.
+/// Atendimento avulso e PMOC executam daqui, cada um pela rota do seu domínio.
+/// Visita técnica segue em leitura: as ações aparecem descritas e desabilitadas,
+/// dizendo onde acontecem. Botão que promete e não cumpre é pior que botão
+/// ausente.
 library;
 
 import 'package:flutter/material.dart';
@@ -370,20 +370,7 @@ class _Actions extends ConsumerWidget {
                   label: label,
                   isPrimary: action == item.primaryAction,
                   destination: fieldActionDestination(action),
-
-                  /// Atendimento é o único tipo com execução implementada
-                  /// (FL-03). PMOC e visita técnica seguem em leitura até as
-                  /// PRs delas — oferecer o botão aqui prometeria o que a tela
-                  /// não faz.
-                  onExecute:
-                      item.kind == MobileWorkItemKind.serviceOperation &&
-                          _executable.contains(action)
-                      ? () => context.push(
-                          OrbitRoutes.operationExecution(
-                            item.navigationContext.sourceId,
-                          ),
-                        )
-                      : null,
+                  onExecute: _execution(context, item, action),
                 ),
               ),
         ],
@@ -392,7 +379,49 @@ class _Actions extends ConsumerWidget {
   }
 }
 
-/// Ações que levam à execução de campo, quando o item é um atendimento.
+/// Para onde este item executa, se executa.
+///
+/// Atendimento avulso vai para a execução da operação; PMOC vai para o
+/// atendimento **do equipamento** naquele ciclo — rotas diferentes porque são
+/// domínios diferentes, com contagem, documento e autoridade próprios.
+///
+/// Visita técnica continua em leitura: a PR dela ainda não existe, e um botão
+/// que promete e não cumpre é pior que botão ausente.
+VoidCallback? _execution(
+  BuildContext context,
+  MobileWorkItemContract item,
+  MobileFieldAction action,
+) {
+  if (!_executable.contains(action)) return null;
+  final navegacao = item.navigationContext;
+
+  switch (item.kind) {
+    case MobileWorkItemKind.serviceOperation:
+      return () =>
+          context.push(OrbitRoutes.operationExecution(navegacao.sourceId));
+
+    case MobileWorkItemKind.pmoc:
+      /* Os três identificadores ou nenhum: a rota de atendimento é escopada por
+         plano, ciclo e equipamento, e montá-la com um vazio levaria a uma tela
+         que só sabe dizer "não encontrado". */
+      final planId = navegacao.planId;
+      final cycleId = navegacao.cycleId;
+      final assetId = navegacao.equipmentId;
+      if (planId == null || cycleId == null || assetId == null) return null;
+      return () => context.push(
+        OrbitRoutes.pmocAttendance(
+          planId: planId,
+          cycleId: cycleId,
+          assetId: assetId,
+        ),
+      );
+
+    case MobileWorkItemKind.rvt:
+      return null;
+  }
+}
+
+/// Ações que levam à execução de campo.
 const _executable = <MobileFieldAction>{
   MobileFieldAction.start,
   MobileFieldAction.resume,

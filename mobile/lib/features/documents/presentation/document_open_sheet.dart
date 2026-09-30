@@ -34,67 +34,21 @@ import '../../../core/theme/orbit_theme.dart';
 import '../../../core/widgets/section_states.dart';
 import '../../artifact/application/artifact_providers.dart';
 import '../../artifact/application/document_downloader.dart';
+import '../../artifact/data/document_name.dart';
 import '../application/document_sharing.dart';
 import '../application/documents_providers.dart';
 import 'documents_screen.dart' show documentStateBadge;
-
-/// Acentos viram a letra sem acento, e não hífen.
-///
-/// A primeira versão só apagava o que não fosse ASCII, e "Ordem de serviço —
-/// Clínica Vida" virava `ordem-de-servi-o-cl-nica-vida.pdf`. Um nome assim
-/// chega no WhatsApp do cliente com a palavra quebrada no meio — o Orbit
-/// parece um sistema que não sabe escrever em português.
-///
-/// A tabela é a do português mais o que aparece em razão social; um pacote de
-/// transliteração inteiro resolveria o alfabeto grego, que não é o problema.
-const _semAcento = <String, String>{
-  'á': 'a',
-  'à': 'a',
-  'ã': 'a',
-  'â': 'a',
-  'ä': 'a',
-  'å': 'a',
-  'é': 'e',
-  'è': 'e',
-  'ê': 'e',
-  'ë': 'e',
-  'í': 'i',
-  'ì': 'i',
-  'î': 'i',
-  'ï': 'i',
-  'ó': 'o',
-  'ò': 'o',
-  'õ': 'o',
-  'ô': 'o',
-  'ö': 'o',
-  'ú': 'u',
-  'ù': 'u',
-  'û': 'u',
-  'ü': 'u',
-  'ç': 'c',
-  'ñ': 'n',
-  'ý': 'y',
-};
 
 /// O nome do arquivo que chega ao destino.
 ///
 /// Vem do rótulo e do cliente — nunca do `artifactId`, que é opaco. Quem
 /// recebe o PDF no WhatsApp lê o nome antes de abrir, e
 /// `a1f3c9e2-...pdf` não diz nada a ninguém.
-String documentFileName(MobileRecentDocumentContract document) {
-  final partes = [
-    document.label,
-    if (document.customerName case final String cliente) cliente,
-  ].join('-').toLowerCase();
-
-  final ascii = partes.split('').map((c) => _semAcento[c] ?? c).join();
-
-  final limpo = ascii
-      .replaceAll(RegExp(r'[^a-z0-9._-]+'), '-')
-      .replaceAll(RegExp(r'-+'), '-')
-      .replaceAll(RegExp(r'^[-.]+|[-.]+$'), '');
-  return '${limpo.isEmpty ? 'documento' : limpo}.pdf';
-}
+String documentFileName(MobileRecentDocumentContract document) =>
+    documentFileNameOf([
+      document.label,
+      if (document.customerName case final String cliente) cliente,
+    ]);
 
 /// Baixa o documento e abre a folha de compartilhamento do sistema.
 ///

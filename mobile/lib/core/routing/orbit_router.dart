@@ -26,6 +26,9 @@ import '../../features/sync/presentation/sync_center_screen.dart';
 import '../../features/sync/presentation/sync_triggers.dart';
 import '../../features/operations/presentation/operation_detail_screen.dart';
 import '../../features/operations/presentation/operations_screen.dart';
+import '../../features/pmoc/presentation/pmoc_attendance_screen.dart';
+import '../../features/pmoc/presentation/pmoc_plan_screen.dart';
+import '../../features/pmoc/presentation/pmoc_plans_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/settings_screen.dart';
 import '../../features/scheduling/presentation/agenda_screen.dart';
@@ -55,6 +58,13 @@ abstract final class OrbitRoutes {
   static const documents = '/documentos';
   static const customers = '/clientes';
 
+  /// Os PMOCs configurados.
+  ///
+  /// Destino próprio porque a fila de trabalho responde outra pergunta: ela é
+  /// filtrada por atribuição, e o dono precisa ver os contratos para atender o
+  /// que o técnico escalado não atendeu.
+  static const pmoc = '/pmoc';
+
   /// A leitura de etiqueta. Fora do shell: a câmera ocupa a tela inteira.
   static const scanner = '/etiqueta';
   static const notifications = '/avisos';
@@ -64,6 +74,23 @@ abstract final class OrbitRoutes {
   static const profile = '/perfil';
 
   static String operationDetail(String id) => '$operations/$id';
+
+  static String pmocPlan(String planId) =>
+      '$pmoc/${Uri.encodeComponent(planId)}';
+
+  /// O atendimento de **um equipamento** num ciclo.
+  ///
+  /// Os três identificadores vão no caminho porque é assim que o domínio
+  /// endereça a execução: o plano diz o contrato, o ciclo diz o período, e o
+  /// equipamento diz de qual aparelho é a manutenção — e a contagem que o
+  /// relatório imprime é a dele.
+  static String pmocAttendance({
+    required String planId,
+    required String cycleId,
+    required String assetId,
+  }) =>
+      '${pmocPlan(planId)}/ciclos/${Uri.encodeComponent(cycleId)}'
+      '/equipamentos/${Uri.encodeComponent(assetId)}/atendimento';
 
   /// O ID do item é **opaco** e vai codificado: o backend o compõe com `:`
   /// (`PMOC:<ciclo>:<equipamento>`), que é separador de caminho na URL.
@@ -166,6 +193,36 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: OrbitRoutes.notifications,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const NotificationsScreen(),
+      ),
+      /// O PMOC abre **por cima** do shell, como a caixa de avisos.
+      ///
+      /// Não é aba: as cinco estão ocupadas, e nenhuma delas vale trocar por
+      /// esta. Como filha do shell, `/pmoc` deixaria a barra inferior sem aba
+      /// correspondente — e o realce cairia em "Início", dizendo à pessoa que
+      /// ela está onde não está. Por isso é **irmã** dele, com o navegador raiz:
+      /// tela inteira, com voltar, e o trabalho do atendimento sem uma barra de
+      /// abas convidando a sair no meio.
+      GoRoute(
+        path: OrbitRoutes.pmoc,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const PmocPlansScreen(),
+        routes: [
+          GoRoute(
+            path: ':planId',
+            builder: (context, state) =>
+                PmocPlanScreen(planId: state.pathParameters['planId'] ?? ''),
+            routes: [
+              GoRoute(
+                path: 'ciclos/:cycleId/equipamentos/:assetId/atendimento',
+                builder: (context, state) => PmocAttendanceScreen(
+                  planId: state.pathParameters['planId'] ?? '',
+                  cycleId: state.pathParameters['cycleId'] ?? '',
+                  assetId: state.pathParameters['assetId'] ?? '',
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       ShellRoute(
         /// Os gatilhos vivem no shell: existem enquanto houver sessão, e não

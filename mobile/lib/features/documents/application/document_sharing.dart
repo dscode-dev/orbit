@@ -19,6 +19,7 @@ import 'dart:ui' show Rect;
 
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/contracts/mobile_field_artifact_contracts.dart';
 import '../../artifact/application/document_downloader.dart';
 
 /// Onde o compartilhamento está.
@@ -55,13 +56,33 @@ class DocumentSharing {
     required String fileName,
     String? subject,
     Rect? origin,
+  }) => shareWith(
+    access: null,
+    artifactId: artifactId,
+    fileName: fileName,
+    subject: subject,
+    origin: origin,
+  );
+
+  /// O mesmo compartilhamento, com o acesso vindo de outra autoridade.
+  ///
+  /// `access` presente substitui a resolução pelo artefato de campo — é como o
+  /// documento de PMOC, que mora numa execução de artefato, chega à folha do
+  /// sistema sem uma segunda implementação de baixar-conferir-gravar-compartilhar.
+  Stream<ShareState> shareWith({
+    required Future<FieldArtifactAccess> Function()? access,
+    String? artifactId,
+    required String fileName,
+    String? subject,
+    Rect? origin,
   }) async* {
     yield const ShareState(phase: SharePhase.preparing);
 
-    await for (final estado in _downloader.fetch(
-      artifactId: artifactId,
-      fileName: fileName,
-    )) {
+    final download = access == null
+        ? _downloader.fetch(artifactId: artifactId!, fileName: fileName)
+        : _downloader.fetchWith(access: access, fileName: fileName);
+
+    await for (final estado in download) {
       if (estado.phase == DownloadPhase.error) {
         yield ShareState(phase: SharePhase.error, error: estado.error);
         return;
