@@ -30,6 +30,19 @@ export function DetailsSection({ query }: { query: PanelQuery<Operation> }) {
         {(operation) => (
           <div className="space-y-5">
             <dl className="grid gap-4 sm:grid-cols-2">
+              {/*
+                Número da OS e código são coisas diferentes, e aparecem os dois.
+
+                O número é a contagem própria das ordens de serviço — o que sai no
+                documento e o que o cliente cita. O código é o texto interno, que
+                muitas organizações usam para amarrar com o sistema anterior.
+                Mostrar um no lugar do outro faria alguém procurar pelo que não vê.
+              */}
+              {operation.serviceOrderCode ? (
+                <Field label="Ordem de serviço">
+                  <span className="font-mono">{operation.serviceOrderCode}</span>
+                </Field>
+              ) : null}
               <Field label="Código">
                 <span className="font-mono">{operation.code}</span>
               </Field>

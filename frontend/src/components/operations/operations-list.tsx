@@ -240,7 +240,7 @@ function OperationRow({
         <Checkbox
           checked={selected}
           onCheckedChange={onToggle}
-          aria-label={`Selecionar operação ${operation.code}`}
+          aria-label={`Selecionar operação ${operation.serviceOrderCode ?? operation.code}`}
         />
       </TableCell>
       <TableCell>
@@ -250,7 +250,15 @@ function OperationRow({
         >
           <span className="block truncate font-medium">{operation.title}</span>
           <span className="font-mono text-xs text-muted-foreground">
-            {operation.code} · {operationKindLabel(operation.kind)} ·{" "}
+            {/*
+              O número da OS vem primeiro, quando existe.
+
+              É por ele que o cliente liga e a nota fiscal referencia — o `code` é
+              a convenção interna de quem criou a operação. Operações de PMOC e RVT
+              não têm número de ordem, e aí o código é o que identifica.
+            */}
+            {operation.serviceOrderCode ?? operation.code} ·{" "}
+            {operationKindLabel(operation.kind)} ·{" "}
             {operationPriorityLabel(operation.priority)}
           </span>
         </Link>

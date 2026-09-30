@@ -5,6 +5,7 @@ import { DomainEventEmitter } from '../automations/domain-event.emitter';
 import { PaginationHelper } from '../../database/helpers/database.helpers';
 import type { OperationQueryDto } from './dto/operation.dto';
 import type { PrismaTransactionClient } from '../../database/prisma.types';
+import { allocateServiceOrderNumber } from './service-order-number';
 
 const operationInclude = {
   businessUnit: {
@@ -198,9 +199,23 @@ export class OperationRepository {
     auxiliaryUserIds: string[] = [],
     assetIds: readonly string[] = [],
   ) {
+    /*
+     * O número da ordem é reservado **aqui**, e não no serviço.
+     *
+     * Esta é a fronteira por onde toda ordem de serviço nasce — a criação direta
+     * e a conversão de uma solicitação do cliente. O PMOC e a RVT criam operação
+     * sem passar por aqui, e é assim que ficam de fora da contagem sem precisar
+     * de uma condição que alguém possa esquecer de repetir.
+     */
+    const serviceOrderNumber = await allocateServiceOrderNumber(
+      transaction,
+      String(data.organizationId),
+    );
+
     const operation = await transaction.operation.create({
       data: {
         ...data,
+        serviceOrderNumber,
         /** Os equipamentos entram na mesma transação da ordem. */
         assets: assetIds.length
           ? { create: assetIds.map((assetId) => ({ assetId })) }

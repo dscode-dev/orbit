@@ -188,6 +188,7 @@ class FieldOperationStateContract {
     required this.id,
     required this.code,
     required this.title,
+    this.serviceOrderCode,
     required this.status,
     required this.priority,
     this.description,
@@ -201,6 +202,7 @@ class FieldOperationStateContract {
       FieldOperationStateContract(
         id: json['id'] as String? ?? '',
         code: json['code'] as String? ?? '',
+        serviceOrderCode: json['serviceOrderCode'] as String?,
         title: json['title'] as String? ?? '',
         status: json['status'] as String? ?? '',
         priority: json['priority'] as String? ?? '',
@@ -214,6 +216,14 @@ class FieldOperationStateContract {
 
   final String id;
   final String code;
+
+  /// `OS-000087` — o número da ordem de serviço, o mesmo que o documento imprime.
+  ///
+  /// É o que o técnico lê para o cliente. `code` é a convenção interna de quem
+  /// criou a operação; nulo aqui é o normal de uma operação que não é ordem de
+  /// serviço — PMOC e RVT têm as contagens delas.
+  final String? serviceOrderCode;
+
   final String title;
   final String? description;
   final String status;

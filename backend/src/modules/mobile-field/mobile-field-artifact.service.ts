@@ -8,6 +8,7 @@ import {
 } from '../../exceptions';
 import { ArtifactManifestService } from '../artifact-manifests/artifact-manifest.service';
 import { ArtifactRenderService } from '../artifact-rendering/artifact-render.service';
+import { formatServiceOrderNumber } from '../operations/service-order-number';
 import type { MobileFieldActor } from './mobile-field.service';
 import type { RenderFieldArtifactDto } from './mobile-field-artifact.dto';
 import {
@@ -519,8 +520,26 @@ export class MobileFieldArtifactService {
          */
         assetId: value.assets[0]?.asset.id ?? null,
         responsibleUserId: source.signatoryId,
-        code: `OS-${value.code}`,
-        title: `Ordem de Serviço — ${value.code}`,
+        /*
+         * O "Número" que o documento imprime é o da **ordem de serviço**, não o
+         * código digitado na operação.
+         *
+         * Antes era `OS-<code>`, e `code` é texto livre: o número do documento
+         * legal dependia da convenção de quem criou a operação, e não havia
+         * contagem de ordens. A reserva acontece no nascimento da ordem, então
+         * aqui só se lê.
+         *
+         * A volta para o código existe para as operações anteriores à numeração e
+         * para as que não são ordem de serviço — uma operação de PMOC cujo
+         * documento de OS alguém emita. Sair sem número seria pior: um documento
+         * que ninguém consegue citar.
+         */
+        code:
+          formatServiceOrderNumber(value.serviceOrderNumber) ??
+          `OS-${value.code}`,
+        title: `Ordem de Serviço — ${
+          formatServiceOrderNumber(value.serviceOrderNumber) ?? value.code
+        }`,
         startedAt: value.startedAt,
         completedAt: value.completedAt,
         template: source.template,

@@ -118,6 +118,16 @@ export interface OperationListItemReadModel {
   /** O ponto exato dentro do endereço: "Auditório", "Sala 2". */
   sector: string | null;
   code: string;
+  /**
+   * O número da Ordem de Serviço — contagem própria, por organização.
+   *
+   * `code` é o texto que o dono digita; este é o número que o documento imprime e
+   * que o cliente cita. Nulo nas operações que nascem de PMOC ou RVT: elas são
+   * operação, não ordem de serviço, e têm as contagens delas.
+   */
+  serviceOrderNumber: number | null;
+  /** `OS-000087` — o mesmo número, como se lê. Nulo junto com ele. */
+  serviceOrderCode: string | null;
   kind: OperationKind;
   title: string;
   description: string | null;

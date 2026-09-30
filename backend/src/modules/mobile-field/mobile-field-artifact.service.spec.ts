@@ -41,6 +41,65 @@ describe('MobileFieldArtifactService', () => {
     });
   });
 
+  /**
+   * O "Número" da OS é o da ordem, não o código digitado.
+   *
+   * O documento imprime `execution.code`, e ele era montado como `OS-<code>` —
+   * onde `code` é texto livre que o dono escreve ao criar a operação. Duas
+   * consequências: o número do documento legal seguia a convenção de quem digitou,
+   * e não existia contagem de ordens de serviço.
+   *
+   * Aqui a numeração já está reservada desde o nascimento da ordem; este teste
+   * garante que ela **chega ao documento** em vez de ficar só na tabela.
+   */
+  describe('numeração no documento congelado', () => {
+    function bancada(serviceOrderNumber: number | null) {
+      const repository = {
+        source: jest.fn().mockResolvedValue(operacao(serviceOrderNumber)),
+        existing: jest.fn().mockResolvedValue(null),
+        freeze: jest.fn().mockResolvedValue(artifact('NOT_RENDERED')),
+      };
+      const service = new MobileFieldArtifactService(
+        repository as never,
+        { request: jest.fn() } as never,
+        {} as never,
+      );
+      return { service, repository };
+    }
+
+    const congelar = (service: MobileFieldArtifactService) =>
+      service.freeze(
+        actor,
+        'OPERATION',
+        '01900000-0000-7000-8000-000000000012',
+      );
+
+    it('imprime o número da ordem de serviço', async () => {
+      const { service, repository } = bancada(87);
+
+      await congelar(service);
+
+      expect(repository.freeze).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'OS-000087',
+          title: 'Ordem de Serviço — OS-000087',
+        }),
+      );
+    });
+
+    it('sem número, volta para o código — mas não sai sem identidade', async () => {
+      /* Operações anteriores à numeração, e as que não são ordem de serviço.
+         Um documento sem número é um documento que ninguém consegue citar. */
+      const { service, repository } = bancada(null);
+
+      await congelar(service);
+
+      expect(repository.freeze).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'OS-ORB-1' }),
+      );
+    });
+  });
+
   it('does not enqueue another render when the frozen artifact is pending', async () => {
     const rendering = { request: jest.fn() };
     const repository = {
@@ -73,5 +132,72 @@ function artifact(renderStatus: string): any {
       snapshot: { templateVersion: 1 },
       manifests: [],
     },
+  };
+}
+
+/** Uma operação concluída, pronta para congelar o documento. */
+function operacao(serviceOrderNumber: number | null): any {
+  return {
+    kind: 'OPERATION',
+    source: {
+      id: '01900000-0000-7000-8000-000000000012',
+      businessUnitId: '01900000-0000-7000-8000-000000000003',
+      customerId: null,
+      code: 'ORB-1',
+      serviceOrderNumber,
+      title: 'Preventiva',
+      status: 'COMPLETED',
+      startedAt: new Date('2026-09-29T12:00:00.000Z'),
+      completedAt: new Date('2026-09-29T13:00:00.000Z'),
+      assets: [],
+      auxiliaryTechnicians: [],
+      history: [],
+      checklistExecutions: [],
+      inventoryMovements: [],
+      fieldEvidence: [],
+      fieldEvidenceUploads: [],
+      customer: null,
+      customerAddress: null,
+      businessUnit: {
+        legalName: 'Orbit Recife',
+        tradeName: null,
+        city: 'Recife',
+        stateCode: 'PE',
+      },
+      responsibleFieldTechnician: {
+        id: '01900000-0000-7000-8000-000000000001',
+        displayName: 'Ana',
+      },
+      startedBy: {
+        id: '01900000-0000-7000-8000-000000000001',
+        displayName: 'Ana',
+      },
+      completedBy: {
+        id: '01900000-0000-7000-8000-000000000001',
+        displayName: 'Ana',
+      },
+      responsibleFieldTechnicianId: '01900000-0000-7000-8000-000000000001',
+    },
+    signatoryId: '01900000-0000-7000-8000-000000000001',
+    /* A assinatura do técnico é pré-condição para congelar — sem ela o documento
+       sairia sem quem responde por ele, e o serviço recusa antes. */
+    signature: { hash: 'b'.repeat(64), storageFileId: 'file-1' },
+    acknowledgement: null,
+    template: {
+      id: 'tpl-1',
+      key: 'ORDEM_SERVICO',
+      name: 'Ordem de Serviço',
+      artifactType: 'SERVICE_ORDER',
+      segment: null,
+      version: {
+        id: 'v1',
+        version: 1,
+        metadata: {},
+        sections: [],
+        signatureSlots: [],
+        layout: {},
+      },
+    },
+    permissions: ['artifact_rendering.render'],
   };
 }

@@ -284,7 +284,10 @@ class _Summary extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              operation.code,
+              /* O número da ordem primeiro, quando existe: é o que o cliente
+                 anota e o que o documento imprime. O código continua sendo a
+                 identificação interna, e aparece quando não há número. */
+              operation.serviceOrderCode ?? operation.code,
               style: OrbitType.eyebrow.copyWith(color: palette.inkSubtle),
             ),
             const SizedBox(height: 4),

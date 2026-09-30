@@ -17,6 +17,7 @@ import type {
   OperationUserReadModel,
 } from './operation.read-models';
 import { OperationStateMachine } from './operation-state-machine';
+import { formatServiceOrderNumber } from './service-order-number';
 
 type DateValue = Date | string;
 
@@ -67,6 +68,7 @@ interface OperationSource {
   customerAddressId: string | null;
   sector: string | null;
   code: string;
+  serviceOrderNumber: number | null;
   kind: OperationKind;
   title: string;
   description: string | null;
@@ -179,6 +181,10 @@ export class OperationReadModelMapper {
       customerAddressId: source.customerAddressId,
       sector: source.sector,
       code: source.code,
+      serviceOrderNumber: source.serviceOrderNumber,
+      /* O formato mora num lugar só: o documento, a web e o aplicativo leem o
+         mesmo texto, e ninguém precisa reimplementar o preenchimento de zeros. */
+      serviceOrderCode: formatServiceOrderNumber(source.serviceOrderNumber),
       kind: source.kind,
       title: source.title,
       description: source.description,

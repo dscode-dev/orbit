@@ -332,6 +332,7 @@ model Organization {
   customerServiceRequestEvents  CustomerServiceRequestEvent[]
 
   pmocCodeSequences       PmocCodeSequence[]
+  serviceOrderSequence    ServiceOrderSequence?
   pmocUnits               PmocUnit[]
   rvtMaintenanceTypes     RvtMaintenanceType[]
   commissionPolicy        CommissionPolicy?
@@ -1411,6 +1412,16 @@ model Operation {
   /// O ponto exato dentro do endereço: "Auditório", "Sala 2", "Cozinha".
   sector                       String?   @db.VarChar(120)
   code                         String    @db.VarChar(60)
+  /// O número da Ordem de Serviço — contagem própria, por organização.
+  ///
+  /// Operação é o gênero: o PMOC executa criando operação, a RVT também. OS é
+  /// uma espécie, e a numeração dela é a que o cliente cobra ao telefone. Por
+  /// isso não é o `code` (texto digitado pelo dono, sem contagem) nem um
+  /// `COUNT` de operações, que somaria manutenções preventivas que ninguém
+  /// chamou de ordem de serviço.
+  ///
+  /// Nulo nas operações que nascem de PMOC ou RVT: elas têm as contagens delas.
+  serviceOrderNumber           Int?      @map("service_order_number")
   kind                         String    @db.VarChar(60)
   title                        String    @db.VarChar(220)
   description                  String?   @db.Text
@@ -1558,6 +1569,26 @@ model CustomerServiceRequestEvent {
   @@index([requestId, createdAt, id])
   @@index([organizationId, visibility, createdAt])
   @@map("customer_service_request_events")
+}
+
+/// O contador do número da OS, por organização.
+///
+/// Mesmo padrão de [PmocCodeSequence], e pela mesma razão: `MAX(numero) + 1`
+/// calculado na aplicação faria duas criações simultâneas lerem o mesmo máximo,
+/// e uma SEQUENCE por organização seria DDL criado em runtime. Aqui é uma linha
+/// por inquilino, incrementada com `ON CONFLICT DO UPDATE` dentro da transação
+/// que cria a ordem.
+///
+/// A autoridade contra duplicidade continua sendo o índice único parcial de
+/// `operations`; este contador é quem diz **qual é o próximo**.
+model ServiceOrderSequence {
+  organizationId String   @id @map("organization_id") @db.Uuid
+  lastValue      Int      @default(0) @map("last_value")
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("service_order_sequences")
 }
 
 model OperationUser {

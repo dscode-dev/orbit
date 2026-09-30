@@ -30,6 +30,7 @@ import { DomainEventEmitter } from '../automations/domain-event.emitter';
 import { BackgroundJobQueue } from '../jobs/background-job.queue';
 import { JOB_QUEUES } from '../jobs/background-job.types';
 import type { QuoteQueryDto } from './quote.dto';
+import { allocateServiceOrderNumber } from '../operations/service-order-number';
 
 const actor = { select: { id: true, displayName: true } } as const;
 
@@ -827,10 +828,18 @@ export class QuoteRepository {
       if (!current) return null;
       if (current.operationId) return this.reload(tx, input.quoteId);
 
+      /* Orçamento aprovado vira ordem de serviço, e ordem de serviço tem número
+         próprio — a mesma contagem da criação direta, e não uma paralela. */
+      const serviceOrderNumber = await allocateServiceOrderNumber(
+        tx,
+        input.organizationId,
+      );
+
       const operation = await tx.operation.create({
         data: {
           id: generateUuidV7(),
           organizationId: input.organizationId,
+          serviceOrderNumber,
           businessUnitId: input.businessUnitId,
           customerId: input.customerId,
           code: input.code,

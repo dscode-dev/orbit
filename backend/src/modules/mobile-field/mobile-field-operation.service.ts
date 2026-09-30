@@ -28,6 +28,7 @@ import type {
   FieldOperationTimelineReadModel,
 } from './mobile-field-operation.read-models';
 import { MobileSignatureRepository } from './mobile-signature.repository';
+import { formatServiceOrderNumber } from '../operations/service-order-number';
 
 type OperationPreparation = NonNullable<
   Awaited<ReturnType<MobileFieldOperationRepository['preparation']>>
@@ -70,6 +71,7 @@ export class MobileFieldOperationService {
       operation: {
         id: source.id,
         code: source.code,
+        serviceOrderCode: formatServiceOrderNumber(source.serviceOrderNumber),
         title: source.title,
         description: source.description,
         status: source.status,
