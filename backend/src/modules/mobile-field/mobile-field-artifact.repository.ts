@@ -15,6 +15,18 @@ export interface FrozenFieldDocument {
   sourceId: string;
   documentType: FieldArtifactDocumentType;
   locale: 'pt-BR';
+  /**
+   * Fatos da execução que o documento lê por nome, não por seção.
+   *
+   * Os compositores premium leem alguns dados de `metadata` — `executionNotes` é o
+   * que alimenta "Observações da execução" na OS e "Observações" na RVT. Antes
+   * disto, o `metadata` de um documento congelado era só o do **template**, e
+   * essas seções nunca imprimiam nada em produção: o técnico escrevia, o texto
+   * ficava no histórico, e o documento saía sem ele.
+   *
+   * Opcional porque nem todo documento tem o que dizer aqui.
+   */
+  metadata?: Record<string, unknown>;
   sections: readonly {
     id: string;
     title: string;

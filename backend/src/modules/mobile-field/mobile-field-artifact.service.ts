@@ -430,8 +430,48 @@ export class MobileFieldArtifactService {
       customerAcknowledgement: source.acknowledgement
         ? this.acknowledgement(source.acknowledgement)
         : null,
+      metadata: {
+        executionNotes: this.customerVisibleNotes(operation.history),
+      },
       frozenAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * O que o técnico escreveu **para o cliente**, na ordem em que escreveu.
+   *
+   * ## Por que só as visíveis
+   *
+   * Uma observação de campo nasce com visibilidade: `INTERNAL` é conversa da
+   * equipe — "cliente resistente a trocar a peça", "voltar com outro técnico" — e
+   * `CUSTOMER_VISIBLE` é o que se diz a ele. A OS é entregue e **assinada** pelo
+   * cliente. Imprimir a interna nela vazaria o que a equipe disse entre si, num
+   * papel que ele arquiva.
+   *
+   * ## Por que do histórico
+   *
+   * É onde a observação de campo é gravada (`FIELD_NOTE_ADDED`). A operação não tem
+   * coluna de observação: cada nota é um fato com autor e hora, e achatá-las numa
+   * coluna perderia quem escreveu o quê.
+   *
+   * `null` quando não há nenhuma — e aí a seção do documento simplesmente não
+   * existe, em vez de aparecer vazia dizendo que nada foi observado.
+   */
+  private customerVisibleNotes(
+    history: readonly { action: string; details: unknown }[],
+  ): string | null {
+    const notas = history
+      .filter((entry) => entry.action === 'FIELD_NOTE_ADDED')
+      .map((entry) => this.record(entry.details))
+      .filter((details) => details.visibility === 'CUSTOMER_VISIBLE')
+      .map((details) =>
+        typeof details.note === 'string' ? details.note.trim() : '',
+      )
+      .filter((note) => note.length > 0);
+
+    /* Linha em branco entre as notas: são momentos diferentes do atendimento, e
+       emendadas viram um parágrafo que ninguém escreveu. */
+    return notas.length > 0 ? notas.join('\n\n') : null;
   }
 
   private rvtSnapshot(

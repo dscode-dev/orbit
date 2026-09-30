@@ -272,6 +272,15 @@ export class ArtifactRenderAssembler {
       layout: record(source.snapshot.layout),
       metadata: {
         ...record(source.snapshot.metadata),
+        /*
+         * Os fatos da execução vencem os do template.
+         *
+         * O `metadata` do snapshot descreve o **modelo**; o do documento congelado
+         * descreve o **atendimento**. Na ordem inversa, um valor de template
+         * apagaria a observação que o técnico escreveu — e é ela que o cliente lê
+         * antes de assinar.
+         */
+        ...record(frozen.metadata),
         fieldSnapshotHash: text(frozen.snapshotHash),
         ...(source.documentContext
           ? { documentContext: source.documentContext }

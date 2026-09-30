@@ -100,6 +100,108 @@ describe('MobileFieldArtifactService', () => {
     });
   });
 
+  /**
+   * As observações do técnico chegam ao documento.
+   *
+   * A seção "Pendências e observações" da OS lê `metadata.executionNotes`, e o
+   * `metadata` de um documento congelado era só o do **template** — a seção nunca
+   * imprimia nada em produção. O técnico escrevia no aplicativo, o texto ficava no
+   * histórico, e o documento que o cliente assina saía sem a substância do
+   * atendimento.
+   */
+  describe('observações no documento congelado', () => {
+    function bancada(history: unknown[]) {
+      const fonte = operacao(87) as { source: { history: unknown[] } };
+      fonte.source.history = history;
+      const repository = {
+        source: jest.fn().mockResolvedValue(fonte),
+        existing: jest.fn().mockResolvedValue(null),
+        freeze: jest.fn().mockResolvedValue(artifact('NOT_RENDERED')),
+      };
+      const service = new MobileFieldArtifactService(
+        repository as never,
+        { request: jest.fn() } as never,
+        {} as never,
+      );
+      return { service, repository };
+    }
+
+    const nota = (note: string, visibility: string) => ({
+      action: 'FIELD_NOTE_ADDED',
+      details: { note, visibility },
+      createdAt: new Date('2026-09-29T12:30:00.000Z'),
+    });
+
+    const congelar = (service: MobileFieldArtifactService) =>
+      service.freeze(
+        actor,
+        'OPERATION',
+        '01900000-0000-7000-8000-000000000012',
+      );
+
+    const notasDoSnapshot = (freeze: jest.Mock): unknown => {
+      const calls = freeze.mock.calls as [
+        { snapshot: { metadata?: { executionNotes?: unknown } } },
+      ][];
+      return calls[0]?.[0]?.snapshot?.metadata?.executionNotes;
+    };
+
+    it('leva as observações visíveis ao cliente', async () => {
+      const { service, repository } = bancada([
+        nota('Gás recarregado; dreno desobstruído.', 'CUSTOMER_VISIBLE'),
+      ]);
+
+      await congelar(service);
+
+      expect(notasDoSnapshot(repository.freeze)).toBe(
+        'Gás recarregado; dreno desobstruído.',
+      );
+    });
+
+    it('nunca leva as internas', async () => {
+      /* A OS é entregue e assinada pelo cliente. A nota interna é conversa da
+         equipe, e num papel que ele arquiva ela é vazamento. */
+      const { service, repository } = bancada([
+        nota(
+          'Cliente resiste a trocar a peça; insistir na próxima.',
+          'INTERNAL',
+        ),
+      ]);
+
+      await congelar(service);
+
+      expect(notasDoSnapshot(repository.freeze)).toBeNull();
+    });
+
+    it('junta várias, separadas, na ordem em que foram escritas', async () => {
+      const { service, repository } = bancada([
+        nota('Primeira constatação.', 'CUSTOMER_VISIBLE'),
+        nota('Interna, não sai.', 'INTERNAL'),
+        nota('Segunda constatação.', 'CUSTOMER_VISIBLE'),
+      ]);
+
+      await congelar(service);
+
+      /* Linha em branco entre elas: são momentos diferentes do atendimento, e
+         emendadas viram um parágrafo que ninguém escreveu. */
+      expect(notasDoSnapshot(repository.freeze)).toBe(
+        'Primeira constatação.\n\nSegunda constatação.',
+      );
+    });
+
+    it('sem observação nenhuma, a seção não existe', async () => {
+      /* `null`, e não string vazia: um bloco em branco no documento diz que nada
+         foi observado, o que é uma afirmação diferente de não ter havido nota. */
+      const { service, repository } = bancada([
+        { action: 'FIELD_OPERATION_COMPLETED', details: {} },
+      ]);
+
+      await congelar(service);
+
+      expect(notasDoSnapshot(repository.freeze)).toBeNull();
+    });
+  });
+
   it('does not enqueue another render when the frozen artifact is pending', async () => {
     const rendering = { request: jest.fn() };
     const repository = {

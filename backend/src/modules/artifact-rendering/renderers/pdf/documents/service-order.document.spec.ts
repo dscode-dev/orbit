@@ -249,6 +249,39 @@ describe('Ordem de Serviço premium', () => {
     expect(texto).toContain('EL-69');
   });
 
+  /*
+   * A observação do técnico, na OS emitida em campo.
+   *
+   * O bloco lê `metadata.executionNotes` e sempre saiu vazio em produção: o
+   * `metadata` de um documento congelado era só o do template. O técnico
+   * escrevia no aplicativo, o texto ficava no histórico da operação, e a folha
+   * que o cliente assina saía sem a substância do atendimento.
+   */
+  it('imprime a observação de quem atendeu', async () => {
+    const base = entrada();
+    const saida = await renderer.render({
+      ...base,
+      metadata: {
+        ...base.metadata,
+        executionNotes: 'Gás recarregado; dreno desobstruído.',
+      },
+    });
+
+    const texto = pdfText(saida.bytes);
+
+    /* Maiúsculas: é como `noteBlock` escreve o título do bloco. Afirmar a forma
+       com acento minúsculo passaria de graça no `not.toContain` do teste
+       seguinte — e ele deixaria de provar qualquer coisa. */
+    expect(texto).toContain('OBSERVAÇÕES DA EXECUÇÃO');
+    expect(texto).toContain('dreno desobstruído');
+  });
+
+  it('sem observação, o bloco não aparece só com o título', async () => {
+    const texto = pdfText((await renderer.render(entrada())).bytes);
+
+    expect(texto).not.toContain('OBSERVAÇÕES DA EXECUÇÃO');
+  });
+
   it('desenha o mesmo papel para a OS de campo e a do template', async () => {
     const campo = await renderer.render(
       entrada({ artifactType: 'SERVICE_ORDER' }),
