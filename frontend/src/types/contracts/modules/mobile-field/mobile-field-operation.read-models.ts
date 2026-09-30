@@ -51,6 +51,15 @@ export interface FieldOperationExecutionPreparationReadModel {
   operation: {
     id: string;
     code: string;
+    /**
+     * `OS-000087` — o número da ordem de serviço, como o documento o imprime.
+     *
+     * É o que o técnico lê em voz alta para o cliente e o que o cliente anota.
+     * `code` é a convenção interna de quem criou a operação, e nulo aqui é o
+     * normal de uma operação que não é ordem de serviço — PMOC e RVT têm as
+     * contagens delas.
+     */
+    serviceOrderCode: string | null;
     title: string;
     description: string | null;
     status: OperationStatus;

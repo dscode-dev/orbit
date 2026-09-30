@@ -55,6 +55,13 @@ export const OPERATIONS_REFRESH = {
   checklists: CACHE.fresh,
   artifactExecutions: CACHE.fresh,
   intelligence: CACHE.catalog,
+
+  /**
+   * O registro de campo envelhece enquanto o técnico trabalha — cada foto nova é
+   * uma linha a mais — e as URLs assinadas expiram. `live` mantém a página
+   * acompanhando sem que ninguém precise recarregar.
+   */
+  fieldRecord: CACHE.live,
 } as const;
 
 /** Lista paginada. A unidade ativa entra como filtro quando não há escolha explícita. */
@@ -100,6 +107,20 @@ export function useOperationHistory(id: string) {
     operationsService.keys.history(id),
     ({ signal }) => operationsService.history(id, { signal }),
     OPERATIONS_REFRESH.history,
+  );
+}
+
+/**
+ * As fotos e o aceite do cliente deste atendimento.
+ *
+ * Existia só dentro do PDF: quem acompanha pela plataforma não tinha como ver se
+ * havia evidência nem se o cliente assinou.
+ */
+export function useOperationFieldRecord(id: string) {
+  return useApiQuery(
+    operationsService.keys.fieldRecord(id),
+    ({ signal }) => operationsService.fieldRecord(id, { signal }),
+    { ...OPERATIONS_REFRESH.fieldRecord, refetchOnWindowFocus: true },
   );
 }
 

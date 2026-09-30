@@ -22,6 +22,9 @@ import type {
   OperationDetailsReadModel,
   OperationHistoryReadModel,
   OperationListItemReadModel,
+  OperationFieldAcknowledgementReadModel,
+  OperationFieldEvidenceReadModel,
+  OperationFieldRecordReadModel,
   OperationTimelineAttachmentReadModel,
   OperationTimelineReadModel,
   OperationUserReadModel,
@@ -33,6 +36,12 @@ export type OperationAttachment = OperationAttachmentReadModel;
 export type OperationTimelineAttachment = OperationTimelineAttachmentReadModel;
 export type OperationHistoryEntry = OperationHistoryReadModel;
 export type OperationTimeline = OperationTimelineReadModel;
+
+/** O que o campo registrou: fotos e o aceite do cliente. */
+export type OperationFieldRecord = OperationFieldRecordReadModel;
+export type OperationFieldEvidence = OperationFieldEvidenceReadModel;
+export type OperationFieldAcknowledgement =
+  OperationFieldAcknowledgementReadModel;
 export type OperationBusinessUnitRef = OperationBusinessUnitReadModel;
 export type OperationCustomerRef = OperationCustomerReadModel;
 export type OperationAssetRef = OperationAssetReadModel;

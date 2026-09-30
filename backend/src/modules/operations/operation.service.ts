@@ -25,6 +25,8 @@ import {
   UsageResource,
 } from '../subscription-plans/entitlements';
 import { generateUuidV7 } from '../../utils';
+import { FileObjectService } from '../storage/file-object.service';
+import type { OperationFieldRecordReadModel } from './operation.read-models';
 
 @Injectable()
 export class OperationService {
@@ -35,6 +37,8 @@ export class OperationService {
     private readonly storage: OperationStorageService,
     private readonly workforce: WorkforceRepository,
     private readonly entitlements: EntitlementService,
+    /** Assina as URLs das imagens do registro de campo. */
+    private readonly files: FileObjectService,
     @Optional()
     private readonly mobileNotifications?: MobileNotificationService,
   ) {}
@@ -550,6 +554,87 @@ export class OperationService {
       await this.storage.remove(stored.storageKey).catch(() => undefined);
       throw error;
     }
+  }
+
+  /**
+   * O registro de campo: o que o técnico fotografou e o que o cliente assinou.
+   *
+   * ## Por que a web precisa disto
+   *
+   * As fotos e a assinatura eram gravadas pelo aplicativo e só apareciam **dentro
+   * do PDF**. Quem acompanha o fluxo pela plataforma não tinha como ver se havia
+   * evidência nem se o cliente assinou, a não ser emitindo o documento e abrindo o
+   * arquivo — o que só é possível depois de o atendimento acabar.
+   *
+   * ## As URLs são assinadas na hora
+   *
+   * O arquivo mora no storage, fora da API, e o acesso a ele é temporário. Assinar
+   * na leitura é o que mantém o endereço curto de vida: gravá-lo em algum lugar
+   * significaria distribuir um link que continua valendo depois de a pessoa perder
+   * o acesso ao atendimento.
+   */
+  async fieldRecord(
+    operationId: string,
+    organizationId: string,
+  ): Promise<OperationFieldRecordReadModel> {
+    /* A leitura da operação primeiro: é ela que confere o inquilino e responde
+       "não encontrado" para quem pede o atendimento de outra organização. */
+    await this.get(operationId, organizationId);
+    const record = await this.repository.fieldRecord(
+      operationId,
+      organizationId,
+    );
+
+    const evidence = await Promise.all(
+      record.evidence.map(async (item) => {
+        const signed = await this.files.sign(item.storageFile, 'preview');
+        return {
+          id: item.id,
+          category: item.category,
+          source: item.source,
+          fileName: item.fileName,
+          mimeType: item.mimeType,
+          sizeBytes: item.sizeBytes.toString(),
+          capturedAt: item.capturedAt?.toISOString() ?? null,
+          capturedBy: item.capturedBy
+            ? {
+                id: item.capturedBy.id,
+                displayName: item.capturedBy.displayName,
+              }
+            : null,
+          url: signed.url,
+          expiresAt: signed.expiresAt.toISOString(),
+        };
+      }),
+    );
+
+    if (!record.acknowledgement) return { evidence, acknowledgement: null };
+
+    const signature = record.signatureFile
+      ? await this.files.sign(record.signatureFile, 'preview')
+      : null;
+
+    return {
+      evidence,
+      acknowledgement: {
+        id: record.acknowledgement.id,
+        signerName: record.acknowledgement.signerName,
+        acknowledgedAt: record.acknowledgement.acknowledgedAt.toISOString(),
+        capturedBy: record.capturedBy
+          ? {
+              id: record.capturedBy.id,
+              displayName: record.capturedBy.displayName,
+            }
+          : null,
+        signature: signature
+          ? {
+              url: signature.url,
+              expiresAt: signature.expiresAt.toISOString(),
+            }
+          : null,
+        summary: record.acknowledgement.summarySnapshot,
+      },
+    };
   }
 
   async download(

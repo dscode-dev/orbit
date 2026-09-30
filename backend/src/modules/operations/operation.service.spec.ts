@@ -33,11 +33,19 @@ describe('OperationService', () => {
   };
   const storage = { store: jest.fn(), remove: jest.fn(), read: jest.fn() };
   const workforce = { listProfessionals: jest.fn() };
+  /* Estes testes não tocam o registro de campo, e o dublê diz isso: chamar
+     `sign` aqui é erro de teste, não comportamento a tolerar. */
+  const files = {
+    sign: jest.fn(() => {
+      throw new Error('assinatura de storage não participa destes testes');
+    }),
+  };
   const service = new OperationService(
     repository as unknown as OperationRepository,
     storage as unknown as OperationStorageService,
     workforce as unknown as WorkforceRepository,
     semCota,
+    files as never,
   );
 
   beforeEach(() => {

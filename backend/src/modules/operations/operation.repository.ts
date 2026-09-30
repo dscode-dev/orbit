@@ -773,6 +773,60 @@ export class OperationRepository {
     });
   }
 
+  /**
+   * O registro de campo de um atendimento: as evidências e o aceite do cliente.
+   *
+   * Duas consultas na mesma transação porque são duas tabelas independentes — a
+   * evidência aponta para a operação, o aceite aponta para ela por tipo e id. Lê-las
+   * separadas deixaria a janela em que uma foto entra entre uma e outra, e a tela
+   * mostraria um conjunto que nunca existiu.
+   *
+   * Só evidência `FINALIZED`: as que ainda estão subindo não têm arquivo no storage,
+   * e assinar URL para elas devolveria endereço que responde 404.
+   */
+  fieldRecord(operationId: string, organizationId: string) {
+    return this.rls.run(async (tx) => {
+      const evidence = await tx.fieldEvidence.findMany({
+        where: { operationId, organizationId, status: 'FINALIZED' },
+        orderBy: [{ category: 'asc' }, { capturedAt: 'asc' }, { id: 'asc' }],
+        include: {
+          storageFile: true,
+          capturedBy: { select: { id: true, displayName: true } },
+        },
+      });
+
+      const acknowledgement = await tx.customerAcknowledgement.findFirst({
+        where: {
+          organizationId,
+          executionType: 'OPERATION',
+          executionId: operationId,
+          /* Aceite invalidado não conta: o atendimento mudou depois dele, e
+             mostrá-lo como válido diria que o cliente aceitou o que não viu. */
+          invalidatedAt: null,
+        },
+        orderBy: { acknowledgedAt: 'desc' },
+      });
+
+      const signatureFile = acknowledgement?.signatureStorageFileId
+        ? await tx.storageFile.findFirst({
+            where: {
+              id: acknowledgement.signatureStorageFileId,
+              organizationId,
+            },
+          })
+        : null;
+
+      const capturedBy = acknowledgement
+        ? await tx.user.findFirst({
+            where: { id: acknowledgement.capturedByUserId },
+            select: { id: true, displayName: true },
+          })
+        : null;
+
+      return { evidence, acknowledgement, signatureFile, capturedBy };
+    });
+  }
+
   findAttachment(id: string, operationId: string) {
     return this.rls.run((transaction) =>
       transaction.operationAttachment.findFirst({

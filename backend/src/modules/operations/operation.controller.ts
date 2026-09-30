@@ -312,6 +312,23 @@ export class OperationController {
     );
   }
 
+  /**
+   * O registro de campo: as fotos do técnico e o aceite do cliente.
+   *
+   * Leitura do atendimento, e por isso `operations.read`: quem pode abrir a ordem
+   * pode ver o que foi registrado nela. As imagens vêm como endereços assinados e
+   * temporários do storage — o navegador as carrega direto, sem passar pela API.
+   */
+  @Get(':id/field-record')
+  @Capabilities('operations.read')
+  @Permissions('operations.read')
+  fieldRecord(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.operations.fieldRecord(id, this.organizationId(request));
+  }
+
   @Get(':id/attachments/:attachmentId')
   @Capabilities('operations.read')
   @Permissions('operations.attachments.read')

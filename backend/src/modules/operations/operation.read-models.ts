@@ -189,3 +189,78 @@ export interface OperationListReadModel {
     hasPreviousPage: boolean;
   };
 }
+
+/**
+ * O que o campo registrou num atendimento — para quem olha da web.
+ *
+ * ## Por que existe
+ *
+ * As fotos e a assinatura do cliente eram gravadas pelo aplicativo e só apareciam
+ * **dentro do PDF**. O dono acompanhava o fluxo pela plataforma e não tinha como
+ * ver o que o técnico fotografou nem se o cliente assinou, a não ser emitindo o
+ * documento e abrindo o arquivo — depois de o atendimento acabar.
+ *
+ * ## Por que num read model próprio
+ *
+ * Não entra no detalhe da operação porque envolve **assinar URLs** de storage, com
+ * validade curta: carregá-lo em toda leitura de operação geraria assinaturas que
+ * ninguém usa e encareceria a lista. Quem quer ver o registro de campo pede o
+ * registro de campo.
+ */
+export interface OperationFieldRecordReadModel {
+  evidence: readonly OperationFieldEvidenceReadModel[];
+  /** `null` quando o cliente não assinou — e isso é legítimo: a assinatura é
+   * desejável, não obrigatória, e há atendimentos em que não há quem assine. */
+  acknowledgement: OperationFieldAcknowledgementReadModel | null;
+}
+
+/**
+ * Quem registrou algo em campo — nome e id, nada mais.
+ *
+ * Separado de `OperationUserReadModel` de propósito: aquele carrega avatar e
+ * e-mail, que esta leitura não busca. Reaproveitá-lo obrigaria a preencher campos
+ * com `null` e faria a tela oferecer um avatar que nunca existiu.
+ */
+export interface OperationFieldActorReadModel {
+  id: string;
+  displayName: string;
+}
+
+export interface OperationFieldEvidenceReadModel {
+  id: string;
+  /** `BEFORE`, `AFTER`, `GENERAL`, `EQUIPMENT`, `DEFECT`, `MEASUREMENT`. */
+  category: string;
+  /** `CAMERA` ou `GALLERY` — se foi tirada na hora ou escolhida do aparelho. */
+  source: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: string;
+  capturedAt: string | null;
+  capturedBy: OperationFieldActorReadModel | null;
+  /**
+   * Endereço assinado e temporário da imagem.
+   *
+   * Do próprio storage, com host próprio: o navegador o carrega direto, sem passar
+   * pela API. Expira — a tela o pede de novo quando precisar, e guardá-lo em cache
+   * longo entregaria um link morto.
+   */
+  url: string;
+  expiresAt: string;
+}
+
+export interface OperationFieldAcknowledgementReadModel {
+  id: string;
+  signerName: string;
+  acknowledgedAt: string;
+  /** Quem colheu o aceite — o técnico que estava com o aparelho. */
+  capturedBy: OperationFieldActorReadModel | null;
+  /** A imagem da assinatura, quando o cliente assinou na tela. */
+  signature: { url: string; expiresAt: string } | null;
+  /**
+   * O resumo que o cliente **leu** antes de assinar, como estava naquele momento.
+   *
+   * Congelado de propósito: é o que dá sentido à assinatura. Recalculá-lo hoje
+   * mostraria o atendimento de agora, e não o que foi aceito.
+   */
+  summary: unknown;
+}

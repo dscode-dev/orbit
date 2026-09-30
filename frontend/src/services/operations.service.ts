@@ -19,6 +19,7 @@ import type {
   CreateOperationInput,
   Operation,
   OperationAttachment,
+  OperationFieldRecord,
   OperationListItem,
   OperationHistoryEntry,
   OperationQuery,
@@ -85,6 +86,19 @@ export const operationsService = {
     options?: RequestOptions,
   ): Promise<OperationTimeline> =>
     apiClient.get<OperationTimeline>(`${item(id)}/timeline`, options),
+
+  /**
+   * O registro de campo: as fotos do técnico e o aceite do cliente.
+   *
+   * Leitura separada do detalhe porque envolve assinar URLs de storage com
+   * validade curta — carregá-la em toda leitura de operação geraria assinaturas
+   * que ninguém abre.
+   */
+  fieldRecord: (
+    id: string,
+    options?: RequestOptions,
+  ): Promise<OperationFieldRecord> =>
+    apiClient.get<OperationFieldRecord>(`${item(id)}/field-record`, options),
 
   /** O backend valida a transição; o frontend só envia a intenção. */
   changeStatus: (
@@ -161,6 +175,8 @@ export const operationsService = {
       queryKeys.nested(RESOURCE, id, "history"),
     timeline: (id: string): QueryKey =>
       queryKeys.nested(RESOURCE, id, "timeline"),
+    fieldRecord: (id: string): QueryKey =>
+      queryKeys.nested(RESOURCE, id, "field-record"),
   },
 } as const;
 

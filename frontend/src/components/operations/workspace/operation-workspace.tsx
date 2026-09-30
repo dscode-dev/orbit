@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   useOperation,
   useOperationChecklists,
+  useOperationFieldRecord,
   useOperationHistory,
   useOperationIntelligence,
   useOperationTimeline,
@@ -34,6 +35,7 @@ import { AssigneesSection } from "./assignees.section";
 import { OperationArtifactExecutionsSection } from "./artifact-executions.section";
 import { AttachmentsSection } from "./attachments.section";
 import { ChecklistsSection } from "./checklists.section";
+import { FieldRecordSection } from "./field-record.section";
 import {
   AdditionalDataSection,
   DetailsSection,
@@ -60,6 +62,7 @@ export function OperationWorkspace({ operationId }: { operationId: string }) {
   const timeline = useOperationTimeline(operationId);
   const history = useOperationHistory(operationId);
   const checklists = useOperationChecklists(operationId);
+  const fieldRecord = useOperationFieldRecord(operationId);
   const intelligence = useOperationIntelligence(
     operationId,
     canUseIntelligence,
@@ -110,6 +113,7 @@ export function OperationWorkspace({ operationId }: { operationId: string }) {
             void timeline.refetch();
             void history.refetch();
             void checklists.refetch();
+            void fieldRecord.refetch();
             if (canUseIntelligence) void intelligence.refetch();
           }}
         >
@@ -129,6 +133,12 @@ export function OperationWorkspace({ operationId }: { operationId: string }) {
             "o que foi feito em campo".
           */}
           <MaterialsSection operation={operationQuery.data} />
+          {/*
+            O registro de campo fica na coluna principal, junto de checklists e
+            materiais: as três respondem "o que foi feito em campo". A assinatura
+            do cliente é a última peça dessa resposta.
+          */}
+          <FieldRecordSection query={toPanelQuery(fieldRecord)} />
           {canUseIntelligence ? (
             <IntelligenceSection query={toPanelQuery(intelligence)} />
           ) : null}
