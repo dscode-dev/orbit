@@ -195,6 +195,7 @@ class MobileNavigationContextContract {
     this.occurrenceId,
     this.cycleId,
     this.equipmentId,
+    this.planId,
   });
 
   /// `null` quando o tipo de item não é conhecido por esta versão do app.
@@ -208,6 +209,7 @@ class MobileNavigationContextContract {
       occurrenceId: json['occurrenceId'] as String?,
       cycleId: json['cycleId'] as String?,
       equipmentId: json['equipmentId'] as String?,
+      planId: json['planId'] as String?,
     );
   }
 
@@ -217,6 +219,15 @@ class MobileNavigationContextContract {
   final String? occurrenceId;
   final String? cycleId;
   final String? equipmentId;
+
+  /// O plano de PMOC, quando o item é de PMOC.
+  ///
+  /// Todas as rotas do atendimento são escopadas por ele
+  /// (`/pmoc/plans/:planId/cycles/:cycleId/equipment/:assetId/…`). Sem este
+  /// campo o aplicativo conseguia **ler** um PMOC e não tinha como atendê-lo.
+  ///
+  /// `null` nos outros tipos, que não pertencem a plano nenhum.
+  final String? planId;
 }
 
 class MobileWorkItemContract {
