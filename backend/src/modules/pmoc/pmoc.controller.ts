@@ -451,6 +451,38 @@ export class PmocController {
     );
   }
 
+  /**
+   * O técnico abre **o atendimento dele**, do celular.
+   *
+   * Porta separada da de cima porque a autoridade é outra: aqui basta
+   * `pmoc.execute`, a permissão de quem vai a campo — e o serviço exige que o
+   * plano esteja atribuído ao ator e abre a execução para ele mesmo.
+   *
+   * A rota de gerenciar exige `pmoc.manage`, que o papel de campo não tem e não
+   * deve ter: gerenciar contrato não é trabalho de quem vai à casa de máquinas.
+   * Sem esta porta, o técnico não conseguia atender um PMOC nem quando o plano
+   * era dele.
+   */
+  @Post('plans/:id/cycles/:cycleId/equipment/:assetId/executions/mine')
+  @Capabilities('pmoc.manage', 'operations.manage')
+  @Permissions('pmoc.execute')
+  @ApiOperation({
+    summary: 'Start my own physical execution (field technician)',
+  })
+  startMyEquipmentExecution(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Param('cycleId', ParseUUIDv7Pipe) cycleId: string,
+    @Param('assetId', ParseUUIDv7Pipe) assetId: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.pmoc.startMyEquipmentExecution(
+      id,
+      cycleId,
+      assetId,
+      this.actor(request),
+    );
+  }
+
   @Post('plans/:id/cycles/:cycleId/equipment-executions/:executionId/complete')
   @Capabilities('pmoc.manage', 'operations.manage')
   @Permissions('pmoc.manage')

@@ -1460,6 +1460,66 @@ export class PmocService {
     }));
   }
 
+  /**
+   * O técnico começa **o atendimento dele**, do celular.
+   *
+   * ## Por que é um método separado, e não um parâmetro
+   *
+   * São duas autoridades diferentes sobre a mesma escrita. Quem **gerencia** o
+   * PMOC (`pmoc.manage`) abre a execução e escala quem quiser: é o dono ou o
+   * administrador organizando o trabalho. Quem **executa** (`pmoc.execute`) abre
+   * apenas a sua, e só onde o plano lhe foi atribuído: é o técnico que chegou ao
+   * local.
+   *
+   * Um parâmetro "para mim" na rota de gerenciar faria a mesma porta aceitar as
+   * duas autoridades, e a verificação viraria um `if` no meio do corpo — o tipo
+   * de lugar onde uma permissão a menos passa sem ninguém notar.
+   *
+   * ## Por que o técnico não usa a rota de gerenciar
+   *
+   * Ela exige `pmoc.manage`, que o papel de campo não tem — e não deve ter:
+   * gerenciar contrato não é trabalho de quem vai à casa de máquinas. Antes
+   * disto, a consequência era o técnico **não conseguir atender** um PMOC nem
+   * quando o plano era dele.
+   */
+  async startMyEquipmentExecution(
+    planId: string,
+    cycleId: string,
+    assetId: string,
+    actor: PmocActor,
+  ) {
+    const preparation = await this.repository.executionPreparation(
+      actor.organizationId,
+      planId,
+      cycleId,
+      assetId,
+    );
+    if (!preparation) {
+      throw new EntityNotFoundException('PmocEquipmentCoverage', assetId);
+    }
+
+    /*
+     * A atribuição é do **plano**, e é o que autoriza.
+     *
+     * `technicianUserId` é a referência operacional: quem atende este contrato.
+     * O dono passa sem ela, pela mesma razão de sempre — é ele que atende quando
+     * o escalado faltou.
+     */
+    if (
+      !actor.isOrganizationOwner &&
+      preparation.plan.technicianUserId !== actor.actorId
+    ) {
+      throw new ForbiddenException(
+        'Este PMOC não está atribuído a você. Só o técnico atribuído — ou o dono da organização — pode atendê-lo.',
+      );
+    }
+
+    return this.startEquipmentExecution(planId, cycleId, assetId, actor, {
+      /* Abre para si mesmo. É o que distingue esta porta da outra. */
+      responsibleFieldTechnicianId: actor.actorId,
+    });
+  }
+
   async startEquipmentExecution(
     planId: string,
     cycleId: string,
@@ -1467,11 +1527,6 @@ export class PmocService {
     actor: PmocActor,
     input: StartPmocEquipmentExecutionDto,
   ) {
-    this.assertPermission(
-      actor,
-      'operations.create',
-      'Starting PMOC equipment execution requires operations.create',
-    );
     const preparation = await this.repository.executionPreparation(
       actor.organizationId,
       planId,

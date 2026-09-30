@@ -68,6 +68,120 @@ const sucesso = {
 const concluir = (service: PmocService, quem: PmocActor) =>
   service.completeEquipmentExecution('plan-1', 'cycle-1', 'exec-1', quem, {});
 
+/**
+ * Quem pode **abrir** o atendimento pelo celular.
+ *
+ * A regra: o técnico a quem o plano foi atribuído, ou o dono. E ele abre para si
+ * mesmo — escalar outra pessoa é gerenciar, e gerenciar tem outra porta.
+ *
+ * Antes desta separação o técnico não conseguia atender um PMOC nem quando o
+ * plano era dele: a única porta exigia `pmoc.manage`, que o papel de campo não
+ * tem.
+ */
+describe('autoridade para abrir o próprio atendimento', () => {
+  const preparacao = (technicianUserId: string | null) => ({
+    plan: {
+      id: 'plan-1',
+      businessUnitId: 'bu-1',
+      status: 'ACTIVE',
+      technicalResponsibleUserId: 'rt-1',
+      technicianUserId,
+      procedure: {},
+      technicalResponsible: { id: 'rt-1', displayName: 'Marcos' },
+      customer: { id: 'cust-1' },
+    },
+    cycle: { id: 'cycle-1', status: 'PENDING', dueOn: new Date() },
+    coverage: { id: 'cov-1', asset: { status: 'ACTIVE', name: 'Split' } },
+  });
+
+  function servicoDeAbertura(technicianUserId: string | null) {
+    const repository = {
+      executionPreparation: jest
+        .fn()
+        .mockResolvedValue(preparacao(technicianUserId)),
+      startEquipmentExecution: jest.fn(),
+    };
+    const service = new PmocService(
+      repository as never,
+      { equipmentExecution: jest.fn() } as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+    );
+    return { service, repository };
+  }
+
+  const abrir = (service: PmocService, quem: PmocActor) =>
+    service.startMyEquipmentExecution('plan-1', 'cycle-1', 'asset-1', quem);
+
+  it('recusa quando o plano não é do técnico', async () => {
+    const { service, repository } = servicoDeAbertura(OUTRO);
+
+    await expect(abrir(service, ator(TECNICO))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    /* A recusa nomeia a regra: quem lê descobre que precisa da atribuição. */
+    await expect(abrir(service, ator(TECNICO))).rejects.toThrow(
+      /não está atribuído a você/i,
+    );
+    expect(repository.startEquipmentExecution).not.toHaveBeenCalled();
+  });
+
+  it('recusa quando o plano não tem técnico atribuído', async () => {
+    const { service } = servicoDeAbertura(null);
+
+    await expect(abrir(service, ator(TECNICO))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('o dono abre sem atribuição', async () => {
+    /* É ele que atende quando o escalado faltou. */
+    const { service } = servicoDeAbertura(OUTRO);
+
+    /* Passa da checagem de atribuição; o resto do caminho é o mesmo da outra
+       porta e falha adiante por falta de colaboradores no stub. */
+    await expect(abrir(service, ator(DONO, true))).rejects.not.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  /*
+   * Abre **para si mesmo**.
+   *
+   * É o que distingue esta porta da de gerenciar: escalar outra pessoa é decisão
+   * de quem organiza o trabalho, não de quem chegou ao local. Sem esta asserção,
+   * trocar o id por outro qualquer passava — e um técnico abriria atendimento no
+   * nome de um colega.
+   */
+  it('escala o próprio ator, nunca outro', async () => {
+    const { service } = servicoDeAbertura(TECNICO);
+    const delegado = jest
+      .spyOn(service, 'startEquipmentExecution')
+      .mockResolvedValue(undefined as never);
+
+    await abrir(service, ator(TECNICO));
+
+    expect(delegado).toHaveBeenCalledWith(
+      'plan-1',
+      'cycle-1',
+      'asset-1',
+      expect.objectContaining({ actorId: TECNICO }),
+      { responsibleFieldTechnicianId: TECNICO },
+    );
+  });
+
+  it('não encontrado quando a cobertura não existe', async () => {
+    const { service, repository } = servicoDeAbertura(TECNICO);
+    repository.executionPreparation.mockResolvedValue(null);
+
+    await expect(abrir(service, ator(TECNICO))).rejects.toBeInstanceOf(
+      EntityNotFoundException,
+    );
+  });
+});
+
 describe('autoridade para concluir a execução de um equipamento', () => {
   it('restringe ao próprio ator quando não é o dono', async () => {
     const { service, repository } = servico(sucesso);

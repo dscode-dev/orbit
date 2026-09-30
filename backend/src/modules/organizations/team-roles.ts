@@ -103,6 +103,18 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
     permissions: [
       permission('pmoc.read', 'Visualizar PMOC'),
       permission('pmoc.manage', 'Gerenciar PMOC'),
+      /*
+       * Executar em campo é diferente de gerenciar.
+       *
+       * `pmoc.manage` é do contrato: criar plano, cobrir equipamento, encerrar.
+       * `pmoc.execute` é da manutenção: o técnico que vai ao local e atende o
+       * aparelho que lhe foi atribuído. O RVT sempre teve as três; o PMOC tinha
+       * só as duas primeiras, e a consequência era concreta — o aplicativo de
+       * campo verificava `pmoc.execute` em quatro lugares e **nenhum papel a
+       * concedia**, então executar PMOC no celular era inalcançável para
+       * qualquer técnico. Só o dono passava, por ter o curinga.
+       */
+      permission('pmoc.execute', 'Executar PMOC em campo'),
       permission('rvt.read', 'Visualizar RVT'),
       permission('rvt.manage', 'Gerenciar RVT'),
       permission('rvt.execute', 'Executar RVT'),
@@ -297,6 +309,7 @@ export const ASSIGNABLE_TEAM_ROLES: readonly TeamRoleSeed[] = [
       'checklists.execute',
       'checklists.update',
       'inventory.manage',
+      'pmoc.execute',
       'rvt.execute',
       'rvt.document',
       'artifact_executions.create',

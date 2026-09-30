@@ -1077,6 +1077,9 @@ export class PmocRepository {
           reviewRequired: true,
           technicalResponsible: { select: { id: true, displayName: true } },
           technicalResponsibleUserId: true,
+          /* A atribuição operacional: quem atende este contrato. É ela que
+             autoriza o técnico a abrir o atendimento dele pelo celular. */
+          technicianUserId: true,
         },
       });
       if (!plan) return null;
