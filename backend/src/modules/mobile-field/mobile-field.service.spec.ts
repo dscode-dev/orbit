@@ -260,6 +260,126 @@ describe('MobileFieldService', () => {
   });
 });
 
+/**
+ * O plano no contexto de navegação de um item de PMOC.
+ *
+ * Sem ele o aplicativo não monta nenhuma rota do atendimento — todas são
+ * escopadas pelo plano — e o PMOC no celular ficava em leitura. O contexto
+ * publicava ciclo e equipamento, e o campo que faltava era justamente o que
+ * destrava a execução.
+ */
+describe('contexto de navegação do PMOC', () => {
+  /*
+   * Ator próprio, com `pmoc.read`.
+   *
+   * A fila filtra por `VIEW`, e `VIEW` de um item de PMOC depende dessa
+   * permissão — o ator do arquivo tem só `operations.read`, e com ele o item
+   * seria descartado antes de qualquer asserção sobre o contexto.
+   */
+  const tecnico: MobileFieldActor = {
+    ...actor,
+    permissions: ['operations.read', 'pmoc.read', 'pmoc.execute'],
+  };
+
+  it('publica o plano, o ciclo e o equipamento', async () => {
+    const source = emptySource();
+    source.businessUnits.push({
+      id: actor.businessUnitIds[0],
+      legalName: 'Recife',
+      tradeName: null,
+      timezone: 'America/Recife',
+    });
+    source.pmocCycles.push({
+      id: '01900000-0000-7000-8000-0000000000c1',
+      dueOn: new Date('2099-01-01T00:00:00Z'),
+      status: 'PENDING',
+      schedulingEventId: null,
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+      artifactExecution: null,
+      equipmentExecutions: [],
+      plan: {
+        id: '01900000-0000-7000-8000-0000000000p1'.replace('p', 'a'),
+        code: 'PMOC-1',
+        name: 'Anual',
+        customerId: null,
+        businessUnitId: actor.businessUnitIds[0],
+        serviceLocation: null,
+        technicalResponsibleUserId: tecnico.id,
+        coverages: [
+          {
+            id: '01900000-0000-7000-8000-0000000000c9',
+            asset: {
+              id: '01900000-0000-7000-8000-0000000000a9',
+              name: 'Split 01',
+              identifier: 'TAG-1',
+              category: 'EQUIPMENT',
+              serialNumber: null,
+              model: null,
+              manufacturer: null,
+              location: null,
+              status: 'ACTIVE',
+              qrIdentities: [],
+            },
+          },
+        ],
+      },
+    });
+
+    const service = new MobileFieldService({
+      project: jest.fn().mockResolvedValue(source),
+    } as never);
+    const queue = await service.workQueue(tecnico, {});
+
+    expect(queue.data).toHaveLength(1);
+    const contexto = queue.data[0]!.navigationContext;
+    /* Os três, porque a rota da preparação precisa dos três. */
+    expect(contexto.planId).toBe('01900000-0000-7000-8000-0000000000a1');
+    expect(contexto.cycleId).toBe('01900000-0000-7000-8000-0000000000c1');
+    expect(contexto.equipmentId).toBe('01900000-0000-7000-8000-0000000000a9');
+  });
+
+  it('atendimento avulso não inventa um plano', async () => {
+    const source = emptySource();
+    source.businessUnits.push({
+      id: actor.businessUnitIds[0],
+      legalName: 'Recife',
+      tradeName: null,
+      timezone: 'America/Recife',
+    });
+    source.operations.push({
+      id: '01900000-0000-7000-8000-000000000004',
+      businessUnitId: actor.businessUnitIds[0],
+      customerId: null,
+      assetId: null,
+      code: 'OS-1',
+      title: 'Atendimento',
+      description: null,
+      status: 'OPEN',
+      priority: 'NORMAL',
+      scheduledStart: new Date('2099-01-01T12:00:00Z'),
+      scheduledEnd: null,
+      startedAt: null,
+      completedAt: null,
+      location: null,
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+      responsibleFieldTechnician: { id: actor.id, displayName: 'João' },
+      auxiliaryTechnicians: [],
+      asset: null,
+      artifactExecutions: [],
+      checklistExecutions: [],
+    });
+
+    const service = new MobileFieldService({
+      project: jest.fn().mockResolvedValue(source),
+    } as never);
+    const queue = await service.workQueue(tecnico, {});
+
+    /* Nulo, não uma string vazia: o item não pertence a plano nenhum, e um id
+       vazio faria o aplicativo montar `/pmoc/plans//cycles/…`. */
+    expect(queue.data[0]!.navigationContext.planId).toBeNull();
+  });
+});
+
 function emptySource() {
   return {
     businessUnits: [] as any[],

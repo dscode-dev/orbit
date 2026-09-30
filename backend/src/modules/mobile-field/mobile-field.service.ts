@@ -541,6 +541,8 @@ export class MobileFieldService {
         navigationContext: {
           kind: 'SERVICE_OPERATION',
           sourceId: operation.id,
+          /* Atendimento avulso não pertence a plano de PMOC. */
+          planId: null,
           executionId: null,
           occurrenceId: null,
           cycleId: null,
@@ -607,6 +609,15 @@ export class MobileFieldService {
           navigationContext: {
             kind: 'PMOC',
             sourceId: cycle.id,
+            /*
+             * O plano, para o aplicativo alcançar o atendimento.
+             *
+             * Todas as rotas de execução são escopadas por ele
+             * (`/pmoc/plans/:planId/…`), e o contexto publicava só o ciclo e o
+             * equipamento. Sem este campo o aplicativo conseguia **ler** um PMOC
+             * e não conseguia atendê-lo.
+             */
+            planId: cycle.plan.id,
             executionId: execution?.id ?? null,
             occurrenceId: null,
             cycleId: cycle.id,
@@ -664,6 +675,8 @@ export class MobileFieldService {
         navigationContext: {
           kind: 'RVT',
           sourceId: occurrence.id,
+          /* Visita técnica tem configuração própria, não plano de PMOC. */
+          planId: null,
           executionId: occurrence.execution?.id ?? null,
           occurrenceId: occurrence.id,
           cycleId: null,

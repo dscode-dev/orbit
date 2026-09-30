@@ -55,6 +55,18 @@ export interface MobileNavigationContextReadModel {
   occurrenceId: string | null;
   cycleId: string | null;
   equipmentId: string | null;
+  /**
+   * O plano de PMOC, quando o item é de PMOC.
+   *
+   * Sem ele o aplicativo não consegue montar nenhuma das rotas do atendimento —
+   * todas são escopadas pelo plano
+   * (`/pmoc/plans/:planId/cycles/:cycleId/equipment/:assetId/…`), e o contexto
+   * publicava apenas o ciclo e o equipamento. O campo faltava, e a
+   * consequência era o aplicativo só conseguir **ler** um PMOC.
+   *
+   * `null` nos outros tipos, que não pertencem a plano nenhum.
+   */
+  planId: string | null;
 }
 export interface MobileWorkItemReadModel {
   id: string;
