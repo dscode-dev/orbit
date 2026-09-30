@@ -204,6 +204,31 @@ const _mirrors = <_Mirror>[
     source: 'src/modules/mobile-field/mobile-field-artifact.read-models.ts',
     dart: 'lib/core/contracts/mobile_field_artifact_contracts.dart',
   ),
+  /*
+   * O PMOC entrou no espelho quando o atendimento passou a existir no celular.
+   * Antes disso o app só lia PMOC de raspão, e um campo novo no plano não
+   * mudava nada aqui; agora o técnico atende por estes dados.
+   */
+  _Mirror(
+    readModel: 'PmocPlanSummaryReadModel',
+    source: 'src/modules/pmoc/pmoc.read-models.ts',
+    dart: 'lib/core/contracts/pmoc_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'PmocPlanReadModel',
+    source: 'src/modules/pmoc/pmoc.read-models.ts',
+    dart: 'lib/core/contracts/pmoc_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'PmocExecutionReadModel',
+    source: 'src/modules/pmoc/pmoc.read-models.ts',
+    dart: 'lib/core/contracts/pmoc_contracts.dart',
+  ),
+  _Mirror(
+    readModel: 'PmocEquipmentExecutionReadModel',
+    source: 'src/modules/pmoc/pmoc.read-models.ts',
+    dart: 'lib/core/contracts/pmoc_contracts.dart',
+  ),
   _Mirror(
     readModel: 'FieldArtifactDownloadReadModel',
     source: 'src/modules/mobile-field/mobile-field-artifact.read-models.ts',
