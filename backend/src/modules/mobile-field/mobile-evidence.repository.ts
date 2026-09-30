@@ -13,7 +13,20 @@ type TargetContext = {
   operationId: string | null;
   assigned: boolean;
   mutable: boolean;
-  permission: string;
+  /**
+   * Quais permissões servem para anexar aqui — **qualquer uma** delas.
+   *
+   * Lista, e não uma só, porque o mesmo anexo tem duas autoridades legítimas:
+   * quem administra o módulo e quem executa em campo. No PMOC isso deixou de ser
+   * teórico quando o atendimento chegou ao celular: o portão exigia
+   * `pmoc.manage`, o papel de campo não tem, e o técnico atendia sem conseguir
+   * anexar a foto — a evidência que o relatório imprime.
+   *
+   * Não é um afrouxamento: continua valendo tudo o mais do portão — perfil de
+   * campo ativo, vínculo com a unidade, `assigned` (ser o responsável daquela
+   * execução) e `mutable`.
+   */
+  permissions: readonly string[];
 };
 
 export interface CreateEvidenceIntentData {
@@ -89,7 +102,10 @@ export class MobileEvidenceRepository {
         select: { id: true },
       });
       const permitted =
-        permissions.includes('*') || permissions.includes(target.permission);
+        permissions.includes('*') ||
+        target.permissions.some((permission) =>
+          permissions.includes(permission),
+        );
       return {
         context: target,
         denied:
@@ -214,7 +230,9 @@ export class MobileEvidenceRepository {
         !context.assigned ||
         !context.mutable ||
         (!permissions.includes('*') &&
-          !permissions.includes(context.permission))
+          !context.permissions.some((permission) =>
+            permissions.includes(permission),
+          ))
       )
         return { kind: 'DENIED' as const };
       if (upload.businessUnitId !== context.businessUnitId)
@@ -440,7 +458,7 @@ export class MobileEvidenceRepository {
               value.responsibleFieldTechnicianId === actor.id ||
               value.auxiliaryTechnicians.length > 0,
             mutable: ['OPEN', 'IN_PROGRESS'].includes(value.status),
-            permission: 'operations.update',
+            permissions: ['operations.update'],
           }
         : null;
     }
@@ -477,7 +495,8 @@ export class MobileEvidenceRepository {
               value.responsibleFieldTechnicianId === actor.id ||
               Boolean(value.operation?.auxiliaryTechnicians.length),
             mutable: value.status === 'IN_PROGRESS',
-            permission: 'pmoc.manage',
+            /* Gerenciar o contrato, ou executá-lo em campo. */
+            permissions: ['pmoc.manage', 'pmoc.execute'],
           }
         : null;
     }
@@ -515,7 +534,7 @@ export class MobileEvidenceRepository {
             value.responsibleFieldTechnicianId === actor.id ||
             Boolean(auxiliary),
           mutable: value.status === 'IN_PROGRESS',
-          permission: 'rvt.execute',
+          permissions: ['rvt.execute'],
         }
       : null;
   }

@@ -182,6 +182,121 @@ describe('autoridade para abrir o próprio atendimento', () => {
   });
 });
 
+/**
+ * Quem pode **emitir** o relatório de uma execução.
+ *
+ * O documento é a prova de conformidade, e sai com o nome de quem atendeu. Por
+ * isso a regra é a mesma de concluir — o escalado daquela execução, ou o dono —
+ * e não a de gerenciar o módulo.
+ *
+ * Antes desta porta o técnico concluía a manutenção pelo celular e ficava sem
+ * emitir: `pmoc.manage` era exigido, e o papel de campo não tem.
+ */
+describe('autoridade para emitir o relatório da execução', () => {
+  function servicoDeEmissao(resposta: unknown) {
+    const repository = {
+      createEquipmentArtifact: jest.fn().mockResolvedValue(resposta),
+    };
+    const service = new PmocService(
+      repository as never,
+      { equipmentExecution: jest.fn() } as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+    );
+    return { service, repository };
+  }
+
+  /*
+   * O ator é o do campo: `pmoc.execute` e `artifact_rendering.render`, que é o
+   * que o papel de técnico de fato carrega — **sem** `pmoc.manage`. Testar com o
+   * conjunto do administrador esconderia exatamente o que esta porta resolve.
+   */
+  const emissor = (
+    actorId: string,
+    isOrganizationOwner = false,
+  ): PmocActor => ({
+    ...ator(actorId, isOrganizationOwner),
+    permissions: ['pmoc.execute', 'artifact_rendering.render'],
+  });
+
+  const emitir = (service: PmocService, quem: PmocActor) =>
+    service.generateMyEquipmentArtifact('exec-1', quem, {
+      renderer: 'pdf.default',
+    });
+
+  it('restringe ao próprio ator quando não é o dono', async () => {
+    const { service, repository } = servicoDeEmissao({
+      artifactExecutionId: 'art-1',
+      renderStatus: 'READY',
+      created: false,
+    });
+
+    await emitir(service, emissor(TECNICO));
+
+    /* A restrição vai para o repositório, que a confere dentro da transação da
+       escrita — junto do lock que garante a idempotência. */
+    expect(repository.createEquipmentArtifact).toHaveBeenCalledWith(
+      'org-1',
+      'exec-1',
+      TECNICO,
+      TECNICO,
+    );
+  });
+
+  it('o dono emite sem restrição de atribuição', async () => {
+    const { service, repository } = servicoDeEmissao({
+      artifactExecutionId: 'art-1',
+      renderStatus: 'READY',
+      created: false,
+    });
+
+    await emitir(service, emissor(DONO, true));
+
+    expect(repository.createEquipmentArtifact).toHaveBeenCalledWith(
+      'org-1',
+      'exec-1',
+      DONO,
+      null,
+    );
+  });
+
+  it('recusa quem não é o escalado, dizendo que é isso', async () => {
+    const { service } = servicoDeEmissao({ refused: 'NOT_ASSIGNED' });
+
+    await expect(emitir(service, emissor(OUTRO))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    await expect(emitir(service, emissor(OUTRO))).rejects.toThrow(
+      /técnico escalado/i,
+    );
+  });
+
+  it('execução inexistente continua sendo não encontrada', async () => {
+    const { service } = servicoDeEmissao(null);
+
+    /* Dois desfechos distintos, dois erros distintos: recusa de escala não é
+       ausência de registro, e trocá-los manda a pessoa procurar a coisa errada. */
+    await expect(emitir(service, emissor(TECNICO))).rejects.toBeInstanceOf(
+      EntityNotFoundException,
+    );
+  });
+
+  it('exige a permissão de renderizar', async () => {
+    const { service, repository } = servicoDeEmissao(null);
+    const semRender: PmocActor = {
+      ...emissor(TECNICO),
+      permissions: ['pmoc.execute'],
+    };
+
+    await expect(emitir(service, semRender)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(repository.createEquipmentArtifact).not.toHaveBeenCalled();
+  });
+});
+
 describe('autoridade para concluir a execução de um equipamento', () => {
   it('restringe ao próprio ator quando não é o dono', async () => {
     const { service, repository } = servico(sucesso);

@@ -1649,10 +1649,32 @@ export class PmocService {
     return { executionId, artifactExecutionId: input.artifactExecutionId };
   }
 
+  /**
+   * O técnico emite o relatório **da execução dele**.
+   *
+   * Porta separada da de gerenciar pela mesma razão de `startMyEquipmentExecution`:
+   * são duas autoridades sobre a mesma escrita, e quem executa só emite a sua.
+   * O dono emite qualquer uma — é ele que fecha o que o técnico que faltou
+   * deixou aberto.
+   */
+  async generateMyEquipmentArtifact(
+    executionId: string,
+    actor: PmocActor,
+    input: GeneratePmocEquipmentArtifactDto,
+  ) {
+    return this.generateEquipmentArtifact(
+      executionId,
+      actor,
+      input,
+      actor.isOrganizationOwner ? null : actor.actorId,
+    );
+  }
+
   async generateEquipmentArtifact(
     executionId: string,
     actor: PmocActor,
     input: GeneratePmocEquipmentArtifactDto,
+    restrictToTechnicianId: string | null = null,
   ) {
     this.assertPermission(
       actor,
@@ -1663,12 +1685,20 @@ export class PmocService {
       actor.organizationId,
       executionId,
       actor.actorId,
+      restrictToTechnicianId,
     );
     if (!result)
       throw new EntityNotFoundException(
         'CompletedPmocEquipmentExecutionOrTemplate',
         executionId,
       );
+    if ('refused' in result) {
+      /* A mensagem nomeia a regra — quem lê descobre que precisa da escala, e
+         não que o documento falhou. */
+      throw new ForbiddenException(
+        'Só o técnico escalado para esta execução — ou o dono da organização — pode emitir o relatório dela.',
+      );
+    }
     if (
       result.renderStatus === 'NOT_RENDERED' ||
       result.renderStatus === 'FAILED'

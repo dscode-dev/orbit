@@ -1415,10 +1415,24 @@ export class PmocRepository {
     });
   }
 
+  /**
+   * Cria (ou reaproveita) o documento de uma execução concluída.
+   *
+   * `restrictToTechnicianId` é a autoridade de quem emite pelo celular: quando
+   * presente, só o técnico escalado **daquela execução** passa. A conferência
+   * mora dentro desta transação, junto do lock que garante a idempotência —
+   * conferir fora deixaria a janela em que a escala muda entre a leitura e a
+   * criação do documento, e o que se está decidindo é de quem é o nome que sai
+   * assinando.
+   *
+   * `null` é a ausência de restrição: é assim que o dono emite o relatório da
+   * execução de um técnico que faltou.
+   */
   createEquipmentArtifact(
     organizationId: string,
     equipmentExecutionId: string,
     actorId: string,
+    restrictToTechnicianId: string | null = null,
   ) {
     return this.rls.run(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pmoc:artifact:${equipmentExecutionId}`}))`;
@@ -1458,6 +1472,16 @@ export class PmocRepository {
         },
       });
       if (!physical) return null;
+
+      /* Recusa nomeada, e não `null`: "execução não encontrada" mandaria o
+         técnico procurar um registro que existe e está correto. */
+      if (
+        restrictToTechnicianId &&
+        physical.responsibleFieldTechnicianId !== restrictToTechnicianId
+      ) {
+        return { refused: 'NOT_ASSIGNED' as const };
+      }
+
       if (physical.artifactExecutionId) {
         const current = await tx.artifactExecution.findUniqueOrThrow({
           where: { id: physical.artifactExecutionId },

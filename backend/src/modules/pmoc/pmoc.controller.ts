@@ -505,6 +505,45 @@ export class PmocController {
     );
   }
 
+  /**
+   * O técnico conclui **a execução dele**, do celular.
+   *
+   * Mesma escrita da porta acima, outra autoridade: aqui basta `pmoc.execute`.
+   * A restrição não mudou de lugar — continua viajando dentro do `where` do
+   * claim, no repositório, e recusa quem não é o escalado mesmo que chegue por
+   * esta porta. O que esta rota resolve é o portão: com `pmoc.manage`, o técnico
+   * de campo **abria** o atendimento pelo celular e não conseguia concluí-lo.
+   */
+  @Post(
+    'plans/:id/cycles/:cycleId/equipment-executions/:executionId/complete/mine',
+  )
+  @Capabilities('pmoc.manage', 'operations.manage')
+  @Permissions('pmoc.execute')
+  @ApiOperation({
+    summary: 'Complete my own physical execution (field technician)',
+  })
+  completeMyEquipmentExecution(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Param('cycleId', ParseUUIDv7Pipe) cycleId: string,
+    @Param('executionId', ParseUUIDv7Pipe) executionId: string,
+    @Req() request: IdentityRequest,
+    @Body() input: CompletePmocEquipmentExecutionDto,
+  ) {
+    /*
+     * Delega ao mesmo método, e isso é proposital: a regra de quem pode concluir
+     * é uma só, e duplicá-la aqui criaria a segunda — a que diverge na primeira
+     * mudança. O dono passa pelas duas portas, porque a permissão dele é curto-
+     * circuito.
+     */
+    return this.pmoc.completeEquipmentExecution(
+      id,
+      cycleId,
+      executionId,
+      this.actor(request),
+      input,
+    );
+  }
+
   @Post('equipment-executions/:executionId/evidence')
   @Capabilities('pmoc.manage')
   @Permissions('pmoc.manage')
@@ -553,6 +592,35 @@ export class PmocController {
     @Body() input: GeneratePmocEquipmentArtifactDto,
   ) {
     return this.pmoc.generateEquipmentArtifact(
+      executionId,
+      this.actor(request),
+      input,
+    );
+  }
+
+  /**
+   * O técnico emite o relatório **da execução dele**, do celular.
+   *
+   * O documento é a razão do atendimento existir: sem ele o trabalho aconteceu e
+   * a prova de conformidade não. Com `pmoc.manage` nesta rota, o técnico
+   * concluía a manutenção e ficava sem poder emitir — dependendo de alguém no
+   * escritório para fechar o que ele acabou de fazer.
+   *
+   * A atribuição é conferida no serviço, contra o técnico escalado **daquela
+   * execução**, e não contra o plano: o documento sai com o nome de quem assina.
+   */
+  @Post('equipment-executions/:executionId/artifact/generate/mine')
+  @Capabilities('pmoc.manage', 'artifact_rendering.render')
+  @Permissions('pmoc.execute')
+  @ApiOperation({
+    summary: 'Render the PMOC document of my own execution (field technician)',
+  })
+  generateMyEquipmentArtifact(
+    @Param('executionId', ParseUUIDv7Pipe) executionId: string,
+    @Req() request: IdentityRequest,
+    @Body() input: GeneratePmocEquipmentArtifactDto,
+  ) {
+    return this.pmoc.generateMyEquipmentArtifact(
       executionId,
       this.actor(request),
       input,
