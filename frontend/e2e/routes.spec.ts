@@ -15,6 +15,8 @@ const ROUTES = [
   "/clientes",
   "/ativos",
   "/catalogo",
+  /* Redirecionam para abas, e entram aqui de propósito: link guardado tem de
+     chegar a algum lugar sem exceção e sem aviso de hydration. */
   "/orcamentos",
   "/financeiro",
   "/documentos",

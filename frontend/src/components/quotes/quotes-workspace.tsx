@@ -28,9 +28,21 @@ import { TabBoundary } from "@/workspace";
 import { QuoteKpis } from "./quote-kpis";
 import { QuotesList } from "./quotes-list";
 
-export function QuotesWorkspace() {
-  return (
-    <ContentContainer size="wide" className="space-y-6">
+/**
+ * `embedded` quando o workspace vive **dentro** de outra aba.
+ *
+ * Orçamento passou a ser aba do Financeiro, e lá o contêiner e o espaçamento são
+ * da página de fora: repetir o `ContentContainer` aqui aplicaria a largura máxima
+ * duas vezes e o conteúdo apareceria mais estreito que as abas irmãs.
+ *
+ * A rota `/orcamentos` continua existindo e redireciona para a aba — então este
+ * componente não tem mais um caminho próprio hoje. O parâmetro fica porque a
+ * alternativa era o componente assumir que está sempre embutido, e aí a próxima
+ * página que o usasse herdaria um layout sem contêiner sem ninguém perceber.
+ */
+export function QuotesWorkspace({ embedded = false }: { embedded?: boolean }) {
+  const content = (
+    <>
       <TabBoundary id="quotes-kpis" label="os indicadores">
         <QuoteKpis />
       </TabBoundary>
@@ -93,6 +105,14 @@ export function QuotesWorkspace() {
           </TabBoundary>
         </TabsContent>
       </Tabs>
+    </>
+  );
+
+  return embedded ? (
+    <div className="space-y-6">{content}</div>
+  ) : (
+    <ContentContainer size="wide" className="space-y-6">
+      {content}
     </ContentContainer>
   );
 }

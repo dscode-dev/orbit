@@ -13,26 +13,29 @@ import { expect, test } from "@playwright/test";
 
 import { login, record, settled } from "./support";
 
-/** O que o menu principal oferece, em ordem. */
+/**
+ * O que o menu principal oferece, em ordem.
+ *
+ * Encurtar esta lista é o objetivo, não um efeito colateral: o menu criava rolagem
+ * em tela full HD, e cada item que virou aba é um a menos aqui. Orçamentos foi para
+ * dentro do Financeiro e Documentos emitidos para dentro de Relatórios — que subiu
+ * para o primeiro grupo, junto de Visão geral, Agenda e Operações.
+ */
 const EXPECTED_MENU = [
   "/dashboard",
   "/agenda",
   "/operacoes",
+  "/relatorios",
   "/clientes",
   "/catalogo",
-  "/orcamentos",
   "/financeiro",
-  "/documentos",
-  "/relatorios",
   "/catalogos",
   "/equipe",
   "/configuracoes",
   "/perfil",
 ];
 
-test("o menu não oferece PMOC, RVT nem Modelos — eles são abas", async ({
-  page,
-}) => {
+test("o menu não oferece o que virou aba", async ({ page }) => {
   const recorder = record(page);
 
   await login(page);
@@ -48,9 +51,27 @@ test("o menu não oferece PMOC, RVT nem Modelos — eles são abas", async ({
   expect(destinos).toEqual(EXPECTED_MENU);
 
   /* O que saiu não pode reaparecer por outro caminho no menu. */
-  for (const removido of ["/pmoc", "/rvt", "/artefatos"]) {
+  for (const removido of [
+    "/pmoc",
+    "/rvt",
+    "/artefatos",
+    "/orcamentos",
+    "/documentos",
+  ]) {
     expect(destinos).not.toContain(removido);
   }
+
+  /*
+   * Nenhum grupo de um só item.
+   *
+   * "Documentos" tinha três itens que viraram abas de um deles; sobrando um, o
+   * rótulo do grupo repetiria o nome do item. É o mesmo defeito que tirou
+   * "Operação" do menu, e ele volta calado na próxima reorganização.
+   */
+  const titulos = await menu
+    .locator("[data-slot='nav-group-label']")
+    .allTextContents();
+  expect(titulos).not.toContain("Documentos");
 
   /*
    * Operações está no primeiro grupo, sem rótulo — junto de Visão geral e
@@ -62,7 +83,7 @@ test("o menu não oferece PMOC, RVT nem Modelos — eles são abas", async ({
   expect(recorder.reactWarnings, "avisos de React").toEqual([]);
 });
 
-test("PMOC, RVT e Modelos abrem como aba, e a rota antiga leva até elas", async ({
+test("o que virou aba abre como aba, e a rota antiga leva até ela", async ({
   page,
 }) => {
   const recorder = record(page);
@@ -78,6 +99,18 @@ test("PMOC, RVT e Modelos abrem como aba, e a rota antiga leva até elas", async
       destino: "/relatorios",
       secao: "modelos",
       aba: "Modelos",
+    },
+    {
+      antiga: "/orcamentos",
+      destino: "/financeiro",
+      secao: "orcamentos",
+      aba: "Orçamentos",
+    },
+    {
+      antiga: "/documentos",
+      destino: "/relatorios",
+      secao: "emitidos",
+      aba: "Documentos emitidos",
     },
   ] as const;
 

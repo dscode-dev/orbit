@@ -6,7 +6,9 @@
  * da página. O olho lê isso como um campo torto, não como duas colunas.
  *
  * Hoje a busca é uma célula da faixa de filtros, como nos outros Workspaces, e
- * quem tem de acompanhar a lista é a faixa. A medida é a borda direita de cada
+ * quem tem de acompanhar a lista é a faixa. A central virou aba de Relatórios, e o
+ * alinhamento tem de sobreviver a isso: dentro da aba o contêiner é o da página de
+ * fora, e um segundo contêiner aqui estreitaria a lista sem estreitar os filtros. A medida é a borda direita de cada
  * bloco, no navegador real. Um teste visual aprovaria qualquer largura; este
  * reprova quando elas voltam a divergir.
  */
@@ -20,7 +22,11 @@ for (const largura of [1440, 1024]) {
   }) => {
     await page.setViewportSize({ width: largura, height: 900 });
     await login(page);
-    await page.goto("/documentos");
+    /* O endereço canônico: os documentos emitidos viraram aba de Relatórios.
+       `/documentos` ainda leva até aqui, e quem prova o redirecionamento é o
+       teste de estrutura do menu — depender dele aqui faria este teste de
+       alinhamento falhar por um motivo que não é o dele. */
+    await page.goto("/relatorios?secao=emitidos");
     await settled(page);
 
     const bordas = await page.evaluate(() => {

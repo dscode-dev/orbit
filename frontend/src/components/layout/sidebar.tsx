@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   LayoutGrid,
-  FileStack,
   SlidersHorizontal,
   UserCircle,
   PanelLeftClose,
@@ -86,11 +85,15 @@ const fromEntity = (id: EntityId, access?: AccessRequirement): NavItem => {
  * executar: são para onde se vai para *ver* o dia. Ficam no topo, sem
  * rótulo de grupo, que é onde a pessoa espera a porta de entrada.
  *
- * **O nome repetido acabou.** Havia um grupo "Documentos" contendo modelos, e
- * um item "Documentos" dentro de "Operação" contendo os documentos emitidos —
- * duas coisas diferentes com o mesmo nome, em lugares diferentes. Agora o
- * grupo "Documentos" reúne o que de fato é documento: os emitidos, os
- * relatórios do período e os modelos que os geram.
+ * **O grupo "Documentos" deixou de existir.** Ele reunia os documentos emitidos,
+ * os relatórios do período e os modelos que geram os dois — três itens que
+ * descrevem o mesmo ciclo, e que quem trabalha nele alterna no mesmo dia. Os três
+ * viraram abas de **Relatórios**, que subiu para o topo. Um grupo cujos membros
+ * viraram abas de um deles não agrupa mais nada.
+ *
+ * **Orçamento virou aba do Financeiro.** Proposta e recibo são dinheiro; como
+ * itens paralelos, o menu criava rolagem em tela full HD. A aba tem realce,
+ * porque virar aba não é rebaixar a feature.
  *
  * **"Operação" deixou de existir.** Ela ficou com o atendimento e os dois
  * planos que o originam — e então os dois planos viraram abas do atendimento,
@@ -133,6 +136,19 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
        * segue registrada, porque `/execucoes/:id` é destino de deep link.
        */
       fromEntity("operation"),
+      /*
+       * Relatórios também é porta de entrada.
+       *
+       * Ficava sob "Documentos", num grupo cujos três itens descreviam o mesmo
+       * ciclo — o documento emitido, o relatório do período e o modelo que gera os
+       * dois. Os três viraram abas desta página, e o grupo deixou de agrupar algo.
+       *
+       * Sobe para cá pela mesma razão de Operações: é para onde se vai *ver* o
+       * que aconteceu, não trabalho a executar.
+       *
+       * `/documentos` continua existindo e leva à aba correspondente.
+       */
+      fromEntity("management-report"),
     ],
   },
   {
@@ -153,7 +169,17 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
        */
       fromEntity("customer"),
       fromEntity("catalog-item"),
-      fromEntity("quote"),
+      /*
+       * Orçamento virou **aba do Financeiro**, com realce entre as abas.
+       *
+       * Os dois são dinheiro: a proposta é a receita que ainda vai existir, e o
+       * recibo é a que já entrou. Como itens paralelos aqui, o menu passou a
+       * criar rolagem em tela full HD — e esta era a troca que custava menos:
+       * quem orça e quem confere o caixa é a mesma pessoa, no mesmo dia.
+       *
+       * O realce na aba existe porque orçamento é feature principal, não a sexta
+       * aba de um módulo. `/orcamentos` leva à aba; `/orcamentos/:id` não mudou.
+       */
       /**
        * Financeiro é comercial, não administrativo.
        *
@@ -162,42 +188,6 @@ export const defaultNavigation: { group: string; items: NavItem[] }[] = [
        * lado de configuração de conta, que é outra tarefa.
        */
       fromEntity("financial-entry"),
-    ],
-  },
-  {
-    group: "Documentos",
-    items: [
-      /**
-       * O emitido e o relatório, na ordem em que se pensa neles.
-       *
-       * O emitido é o que se procura no dia a dia; o relatório é o retrato do
-       * período. O **modelo**, que define os dois, virou aba de Relatórios: quem
-       * ajusta um modelo está olhando o relatório que ele gera.
-       */
-      /**
-       * "Documentos emitidos", e não "Documentos".
-       *
-       * O rótulo precisa se sustentar sozinho: com o menu recolhido some o
-       * título do grupo e sobra o tooltip. E dentro de um grupo chamado
-       * "Documentos", um item chamado "Documentos" não diz qual dos três é.
-       */
-      {
-        label: "Documentos emitidos",
-        icon: FileStack,
-        to: ROUTES.documents,
-        access: {
-          permission: "artifact_manifests.read",
-          capability: "artifact_manifests.read",
-        },
-      },
-      fromEntity("management-report"),
-      /*
-       * "Modelos de documento" virou aba de Relatórios.
-       *
-       * O modelo é o que define o relatório, e quem mexe num olha o outro na
-       * mesma sessão — era o terceiro item de um grupo cujos três membros
-       * descreviam o mesmo ciclo. `/artefatos` continua levando à aba.
-       */
     ],
   },
   {
@@ -462,7 +452,13 @@ export function NavigationGroups({
           */}
           {!collapsed ? (
             group.group ? (
-              <p className="px-3 pb-1 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground/70 uppercase">
+              <p
+                /* Marcado para o teste de navegação poder afirmar quais grupos
+                   existem: um grupo de um só item é o defeito que já tirou
+                   "Operação" e "Documentos" do menu, e ele volta calado. */
+                data-slot="nav-group-label"
+                className="px-3 pb-1 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground/70 uppercase"
+              >
                 {group.group}
               </p>
             ) : null

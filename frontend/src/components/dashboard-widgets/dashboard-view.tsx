@@ -203,43 +203,55 @@ export function DashboardView() {
                 {renderizar(secao.widget.id)}
               </div>
             ) : (
-              <div
-                key={`bloco-${posicao}`}
-                className="grid gap-6 lg:grid-cols-12"
-              >
+              <div key={`bloco-${posicao}`} className="space-y-6">
                 {/*
-                    Coluna principal. Os estreitos se emparelham de dois em
-                    dois; os largos ocupam a coluna inteira.
-                  */}
-                <div
-                  className={cn(
-                    "grid min-w-0 gap-6 sm:grid-cols-2",
-                    secao.lateral.length > 0
-                      ? "lg:col-span-8"
-                      : "lg:col-span-12",
-                  )}
-                >
-                  {secao.principal.map((widget) => (
-                    <div
-                      key={widget.id}
-                      className={cn(
-                        "min-w-0",
-                        ehEstreito(widget) ? "" : "sm:col-span-2",
-                      )}
-                    >
-                      {renderizar(widget.id)}
-                    </div>
-                  ))}
-                </div>
+                  A primeira linha: o par.
+
+                  `items-stretch` é o que faz os dois terem a mesma altura — quem
+                  tem mais conteúdo define a linha e o outro acompanha, sem ninguém
+                  medir nada. `[&>*]:h-full` repassa isso ao cartão: o contêiner
+                  esticar não estica o que está dentro dele.
+
+                  Com um widget só no par, ele ocupa as doze colunas. Metade de uma
+                  linha vazia é o defeito que esta arrumação existe para não
+                  cometer.
+                */}
+                {secao.par.length > 0 ? (
+                  <div className="grid items-stretch gap-6 lg:grid-cols-12">
+                    {secao.par.map((widget) => (
+                      <div
+                        key={widget.id}
+                        className={cn(
+                          "min-w-0 [&>*]:h-full",
+                          secao.par.length === 1
+                            ? "lg:col-span-12"
+                            : ehEstreito(widget)
+                              ? "lg:col-span-4"
+                              : "lg:col-span-8",
+                        )}
+                      >
+                        {renderizar(widget.id)}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
 
                 {/*
-                    Coluna lateral. Empilha por conta própria: é isso que
-                    impede a altura dela de abrir buraco na principal.
-                  */}
-                {secao.lateral.length > 0 ? (
-                  <div className="min-w-0 space-y-6 lg:col-span-4">
-                    {secao.lateral.map((widget) => (
-                      <div key={widget.id} className="min-w-0">
+                  O resto ocupa o que tem: largo sozinho vai à linha inteira,
+                  estreitos se emparelham de dois em dois. Sem `items-stretch`
+                  aqui — cada linha é uma linha da grade, e cartões de alturas
+                  diferentes em linhas diferentes não abrem buraco.
+                */}
+                {secao.resto.length > 0 ? (
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    {secao.resto.map((widget) => (
+                      <div
+                        key={widget.id}
+                        className={cn(
+                          "min-w-0",
+                          ehEstreito(widget) ? "" : "sm:col-span-2",
+                        )}
+                      >
                         {renderizar(widget.id)}
                       </div>
                     ))}

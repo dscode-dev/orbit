@@ -20,6 +20,16 @@
  * continua respondendo isso em setembro. Um relatório não é o dashboard
  * exportado.
  *
+ * ## Os emitidos e os modelos moram aqui
+ *
+ * Eram itens de menu num grupo "Documentos" cujos três membros descrevem o mesmo
+ * ciclo: o documento emitido, o relatório do período e o modelo que gera os dois.
+ * Quem ajusta um olha o outro na mesma sessão.
+ *
+ * A distinção entre relatório gerencial e documento emitido **continua** — está
+ * escrita acima e nas abas. O que mudou é que as duas coisas se alcançam sem
+ * trocar de página.
+ *
  * ## Modelos mora aqui
  *
  * O modelo é o que define o documento que o relatório gera, e quem ajusta um
@@ -61,6 +71,8 @@ import { ReportHistory } from "./report-history";
 import { ReportStatusBadge } from "./report-presentation";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TemplatesList } from "@/components/artifact-studio/templates-list";
+import { DocumentCenter } from "@/components/documents/document-center";
+import { REPORTS_SECTIONS } from "./sections";
 import { useSectionFromUrl } from "@/hooks/use-section-from-url";
 import { SECTION_PARAM } from "@/lib/section-navigation";
 
@@ -102,12 +114,23 @@ function Workspace() {
 
   const canTemplates = session.hasCapability("artifact_templates.read");
 
+  /*
+   * Os documentos emitidos pedem a capability deles.
+   *
+   * O grupo "Documentos" do menu tinha três itens que descrevem o mesmo ciclo: o
+   * documento emitido, o relatório do período e o modelo que gera os dois. Os
+   * modelos já eram aba daqui; agora os emitidos também, e o grupo deixou de
+   * existir — o menu criava rolagem em tela full HD.
+   */
+  const canDocuments = session.hasCapability("artifact_manifests.read");
+
   /* Os apelidos são públicos: entram em link guardado e não mudam. */
   const sections = [
-    "visao-geral",
-    "gerar",
-    "historico",
-    ...(canTemplates ? ["modelos"] : []),
+    REPORTS_SECTIONS.overview,
+    REPORTS_SECTIONS.generate,
+    REPORTS_SECTIONS.history,
+    ...(canDocuments ? [REPORTS_SECTIONS.documents] : []),
+    ...(canTemplates ? [REPORTS_SECTIONS.templates] : []),
   ];
 
   const section = useSectionFromUrl(sections);
@@ -162,6 +185,11 @@ function Workspace() {
           <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
           <TabsTrigger value="gerar">Gerar relatório</TabsTrigger>
           <TabsTrigger value="historico">Histórico</TabsTrigger>
+          {canDocuments ? (
+            <TabsTrigger value={REPORTS_SECTIONS.documents}>
+              Documentos emitidos
+            </TabsTrigger>
+          ) : null}
           {canTemplates ? (
             <TabsTrigger value="modelos">Modelos</TabsTrigger>
           ) : null}
@@ -202,6 +230,19 @@ function Workspace() {
             />
           </TabBoundary>
         </TabsContent>
+
+        {canDocuments ? (
+          <TabsContent value={REPORTS_SECTIONS.documents}>
+            {/* Só monta na aba ativa: a central lista manifestos e abre o
+                conteúdo de um documento. Abrir Relatórios não deveria disparar
+                essas consultas. */}
+            {tab === REPORTS_SECTIONS.documents ? (
+              <TabBoundary id="reports-documents" label="os documentos emitidos">
+                <DocumentCenter embedded />
+              </TabBoundary>
+            ) : null}
+          </TabsContent>
+        ) : null}
 
         {canTemplates ? (
           <TabsContent value="modelos">

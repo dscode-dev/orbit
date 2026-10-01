@@ -91,7 +91,15 @@ const STATUS_OPTIONS = ARTIFACT_EXECUTION_STATUSES.map((status) => ({
   label: executionStatusLabel(status),
 }));
 
-export function DocumentCenter() {
+/**
+ * `embedded` quando a central vive **dentro** de outra aba.
+ *
+ * Os documentos emitidos passaram a ser aba de Relatórios, e lá o contêiner e o
+ * espaçamento são da página de fora: repetir o `ContentContainer` aplicaria a
+ * largura máxima duas vezes, e o conteúdo apareceria mais estreito que as abas
+ * irmãs.
+ */
+export function DocumentCenter({ embedded = false }: { embedded?: boolean }) {
   const { businessUnitId, businessUnits } = useActiveScope();
   const [queue, setQueue] = useState<RenderStatus>("READY");
   const [selected, setSelected] = useState<string | null>(null);
@@ -115,8 +123,10 @@ export function DocumentCenter() {
   const items = useMemo(() => executions.data?.data ?? [], [executions.data]);
   const meta = executions.data?.meta;
 
+  const Wrapper = embedded ? EmbeddedWrapper : ContainedWrapper;
+
   return (
-    <ContentContainer size="wide" className="space-y-6">
+    <Wrapper>
       {/* O `data-testid` é do e2e de alinhamento: a faixa de filtros e a
           lista precisam terminar na mesma coluna. */}
       <div data-testid="documents-filters">
@@ -267,7 +277,7 @@ export function DocumentCenter() {
           if (!open) setSelected(null);
         }}
       />
-    </ContentContainer>
+    </Wrapper>
   );
 }
 
@@ -286,4 +296,18 @@ function emptyTitleFor(queue: RenderStatus): string {
     NOT_RENDERED: "Nenhum atendimento sem documento",
   };
   return titles[queue];
+}
+
+/** Dentro de uma aba: só o espaçamento, sem segundo contêiner. */
+function EmbeddedWrapper({ children }: { children: React.ReactNode }) {
+  return <div className="space-y-6">{children}</div>;
+}
+
+/** Página própria: a central gerencia a própria largura. */
+function ContainedWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <ContentContainer size="wide" className="space-y-6">
+      {children}
+    </ContentContainer>
+  );
 }

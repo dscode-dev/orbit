@@ -6,8 +6,10 @@ const globalWidgets: DashboardWidgetDefinition[] = [
   /**
    * Radar comparativo.
    *
-   * `order: 5` e `size: 'MEDIUM'` o colocam à esquerda da Central de Atenção
-   * (`order: 10`, `LARGE`): 4 + 8 fecham exatamente a linha de 12 colunas.
+   * `order: 5` e `size: 'MEDIUM'` o colocam à esquerda dos Indicadores
+   * Executivos (`order: 6`, `LARGE`): 4 + 8 fecham exatamente a linha de 12
+   * colunas, e os dois esticam juntos — um gráfico de proporção fixa ao lado de
+   * um painel de números é o par que o painel real pede.
    *
    * O Read Model deste widget é o genérico de segmento — como já acontece com
    * os indicadores executivos, quem serve os números é o Analytics, consultado
@@ -56,8 +58,21 @@ const globalWidgets: DashboardWidgetDefinition[] = [
     title: 'Indicadores Executivos',
     description: 'Indicadores executivos consolidados da organização.',
     category: 'EXECUTIVE',
-    order: 20,
-    size: 'FULL',
+    /**
+     * Ao lado do radar, e não numa faixa própria.
+     *
+     * Era `order: 20` com `size: 'FULL'`: uma faixa de doze colunas só para
+     * cartões de número, logo abaixo de uma linha onde o radar ocupava quatro
+     * colunas e sobravam quatro vazias ao lado da Central de Atenção. Dois
+     * desperdícios na mesma dobra — espaço vazio em cima e uma faixa inteira
+     * embaixo para o que caberia nele.
+     *
+     * `order: 6` e `LARGE` o colocam na primeira linha, completando as oito
+     * colunas que faltavam. A Central de Atenção desce e passa a ocupar a
+     * largura inteira, em vez de deixar coluna vazia ao lado.
+     */
+    order: 6,
+    size: 'LARGE',
     tags: ['global', 'executive', 'kpi'],
     supportedSegments: [],
     requiredModules: [],
