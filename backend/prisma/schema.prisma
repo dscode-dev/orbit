@@ -335,6 +335,7 @@ model Organization {
   serviceOrderSequence    ServiceOrderSequence?
   productSkuSequences     ProductSkuSequence[]
   assetInternalCodes      AssetInternalCodeSequence?
+  receiptSequence         ReceiptSequence?
   pmocUnits               PmocUnit[]
   rvtMaintenanceTypes     RvtMaintenanceType[]
   commissionPolicy        CommissionPolicy?
@@ -1824,6 +1825,26 @@ model ArtifactTemplateVersion {
 // -----------------------------------------------------------------------------
 // ARTIFACT EXECUTION ENGINE
 // -----------------------------------------------------------------------------
+
+/// O contador do número do recibo, por organização.
+///
+/// Recibo é o único documento da série que prova um fato jurídico, e por isso é
+/// citado por número — em cobrança, em conciliação e, quando dá briga, em juízo.
+/// A execução de artefato exige `code` único por organização, então sem contador a
+/// tela teria de inventar um código no navegador: dois recibos no mesmo minuto
+/// colidiriam, e o segundo receberia 409 depois do formulário inteiro preenchido.
+///
+/// Independente das outras contagens — ordem de serviço, SKU, código interno de
+/// equipamento. Mesmo padrão de [ServiceOrderSequence].
+model ReceiptSequence {
+  organizationId String   @id @map("organization_id") @db.Uuid
+  lastValue      Int      @default(0) @map("last_value")
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("receipt_sequences")
+}
 
 model ArtifactSnapshot {
   id                String   @id @default(uuid(7)) @db.Uuid

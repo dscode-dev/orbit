@@ -13,8 +13,10 @@
  * ## Orçamento e Recibo moram aqui
  *
  * Os dois são dinheiro: a proposta é a receita que ainda vai existir, o recibo é a
- * que já entrou — e o recibo emitido **vira** lançamento de receita sozinho. Eram
- * itens paralelos no menu, que já criava rolagem em tela full HD.
+ * que já entrou — e o recibo emitido **vira** lançamento de receita sozinho. O
+ * orçamento era item paralelo no menu, que já criava rolagem em tela full HD; o
+ * recibo não tinha lugar nenhum, apesar de o gatilho que o transforma em receita
+ * existir desde a PR-21.
  *
  * Orçamento tem realce entre as abas, e isso é deliberado: é uma feature principal
  * da aplicação, não a sexta aba de um módulo. Sem o realce, virar aba seria
@@ -62,6 +64,7 @@ import { FinancialCategoriesTab } from "./tabs/categories.tab";
 import { FinancialEntriesTab } from "./tabs/entries.tab";
 import { FinancialCommissionsTab } from "./tabs/commissions.tab";
 import { FinancialOverviewTab } from "./tabs/overview.tab";
+import { FinancialReceiptsTab } from "./receipts/receipts.tab";
 
 /**
  * `useSearchParams` exige um limite de Suspense: a leitura do parâmetro só
@@ -133,6 +136,9 @@ function Workspace() {
             </TabsTrigger>
           ) : null}
 
+          <TabsTrigger value={FINANCIAL_SECTIONS.receipts}>
+            Recibos
+          </TabsTrigger>
           <TabsTrigger value="lancamentos">Lançamentos</TabsTrigger>
           <TabsTrigger value="receitas">Receitas</TabsTrigger>
           <TabsTrigger value="despesas">Despesas</TabsTrigger>
@@ -158,6 +164,16 @@ function Workspace() {
             ) : null}
           </TabsContent>
         ) : null}
+
+        <TabsContent value={FINANCIAL_SECTIONS.receipts}>
+          {/* Só monta na aba ativa: a lista consulta as execuções de artefato
+              recortadas por tipo, e abrir o Financeiro não deveria disparar isso. */}
+          {section.current === FINANCIAL_SECTIONS.receipts ? (
+            <TabBoundary id="financial-receipts" label="os recibos">
+              <FinancialReceiptsTab />
+            </TabBoundary>
+          ) : null}
+        </TabsContent>
 
         <TabsContent value="lancamentos">
           <TabBoundary id="financial-entries" label="os lançamentos">
