@@ -41,7 +41,7 @@ import { formatDateTime } from "@/lib/formatters";
 import { PanelError, toPanelQuery } from "@/components/panels";
 import { resolveWidgets, type WidgetDataSources } from "./widget-registry";
 import { PRODUCT_CAPABILITY, PRODUCT_FEATURE } from "@/registry/product-access";
-import { ehEstreito, organizarPainel } from "./dashboard-layout";
+import { organizarPainel, type Colunas } from "./dashboard-layout";
 
 export function DashboardView() {
   const [range, setRange] = useState<DashboardRangeKey>("30D");
@@ -101,7 +101,7 @@ export function DashboardView() {
    * a arrumação depende do tamanho, não do componente — sem obrigar a
    * renderização a procurar em lista a cada item.
    */
-  const secoes = organizarPainel(widgets.map((item) => item.widget));
+  const linhas = organizarPainel(widgets.map((item) => item.widget));
   const componentePorId = new Map(
     widgets.map((item) => [item.widget.id, item] as const),
   );
@@ -197,118 +197,68 @@ export function DashboardView() {
         </p>
       ) : (
         <div className="space-y-6">
-          {secoes.map((secao, posicao) => {
-            /* O topo da coluna principal divide a linha com a lateral; o resto
-               desce. A separação é da renderização, não da arrumação: quem decide
-               em qual coluna cada widget cai continua sendo `organizarPainel`. */
-            const primeiro =
-              secao.tipo === "bloco" ? secao.principal[0] : undefined;
-            const resto =
-              secao.tipo === "bloco" ? secao.principal.slice(1) : [];
+          {linhas.map((linha, posicao) => (
+            /*
+              Uma linha da grade de doze colunas.
 
-            return secao.tipo === "faixa" ? (
-              <div key={secao.widget.id} className="min-w-0">
-                {renderizar(secao.widget.id)}
-              </div>
-            ) : (
-              <div
-                key={`bloco-${posicao}`}
+              `items-stretch` é o que alinha o par: os dois widgets são itens da
+              **mesma** linha, então o mais alto define a altura e o outro
+              acompanha. É assim que o Índice de Saúde termina onde a Saúde
+              Financeira termina, inclusive depois de ela crescer com o gráfico, e
+              sem ninguém medir conteúdo.
+
+              A chave é a posição mais os ids: duas linhas nunca têm o mesmo
+              conjunto, e `posicao` sozinha remontaria a subárvore quando um widget
+              entrasse ou saísse no meio.
+            */
+            <div
+              key={`${posicao}-${linha.widgets.map((item) => item.widget.id).join("+")}`}
+              className="grid items-stretch gap-6 lg:grid-cols-12"
+            >
+              {linha.widgets.map((item) => (
                 /*
-                  `items-stretch` é o que alinha a primeira linha: o widget do topo
-                  da coluna principal e o da lateral são itens da **mesma** linha da
-                  grade, então o mais alto define a altura e o outro acompanha. É
-                  assim que o Índice de Saúde termina onde a Saúde Financeira
-                  termina, inclusive depois de ela crescer com o gráfico — sem
-                  ninguém medir conteúdo.
-                */
-                className="grid items-stretch gap-6 lg:grid-cols-12"
-              >
-                {/*
-                  O primeiro da principal divide a linha com a lateral.
-
-                  Ele é um item próprio da grade de doze colunas, e não o primeiro
-                  de uma coluna empilhada: empilhado, a altura dele seria a do
-                  conteúdo e a lateral esticaria até o fim da pilha inteira — o
-                  Índice de Saúde ficaria da altura de **todos** os painéis abaixo
-                  da Saúde Financeira, que não é alinhar, é inflar.
-                */}
-                {primeiro ? (
-                  <div
-                    className={cn(
-                      "min-w-0 [&>*]:h-full",
-                      secao.lateral.length > 0
-                        ? "lg:col-span-8"
-                        : "lg:col-span-12",
-                    )}
-                  >
-                    {renderizar(primeiro.id)}
-                  </div>
-                ) : null}
-
-                {/*
-                  Coluna lateral: um widget, esticado até a altura da linha.
-
                   `[&>*]:h-full` porque o contêiner esticar não estica o cartão
-                  dentro dele. É seguro **porque é um só**: num empilhamento,
-                  `h-full` em cada filho faria cada um medir a altura do conjunto, e
-                  foi assim que uma página de painéis chegou a quase dezenove mil
-                  pixels.
-                */}
-                {secao.lateral.length > 0 ? (
-                  <div className="min-w-0 space-y-6 lg:col-span-4 [&>*]:h-full">
-                    {secao.lateral.map((widget) => (
-                      <div key={widget.id} className="min-w-0 [&>*]:h-full">
-                        {renderizar(widget.id)}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {/*
-                  O resto da principal, **abaixo** do primeiro e na largura dele.
-
-                  Os estreitos se emparelham de dois em dois — Atividades Recentes ao
-                  lado de Próximos Eventos —, e os largos ocupam a largura da coluna.
-                  As quatro colunas ao lado ficam livres de propósito: é onde a
-                  lateral terminou.
-                */}
-                {resto.length > 0 ? (
-                  <div
-                    className={cn(
-                      "grid min-w-0 gap-6 sm:grid-cols-2",
-                      secao.lateral.length > 0
-                        ? "lg:col-span-8"
-                        : "lg:col-span-12",
-                    )}
-                  >
-                    {resto.map((widget) => (
-                      <div
-                        key={widget.id}
-                        className={cn(
-                          "min-w-0",
-                          ehEstreito(widget) ? "" : "sm:col-span-2",
-                        )}
-                      >
-                        {renderizar(widget.id)}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
+                  dentro dele. É seguro aqui **porque cada contêiner tem um filho
+                  só**: num empilhamento, `h-full` em cada filho faria cada um medir
+                  a altura do conjunto, e foi assim que uma página de painéis chegou
+                  a quase dezenove mil pixels.
+                */
+                <div
+                  key={item.widget.id}
+                  className={cn("min-w-0 [&>*]:h-full", COLUNAS[item.colunas])}
+                >
+                  {renderizar(item.widget.id)}
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       )}
     </ContentContainer>
   );
 }
 
+/**
+ * Quantas colunas, em classe do Tailwind.
+ *
+ * Um mapa, e não `lg:col-span-${n}`: o Tailwind varre o código em busca de nomes de
+ * classe literais, e uma classe montada em tempo de execução não existe no CSS
+ * gerado — o widget apareceria sempre com a largura padrão.
+ */
+const COLUNAS: Readonly<Record<Colunas, string>> = {
+  4: "lg:col-span-4",
+  6: "lg:col-span-6",
+  8: "lg:col-span-8",
+  12: "lg:col-span-12",
+};
+
+/** O esqueleto imita as primeiras linhas reais: 4+8, depois 12, depois 8+4. */
 function LayoutSkeleton() {
   return (
     <div className="grid gap-6 lg:grid-cols-12">
       {[
-        "lg:col-span-8",
         "lg:col-span-4",
+        "lg:col-span-8",
         "lg:col-span-12",
         "lg:col-span-8",
         "lg:col-span-4",

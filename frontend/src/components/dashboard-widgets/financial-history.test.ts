@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { historyWindow, HISTORY_MONTHS } from "./financial-history";
+import {
+  deveDesenharEvolucao,
+  deveMarcarPontos,
+  historyWindow,
+  HISTORY_MONTHS,
+} from "./financial-history";
 
 const HOJE = new Date("2026-10-02T09:00:00.000Z");
 
@@ -49,5 +54,41 @@ describe("a janela da evolução", () => {
     const meses = (anoFim! - anoInicio!) * 12 + (mesFim! - mesInicio!) + 1;
 
     expect(meses).toBe(HISTORY_MONTHS);
+  });
+});
+
+/**
+ * O limiar que escondia o gráfico.
+ *
+ * Três tentativas de "adicionar o gráfico de linha" terminaram com o usuário vendo
+ * uma frase no lugar dele. A causa não era o gráfico: era o corte em dois pontos,
+ * que numa organização com um mês de uso recusava desenhar.
+ */
+describe("quando a evolução é desenhada", () => {
+  it("um ponto já desenha", () => {
+    expect(deveDesenharEvolucao(1)).toBe(true);
+  });
+
+  it("sem ponto nenhum, não há o que desenhar", () => {
+    expect(deveDesenharEvolucao(0)).toBe(false);
+  });
+
+  it("doze meses desenham", () => {
+    expect(deveDesenharEvolucao(HISTORY_MONTHS)).toBe(true);
+  });
+
+  /** Um ponto sem marca não pinta pixel: eixos vazios, que é o mesmo sintoma. */
+  it("um ponto é marcado", () => {
+    expect(deveMarcarPontos(1)).toBe(true);
+  });
+
+  it("dois pontos ainda são marcados", () => {
+    expect(deveMarcarPontos(2)).toBe(true);
+  });
+
+  /** Doze marcas por linha viram ruído, e a curva se lê melhor sem elas. */
+  it("a série cheia dispensa as marcas", () => {
+    expect(deveMarcarPontos(3)).toBe(false);
+    expect(deveMarcarPontos(HISTORY_MONTHS)).toBe(false);
   });
 });

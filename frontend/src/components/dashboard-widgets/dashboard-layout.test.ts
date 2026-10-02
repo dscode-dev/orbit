@@ -1,91 +1,194 @@
 import { describe, expect, it } from "vitest";
 
 import { organizarPainel } from "./dashboard-layout";
+import type { ResolvedDashboardWidget } from "@/types/dashboard";
 
-type W = { id: string; size: "SMALL" | "MEDIUM" | "LARGE" | "FULL" };
-const w = (id: string, size: W["size"]): W => ({ id, size });
+type W = Pick<ResolvedDashboardWidget, "id" | "size">;
 
-/** Só os ids, para as asserções ficarem legíveis. */
-const ids = (lista: readonly W[]) => lista.map((item) => item.id);
+const w = (id: string, size: ResolvedDashboardWidget["size"]): W => ({
+  id,
+  size,
+});
+
+/** As linhas como `id:colunas`, que é o que se quer ler ao conferir arrumação. */
+const arrumacao = (widgets: readonly W[]) =>
+  organizarPainel(widgets).map((linha) =>
+    linha.widgets
+      .map((item) => `${item.widget.id}:${item.colunas}`)
+      .join(" | "),
+  );
+
+/**
+ * O painel real, na ordem que o servidor manda.
+ *
+ * O teste usa esta lista e não widgets inventados porque é esta a arrumação que
+ * foi pedida três vezes — e é com widgets reais que ela precisa sair certa.
+ */
+const PAINEL_REAL: readonly W[] = [
+  w("operations-comparative-radar", "MEDIUM"),
+  w("executive-kpis", "LARGE"),
+  w("attention-center", "FULL"),
+  w("financial-health", "LARGE"),
+  w("health-score", "MEDIUM"),
+  w("operational-trend", "LARGE"),
+  w("team-performance", "LARGE"),
+  w("recent-activity", "MEDIUM"),
+  w("upcoming-events", "MEDIUM"),
+  w("orbit-intelligence", "FULL"),
+];
 
 describe("organizarPainel", () => {
-  it("um widget de largura total vira faixa e separa blocos", () => {
-    const secoes = organizarPainel([
-      w("radar", "MEDIUM"),
-      w("atencao", "LARGE"),
-      w("kpis", "FULL"),
-      w("financeiro", "LARGE"),
-    ]);
-
-    expect(secoes.map((s) => s.tipo)).toEqual(["bloco", "faixa", "bloco"]);
-  });
-
-  it("o painel real deixa de ter a coluna baixa ao lado da alta", () => {
-    /**
-     * Este é o arranjo que o servidor manda hoje. O que se prova: "Saúde
-     * Financeira", "Atividades Recentes" e "Próximos Eventos" ficam na mesma
-     * coluna, embaixo uma da outra — e "Índice de Saúde", que é o widget
-     * alto, fica na lateral. Antes os três primeiros estavam em linhas
-     * diferentes, separados pelo vazio que a altura do "Índice" abria.
-     */
-    const secoes = organizarPainel([
-      w("radar", "MEDIUM"),
-      w("atencao", "LARGE"),
-      w("kpis", "FULL"),
-      w("financeiro", "LARGE"),
-      w("indice", "MEDIUM"),
-      w("atividades", "MEDIUM"),
-      w("proximos", "MEDIUM"),
-      w("pmoc", "MEDIUM"),
-      w("clima", "LARGE"),
-    ]);
-
-    expect(secoes).toHaveLength(3);
-
-    const primeiro = secoes[0];
-    if (primeiro?.tipo !== "bloco") throw new Error("esperava bloco");
-    expect(ids(primeiro.lateral)).toEqual(["radar"]);
-    expect(ids(primeiro.principal)).toEqual(["atencao"]);
-
-    const ultimo = secoes[2];
-    if (ultimo?.tipo !== "bloco") throw new Error("esperava bloco");
-    expect(ids(ultimo.lateral)).toEqual(["indice"]);
-    expect(ids(ultimo.principal)).toEqual([
-      "financeiro",
-      "atividades",
-      "proximos",
-      "pmoc",
-      "clima",
+  /**
+   * A arrumação pedida, inteira, numa asserção.
+   *
+   * Cada linha deste resultado foi pedida em palavras: os Indicadores Executivos ao
+   * lado do Radar ocupando o espaço restante; a Saúde Financeira à esquerda com o
+   * Índice de Saúde à direita dela; Atividades Recentes e Próximos Eventos um ao
+   * lado do outro.
+   */
+  it("arruma o painel real como foi pedido", () => {
+    expect(arrumacao(PAINEL_REAL)).toEqual([
+      "operations-comparative-radar:4 | executive-kpis:8",
+      "attention-center:12",
+      "financial-health:8 | health-score:4",
+      "operational-trend:12",
+      "team-performance:12",
+      "recent-activity:6 | upcoming-events:6",
+      "orbit-intelligence:12",
     ]);
   });
 
-  it("a ordem do servidor é preservada dentro de cada coluna", () => {
-    /// O painel não reordena: decide onde colocar, nunca o que vem antes.
-    const secoes = organizarPainel([
-      w("a", "LARGE"),
-      w("b", "MEDIUM"),
-      w("c", "MEDIUM"),
-      w("d", "LARGE"),
+  /**
+   * O defeito que derrubou as três tentativas anteriores.
+   *
+   * O resolver do servidor filtra por plano, permissão e módulo. No modelo de
+   * colunas, perder o Centro de Atenção fundia dois blocos num só — e aí a Saúde
+   * Financeira deixava de dividir a linha com o Índice de Saúde, que ia para baixo
+   * dela. O painel mudava de arrumação por causa de um widget que nem aparece.
+   */
+  it("perder o separador de largura total não reorganiza o resto", () => {
+    const semCentroDeAtencao = PAINEL_REAL.filter(
+      (widget) => widget.id !== "attention-center",
+    );
+    expect(arrumacao(semCentroDeAtencao)).toEqual([
+      "operations-comparative-radar:4 | executive-kpis:8",
+      "financial-health:8 | health-score:4",
+      "operational-trend:12",
+      "team-performance:12",
+      "recent-activity:6 | upcoming-events:6",
+      "orbit-intelligence:12",
     ]);
-    const bloco = secoes[0];
-    if (bloco?.tipo !== "bloco") throw new Error("esperava bloco");
-    expect(ids(bloco.principal)).toEqual(["a", "c", "d"]);
   });
 
-  it("bloco sem nenhum widget estreito não inventa lateral", () => {
-    const secoes = organizarPainel([w("a", "LARGE"), w("b", "LARGE")]);
-    const bloco = secoes[0];
-    if (bloco?.tipo !== "bloco") throw new Error("esperava bloco");
-    expect(bloco.lateral).toEqual([]);
-    expect(ids(bloco.principal)).toEqual(["a", "b"]);
+  /** Tirar um do meio emparelha os vizinhos; não embaralha a página. */
+  it("perder um widget do meio só muda a linha dele", () => {
+    const semTendencia = PAINEL_REAL.filter(
+      (widget) => widget.id !== "operational-trend",
+    );
+    expect(arrumacao(semTendencia)).toEqual([
+      "operations-comparative-radar:4 | executive-kpis:8",
+      "attention-center:12",
+      "financial-health:8 | health-score:4",
+      "team-performance:12",
+      "recent-activity:6 | upcoming-events:6",
+      "orbit-intelligence:12",
+    ]);
   });
 
-  it("lista vazia não produz seção nenhuma", () => {
-    expect(organizarPainel([])).toEqual([]);
+  describe("as repartições", () => {
+    it("estreito e estreito dividem meio a meio", () => {
+      expect(arrumacao([w("a", "MEDIUM"), w("b", "MEDIUM")])).toEqual([
+        "a:6 | b:6",
+      ]);
+    });
+
+    /** O largo ocupa o espaço restante, que é o pedido do Indicadores Executivos. */
+    it("estreito seguido de largo dá quatro e oito", () => {
+      expect(arrumacao([w("a", "MEDIUM"), w("b", "LARGE")])).toEqual([
+        "a:4 | b:8",
+      ]);
+    });
+
+    it("largo seguido de estreito dá oito e quatro", () => {
+      expect(arrumacao([w("a", "LARGE"), w("b", "MEDIUM")])).toEqual([
+        "a:8 | b:4",
+      ]);
+    });
+
+    /** Dois gráficos a seis colunas num painel ficam ilegíveis. */
+    it("dois largos seguidos ficam um por linha", () => {
+      expect(arrumacao([w("a", "LARGE"), w("b", "LARGE")])).toEqual([
+        "a:12",
+        "b:12",
+      ]);
+    });
+
+    it("largura total nunca divide a linha", () => {
+      expect(arrumacao([w("a", "FULL"), w("b", "MEDIUM")])).toEqual([
+        "a:12",
+        "b:6",
+      ]);
+    });
+
+    it("estreito não se emparelha com a faixa seguinte", () => {
+      expect(arrumacao([w("a", "MEDIUM"), w("b", "FULL")])).toEqual([
+        "a:6",
+        "b:12",
+      ]);
+    });
+
+    /** Doze colunas para um cartão pequeno o deformariam. */
+    it("estreito sozinho no fim fica em meia linha", () => {
+      expect(arrumacao([w("a", "FULL"), w("b", "SMALL")])).toEqual([
+        "a:12",
+        "b:6",
+      ]);
+    });
+
+    it("SMALL conta como estreito", () => {
+      expect(arrumacao([w("a", "SMALL"), w("b", "LARGE")])).toEqual([
+        "a:4 | b:8",
+      ]);
+    });
   });
 
-  it("faixas seguidas não criam blocos vazios entre elas", () => {
-    const secoes = organizarPainel([w("a", "FULL"), w("b", "FULL")]);
-    expect(secoes.map((s) => s.tipo)).toEqual(["faixa", "faixa"]);
+  describe("os limites", () => {
+    it("lista vazia não produz linha nenhuma", () => {
+      expect(arrumacao([])).toEqual([]);
+    });
+
+    it("faixas seguidas não criam linha vazia entre elas", () => {
+      expect(arrumacao([w("a", "FULL"), w("b", "FULL")])).toEqual([
+        "a:12",
+        "b:12",
+      ]);
+    });
+
+    /** Nada é reordenado: o que muda é onde cada widget cai. */
+    it("a ordem do servidor é preservada", () => {
+      const ordem = organizarPainel(PAINEL_REAL).flatMap((linha) =>
+        linha.widgets.map((item) => item.widget.id),
+      );
+      expect(ordem).toEqual(PAINEL_REAL.map((widget) => widget.id));
+    });
+
+    /** Cada linha fecha em doze colunas, ou em seis quando sobrou um só. */
+    it("nenhuma linha passa de doze colunas", () => {
+      for (const linha of organizarPainel(PAINEL_REAL)) {
+        const total = linha.widgets.reduce(
+          (soma, item) => soma + item.colunas,
+          0,
+        );
+        expect(total).toBeLessThanOrEqual(12);
+      }
+    });
+
+    /** Nenhum widget some, e nenhum aparece duas vezes. */
+    it("todo widget entra exatamente uma vez", () => {
+      const ids = organizarPainel(PAINEL_REAL).flatMap((linha) =>
+        linha.widgets.map((item) => item.widget.id),
+      );
+      expect(new Set(ids).size).toBe(PAINEL_REAL.length);
+    });
   });
 });

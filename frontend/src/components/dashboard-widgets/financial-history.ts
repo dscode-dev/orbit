@@ -59,3 +59,32 @@ export function historyWindow(
   const fim = toDay(to) ?? now.toLocaleDateString("sv-SE");
   return { from: firstDayMonthsBefore(fim, HISTORY_MONTHS - 1), to: fim };
 }
+
+/**
+ * Com quantos pontos a linha é desenhada.
+ *
+ * ## Por que não é "dois"
+ *
+ * Era. E foi por isso que o gráfico "continuava não aparecendo": numa organização
+ * com um mês de uso a série tem um ponto, o corte em dois devolvia uma frase, e quem
+ * pediu um gráfico de linha leu isso como ausência de gráfico. Uma linha de um ponto
+ * não desenha traço, mas desenha o ponto — e eixo, grade e escala já respondem "onde
+ * estamos", que é metade do que o painel promete.
+ *
+ * Sem ponto nenhum não há o que desenhar, e aí a frase é a resposta certa.
+ */
+export function deveDesenharEvolucao(pontos: number): boolean {
+  return pontos > 0;
+}
+
+/**
+ * Quando o ponto precisa de marca.
+ *
+ * Numa série de doze meses, doze marcas por linha viram ruído e a curva se lê
+ * melhor sem elas. Com um ou dois pontos é o contrário: sem marca, um ponto único
+ * não pinta pixel nenhum e o cartão mostra eixos vazios — o mesmo sintoma de "não
+ * tem gráfico" que o corte em dois pontos causava.
+ */
+export function deveMarcarPontos(pontos: number): boolean {
+  return pontos <= 2;
+}

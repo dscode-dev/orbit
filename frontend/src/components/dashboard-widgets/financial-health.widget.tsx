@@ -57,7 +57,11 @@ import { ROUTES } from "@/lib/routes";
 import { FORMATTERS, resolveMetric } from "@/metrics";
 import type { FinancialAnalyticsQuery } from "@/types/financial";
 import { formatMonth } from "@/components/financial/financial-presentation";
-import { historyWindow } from "./financial-history";
+import {
+  deveDesenharEvolucao,
+  deveMarcarPontos,
+  historyWindow,
+} from "./financial-history";
 import type { WidgetProps } from "./widget-registry";
 
 /** `2026-08-09T00:00:00.000Z` → `2026-08-09`. */
@@ -170,8 +174,8 @@ export function FinancialHealthWidget({ widget, analytics }: WidgetProps) {
             <TimelineChart query={timeline} />
 
             <p className="text-xs text-muted-foreground">
-              {data.period.from} a {data.period.to} · valores em{" "}
-              {data.currency}. Totais consolidados do período.
+              {data.period.from} a {data.period.to} · valores em {data.currency}
+              . Totais consolidados do período.
             </p>
           </div>
         )}
@@ -188,7 +192,9 @@ function Figure({ id, value }: { id: string; value: string }) {
   return (
     <div className="space-y-0.5">
       <p className="truncate text-xs text-muted-foreground">{metric.label}</p>
-      <p className={`font-display text-lg font-bold tabular-nums ${metric.color}`}>
+      <p
+        className={`font-display text-lg font-bold tabular-nums ${metric.color}`}
+      >
         {Number.isFinite(amount) ? FORMATTERS.currency(amount) : value}
       </p>
     </div>
@@ -256,19 +262,34 @@ function TimelineChart({
   }));
 
   /*
-   * Um ponto não desenha linha.
+   * Sem nenhum ponto não há o que desenhar.
    *
-   * Acontece numa organização que começou este mês: a janela pede doze meses e só
-   * um tem movimento. Antes isto devolvia `null` e o painel ficava sem explicação —
-   * agora diz o que falta, que é tempo.
+   * Acontece numa organização que ainda não lançou nada: a janela pede doze meses e
+   * nenhum tem movimento. Aí a frase diz o que falta, que é movimento.
+   *
+   * Com **um** ponto o gráfico aparece. Antes o corte era em dois, e era por isso
+   * que o gráfico "continuava não aparecendo" para quem tem um mês de uso: uma
+   * linha de um ponto não desenha traço, mas desenha o ponto — e eixo, grade e
+   * escala já respondem "onde estamos", que é metade do que o painel promete.
+   * Recusar a desenhar transformava uma organização nova numa tela sem gráfico.
    */
-  if (points.length < 2) {
+  if (!deveDesenharEvolucao(points.length)) {
     return (
       <p className="text-muted-foreground text-xs">
-        A evolução aparece a partir do segundo mês com movimento registrado.
+        A evolução aparece quando houver movimento financeiro registrado.
       </p>
     );
   }
+
+  /*
+   * Com poucos pontos, o ponto é a marca.
+   *
+   * `dot={false}` é certo numa série de doze meses, onde doze marcas por linha
+   * viram ruído. Com um ou dois pontos é o contrário: sem marca, um ponto único não
+   * pinta pixel nenhum e o cartão mostra eixos vazios — exatamente o sintoma de
+   * "não tem gráfico".
+   */
+  const marcarPontos = deveMarcarPontos(points.length);
 
   /* O mês de hoje, no formato da série. `sv-SE` dá `YYYY-MM-DD` sem depender de
      montar a data à mão com `padStart`. */
@@ -344,7 +365,7 @@ function TimelineChart({
               name="Receita"
               stroke="var(--color-chart-2)"
               strokeWidth={2}
-              dot={false}
+              dot={marcarPontos ? { r: 3 } : false}
               activeDot={{ r: 4 }}
             />
             <Line
@@ -353,7 +374,7 @@ function TimelineChart({
               name="Despesa"
               stroke="var(--color-chart-5)"
               strokeWidth={2}
-              dot={false}
+              dot={marcarPontos ? { r: 3 } : false}
               activeDot={{ r: 4 }}
             />
             <Line
@@ -362,7 +383,7 @@ function TimelineChart({
               name="Saldo"
               stroke="var(--color-chart-1)"
               strokeWidth={2}
-              dot={false}
+              dot={marcarPontos ? { r: 3 } : false}
               activeDot={{ r: 4 }}
             />
           </LineChart>
