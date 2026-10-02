@@ -1,15 +1,20 @@
 "use client";
 
 /**
- * Listagem de propostas — serve as cinco abas.
+ * Listagem de propostas.
  *
- * ## Um componente, cinco recortes
+ * ## A situação é filtro, e não aba
  *
- * As abas são o **mesmo endpoint** com `status` diferente, filtrado pelo
- * servidor. "Encerrados" é a exceção: `REJECTED`, `EXPIRED` e `CANCELLED` são
- * três situações distintas, e `QuoteQueryDto` aceita **uma** por consulta.
- * A aba oferece um seletor entre as três em vez de buscar as três e juntar no
- * cliente — juntar quebraria a paginação e a contagem.
+ * Eram cinco abas chamando o **mesmo endpoint** com `status` diferente — e uma
+ * delas, "Encerrados", precisava de um seletor próprio dentro de si para
+ * escolher entre recusa, expiração e cancelamento, porque `QuoteQueryDto` aceita
+ * uma situação por consulta. Duas camadas de navegação para responder uma
+ * pergunta que a barra de filtros já responde.
+ *
+ * Hoje a situação é um filtro entre os outros, com as seis opções no mesmo
+ * nível. `QuoteQueryDto` continua aceitando uma por consulta, e isso agora
+ * aparece como é: escolher "Recusadas" mostra recusadas, não "encerradas".
+ * Juntar as três no cliente quebraria paginação e contagem.
  *
  * ## Nada é recortado aqui
  *
@@ -66,25 +71,36 @@ import {
   useListController,
 } from "@/workspace";
 import { Money, ValidUntil } from "./quote-presentation";
+import { quotesEmptyCopy } from "./quotes-empty-state";
 import { QuoteDetailSheet } from "./quote-detail.sheet";
 import { QuoteWizardDialog } from "./wizard/quote-wizard.dialog";
 import { QuoteRowActions } from "./quote-row-actions";
 
-const CLOSED_OPTIONS = optionsFrom(
-  ["REJECTED", "EXPIRED", "CANCELLED"],
-  QUOTE_STATUS_LABELS,
-);
-
-/** Situações que a aba "Visão geral" oferece como filtro. */
-const ALL_STATUS_OPTIONS = optionsFrom(
+/**
+ * As seis situações, na ordem do ciclo de vida da proposta.
+ *
+ * Elaboração, envio e aprovação são o caminho; recusa, expiração e cancelamento
+ * são os três desfechos que o encerram sem virar trabalho. Ficam no mesmo
+ * seletor porque são a mesma pergunta — e distintas entre si porque recusa é
+ * decisão do cliente, expiração é prazo que passou e cancelamento é desistência
+ * de quem propôs. Tratá-las como uma só apagaria a informação que mais falta
+ * seis meses depois.
+ */
+const STATUS_OPTIONS = optionsFrom(
   ["DRAFT", "SENT", "APPROVED", "REJECTED", "EXPIRED", "CANCELLED"],
   QUOTE_STATUS_LABELS,
 );
 
 export function QuotesList({
-  /** Situação fixa da aba. `closed` abre o seletor entre os três desfechos. */
+  /**
+   * Situação fixa, para quem embute a lista já recortada.
+   *
+   * Nenhuma tela passa hoje: o Financeiro mostra todas e deixa a escolha no
+   * filtro. Fica como o recorte irmão de `customerId` — é assim que um painel
+   * futuro mostra "as aprovadas" sem reimplementar tabela e paginação. Com ela
+   * presente, o seletor de situação não aparece: a pergunta já está respondida.
+   */
   status,
-  closed = false,
   /** Recorte por cliente — usado dentro do Customer Workspace. */
   customerId,
   emptyTitle,
@@ -92,7 +108,6 @@ export function QuotesList({
   compact = false,
 }: {
   status?: QuoteStatus;
-  closed?: boolean;
   customerId?: string;
   emptyTitle: string;
   emptyDescription: string;
@@ -113,15 +128,8 @@ export function QuotesList({
    */
   const [customerLabel, setCustomerLabel] = useState<string>();
 
-  /**
-   * A situação da aba vence a do filtro.
-   *
-   * Em "Encerrados" o usuário escolhe qual desfecho ver; na "Visão geral" ele
-   * escolhe qualquer uma; nas demais, a aba já respondeu essa pergunta.
-   */
-  const effectiveStatus = closed
-    ? (list.query.status ?? "REJECTED")
-    : (status ?? list.query.status);
+  /** A situação fixa de quem embute vence o filtro; sem ela, a escolha é de quem olha. */
+  const effectiveStatus = status ?? list.query.status;
 
   const query = useQuotes({
     ...list.query,
@@ -131,7 +139,15 @@ export function QuotesList({
 
   const quotes = query.data?.data ?? [];
   const meta = query.data?.meta;
-  const prefix = `quotes-${status ?? (closed ? "closed" : "all")}`;
+
+  const prefix = `quotes-${status ?? "all"}`;
+
+  const vazio = quotesEmptyCopy({
+    isFiltered: list.isFiltered,
+    status: effectiveStatus,
+    emptyTitle,
+    emptyDescription,
+  });
 
   return (
     <div className="space-y-5">
@@ -164,21 +180,8 @@ export function QuotesList({
           hint="A busca cobre título, código e observações."
         />
 
-        {closed ? (
-          <FilterSelect
-            id="quotes-closed-status"
-            label="Desfecho"
-            value={effectiveStatus}
-            onChange={(value) =>
-              list.setFilter("status", (value ?? "REJECTED") as QuoteStatus)
-            }
-            options={CLOSED_OPTIONS}
-            anyLabel="Recusados"
-          />
-        ) : null}
-
-        {/* Sem aba fixa, a situação é escolha — é a "Visão geral". */}
-        {!closed && !status ? (
+        {/* Sem situação fixa, a situação é escolha de quem olha. */}
+        {status ? null : (
           <FilterSelect
             id={`${prefix}-status`}
             label="Situação"
@@ -186,10 +189,10 @@ export function QuotesList({
             onChange={(value) =>
               list.setFilter("status", value as QuoteStatus | undefined)
             }
-            options={ALL_STATUS_OPTIONS}
+            options={STATUS_OPTIONS}
             anyLabel="Todas"
           />
-        ) : null}
+        )}
 
         {/* Dentro do cliente a pergunta já está respondida pela rota. */}
         {customerId ? null : (
@@ -277,10 +280,11 @@ export function QuotesList({
         items={quotes}
         empty={{
           icon: <ReceiptText className="size-5" />,
-          title: emptyTitle,
-          description: emptyDescription,
+          /** Vazio por recorte não é vazio por falta — ver `quotes-empty-state`. */
+          title: vazio.title,
+          description: vazio.description,
           action:
-            create.allowed && !compact ? (
+            create.allowed && !compact && vazio.offersCreate ? (
               <Button size="sm" onClick={() => setFormOpen(true)}>
                 <Plus className="size-4" />
                 {create.label}

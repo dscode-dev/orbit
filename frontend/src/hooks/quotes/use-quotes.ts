@@ -41,7 +41,6 @@ import type {
   Quote,
   QuoteQuery,
   QuoteReasonInput,
-  QuoteStatus,
   UpdateQuoteInput,
   UpdateQuoteItemInput,
 } from "@/types/quotes";
@@ -279,9 +278,3 @@ export function useQuoteDocument(id: string) {
   });
 }
 
-/** Situações agrupadas na aba "Encerrados". */
-export const CLOSED_STATUSES: readonly QuoteStatus[] = [
-  "REJECTED",
-  "EXPIRED",
-  "CANCELLED",
-];

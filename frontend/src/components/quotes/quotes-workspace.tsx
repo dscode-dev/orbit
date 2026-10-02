@@ -3,27 +3,31 @@
 /**
  * Quotes Workspace — propostas comerciais.
  *
- * ## Cinco abas, um endpoint
+ * ## As cinco abas eram um filtro disfarçado
  *
- * Todas são `GET /quotes` com `status` diferente, recortado pelo **servidor**.
- * "Encerrados" é a exceção que o contrato impõe: `QuoteQueryDto` aceita uma
- * situação por consulta, e os três desfechos negativos são distintos — recusa
- * é decisão do cliente, expiração é prazo que passou, cancelamento é
- * desistência de quem propôs. A aba oferece a escolha em vez de juntar as três
- * no cliente, o que quebraria paginação e contagem.
+ * Todas chamavam `GET /quotes` com um `status` diferente. Nada mudava de tela:
+ * mesma tabela, mesmas colunas, mesma paginação, mesmo endpoint — só o recorte.
+ * Aba é para trocar de assunto; isto era trocar de **situação**, que é o que um
+ * filtro faz. O preço de disfarçá-lo era real: a faixa de abas ficava entre a
+ * pessoa e a lista, "Encerrados" precisava de um seletor próprio **dentro** da
+ * aba para escolher entre recusa, expiração e cancelamento, e combinar situação
+ * com cliente ou validade obrigava a lembrar em qual aba o outro filtro estava.
+ *
+ * Agora é uma lista com a situação na barra de filtros, ao lado dos outros
+ * recortes — e as seis situações são escolhas de igual peso, inclusive os três
+ * desfechos que antes viviam escondidos num seletor de segundo nível.
  *
  * ```
- * GET /quotes?status=DRAFT      em elaboração
- * GET /quotes?status=SENT       enviados
- * GET /quotes?status=APPROVED   aprovados
- * GET /quotes?status=REJECTED|EXPIRED|CANCELLED
+ * GET /quotes                  todas
+ * GET /quotes?status=DRAFT     em elaboração
+ * GET /quotes?status=SENT      enviadas, aguardando decisão
+ * ...
  * ```
  *
- * Cada aba tem `TabBoundary`: uma falha em Encerrados não derruba a Visão
- * geral.
+ * Os indicadores ficam fora da lista: eles respondem pela carteira inteira, e
+ * não pelo recorte em vigor.
  */
 import { ContentContainer } from "@/components/layout/page-primitives";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabBoundary } from "@/workspace";
 import { QuoteKpis } from "./quote-kpis";
 import { QuotesList } from "./quotes-list";
@@ -43,68 +47,21 @@ import { QuotesList } from "./quotes-list";
 export function QuotesWorkspace({ embedded = false }: { embedded?: boolean }) {
   const content = (
     <>
+      {/*
+        Dois limites, e não um: os indicadores agregam a carteira e a lista
+        consulta uma página dela. São consultas diferentes, e uma falhando não
+        deve apagar a outra da tela.
+      */}
       <TabBoundary id="quotes-kpis" label="os indicadores">
         <QuoteKpis />
       </TabBoundary>
 
-      <Tabs defaultValue="visao-geral">
-        <TabsList>
-          <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
-          <TabsTrigger value="elaboracao">Em elaboração</TabsTrigger>
-          <TabsTrigger value="enviados">Enviados</TabsTrigger>
-          <TabsTrigger value="aprovados">Aprovados</TabsTrigger>
-          <TabsTrigger value="encerrados">Encerrados</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="visao-geral">
-          <TabBoundary id="quotes-all" label="as propostas">
-            <QuotesList
-              emptyTitle="Nenhuma proposta"
-              emptyDescription="Crie um orçamento para um cliente. Ele nasce em rascunho e só vai ao cliente quando você enviar."
-            />
-          </TabBoundary>
-        </TabsContent>
-
-        <TabsContent value="elaboracao">
-          <TabBoundary id="quotes-draft" label="os rascunhos">
-            <QuotesList
-              status="DRAFT"
-              emptyTitle="Nenhum rascunho"
-              emptyDescription="Rascunhos aceitam itens e edição até serem enviados."
-            />
-          </TabBoundary>
-        </TabsContent>
-
-        <TabsContent value="enviados">
-          <TabBoundary id="quotes-sent" label="as propostas enviadas">
-            <QuotesList
-              status="SENT"
-              emptyTitle="Nada aguardando decisão"
-              emptyDescription="Propostas enviadas ficam aqui até o cliente decidir ou o prazo passar."
-            />
-          </TabBoundary>
-        </TabsContent>
-
-        <TabsContent value="aprovados">
-          <TabBoundary id="quotes-approved" label="as propostas aprovadas">
-            <QuotesList
-              status="APPROVED"
-              emptyTitle="Nenhuma proposta aprovada"
-              emptyDescription="Ao aprovar, o total entra no Financeiro como receita prevista — e a proposta pode virar operação."
-            />
-          </TabBoundary>
-        </TabsContent>
-
-        <TabsContent value="encerrados">
-          <TabBoundary id="quotes-closed" label="as propostas encerradas">
-            <QuotesList
-              closed
-              emptyTitle="Nada encerrado"
-              emptyDescription="Recusa, expiração e cancelamento são desfechos diferentes — escolha qual ver."
-            />
-          </TabBoundary>
-        </TabsContent>
-      </Tabs>
+      <TabBoundary id="quotes-all" label="as propostas">
+        <QuotesList
+          emptyTitle="Nenhuma proposta"
+          emptyDescription="Crie um orçamento para um cliente. Ele nasce em rascunho e só vai ao cliente quando você enviar."
+        />
+      </TabBoundary>
     </>
   );
 
