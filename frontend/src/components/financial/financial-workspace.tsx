@@ -59,7 +59,7 @@ import { useSectionFromUrl } from "@/hooks/use-section-from-url";
 import { useSession } from "@/providers/session-provider";
 import { QuotesWorkspace } from "@/components/quotes/quotes-workspace";
 import { TabBoundary } from "@/workspace";
-import { FINANCIAL_SECTIONS } from "./sections";
+import { FINANCIAL_SECTIONS, financialSectionList } from "./sections";
 import { FinancialCategoriesTab } from "./tabs/categories.tab";
 import { FinancialEntriesTab } from "./tabs/entries.tab";
 import { FinancialCommissionsTab } from "./tabs/commissions.tab";
@@ -97,17 +97,7 @@ function Workspace() {
    */
   const canQuotes = session.hasCapability("quotes.read");
 
-  const sections = [
-    FINANCIAL_SECTIONS.overview,
-    ...(canQuotes ? [FINANCIAL_SECTIONS.quotes] : []),
-    FINANCIAL_SECTIONS.entries,
-    FINANCIAL_SECTIONS.income,
-    FINANCIAL_SECTIONS.expense,
-    FINANCIAL_SECTIONS.commissions,
-    FINANCIAL_SECTIONS.categories,
-  ];
-
-  const section = useSectionFromUrl(sections);
+  const section = useSectionFromUrl(financialSectionList({ canQuotes }));
 
   return (
     <ContentContainer size="wide" className="space-y-6">
@@ -118,35 +108,42 @@ function Workspace() {
           </TabsTrigger>
 
           {/*
-            Orçamento com realce, e o realce é de **domínio**, não de estética: a
-            proposta é por onde o dinheiro começa, e ela virou aba de um módulo
-            onde as outras seis são registro do que já aconteceu. Sem o destaque,
-            mover para cá seria rebaixar a feature.
+            Orçamento tem realce, e ele é discreto de propósito.
 
-            O ícone e a borda só pintam o estado inativo; ativo é o mesmo visual
-            das demais, porque aí a aba já está onde a pessoa olha.
+            A primeira tentativa deu borda, fundo tingido e texto colorido ao gatilho:
+            ficou exagerado e, pior, a borda somou dois pixels à altura de uma faixa
+            de altura fixa — a lista passou a rolar na vertical e as abas pareceram
+            amassadas umas nas outras.
+
+            O que sobrou faz o mesmo trabalho sem custar altura: o ícone, e a cor de
+            marca só no texto enquanto a aba está inativa. Ativa, ela é igual às
+            outras — ali já está onde a pessoa olha.
           */}
           {canQuotes ? (
             <TabsTrigger
               value={FINANCIAL_SECTIONS.quotes}
-              className="gap-1.5 border border-primary/40 bg-primary/5 text-primary data-[state=active]:border-transparent data-[state=active]:bg-background data-[state=active]:text-foreground"
+              className="gap-1.5 text-primary data-[state=active]:text-foreground"
             >
               <FileSignature className="size-3.5" />
               Orçamentos
             </TabsTrigger>
           ) : null}
 
-          <TabsTrigger value={FINANCIAL_SECTIONS.receipts}>
-            Recibos
+          <TabsTrigger value={FINANCIAL_SECTIONS.receipts}>Recibos</TabsTrigger>
+          <TabsTrigger value={FINANCIAL_SECTIONS.entries}>
+            Lançamentos
           </TabsTrigger>
-          <TabsTrigger value="lancamentos">Lançamentos</TabsTrigger>
-          <TabsTrigger value="receitas">Receitas</TabsTrigger>
-          <TabsTrigger value="despesas">Despesas</TabsTrigger>
-          <TabsTrigger value="comissao">Comissão</TabsTrigger>
-          <TabsTrigger value="categorias">Categorias</TabsTrigger>
+          <TabsTrigger value={FINANCIAL_SECTIONS.income}>Receitas</TabsTrigger>
+          <TabsTrigger value={FINANCIAL_SECTIONS.expense}>Despesas</TabsTrigger>
+          <TabsTrigger value={FINANCIAL_SECTIONS.commissions}>
+            Comissão
+          </TabsTrigger>
+          <TabsTrigger value={FINANCIAL_SECTIONS.categories}>
+            Categorias
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="visao-geral">
+        <TabsContent value={FINANCIAL_SECTIONS.overview}>
           <TabBoundary id="financial-overview" label="a visão geral">
             <FinancialOverviewTab />
           </TabBoundary>
@@ -175,7 +172,7 @@ function Workspace() {
           ) : null}
         </TabsContent>
 
-        <TabsContent value="lancamentos">
+        <TabsContent value={FINANCIAL_SECTIONS.entries}>
           <TabBoundary id="financial-entries" label="os lançamentos">
             <FinancialEntriesTab
               noun="lançamento"
@@ -185,7 +182,7 @@ function Workspace() {
           </TabBoundary>
         </TabsContent>
 
-        <TabsContent value="receitas">
+        <TabsContent value={FINANCIAL_SECTIONS.income}>
           <TabBoundary id="financial-income" label="as receitas">
             <FinancialEntriesTab
               type="INCOME"
@@ -197,7 +194,7 @@ function Workspace() {
           </TabBoundary>
         </TabsContent>
 
-        <TabsContent value="despesas">
+        <TabsContent value={FINANCIAL_SECTIONS.expense}>
           <TabBoundary id="financial-expense" label="as despesas">
             <FinancialEntriesTab
               type="EXPENSE"
@@ -209,13 +206,13 @@ function Workspace() {
           </TabBoundary>
         </TabsContent>
 
-        <TabsContent value="comissao">
+        <TabsContent value={FINANCIAL_SECTIONS.commissions}>
           <TabBoundary id="financial-commissions" label="a comissão">
             <FinancialCommissionsTab />
           </TabBoundary>
         </TabsContent>
 
-        <TabsContent value="categorias">
+        <TabsContent value={FINANCIAL_SECTIONS.categories}>
           <TabBoundary id="financial-categories" label="as categorias">
             <FinancialCategoriesTab />
           </TabBoundary>

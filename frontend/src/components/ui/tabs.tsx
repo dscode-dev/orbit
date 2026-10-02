@@ -33,7 +33,26 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+      "inline-flex items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+      /**
+       * Respiro entre as abas.
+       *
+       * Sem `gap` os gatilhos encostam um no outro e a faixa lê-se como um
+       * bloco cinzento com palavras dentro — só a aba ativa, por ter fundo
+       * próprio, se separa. Quatro pixels bastam para cada aba virar um alvo
+       * reconhecível sem afrouxar o grupo.
+       */
+      "gap-1",
+      /**
+       * Altura mínima, não fixa.
+       *
+       * Era `h-9`. Qualquer aba um pixel mais alta que o normal — uma borda, um
+       * ícone maior — não caber nessa altura exata não alargava a faixa: com
+       * `overflow-x-auto` ligado, o excedente virava **rolagem vertical** numa
+       * barra de 36px, e foi assim que o Financeiro passou a rolar. Com mínimo,
+       * a faixa cresce no caso raro e fica idêntica no caso comum.
+       */
+      "min-h-9",
       /**
        * A raiz é uma coluna flex, e um item de coluna estica por padrão. Sem
        * isto a faixa cinzenta das abas atravessaria a página inteira, em vez
