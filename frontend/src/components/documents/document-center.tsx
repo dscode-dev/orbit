@@ -7,9 +7,16 @@
  *
  * **Não existe listagem global de manifests.** O backend publica revisões
  * sempre sob uma execução — decisão explícita da PR-19 de não criar endpoint
- * administrativo. A central parte de `GET /artifact-executions`, que carrega o
- * `renderStatus` real de cada execução. As revisões de uma execução são
- * carregadas quando ela é aberta.
+ * administrativo. As revisões de uma execução são carregadas quando ela é aberta.
+ *
+ * A lista vem de `GET /issued-documents`, que une **duas origens** no banco: as
+ * execuções do Artifact Engine e os relatórios gerenciais. Os dois emitem
+ * documento com arquivo guardado, e só o primeiro aparecia aqui — um relatório
+ * recém-gerado não estava em nenhuma lista chamada "Documentos emitidos".
+ *
+ * A união é do servidor, e não daqui, pelo mesmo motivo que as filas deixaram de
+ * ser recorte de página: somar duas listas paginadas no navegador faz `total`
+ * mentir e deixa a página 2 de uma sem continuidade com a página 1 da outra.
  *
  * ## As filas passaram a ser consulta, não recorte da página
  *
@@ -19,8 +26,8 @@
  * ficava sem sentido: a página 2 podia estar inteira numa fila que não era a
  * aberta.
  *
- * Agora `renderStatus`, `artifactType` e o período são filtros do servidor
- * (`ArtifactExecutionQueryDto`), a fila aberta é a consulta, e o total é o
+ * Agora `renderStatus`, `artifactType`, a origem e o período são filtros do
+ * servidor (`IssuedDocumentQueryDto`), a fila aberta é a consulta, e o total é o
  * total. A contagem das filas fechadas deixou de existir em vez de existir
  * errada: uma contagem por fila exigiria cinco consultas por navegação, e o
  * caminho honesto é o backend publicar o agrupamento — não a tela fingir.
@@ -41,15 +48,15 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { resolveRenderStatus } from "@/documents";
 import { allTemplateTypes } from "@/artifacts";
-import { useArtifactExecutionsList } from "@/hooks/artifact-executions/use-artifact-executions";
+import { useIssuedDocuments } from "@/hooks/issued-documents/use-issued-documents";
+import { useReportCatalog } from "@/hooks/management-reports/use-management-reports";
 import { useActiveScope } from "@/providers/use-active-scope";
 import { schedulingReferencesService } from "@/services/scheduling-references.service";
-import { executionStatusLabel } from "@/components/artifact-executions/execution-badges";
-import { ARTIFACT_EXECUTION_STATUSES } from "@/types/artifact-executions";
-import type {
-  ArtifactExecutionStatus,
-  ArtifactExecutionQuery,
-} from "@/types/artifact-executions";
+import {
+  ISSUED_DOCUMENT_SOURCE_LABELS,
+  type IssuedDocumentQuery,
+  type IssuedDocumentSource,
+} from "@/types/issued-documents";
 import type { RenderStatus } from "@/types/documents";
 import {
   FilterBar,
@@ -86,9 +93,18 @@ const TYPE_OPTIONS = allTemplateTypes().map((type) => ({
   label: type.name,
 }));
 
-const STATUS_OPTIONS = ARTIFACT_EXECUTION_STATUSES.map((status) => ({
-  value: status,
-  label: executionStatusLabel(status),
+/**
+ * As duas origens como filtro.
+ *
+ * Não é navegação disfarçada: a lista continua trazendo as duas por omissão, e
+ * isto só recorta. Quem administra documento de atendimento e quem acompanha
+ * relatório de período costumam ser a mesma pessoa em momentos diferentes.
+ */
+const SOURCE_OPTIONS = (
+  Object.keys(ISSUED_DOCUMENT_SOURCE_LABELS) as IssuedDocumentSource[]
+).map((source) => ({
+  value: source,
+  label: ISSUED_DOCUMENT_SOURCE_LABELS[source],
 }));
 
 /**
@@ -105,9 +121,25 @@ export function DocumentCenter({ embedded = false }: { embedded?: boolean }) {
   const [selected, setSelected] = useState<string | null>(null);
   /** O rótulo do cliente escolhido, para o seletor não mostrar um id. */
   const [customerLabel, setCustomerLabel] = useState<string>();
-  const list = useListController<ArtifactExecutionQuery>({ limit: 20 });
+  const list = useListController<IssuedDocumentQuery>({ limit: 20 });
 
-  const query = useMemo<ArtifactExecutionQuery>(
+  /**
+   * O catálogo de tipos de relatório, para a coluna Tipo dizer o nome.
+   *
+   * Os dois vocabulários de tipo são diferentes e nenhum traduz o outro: o de
+   * artefato vem do registro local, o de relatório é publicado pelo servidor.
+   * É consulta de catálogo, cacheada, e não uma por linha.
+   */
+  const catalog = useReportCatalog();
+  const reportTypes = useMemo(
+    () =>
+      Object.fromEntries(
+        (catalog.data?.types ?? []).map((type) => [type.type, type.name]),
+      ),
+    [catalog.data],
+  );
+
+  const query = useMemo<IssuedDocumentQuery>(
     () => ({
       ...list.query,
       /* A unidade ativa do escopo vence o filtro: é a mesma regra das outras
@@ -119,9 +151,9 @@ export function DocumentCenter({ embedded = false }: { embedded?: boolean }) {
     [list.query, businessUnitId, queue],
   );
 
-  const executions = useArtifactExecutionsList(query);
-  const items = useMemo(() => executions.data?.data ?? [], [executions.data]);
-  const meta = executions.data?.meta;
+  const documents = useIssuedDocuments(query);
+  const items = useMemo(() => documents.data?.data ?? [], [documents.data]);
+  const meta = documents.data?.meta;
 
   const Wrapper = embedded ? EmbeddedWrapper : ContainedWrapper;
 
@@ -168,14 +200,23 @@ export function DocumentCenter({ embedded = false }: { embedded?: boolean }) {
             anyLabel="Todos"
           />
 
+          {/*
+            A situação do atendimento saiu.
+
+            Ela era do vocabulário da execução — `UNDER_REVIEW`, `APPROVED` —, e
+            relatório gerencial não tem nenhum desses estados. Um seletor com os
+            dois vocabulários juntos ofereceria combinações que não existem, e
+            escolher uma devolveria lista vazia sem explicar por quê. O que
+            interessa sobre o arquivo são as filas, que as duas origens têm.
+          */}
           <FilterSelect
-            id="documents-status"
-            label="Situação do atendimento"
-            value={list.query.status}
+            id="documents-source"
+            label="Origem"
+            value={list.query.source}
             onChange={(value) =>
-              list.setFilter("status", value as ArtifactExecutionStatus)
+              list.setFilter("source", value as IssuedDocumentSource)
             }
-            options={STATUS_OPTIONS}
+            options={SOURCE_OPTIONS}
             anyLabel="Todas"
           />
 
@@ -232,14 +273,14 @@ export function DocumentCenter({ embedded = false }: { embedded?: boolean }) {
             ))}
           </TabsList>
 
-          <ResultSummary meta={meta} noun="execução" gender="f" />
+          <ResultSummary meta={meta} noun="documento" />
         </div>
 
         <div data-testid="documents-results">
           <ListState
-            isPending={executions.isPending}
-            error={executions.error}
-            onRetry={() => void executions.refetch()}
+            isPending={documents.isPending}
+            error={documents.error}
+            onRetry={() => void documents.refetch()}
             items={items}
             empty={{
               icon: <FileStack className="size-5" />,
@@ -257,7 +298,11 @@ export function DocumentCenter({ embedded = false }: { embedded?: boolean }) {
              */}
             {() => (
               <TabsContent value={queue}>
-                <DocumentList executions={items} onOpen={setSelected} />
+                <DocumentList
+                  documents={items}
+                  reportTypes={reportTypes}
+                  onOpen={setSelected}
+                />
               </TabsContent>
             )}
           </ListState>
@@ -268,7 +313,7 @@ export function DocumentCenter({ embedded = false }: { embedded?: boolean }) {
         meta={meta}
         onPrevious={list.previousPage}
         onNext={list.nextPage}
-        isFetching={executions.isFetching}
+        isFetching={documents.isFetching}
       />
 
       <DocumentViewer

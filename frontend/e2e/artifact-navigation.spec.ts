@@ -27,8 +27,13 @@ test.describe("Navegação de artefatos", () => {
       menu.getByRole("link", { name: /Execuç(ões|ão) de artefato/ }),
     ).toHaveCount(0);
 
-    /** E os destinos vizinhos continuam de pé, sem buraco no menu. */
-    for (const item of ["Visão geral", "Documentos"]) {
+    /**
+     * E os destinos vizinhos continuam de pé, sem buraco no menu.
+     *
+     * "Documentos" saiu desta lista junto com o grupo dele: os documentos
+     * emitidos passaram a ser aba de Relatórios, que é o vizinho que restou.
+     */
+    for (const item of ["Visão geral", "Relatórios"]) {
       await expect(menu.getByRole("link", { name: item })).toBeVisible();
     }
 
@@ -42,9 +47,15 @@ test.describe("Navegação de artefatos", () => {
 
     /**
      * Redireciona em vez de 404: o caminho continua alcançável por favorito e
-     * histórico, e o que a pessoa procurava existe com outro nome.
+     * histórico, e o que a pessoa procurava existe com outro nome — hoje a aba
+     * Documentos emitidos, dentro de Relatórios.
      */
-    await expect(page).toHaveURL(/\/documentos$/);
+    await expect(page).toHaveURL(/\/relatorios\?secao=emitidos$/);
+
+    /** E a aba certa está selecionada, não a primeira da lista. */
+    await expect(
+      page.getByRole("tab", { name: "Documentos emitidos", exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
   });
 
   test("o deep link por execução continua funcionando", async ({ page }) => {

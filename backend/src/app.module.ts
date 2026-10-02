@@ -32,6 +32,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { ArtifactManifestModule } from './modules/artifact-manifests/artifact-manifest.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { ArtifactExecutionModule } from './modules/artifact-executions/artifact-execution.module';
+import { IssuedDocumentModule } from './modules/issued-documents/issued-document.module';
 import { RvtModule } from './modules/rvt/rvt.module';
 import { MobileFieldModule } from './modules/mobile-field/mobile-field.module';
 import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
@@ -76,6 +77,7 @@ import {
     PlatformAdministrationModule,
     ArtifactTemplateModule,
     ArtifactExecutionModule,
+    IssuedDocumentModule,
     StorageModule,
     ArtifactManifestModule,
     JobsModule,

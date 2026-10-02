@@ -121,8 +121,20 @@ function Workspace() {
    * documento emitido, o relatório do período e o modelo que gera os dois. Os
    * modelos já eram aba daqui; agora os emitidos também, e o grupo deixou de
    * existir — o menu criava rolagem em tela full HD.
+   *
+   * ## Por que `artifact_executions.read`, e não `artifact_manifests.read`
+   *
+   * Porque é o que a rota exige. A aba lê `GET /issued-documents`, que une as
+   * execuções do Artifact Engine com os relatórios gerenciais e cobra as duas
+   * capacidades — quem pergunta recebe linhas das duas origens, e pedir só uma
+   * entregaria linhas que a pessoa não deveria ver. A metade de relatórios já está
+   * garantida: a página inteira exige `reports.management.read`.
+   *
+   * Com `artifact_manifests.read` aqui, alguém que tivesse essa e não a de
+   * execuções veria a aba e receberia 403 ao abri-la — uma porta que existe e não
+   * abre é pior que porta nenhuma.
    */
-  const canDocuments = session.hasCapability("artifact_manifests.read");
+  const canDocuments = session.hasCapability("artifact_executions.read");
 
   /* Os apelidos são públicos: entram em link guardado e não mudam. */
   const sections = [
@@ -237,7 +249,10 @@ function Workspace() {
                 conteúdo de um documento. Abrir Relatórios não deveria disparar
                 essas consultas. */}
             {tab === REPORTS_SECTIONS.documents ? (
-              <TabBoundary id="reports-documents" label="os documentos emitidos">
+              <TabBoundary
+                id="reports-documents"
+                label="os documentos emitidos"
+              >
                 <DocumentCenter embedded />
               </TabBoundary>
             ) : null}
