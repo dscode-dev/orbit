@@ -197,39 +197,67 @@ export function DashboardView() {
         </p>
       ) : (
         <div className="space-y-6">
-          {secoes.map((secao, posicao) =>
-            secao.tipo === "faixa" ? (
+          {secoes.map((secao, posicao) => {
+            /* O topo da coluna principal divide a linha com a lateral; o resto
+               desce. A separação é da renderização, não da arrumação: quem decide
+               em qual coluna cada widget cai continua sendo `organizarPainel`. */
+            const primeiro =
+              secao.tipo === "bloco" ? secao.principal[0] : undefined;
+            const resto =
+              secao.tipo === "bloco" ? secao.principal.slice(1) : [];
+
+            return secao.tipo === "faixa" ? (
               <div key={secao.widget.id} className="min-w-0">
                 {renderizar(secao.widget.id)}
               </div>
             ) : (
-              <div key={`bloco-${posicao}`} className="space-y-6">
+              <div
+                key={`bloco-${posicao}`}
+                /*
+                  `items-stretch` é o que alinha a primeira linha: o widget do topo
+                  da coluna principal e o da lateral são itens da **mesma** linha da
+                  grade, então o mais alto define a altura e o outro acompanha. É
+                  assim que o Índice de Saúde termina onde a Saúde Financeira
+                  termina, inclusive depois de ela crescer com o gráfico — sem
+                  ninguém medir conteúdo.
+                */
+                className="grid items-stretch gap-6 lg:grid-cols-12"
+              >
                 {/*
-                  A primeira linha: o par.
+                  O primeiro da principal divide a linha com a lateral.
 
-                  `items-stretch` é o que faz os dois terem a mesma altura — quem
-                  tem mais conteúdo define a linha e o outro acompanha, sem ninguém
-                  medir nada. `[&>*]:h-full` repassa isso ao cartão: o contêiner
-                  esticar não estica o que está dentro dele.
-
-                  Com um widget só no par, ele ocupa as doze colunas. Metade de uma
-                  linha vazia é o defeito que esta arrumação existe para não
-                  cometer.
+                  Ele é um item próprio da grade de doze colunas, e não o primeiro
+                  de uma coluna empilhada: empilhado, a altura dele seria a do
+                  conteúdo e a lateral esticaria até o fim da pilha inteira — o
+                  Índice de Saúde ficaria da altura de **todos** os painéis abaixo
+                  da Saúde Financeira, que não é alinhar, é inflar.
                 */}
-                {secao.par.length > 0 ? (
-                  <div className="grid items-stretch gap-6 lg:grid-cols-12">
-                    {secao.par.map((widget) => (
-                      <div
-                        key={widget.id}
-                        className={cn(
-                          "min-w-0 [&>*]:h-full",
-                          secao.par.length === 1
-                            ? "lg:col-span-12"
-                            : ehEstreito(widget)
-                              ? "lg:col-span-4"
-                              : "lg:col-span-8",
-                        )}
-                      >
+                {primeiro ? (
+                  <div
+                    className={cn(
+                      "min-w-0 [&>*]:h-full",
+                      secao.lateral.length > 0
+                        ? "lg:col-span-8"
+                        : "lg:col-span-12",
+                    )}
+                  >
+                    {renderizar(primeiro.id)}
+                  </div>
+                ) : null}
+
+                {/*
+                  Coluna lateral: um widget, esticado até a altura da linha.
+
+                  `[&>*]:h-full` porque o contêiner esticar não estica o cartão
+                  dentro dele. É seguro **porque é um só**: num empilhamento,
+                  `h-full` em cada filho faria cada um medir a altura do conjunto, e
+                  foi assim que uma página de painéis chegou a quase dezenove mil
+                  pixels.
+                */}
+                {secao.lateral.length > 0 ? (
+                  <div className="min-w-0 space-y-6 lg:col-span-4 [&>*]:h-full">
+                    {secao.lateral.map((widget) => (
+                      <div key={widget.id} className="min-w-0 [&>*]:h-full">
                         {renderizar(widget.id)}
                       </div>
                     ))}
@@ -237,14 +265,23 @@ export function DashboardView() {
                 ) : null}
 
                 {/*
-                  O resto ocupa o que tem: largo sozinho vai à linha inteira,
-                  estreitos se emparelham de dois em dois. Sem `items-stretch`
-                  aqui — cada linha é uma linha da grade, e cartões de alturas
-                  diferentes em linhas diferentes não abrem buraco.
+                  O resto da principal, **abaixo** do primeiro e na largura dele.
+
+                  Os estreitos se emparelham de dois em dois — Atividades Recentes ao
+                  lado de Próximos Eventos —, e os largos ocupam a largura da coluna.
+                  As quatro colunas ao lado ficam livres de propósito: é onde a
+                  lateral terminou.
                 */}
-                {secao.resto.length > 0 ? (
-                  <div className="grid gap-6 sm:grid-cols-2">
-                    {secao.resto.map((widget) => (
+                {resto.length > 0 ? (
+                  <div
+                    className={cn(
+                      "grid min-w-0 gap-6 sm:grid-cols-2",
+                      secao.lateral.length > 0
+                        ? "lg:col-span-8"
+                        : "lg:col-span-12",
+                    )}
+                  >
+                    {resto.map((widget) => (
                       <div
                         key={widget.id}
                         className={cn(
@@ -258,8 +295,8 @@ export function DashboardView() {
                   </div>
                 ) : null}
               </div>
-            ),
-          )}
+            );
+          })}
         </div>
       )}
     </ContentContainer>

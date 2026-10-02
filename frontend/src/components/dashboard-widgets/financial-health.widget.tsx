@@ -22,10 +22,15 @@
  * previsto aparece à parte, rotulado. Um "saldo" que somasse os dois pareceria
  * caixa e não seria — a mesma regra da Visão Geral do Workspace.
  *
- * ## Período e unidade são os do Dashboard
+ * ## Período e unidade são os do Dashboard — com uma exceção dita
  *
- * `analytics.query` é o mesmo recorte que alimenta os demais painéis. O
- * Financeiro não inventa um seletor paralelo.
+ * `analytics.query` é o mesmo recorte que alimenta os demais painéis, e os números
+ * do cartão são dele. O Financeiro não inventa um seletor paralelo.
+ *
+ * A **linha** é a exceção: a série do servidor é mensal, e trinta dias dão um mês.
+ * Ela pede doze meses terminando no fim do recorte — a evolução precisa de história,
+ * e a do período escolhido não existe. Terminar junto com o recorte é o que mantém a
+ * linha e os números falando do mesmo instante.
  */
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -52,6 +57,7 @@ import { ROUTES } from "@/lib/routes";
 import { FORMATTERS, resolveMetric } from "@/metrics";
 import type { FinancialAnalyticsQuery } from "@/types/financial";
 import { formatMonth } from "@/components/financial/financial-presentation";
+import { historyWindow } from "./financial-history";
 import type { WidgetProps } from "./widget-registry";
 
 /** `2026-08-09T00:00:00.000Z` → `2026-08-09`. */
@@ -76,7 +82,21 @@ export function FinancialHealthWidget({ widget, analytics }: WidgetProps) {
    * primeira vez que a capability mudasse.
    */
   const summary = useFinancialSummary(allowed ? query : undefined);
-  const timeline = useFinancialTimeline(allowed ? query : undefined);
+
+  /**
+   * A linha tem janela própria, e é por isso que ela existe.
+   *
+   * A série é **mensal** e o painel abre em trinta dias: a consulta devolvia um
+   * ponto, e um gráfico de linha com um ponto não desenha nada — o gráfico
+   * simplesmente não aparecia. Os números acima continuam sendo os do período
+   * escolhido; quem olha para trás é a linha, porque é ela que responde "como
+   * chegamos até aqui".
+   */
+  const timeline = useFinancialTimeline(
+    allowed
+      ? { ...historyWindow(query.to), businessUnitId: query.businessUnitId }
+      : undefined,
+  );
 
   if (!allowed) {
     return (
@@ -236,11 +256,19 @@ function TimelineChart({
   }));
 
   /*
-   * Duas séries de um ponto não desenham linha — desenham dois pixels. Abaixo
-   * disso o painel diz o período em texto, que é mais honesto que uma curva de um
-   * ponto só.
+   * Um ponto não desenha linha.
+   *
+   * Acontece numa organização que começou este mês: a janela pede doze meses e só
+   * um tem movimento. Antes isto devolvia `null` e o painel ficava sem explicação —
+   * agora diz o que falta, que é tempo.
    */
-  if (points.length < 2) return null;
+  if (points.length < 2) {
+    return (
+      <p className="text-muted-foreground text-xs">
+        A evolução aparece a partir do segundo mês com movimento registrado.
+      </p>
+    );
+  }
 
   /* O mês de hoje, no formato da série. `sv-SE` dá `YYYY-MM-DD` sem depender de
      montar a data à mão com `padStart`. */

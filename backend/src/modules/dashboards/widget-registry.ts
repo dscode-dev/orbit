@@ -45,7 +45,23 @@ const globalWidgets: DashboardWidgetDefinition[] = [
     description: 'Prioridades, alertas e pendências que exigem ação.',
     category: 'ATTENTION',
     order: 10,
-    size: 'LARGE',
+    /**
+     * Largura inteira, e isto é **estrutural**, não estética.
+     *
+     * Um widget `FULL` fecha o trecho anterior e abre o seguinte: é assim que a
+     * arrumação do painel separa a primeira linha — radar ao lado dos Indicadores
+     * Executivos — do bloco do Financeiro, onde a Saúde Financeira fica à esquerda
+     * com o Índice de Saúde à direita e as Atividades e os Próximos Eventos embaixo.
+     *
+     * Antes era `LARGE`, e quem fechava o trecho eram os Indicadores, que ocupavam
+     * uma faixa própria. Com eles subindo para o lado do radar, ninguém mais fechava
+     * — e tudo abaixo virou um único bloco: a Saúde Financeira foi para a largura
+     * inteira e o Índice de Saúde perdeu o lugar ao lado dela.
+     *
+     * Uma lista de alertas também lê melhor atravessada do que em oito colunas com
+     * quatro vazias ao lado.
+     */
+    size: 'FULL',
     tags: ['global', 'attention', 'alerts'],
     supportedSegments: [],
     requiredModules: [],
@@ -68,8 +84,13 @@ const globalWidgets: DashboardWidgetDefinition[] = [
      * embaixo para o que caberia nele.
      *
      * `order: 6` e `LARGE` o colocam na primeira linha, completando as oito
-     * colunas que faltavam. A Central de Atenção desce e passa a ocupar a
-     * largura inteira, em vez de deixar coluna vazia ao lado.
+     * colunas que faltavam — e os dois esticam juntos, então o radar termina onde
+     * os indicadores terminam.
+     *
+     * A Central de Atenção passou a `FULL` por consequência: alguém precisa fechar
+     * esta linha para o bloco do Financeiro começar com a Saúde Financeira à
+     * esquerda e o Índice de Saúde à direita. Sem isso, tudo abaixo vira um bloco
+     * só e a Saúde Financeira ocupa a largura inteira sozinha.
      */
     order: 6,
     size: 'LARGE',
