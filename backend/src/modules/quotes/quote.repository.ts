@@ -185,6 +185,82 @@ export class QuoteRepository {
    * atendimento, e a identidade completa de quem emite — timbre, endereço e
    * contato. Alargar `detailView` faria toda listagem carregar isso.
    */
+  /**
+   * A proposta como o documento emitido precisa dela.
+   *
+   * Parecido com `documentSource`, e separado dele de propósito: aquele alimenta
+   * um PDF e por isso carrega logo, assinatura e endereço do emissor; este
+   * alimenta uma **execução de artefato** e precisa das chaves que o PDF ignora —
+   * unidade, cliente e atendimento são colunas da execução, não linhas do papel.
+   * Juntar os dois faria cada emissão carregar bytes de imagem sem uso.
+   */
+  emissionSource(id: string, organizationId: string) {
+    return this.rls.run((tx) =>
+      tx.quote.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: {
+          id: true,
+          businessUnitId: true,
+          customerId: true,
+          operationId: true,
+          responsibleUserId: true,
+          code: true,
+          status: true,
+          title: true,
+          notes: true,
+          introText: true,
+          discountReason: true,
+          validUntil: true,
+          total: true,
+          sentAt: true,
+          createdAt: true,
+          responsible: { select: { displayName: true } },
+          serviceAddress: {
+            select: {
+              street: true,
+              number: true,
+              complement: true,
+              district: true,
+              city: true,
+              stateCode: true,
+            },
+          },
+          items: {
+            orderBy: { position: 'asc' as const },
+            select: {
+              description: true,
+              unit: true,
+              quantity: true,
+              unitPrice: true,
+              total: true,
+              notes: true,
+            },
+          },
+          customer: {
+            select: {
+              legalName: true,
+              tradeName: true,
+              documentType: true,
+              documentNumber: true,
+              addresses: {
+                where: { isPrimary: true, isActive: true },
+                take: 1,
+                select: {
+                  street: true,
+                  number: true,
+                  complement: true,
+                  district: true,
+                  city: true,
+                  stateCode: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+  }
+
   documentSource(id: string, organizationId: string) {
     return this.rls.run(async (tx) => {
       const quote = await tx.quote.findFirst({

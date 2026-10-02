@@ -35,6 +35,7 @@ import {
   ArrowLeftRight,
   Ban,
   CheckCheck,
+  FileCheck,
   CircleX,
   CircleCheckBig,
   Copy,
@@ -417,7 +418,7 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     capability: "catalog.manage",
     confirm: {
       title: "Excluir este item do catálogo?",
-      body: "Ele some das listagens. Para apenas parar de oferecê-lo, use \"Retirar de circulação\" — assim o registro permanece.",
+      body: 'Ele some das listagens. Para apenas parar de oferecê-lo, use "Retirar de circulação" — assim o registro permanece.',
       confirmLabel: "Excluir",
     },
   }),
@@ -650,7 +651,8 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     id: "artifact-execution.submit",
     entity: "artifact-execution",
     label: "Submeter",
-    description: "Envia para revisão. O preenchimento é conferido antes de seguir.",
+    description:
+      "Envia para revisão. O preenchimento é conferido antes de seguir.",
     icon: CheckCheck,
     category: "workflow",
     permission: "artifact_executions.update",
@@ -888,6 +890,25 @@ const DEFINITIONS: readonly ActionDefinition[] = [
     description:
       "O cliente aceitou. Gera receita prevista — não recebida — no Financeiro.",
     icon: CheckCheck,
+    category: "workflow",
+    permission: "quotes.manage",
+    capability: "quotes.manage",
+  }),
+  /**
+   * Emitir o documento é diferente de baixar o PDF.
+   *
+   * Baixar renderiza a proposta atual e não deixa rastro — serve para conferir
+   * antes de mandar. Emitir cria um documento com código, revisão e hash, que
+   * aparece em Relatórios › Documentos emitidos e continua recuperável depois de
+   * a proposta mudar. Por isso pede `quotes.manage`, e não `quotes.read`.
+   */
+  define({
+    id: "quote.issueDocument",
+    entity: "quote",
+    label: "Emitir documento",
+    description:
+      "Cria o documento oficial da proposta, com código e revisão. Fica guardado e recuperável; baixar o PDF não.",
+    icon: FileCheck,
     category: "workflow",
     permission: "quotes.manage",
     capability: "quotes.manage",

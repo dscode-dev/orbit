@@ -20,6 +20,7 @@
  * certeza?" mandaria uma requisição que voltaria 400.
  */
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { MutationError } from "@/components/artifact-studio/mutation-error";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,11 @@ import {
 import { ConfirmDialog } from "@/components/financial/confirm.dialog";
 import { QuoteReasonDialog } from "./quote-reason.dialog";
 import { useAction } from "@/actions";
-import { useQuoteTransition } from "@/hooks/quotes/use-quotes";
+import {
+  useIssueQuoteDocument,
+  useQuoteTransition,
+} from "@/hooks/quotes/use-quotes";
+import { ROUTES } from "@/lib/routes";
 import { OPERATION_KIND_LABELS, type Quote } from "@/types/quotes";
 
 type Pending = "reject" | "cancel" | "convert" | null;
@@ -53,8 +58,11 @@ export function QuoteActions({ quote }: { quote: Quote }) {
   const reject = useAction("quote.reject");
   const cancel = useAction("quote.cancel");
   const convert = useAction("quote.convert");
+  const issue = useAction("quote.issueDocument");
 
   const transition = useQuoteTransition(quote.id);
+  const issueDocument = useIssueQuoteDocument(quote.id);
+  const router = useRouter();
   const [pending, setPending] = useState<Pending>(null);
 
   const can = quote.transitions;
@@ -64,8 +72,23 @@ export function QuoteActions({ quote }: { quote: Quote }) {
   const showCancel = cancel.allowed && can.canCancel;
   const showConvert = convert.allowed && can.canConvert;
 
+  /**
+   * Emitir não é transição, e por isso não consulta `transitions`.
+   *
+   * O que a proposta permite agora é sobre o ciclo dela — enviar, aprovar,
+   * converter. Emitir o documento não muda o estado de nada: é criar o papel.
+   * Só não se emite rascunho, porque ali o preço ainda muda — e essa é a mesma
+   * regra que o servidor aplica, não uma segunda cópia dela.
+   */
+  const showIssue = issue.allowed && quote.status !== "DRAFT";
+
   const anything =
-    showSend || showApprove || showReject || showCancel || showConvert;
+    showSend ||
+    showApprove ||
+    showReject ||
+    showCancel ||
+    showConvert ||
+    showIssue;
 
   if (!anything) {
     return (
@@ -104,6 +127,29 @@ export function QuoteActions({ quote }: { quote: Quote }) {
           <Button size="sm" onClick={() => setPending("convert")}>
             <convert.definition.icon className="size-4" />
             {convert.label}
+          </Button>
+        ) : null}
+
+        {/*
+          Emitir leva para a execução, e isso é parte do ato.
+          O documento ainda precisa da assinatura do proponente, e é lá que se
+          assina e se emite. Ficar nesta tela deixaria a pessoa achando que
+          terminou — com um documento em rascunho que ninguém recebeu.
+        */}
+        {showIssue ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={issueDocument.isPending}
+            onClick={() =>
+              issueDocument.mutate(undefined, {
+                onSuccess: (execution) =>
+                  router.push(`${ROUTES.executions}/${execution.id}`),
+              })
+            }
+          >
+            <issue.definition.icon className="size-4" />
+            {issueDocument.isPending ? "Emitindo…" : issue.label}
           </Button>
         ) : null}
 

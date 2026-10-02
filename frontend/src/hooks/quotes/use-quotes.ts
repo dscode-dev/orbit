@@ -30,6 +30,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useApiMutation } from "@/hooks/api/use-api-mutation";
 import { useApiQuery } from "@/hooks/api/use-api-query";
 import { CACHE } from "@/hooks/api/cache-policy";
+import { artifactExecutionsService } from "@/services/artifact-executions.service";
 import { financialService } from "@/services/financial.service";
 import { operationsService } from "@/services/operations.service";
 import { quotesService } from "@/services/quotes.service";
@@ -278,3 +279,20 @@ export function useQuoteDocument(id: string) {
   });
 }
 
+/**
+ * Emite o documento oficial da proposta.
+ *
+ * Devolve a execução criada, e é por isso que quem chama navega para ela: o
+ * documento ainda precisa da assinatura do proponente, e é na tela da execução
+ * que se assina e se emite. Igual ao recibo.
+ *
+ * Invalida as execuções porque a central de documentos emitidos acabou de ganhar
+ * uma linha — sem isso, a aba abriria sem o documento que a pessoa acabou de
+ * emitir e pareceria que a emissão não funcionou.
+ */
+export function useIssueQuoteDocument(id: string) {
+  return useApiMutation(() => quotesService.issueDocument(id), {
+    scope: { id: `quote-issue-document-${id}` },
+    invalidate: [artifactExecutionsService.keys.module()],
+  });
+}

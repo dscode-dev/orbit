@@ -14,6 +14,7 @@ import { apiClient } from "@/api/client";
 import { downloadAndSave, type DownloadResult } from "@/api/transfer";
 import { queryKeys, type QueryKey } from "@/api/query-keys";
 import type { PaginatedResult, QueryParams, RequestOptions } from "@/types/api";
+import type { ArtifactExecution } from "@/types/artifact-executions";
 import type {
   AddQuoteItemInput,
   ConvertQuoteInput,
@@ -129,4 +130,14 @@ export const quotesService = {
    */
   document: (id: string): Promise<DownloadResult> =>
     downloadAndSave(`${quote(id)}/document`),
+
+  /**
+   * Emitir o documento oficial da proposta.
+   *
+   * Devolve a **execução de artefato** criada, não um arquivo: emitir cria o
+   * documento com código e revisão, e a assinatura do proponente acontece na tela
+   * da execução. É o mesmo desenho do recibo — a chamada cria, a tela conclui.
+   */
+  issueDocument: (id: string): Promise<ArtifactExecution> =>
+    apiClient.post<ArtifactExecution>(`${quote(id)}/document/issue`, {}),
 };

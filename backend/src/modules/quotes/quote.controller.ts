@@ -52,6 +52,7 @@ import {
   UpdateQuoteItemDto,
 } from './quote.dto';
 import { QuoteMapper } from './quote.mapper';
+import { QuoteEmissionService } from './quote-emission.service';
 import { QuoteService } from './quote.service';
 
 @ApiTags('Quotes')
@@ -61,6 +62,7 @@ export class QuoteController {
   constructor(
     private readonly quotes: QuoteService,
     private readonly mapper: QuoteMapper,
+    private readonly emission: QuoteEmissionService,
   ) {}
 
   /* ---------------------------------------------------------------- */
@@ -106,6 +108,27 @@ export class QuoteController {
     });
 
     return new StreamableFile(documento.bytes);
+  }
+
+  /**
+   * Emitir o documento da proposta.
+   *
+   * Declarada antes de `:id` pela mesma razão do PDF: o Nest resolve na ordem de
+   * declaração.
+   *
+   * `quotes.manage` e não `quotes.read`, ao contrário de baixar: baixar é ler a
+   * proposta, emitir **cria um documento** com código e revisão. E
+   * `artifact_executions.create`, porque é literalmente o que acontece — quem não
+   * pode criar execução não emite por esta porta de atalho.
+   */
+  @Post(':id/document/issue')
+  @Capabilities('quotes.manage', 'artifact_executions.create')
+  @Permissions('quotes.manage', 'artifact_executions.create')
+  issueDocument(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.emission.issue(id, this.org(request), this.actor(request));
   }
 
   @Get(':id')
