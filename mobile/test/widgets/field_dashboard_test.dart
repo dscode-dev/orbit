@@ -340,6 +340,25 @@ void main() {
     }
   });
 
+  /// A home não abre a base de contratos de PMOC.
+  ///
+  /// O atalho existia e aparecia para todo mundo, operador incluído: um botão
+  /// para navegar os contratos da organização na tela inicial de quem só deveria
+  /// ver o que lhe foi atribuído. O caminho do operador para um PMOC é o
+  /// atendimento na fila, que abre a execução daquele equipamento.
+  testWidgets('não há atalho de PMOC na home', (tester) async {
+    await tester.pumpWidget(host(home(today: [workItem()])));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(OrbitQuickAction),
+        matching: find.text('PMOC'),
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('dia sem trabalho orienta em vez de constatar', (tester) async {
     await tester.pumpWidget(host(home()));
     await tester.pumpAndSettle();
