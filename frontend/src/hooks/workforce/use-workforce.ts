@@ -123,6 +123,24 @@ export function useFieldTechnicians(
   );
 }
 
+/**
+ * Quem pode acompanhar um atendimento como auxiliar.
+ *
+ * Lista diferente da de técnicos, e não a mesma filtrada: o auxiliar não tem
+ * perfil profissional, porque não assina nada. Quem responde é o servidor —
+ * refiltrar aqui seria reimplementar a elegibilidade com metade da informação.
+ */
+export function useFieldAssistants(
+  query?: ProfessionalSelectorQuery,
+  enabled = true,
+) {
+  return useApiQuery(
+    workforceService.keys.fieldAssistants(query),
+    ({ signal }) => workforceService.fieldAssistants(query, { signal }),
+    { ...WORKFORCE_REFRESH.professionals, enabled },
+  );
+}
+
 /** Candidatos a Responsável Técnico. Seletor próprio — ver `registry/professional`. */
 export function useTechnicalResponsibles(
   query?: ProfessionalSelectorQuery,

@@ -32,7 +32,10 @@ describe('OperationService', () => {
     addAuxiliaryTechnician: jest.fn(),
   };
   const storage = { store: jest.fn(), remove: jest.fn(), read: jest.fn() };
-  const workforce = { listProfessionals: jest.fn() };
+  const workforce = {
+    listProfessionals: jest.fn(),
+    listFieldAssistantCandidates: jest.fn(),
+  };
   /* Estes testes não tocam o registro de campo, e o dublê diz isso: chamar
      `sign` aqui é erro de teste, não comportamento a tolerar. */
   const files = {
@@ -126,6 +129,112 @@ describe('OperationService', () => {
         }
       }
     }
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Responsável e auxiliar não passam pelo mesmo portão                */
+  /* ---------------------------------------------------------------- */
+
+  describe('atribuição na criação', () => {
+    const criar = (patch: Record<string, unknown>) =>
+      service.create('organization-id', 'actor-id', {
+        businessUnitId: 'unit-id',
+        code: 'OS-900',
+        title: 'Atendimento',
+        kind: 'CORRECTIVE',
+        ...patch,
+      });
+
+    beforeEach(() => {
+      repository.create.mockResolvedValue({ id: 'operation-id' });
+    });
+
+    it('exige perfil de técnico de campo do responsável', async () => {
+      workforce.listProfessionals.mockResolvedValue([]);
+      await expect(
+        criar({ responsibleFieldTechnicianId: 'tecnico' }),
+      ).rejects.toBeInstanceOf(ValidationException);
+    });
+
+    it('aceita o responsável que tem o perfil', async () => {
+      workforce.listProfessionals.mockResolvedValue([{ userId: 'tecnico' }]);
+      await expect(
+        criar({ responsibleFieldTechnicianId: 'tecnico' }),
+      ).resolves.toBeDefined();
+    });
+
+    /**
+     * O caso que estava quebrado.
+     *
+     * O auxiliar passava pelo filtro de `FIELD_TECHNICIAN`, então o papel
+     * "Auxiliar técnico" — que existe para acompanhar, e não tem perfil
+     * profissional porque não assina nada — nunca podia ser auxiliar de nada.
+     * A designação de executante era exigida de quem o produto define como
+     * observador.
+     */
+    it('aceita auxiliar sem perfil de técnico de campo', async () => {
+      workforce.listProfessionals.mockResolvedValue([{ userId: 'tecnico' }]);
+      workforce.listFieldAssistantCandidates.mockResolvedValue([
+        { userId: 'auxiliar' },
+      ]);
+      await expect(
+        criar({
+          responsibleFieldTechnicianId: 'tecnico',
+          auxiliaryTechnicianIds: ['auxiliar'],
+        }),
+      ).resolves.toBeDefined();
+      expect(workforce.listFieldAssistantCandidates).toHaveBeenCalledWith(
+        'organization-id',
+        'unit-id',
+      );
+    });
+
+    /** Aceitar o papel auxiliar não é aceitar qualquer um. */
+    it('recusa auxiliar que não pode acompanhar nesta unidade', async () => {
+      workforce.listProfessionals.mockResolvedValue([{ userId: 'tecnico' }]);
+      workforce.listFieldAssistantCandidates.mockResolvedValue([]);
+      await expect(
+        criar({
+          responsibleFieldTechnicianId: 'tecnico',
+          auxiliaryTechnicianIds: ['estranho'],
+        }),
+      ).rejects.toBeInstanceOf(ValidationException);
+    });
+
+    /**
+     * Um auxiliar não substitui o responsável.
+     *
+     * Sem responsável ninguém executa, e o atendimento ficaria com
+     * acompanhantes de um trabalho que não começa.
+     */
+    it('recusa auxiliar sem responsável', async () => {
+      workforce.listFieldAssistantCandidates.mockResolvedValue([
+        { userId: 'auxiliar' },
+      ]);
+      await expect(
+        criar({ auxiliaryTechnicianIds: ['auxiliar'] }),
+      ).rejects.toBeInstanceOf(ValidationException);
+    });
+
+    it('recusa a mesma pessoa nos dois papéis', async () => {
+      workforce.listProfessionals.mockResolvedValue([{ userId: 'tecnico' }]);
+      workforce.listFieldAssistantCandidates.mockResolvedValue([
+        { userId: 'tecnico' },
+      ]);
+      await expect(
+        criar({
+          responsibleFieldTechnicianId: 'tecnico',
+          auxiliaryTechnicianIds: ['tecnico'],
+        }),
+      ).rejects.toBeInstanceOf(ValidationException);
+    });
+
+    /** Sem ninguém atribuído, nenhuma das duas listas é consultada. */
+    it('não consulta elegibilidade quando não há atribuição', async () => {
+      await expect(criar({})).resolves.toBeDefined();
+      expect(workforce.listProfessionals).not.toHaveBeenCalled();
+      expect(workforce.listFieldAssistantCandidates).not.toHaveBeenCalled();
+    });
   });
 
   it('only assigns active members of the operation unit', async () => {

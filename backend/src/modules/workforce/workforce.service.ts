@@ -145,6 +145,31 @@ export class WorkforceService {
     });
   }
 
+  /**
+   * Quem pode entrar como auxiliar de um atendimento.
+   *
+   * Mesma forma de resposta do seletor de técnicos, porque é o mesmo campo de
+   * formulário ao lado: a tela mostra o que voltou. `signatureAvailable` vem
+   * falso de propósito — o auxiliar não assina, e dizer o contrário aqui
+   * convidaria a tela a oferecer uma assinatura que o servidor recusa.
+   */
+  async listFieldAssistantCandidates(
+    organizationId: string,
+    businessUnitId?: string,
+  ) {
+    const vinculos = await this.repository.listFieldAssistantCandidates(
+      organizationId,
+      businessUnitId,
+    );
+    return vinculos.map((vinculo) => ({
+      id: vinculo.userId,
+      name: vinculo.user.displayName,
+      signatureAvailable: false,
+      professionalCredential: null,
+      active: true,
+    }));
+  }
+
   async addProfessionalCredential(
     organizationId: string,
     userId: string,

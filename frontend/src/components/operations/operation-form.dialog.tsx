@@ -60,7 +60,10 @@ import { instantFromZoned, zonedParts } from "@/lib/scheduling";
 import { X } from "lucide-react";
 
 import { useStartOperationChecklist } from "@/hooks/operations/use-operations";
-import { useFieldTechnicians } from "@/hooks/workforce/use-workforce";
+import {
+  useFieldAssistants,
+  useFieldTechnicians,
+} from "@/hooks/workforce/use-workforce";
 import { useSession } from "@/providers/session-provider";
 import { useActiveScope } from "@/providers/use-active-scope";
 import { OperationKind, OperationPriority } from "@/types/contracts";
@@ -390,6 +393,7 @@ function OperationForm({
         */}
         <div className="sm:col-span-2">
           <TechnicianAssignment
+            businessUnitId={form.businessUnitId}
             responsibleId={form.responsibleId}
             auxiliaryIds={form.auxiliaryIds}
             onChange={(patch) => edit(patch)}
@@ -582,10 +586,14 @@ function buildPayload(form: FormState, timeZone: string): CreateOperationInput {
  * como responsável some das opções de auxiliar, e vice-versa.
  */
 function TechnicianAssignment({
+  businessUnitId,
   responsibleId,
   auxiliaryIds,
   onChange,
 }: {
+  /// A unidade do atendimento, não a do contexto: é por ela que o servidor
+  /// confere a atribuição, e é dela que as duas listas têm de sair.
+  businessUnitId: string;
   responsibleId: string;
   auxiliaryIds: string[];
   onChange: (patch: {
@@ -593,13 +601,33 @@ function TechnicianAssignment({
     auxiliaryIds?: string[];
   }) => void;
 }) {
-  const technicians = useFieldTechnicians();
+  /**
+   * Duas listas, porque são duas perguntas.
+   *
+   * Executar pede designação profissional; acompanhar pede vínculo com acesso ao
+   * aplicativo. Os dois campos liam a lista de técnicos, e o resultado era que
+   * **ninguém com o papel "Auxiliar técnico" podia ser auxiliar** — ele não tem
+   * perfil profissional, por não assinar nada, e por isso não aparecia.
+   *
+   * ## Por que a unidade entra na consulta
+   *
+   * `validateTechnicianAssignments` confere a elegibilidade **na unidade do
+   * atendimento**. Sem o recorte aqui, o formulário oferecia o elenco da
+   * organização inteira e o servidor recusava a escolha no envio — a pessoa
+   * perdia o preenchimento por um erro que a tela ajudou a cometer.
+   */
+  const semUnidade = !businessUnitId;
+  const scope = businessUnitId ? { businessUnitId } : undefined;
+  const technicians = useFieldTechnicians(scope, Boolean(businessUnitId));
+  const assistants = useFieldAssistants(scope, Boolean(businessUnitId));
   const pessoas = technicians.data ?? [];
+  const acompanhantes = assistants.data ?? [];
 
   const nomeDe = (id: string) =>
-    pessoas.find((pessoa) => pessoa.id === id)?.name ?? id;
+    [...pessoas, ...acompanhantes].find((pessoa) => pessoa.id === id)?.name ??
+    id;
 
-  const disponiveisComoAuxiliar = pessoas.filter(
+  const disponiveisComoAuxiliar = acompanhantes.filter(
     (pessoa) =>
       pessoa.id !== responsibleId && !auxiliaryIds.includes(pessoa.id),
   );
@@ -633,8 +661,22 @@ function TechnicianAssignment({
               ))}
           </SelectContent>
         </Select>
+        {/*
+          A lista vazia se explica.
+
+          Era isto que escondia o problema: o seletor abria sem ninguém dentro,
+          idêntico a "ainda não escolhi", e nada na tela dizia que faltava
+          habilitar o perfil profissional da pessoa. Quem cadastrou o técnico
+          cinco minutos antes não tinha como adivinhar.
+        */}
         <p className="text-xs text-muted-foreground">
-          Executa o atendimento no aplicativo de campo.
+          {semUnidade
+            ? "Escolha a unidade de negócio para ver quem atende nela."
+            : technicians.isPending
+              ? "Carregando quem atende nesta unidade…"
+              : pessoas.length === 0
+                ? "Ninguém desta unidade tem o perfil de técnico de campo. Habilite em Equipe › o membro › Perfil profissional."
+                : "Executa o atendimento no aplicativo de campo."}
         </p>
       </div>
 
@@ -686,7 +728,13 @@ function TechnicianAssignment({
         ) : null}
 
         <p className="text-xs text-muted-foreground">
-          Acompanham: leem o atendimento e os documentos emitidos, sem executar.
+          {semUnidade
+            ? "Escolha a unidade de negócio para ver quem pode acompanhar."
+            : assistants.isPending
+              ? "Carregando quem pode acompanhar…"
+              : acompanhantes.length === 0
+                ? "Ninguém desta unidade tem acesso ao aplicativo de campo."
+                : "Acompanham: leem o atendimento e os documentos emitidos, sem executar."}
         </p>
       </div>
     </div>

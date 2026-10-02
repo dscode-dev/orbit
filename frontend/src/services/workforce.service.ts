@@ -320,6 +320,23 @@ export const workforceService = {
       query: query as QueryParams | undefined,
     }),
 
+  /**
+   * Quem pode acompanhar um atendimento como auxiliar.
+   *
+   * Porta separada da de técnicos porque a pergunta é outra: ali é quem executa
+   * e assina, aqui é quem lê. O auxiliar não tem perfil profissional — ele não
+   * assina nada —, então ele não aparecia em nenhum dos dois seletores acima e o
+   * campo de auxiliares abria vazio mesmo com auxiliares cadastrados.
+   */
+  fieldAssistants: (
+    query?: ProfessionalSelectorQuery,
+    options?: RequestOptions,
+  ): Promise<EligibleProfessional[]> =>
+    apiClient.get<EligibleProfessional[]>("/workforce/field-assistants", {
+      ...options,
+      query: query as QueryParams | undefined,
+    }),
+
   /** Candidatos a Responsável Técnico. Seletor próprio, não o mesmo do campo. */
   technicalResponsibles: (
     query?: ProfessionalSelectorQuery,
@@ -420,6 +437,11 @@ export const workforceService = {
     ): QueryKey =>
       queryKeys.query(WORKFORCE, "professionals", {
         role,
+        ...(query as QueryParams | undefined),
+      }),
+    /** Chave própria: auxiliar não é um `ProfessionalRole`, é um vínculo. */
+    fieldAssistants: (query?: ProfessionalSelectorQuery): QueryKey =>
+      queryKeys.query(WORKFORCE, "field-assistants", {
         ...(query as QueryParams | undefined),
       }),
     member: (userId: string): QueryKey =>

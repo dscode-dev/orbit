@@ -747,16 +747,45 @@ export class SchedulingService {
       throw new ValidationException(
         'Technician allocations require distinct users',
       );
-    const eligible = await this.workforce.listProfessionals(
-      organizationId,
-      'FIELD_TECHNICIAN',
-      input.businessUnitId,
-    );
-    const allowed = new Set(eligible.map((profile) => profile.userId));
-    if (ids.some((id) => !allowed.has(id)))
-      throw new ValidationException(
-        'Every scheduled technician must be an active FIELD_TECHNICIAN in the event business unit',
+    /**
+     * Responsável e auxiliar não passam pelo mesmo portão — como na operação.
+     *
+     * As alocações daqui saem da própria operação quando o evento nasce de uma
+     * (logo acima), então cobrar perfil de técnico de campo do auxiliar
+     * transformava um atendimento atribuído corretamente num evento impossível
+     * de agendar: a atribuição passava e a agenda recusava, sem que nada na
+     * operação tivesse mudado.
+     */
+    const executante = technicians.find(
+      (allocation) => allocation.role === 'RESPONSIBLE_FIELD_TECHNICIAN',
+    )?.userId;
+    if (executante) {
+      const eligible = await this.workforce.listProfessionals(
+        organizationId,
+        'FIELD_TECHNICIAN',
+        input.businessUnitId,
       );
+      if (!eligible.some((profile) => profile.userId === executante))
+        throw new ValidationException(
+          'The scheduled responsible technician must be an active FIELD_TECHNICIAN in the event business unit',
+        );
+    }
+
+    const acompanhantes = technicians
+      .filter((allocation) => allocation.role === 'AUXILIARY_TECHNICIAN')
+      .map((allocation) => allocation.userId)
+      .filter((id): id is string => Boolean(id));
+    if (acompanhantes.length) {
+      const candidatos = await this.workforce.listFieldAssistantCandidates(
+        organizationId,
+        input.businessUnitId,
+      );
+      const permitidos = new Set(candidatos.map((item) => item.userId));
+      if (acompanhantes.some((id) => !permitidos.has(id)))
+        throw new ValidationException(
+          'Every scheduled auxiliary technician must be an active member with field app access in the event business unit',
+        );
+    }
     return allocations;
   }
 

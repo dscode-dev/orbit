@@ -70,6 +70,27 @@ export class WorkforceController {
     );
   }
 
+  /**
+   * Quem pode acompanhar um atendimento como auxiliar.
+   *
+   * Porta separada da de técnicos porque a pergunta é outra: ali é quem executa
+   * e assina, aqui é quem lê. O papel "Auxiliar técnico" não aparecia em porta
+   * nenhuma, e o campo de auxiliares do formulário de operação ficava vazio
+   * mesmo com auxiliares cadastrados.
+   */
+  @Get('field-assistants')
+  @Capabilities('workforce.read')
+  @Permissions('organization.read')
+  fieldAssistants(
+    @Req() request: IdentityRequest,
+    @Query() query: ProfessionalSelectorQueryDto,
+  ) {
+    return this.workforce.listFieldAssistantCandidates(
+      this.org(request),
+      query.businessUnitId,
+    );
+  }
+
   @Get('eligible-technical-responsibles')
   @Capabilities('workforce.read')
   @Permissions('organization.read')

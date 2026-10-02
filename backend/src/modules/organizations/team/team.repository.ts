@@ -39,6 +39,8 @@ export class TeamRepository {
       firstName: string;
       lastName: string;
       passwordHash: string;
+      /** O acesso concedido já disse que esta pessoa executa em campo. */
+      fieldTechnicianEnabled: boolean;
     },
     assertQuota: (transaction: PrismaTransactionClient) => Promise<void>,
   ) {
@@ -105,6 +107,29 @@ export class TeamRepository {
           roleId: input.roleId,
         })),
       });
+      /**
+       * O perfil profissional, na mesma transação do vínculo.
+       *
+       * Fora dela, um erro depois do `create` deixaria um técnico cadastrado e
+       * invisível para a operação — exatamente o estado que esta linha existe
+       * para não acontecer mais.
+       *
+       * `technical_responsible_enabled` fica falso: responsabilidade técnica é
+       * designação legal com credencial de conselho atrás, e deduzi-la de
+       * permissões afirmaria o que o RBAC não sabe. Liga-se no perfil do membro.
+       */
+      if (input.fieldTechnicianEnabled) {
+        await transaction.professionalProfile.create({
+          data: {
+            organizationId: input.organizationId,
+            userId: user.id,
+            fieldTechnicianEnabled: true,
+            technicalResponsibleEnabled: false,
+            active: true,
+          },
+        });
+      }
+
       await transaction.auditLog.create({
         data: {
           organizationId: input.organizationId,
@@ -117,6 +142,7 @@ export class TeamRepository {
             roleId: input.roleId,
             unitCount: input.businessUnitIds.length,
             usesCustomAccess: input.usesCustomAccess,
+            fieldTechnicianEnabled: input.fieldTechnicianEnabled,
           },
         },
       });

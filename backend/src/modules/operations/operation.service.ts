@@ -804,20 +804,40 @@ export class OperationService {
       throw new ValidationException(
         'Auxiliary technicians require a responsible field technician',
       );
-    const ids = [responsibleUserId, ...auxiliaryUserIds].filter(
-      (value): value is string => Boolean(value),
-    );
-    if (!ids.length) return;
-    const eligible = await this.workforce.listProfessionals(
-      organizationId,
-      'FIELD_TECHNICIAN',
-      businessUnitId,
-    );
-    const eligibleIds = new Set(eligible.map((profile) => profile.userId));
-    if (ids.some((id) => !eligibleIds.has(id)))
-      throw new ValidationException(
-        'Every assigned technician must be an active FIELD_TECHNICIAN in the operation business unit',
+    if (!responsibleUserId && !auxiliaryUserIds.length) return;
+
+    /**
+     * O responsável precisa da designação profissional; o auxiliar, não.
+     *
+     * Antes os dois passavam pelo mesmo filtro de `FIELD_TECHNICIAN`, e a
+     * consequência era que o papel "Auxiliar técnico" nunca podia ser auxiliar
+     * de nada: a designação de executante era exigida de quem o produto define
+     * como observador. Quem decide o que o auxiliar pode fazer no atendimento é
+     * `MobileFieldOperationService.isAuxiliaryOnly`, pela atribuição.
+     */
+    if (responsibleUserId) {
+      const executantes = await this.workforce.listProfessionals(
+        organizationId,
+        'FIELD_TECHNICIAN',
+        businessUnitId,
       );
+      if (!executantes.some((item) => item.userId === responsibleUserId))
+        throw new ValidationException(
+          'The responsible technician must be an active FIELD_TECHNICIAN in the operation business unit',
+        );
+    }
+
+    if (auxiliaryUserIds.length) {
+      const acompanhantes = await this.workforce.listFieldAssistantCandidates(
+        organizationId,
+        businessUnitId,
+      );
+      const permitidos = new Set(acompanhantes.map((item) => item.userId));
+      if (auxiliaryUserIds.some((id) => !permitidos.has(id)))
+        throw new ValidationException(
+          'Every auxiliary technician must be an active member with field app access in the operation business unit',
+        );
+    }
   }
 
   private assertFieldTechnician(

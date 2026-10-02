@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { RlsTransaction } from '../../database';
+import { assistsFieldWork, grantedAccessOf } from './field-eligibility';
 
 const specialtyView = {
   id: true,
@@ -360,6 +361,72 @@ export class WorkforceRepository {
         where: { organizationId_userId: { organizationId, userId } },
         select: professionalProfileView,
       }),
+    );
+  }
+
+  /**
+   * Quem pode acompanhar um atendimento como auxiliar.
+   *
+   * ## Por que não sai de `professional_profiles`
+   *
+   * Porque o auxiliar não é um profissional designado — ele lê o atendimento e
+   * os documentos emitidos, e não executa nem assina nada. A pergunta aqui é de
+   * vínculo e acesso: está ativo na organização, atua na unidade, e o acesso
+   * dele abre o aplicativo de campo com leitura de atendimento.
+   *
+   * ## Por que o filtro não é do banco, e por que é daqui
+   *
+   * O acesso efetivo é o override do membro **ou** o do papel, e a escolha é por
+   * linha. Expressar isso num `where` exigiria repetir a regra em SQL ao lado da
+   * versão em TypeScript que o resto do módulo usa; a segunda cópia é a que
+   * divergiria. A equipe de uma organização é pequena — é uma lista de pessoas,
+   * não um histórico.
+   *
+   * O recorte fica **dentro** deste método, e não em quem o chama: há dois
+   * chamadores — o seletor do formulário e a validação da atribuição — e um
+   * deles aplicando a regra enquanto o outro confia na lista crua é um portão
+   * aberto que o compilador não aponta.
+   */
+  async listFieldAssistantCandidates(
+    organizationId: string,
+    businessUnitId?: string,
+  ) {
+    const vinculos = await this.rls.run((tx) =>
+      tx.organizationMembership.findMany({
+        where: {
+          organizationId,
+          status: 'ACTIVE',
+          deletedAt: null,
+          user: {
+            status: 'ACTIVE',
+            deletedAt: null,
+            ...(businessUnitId
+              ? {
+                  businessUnitMemberships: {
+                    some: {
+                      organizationId,
+                      businessUnitId,
+                      status: 'ACTIVE',
+                      deletedAt: null,
+                    },
+                  },
+                }
+              : {}),
+          },
+        },
+        select: {
+          userId: true,
+          usesCustomAccess: true,
+          customPermissions: true,
+          customAllowedSurfaces: true,
+          role: { select: { permissions: true, allowedSurfaces: true } },
+          user: { select: { displayName: true } },
+        },
+        orderBy: { user: { displayName: 'asc' } },
+      }),
+    );
+    return vinculos.filter((vinculo) =>
+      assistsFieldWork(grantedAccessOf(vinculo)),
     );
   }
 

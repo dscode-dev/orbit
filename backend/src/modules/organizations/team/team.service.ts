@@ -24,6 +24,7 @@ import { TeamRepository } from './team.repository';
 import { generateTemporaryPassword } from './temporary-password';
 import { AuthorizationService } from '../../../common';
 import { isKnownPermission, ROLE_SURFACES } from '../team-roles';
+import { executesFieldWork } from '../../workforce/field-eligibility';
 
 /** Quanto tempo o link de definição de senha vale. */
 const VALIDADE_DO_LINK_MS = 24 * 60 * 60_000;
@@ -124,6 +125,21 @@ export class TeamService {
     const resultado = await this.team.createMember(
       {
         organizationId: actor.organizationId,
+        /**
+         * O perfil profissional nasce com o cadastro quando o acesso concedido
+         * diz que a pessoa executa em campo.
+         *
+         * Sem isto, cadastrar um "Técnico operador" não o tornava atribuível:
+         * a lista de técnicos do formulário de operação lê
+         * `professional_profiles`, e `validateTechnicianAssignments` recusa quem
+         * não está lá. O dono cadastrava o técnico, abria a operação e
+         * encontrava o seletor vazio — com o passo que faltava escondido na
+         * página de outro lugar.
+         */
+        fieldTechnicianEnabled: executesFieldWork({
+          permissions,
+          allowedSurfaces,
+        }),
         businessUnitIds,
         roleId: papel.id,
         usesCustomAccess,
