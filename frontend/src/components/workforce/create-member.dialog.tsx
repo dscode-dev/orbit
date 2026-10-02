@@ -1,5 +1,28 @@
 "use client";
 
+/**
+ * Cadastrar alguém da equipe.
+ *
+ * ## O e-mail aqui é um login, não um endereço
+ *
+ * Este caminho existe porque o convite pressupõe que a pessoa tem e-mail, lê e-mail
+ * e conclui um cadastro sozinha — e boa parte de uma equipe de campo não atende às
+ * três. Por isso ele **gera uma senha temporária** em vez de mandar mensagem: nada é
+ * enviado para o endereço informado.
+ *
+ * Então o campo vem montado: a pessoa digita o nome de entrada e o domínio da
+ * organização entra sozinho (`joao.silva@clima-norte.com`). Pedir um endereço
+ * completo obrigava o owner a inventar um — e ele inventava o Gmail de alguém que
+ * não existe, ou repetia o nome no domínio, e no mês seguinte ninguém sabia qual era
+ * o login do João.
+ *
+ * **O owner não passa por aqui.** A conta dele nasce no cadastro da organização, com
+ * endereço real, porque é ela que recebe confirmação e recuperação de senha.
+ *
+ * E quem **vai** receber mensagem — um administrador que acompanha o sistema pelo
+ * navegador — tem a saída: "usar outro endereço" devolve o campo livre. O convite,
+ * que manda e-mail de verdade, continua exigindo endereço real por natureza.
+ */
 import { useState } from "react";
 import { Check, Copy, KeyRound, UserPlus } from "lucide-react";
 
@@ -30,7 +53,14 @@ import {
   useCreateTeamMember,
   useTeamRoles,
 } from "@/hooks/workforce/use-workforce";
+import { useSession } from "@/providers/session-provider";
 import type { CreatedTeamMember } from "@/types/workforce";
+import {
+  composeEmail,
+  looksLikeEmail,
+  organizationDomain,
+  suggestLocalPart,
+} from "./member-email";
 
 const STEPS = ["Dados", "Papel", "Acessos", "Revisão"] as const;
 
@@ -58,10 +88,32 @@ function Body({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const units = useBusinessUnits();
   const catalog = useAccessCatalog();
 
+  const session = useSession();
+
+  /**
+   * O domínio da organização, ou `null` quando o slug não serve como domínio.
+   *
+   * Sem ele o campo volta a pedir o endereço inteiro: montar `@.com` produziria um
+   * login que o servidor recusa, depois de o owner preencher o resto do cadastro.
+   */
+  const domain = organizationDomain(session.organization?.slug);
+
   const [step, setStep] = useState(0);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
+
+  /**
+   * O nome de entrada, sem o domínio.
+   *
+   * `null` significa "ainda não foi tocado": aí a sugestão vem do nome da pessoa, e
+   * é por isso que digitar o nome preenche o login sozinho. Depois de editado, o que
+   * a pessoa escreveu manda — inclusive se ela apagar tudo.
+   */
+  const [localPart, setLocalPart] = useState<string | null>(null);
+
+  /** Endereço livre: para quem vai receber mensagem de verdade. */
+  const [customEmail, setCustomEmail] = useState("");
+  const [useOrgDomain, setUseOrgDomain] = useState(true);
   const [roleId, setRoleId] = useState("");
   const [businessUnitIds, setBusinessUnitIds] = useState<string[] | null>(null);
   const [useRoleDefaults, setUseRoleDefaults] = useState(true);
@@ -91,10 +143,23 @@ function Body({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
     }
   };
 
+  /* O nome de entrada exibido: o que foi digitado, ou a sugestão do nome. */
+  const localPartValue = localPart ?? suggestLocalPart(firstName, lastName);
+
+  /* Um só endereço sai daqui, e as duas formas de montá-lo convergem nele: o resto
+     do formulário não sabe qual foi usada. */
+  /* String vazia quando ainda não dá para montar: o resto do formulário trata
+     "sem endereço" do mesmo jeito nas duas formas, sem carregar um `null` que
+     cada leitor tem de lembrar de conferir. */
+  const email =
+    (useOrgDomain && domain
+      ? composeEmail(localPartValue, domain)
+      : customEmail.trim()) ?? "";
+
   const dataValid =
     firstName.trim().length > 0 &&
     lastName.trim().length > 0 &&
-    email.includes("@");
+    looksLikeEmail(email);
   const accessValid =
     selectedBusinessUnitIds.length > 0 &&
     (useRoleDefaults
@@ -185,15 +250,94 @@ function Body({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="member-email">E-mail</Label>
-            <Input
-              id="member-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="Usado para entrar, mesmo que a pessoa não o leia"
-              required
-            />
+            <Label htmlFor="member-email">
+              {useOrgDomain && domain ? "Nome de entrada" : "E-mail"}
+            </Label>
+
+            {useOrgDomain && domain ? (
+              <>
+                {/*
+                  O domínio fica **fora** do campo, colado nele.
+
+                  Dentro do campo ele seria apagável — e apagado produz um login
+                  inválido que só falha no envio. Fora, ele é o que é: parte do
+                  endereço que a organização define, não o que a pessoa digita.
+                */}
+                <div className="flex items-stretch">
+                  <Input
+                    id="member-email"
+                    value={localPartValue}
+                    onChange={(event) => setLocalPart(event.target.value)}
+                    className="rounded-r-none font-mono"
+                    placeholder="joao.silva"
+                    required
+                  />
+                  <span
+                    /* Marcado porque o teste de navegador precisa compor o mesmo
+                       endereço que a tela compõe: o domínio vem da organização, e
+                       inventá-lo no teste provaria outra coisa. */
+                    data-testid="member-email-domain"
+                    className="text-muted-foreground inline-flex items-center rounded-r-md border border-l-0 border-input bg-muted px-3 font-mono text-sm"
+                  >
+                    @{domain}
+                  </span>
+                </div>
+                {/*
+                  O endereço final, quando o que foi digitado não é o que sai.
+
+                  O campo mostra o texto cru enquanto se digita — corrigir letra por
+                  letra brigaria com o cursor. Então "José Antônio" aparece no campo
+                  e `jose.antonio@…` é o login de verdade, e quem cadastra precisa
+                  ver isso antes do passo de revisão.
+                */}
+                {email && email !== `${localPartValue}@${domain}` ? (
+                  <p className="text-xs">
+                    <span className="text-muted-foreground">Login: </span>
+                    <span className="font-mono">{email}</span>
+                  </p>
+                ) : null}
+                <p className="text-muted-foreground text-xs">
+                  É o login da pessoa, não um endereço que recebe mensagem: o acesso
+                  sai numa senha temporária, aqui mesmo.{" "}
+                  <button
+                    type="button"
+                    className="text-foreground underline underline-offset-2"
+                    onClick={() => {
+                      setUseOrgDomain(false);
+                      /* O que já estava montado vira o ponto de partida do campo
+                         livre: trocar de forma não pode apagar o que foi digitado. */
+                      setCustomEmail(email);
+                    }}
+                  >
+                    Usar outro endereço
+                  </button>{" "}
+                  — para quem vai receber mensagem de verdade.
+                </p>
+              </>
+            ) : (
+              <>
+                <Input
+                  id="member-email"
+                  type="email"
+                  value={customEmail}
+                  onChange={(event) => setCustomEmail(event.target.value)}
+                  placeholder="nome@empresa.com.br"
+                  required
+                />
+                {domain ? (
+                  <p className="text-muted-foreground text-xs">
+                    <button
+                      type="button"
+                      className="text-foreground underline underline-offset-2"
+                      onClick={() => setUseOrgDomain(true)}
+                    >
+                      Voltar para @{domain}
+                    </button>{" "}
+                    — o formato padrão de quem entra pelo aplicativo.
+                  </p>
+                ) : null}
+              </>
+            )}
           </div>
         </div>
       ) : null}

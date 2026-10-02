@@ -54,18 +54,50 @@ test("cadastra o técnico, mostra a senha uma vez e força a troca", async ({
   /* ---------------------------------------------------------------- */
 
   const carimbo = Date.now();
-  const emailTecnico = `tecnico.e2e.${carimbo}@orbit.local`;
+  const nomeDeEntrada = `tecnico.e2e.${carimbo}`;
 
   await page.getByRole("button", { name: "Cadastrar usuário" }).click();
   await page.locator("#member-first-name").fill("Joao");
   await page.locator("#member-last-name").fill(`Campo ${carimbo}`);
-  await page.locator("#member-email").fill(emailTecnico);
+
+  /**
+   * O campo pede o **nome de entrada**, não um endereço.
+   *
+   * Quem se cadastra aqui recebe senha temporária e não recebe mensagem nenhuma —
+   * o endereço é o login. O domínio é da organização e entra sozinho, e o teste o
+   * lê da tela em vez de inventar: inventá-lo provaria que o teste sabe montar um
+   * e-mail, não que a tela monta o mesmo que o servidor aceita.
+   */
+  await page.locator("#member-email").fill(nomeDeEntrada);
+
+  const sufixo = await page
+    .getByTestId("member-email-domain")
+    .textContent();
+  expect(sufixo, "o domínio da organização precisa aparecer").toMatch(
+    /^@[a-z0-9-]+\.[a-z]+$/,
+  );
+  const emailTecnico = `${nomeDeEntrada}${sufixo!.trim()}`;
+
+  /*
+   * O cadastro tem quatro passos — dados, papel, acessos, revisão — e o teste
+   * percorre os quatro. Ele pulava direto para "Cadastrar", que só existe no último:
+   * o seletor de papel nem está montado no primeiro.
+   */
+  const continuar = page.getByRole("button", { name: "Continuar", exact: true });
+  await continuar.click();
 
   await page.locator("#member-role").click();
   await page.getByRole("option", { name: "Técnico operacional" }).click();
 
   /// O papel se explica antes de ser concedido, não depois.
   await expect(page.getByText(/Executa o atendimento em campo/)).toBeVisible();
+  await continuar.click();
+
+  /// Acessos: o padrão do papel e a unidade principal já vêm escolhidos.
+  await continuar.click();
+
+  /// A revisão mostra o login montado, e não o nome digitado.
+  await expect(page.getByText(emailTecnico)).toBeVisible();
 
   await page.getByRole("button", { name: "Cadastrar", exact: true }).click();
 

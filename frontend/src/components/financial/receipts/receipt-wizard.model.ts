@@ -164,6 +164,15 @@ export function parseAmount(input: string): string | null {
 export function stepIssues(
   step: ReceiptStep,
   draft: ReceiptDraft,
+  /**
+   * O agora, injetável.
+   *
+   * Sem isto a regra da data lia o relógio da parede, e o teste que a prova passava
+   * num dia e falhava no seguinte — foi o que aconteceu: a asserção fixava
+   * `2026-10-02` como futuro, e na virada do dia ela virou hoje. Uma regra sobre
+   * tempo precisa receber o tempo de quem a chama.
+   */
+  now = new Date(),
 ): readonly string[] {
   const issues: string[] = [];
 
@@ -185,7 +194,7 @@ export function stepIssues(
       }
       if (!draft.paidOn) {
         issues.push("Informe a data do recebimento.");
-      } else if (isFuture(draft.paidOn)) {
+      } else if (isFuture(draft.paidOn, now)) {
         /* Recibo declara quitação: um pagamento com data futura afirma que se
            recebeu algo que ainda não entrou. */
         issues.push("A data do recebimento não pode estar no futuro.");
@@ -212,8 +221,10 @@ export function isFuture(date: string, now = new Date()): boolean {
 }
 
 /** Pode emitir? Todos os passos resolvidos. */
-export function canIssue(draft: ReceiptDraft): boolean {
-  return RECEIPT_STEPS.every((step) => stepIssues(step, draft).length === 0);
+export function canIssue(draft: ReceiptDraft, now = new Date()): boolean {
+  return RECEIPT_STEPS.every(
+    (step) => stepIssues(step, draft, now).length === 0,
+  );
 }
 
 /* ------------------------------------------------------------------ */

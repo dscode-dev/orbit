@@ -71,16 +71,16 @@ describe("o valor digitado", () => {
 describe("o que falta em cada passo", () => {
   it("origem por atendimento exige o atendimento", () => {
     const draft = completo({ origin: "OPERATION", operationId: null });
-    expect(stepIssues("origem", draft)).toHaveLength(1);
+    expect(stepIssues("origem", draft, HOJE)).toHaveLength(1);
   });
 
   it("do zero não exige atendimento nenhum", () => {
-    expect(stepIssues("origem", completo())).toEqual([]);
+    expect(stepIssues("origem", completo(), HOJE)).toEqual([]);
   });
 
   it("os dados cobram pagador, valor, data e referência", () => {
     const vazio = emptyDraft(HOJE);
-    const faltas = stepIssues("dados", vazio);
+    const faltas = stepIssues("dados", vazio, HOJE);
 
     /* Quatro frases, cada uma dizendo o campo: "não é possível avançar" mandaria a
        pessoa procurar o que está errado. */
@@ -93,7 +93,9 @@ describe("o que falta em cada passo", () => {
        entrou. */
     const draft = completo({ paidOn: "2026-10-02" });
     expect(
-      stepIssues("dados", draft).some((frase) => frase.includes("futuro")),
+      stepIssues("dados", draft, HOJE).some((frase) =>
+        frase.includes("futuro"),
+      ),
     ).toBe(true);
   });
 
@@ -104,12 +106,12 @@ describe("o que falta em cada passo", () => {
 
   it("o resumo exige a confirmação de quem emite", () => {
     const draft = completo({ confirmed: false });
-    expect(stepIssues("resumo", draft)).toHaveLength(1);
-    expect(canIssue(draft)).toBe(false);
+    expect(stepIssues("resumo", draft, HOJE)).toHaveLength(1);
+    expect(canIssue(draft, HOJE)).toBe(false);
   });
 
   it("com tudo resolvido, emite", () => {
-    expect(canIssue(completo())).toBe(true);
+    expect(canIssue(completo(), HOJE)).toBe(true);
   });
 });
 
