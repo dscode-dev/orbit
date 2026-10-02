@@ -56,6 +56,7 @@ import {
 import { OperationActions } from "./operation-actions";
 import { OperationFormDialog } from "./operation-form.dialog";
 import { OperationsFilters } from "./operations-filters";
+import { resumoDaEquipe } from "./operation-team-summary";
 import {
   ListState,
   Pagination,
@@ -233,7 +234,6 @@ function OperationRow({
   onToggle: () => void;
   onEdit: () => void;
 }) {
-  const assignees = operation.users;
   return (
     <TableRow className={cn(selected && "bg-secondary/40")}>
       <TableCell>
@@ -272,12 +272,17 @@ function OperationRow({
       <TableCell className="text-sm text-muted-foreground">
         {formatDateTime(operation.scheduledStart)}
       </TableCell>
+      {/*
+        A equipe sai do modelo de campo, e não de `operation.users`.
+
+        `users` é a tabela genérica de participação, escrita pela rota `assign` e
+        pelo PMOC quando uma execução começa. Atribuir no formulário grava
+        `responsibleFieldTechnicianId` e os auxiliares — o modelo que o aplicativo
+        filtra. Lendo `users`, a listagem dizia "Sem técnico" para um atendimento
+        que já estava no celular do técnico.
+      */}
       <TableCell className="text-sm text-muted-foreground">
-        {assignees.length === 0
-          ? "Sem técnico"
-          : assignees.length === 1
-            ? assignees[0].user.displayName
-            : `${assignees[0].user.displayName} +${assignees.length - 1}`}
+        {resumoDaEquipe(operation)}
       </TableCell>
       <TableCell>
         <div className="flex flex-wrap gap-1.5 text-xs">

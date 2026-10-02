@@ -232,6 +232,43 @@ export class OperationRepository {
       },
       include: operationInclude,
     });
+    /**
+     * Quem foi atribuído também entra na participação.
+     *
+     * `operation_users` é a tabela genérica de "quem está neste atendimento", e é
+     * dela que saem o relatório de equipe e os KPIs de produtividade. O modelo de
+     * campo — `responsible_field_technician_id` e `operation_auxiliary_technicians` —
+     * é o que diz **em qual papel**.
+     *
+     * A criação direta gravava só o segundo. O efeito era um atendimento com técnico
+     * atribuído, chegando no celular dele, que a listagem mostrava como "Sem
+     * técnico" e o relatório de equipe contava como zero atribuições. O PMOC já
+     * grava as duas coisas (`pmoc.repository`), e esta é a mesma regra na porta que
+     * faltava.
+     *
+     * Os auxiliares entram também: a pergunta do relatório é "quantos atendimentos
+     * esta pessoa tem", e quem acompanha tem.
+     */
+    const participantes = [
+      ...(data.responsibleFieldTechnicianId
+        ? [String(data.responsibleFieldTechnicianId)]
+        : []),
+      ...auxiliaryUserIds,
+    ];
+    if (participantes.length) {
+      await transaction.operationUser.createMany({
+        /* `new Set` porque o mesmo id nos dois papéis violaria a única
+           `(operationId, userId)` — o serviço já recusa, e aqui a escrita não
+           depende de ele ter recusado. */
+        data: [...new Set(participantes)].map((participanteId) => ({
+          operationId: operation.id,
+          userId: participanteId,
+          assignedById: userId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
     await transaction.operationHistory.create({
       data: {
         operationId: operation.id,
@@ -280,6 +317,7 @@ export class OperationRepository {
         data: { responsibleFieldTechnicianId: newUserId },
         include: operationInclude,
       });
+      await this.registrarParticipacao(tx, id, newUserId, actorId);
       const eventIds = (
         await tx.schedulingEvent.findMany({
           where: {
@@ -470,6 +508,7 @@ export class OperationRepository {
           assignedById: actorId,
         },
       });
+      await this.registrarParticipacao(tx, id, userId, actorId);
       const events = await tx.schedulingEvent.findMany({
         where: {
           organizationId,
@@ -679,6 +718,29 @@ export class OperationRepository {
       }
 
       return operation;
+    });
+  }
+
+  /**
+   * Garante a linha de participação de quem acabou de ser atribuído.
+   *
+   * `operation_users` é de onde saem o relatório de equipe e os KPIs; o modelo de
+   * campo diz o papel. Quem muda um precisa tocar o outro, ou a pessoa aparece no
+   * celular e não aparece no relatório — foi o que acontecia.
+   *
+   * Idempotente: a pessoa pode já constar por ter sido atribuída antes, ou por uma
+   * execução de PMOC, e a única `(operationId, userId)` recusaria a segunda linha.
+   * `skipDuplicates` é o que torna "garantir" diferente de "inserir".
+   */
+  private async registrarParticipacao(
+    transaction: PrismaTransactionClient,
+    operationId: string,
+    userId: string,
+    assignedById: string,
+  ) {
+    await transaction.operationUser.createMany({
+      data: [{ operationId, userId, assignedById }],
+      skipDuplicates: true,
     });
   }
 
