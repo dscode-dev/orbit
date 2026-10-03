@@ -65,6 +65,13 @@ export interface OperationQuery {
   customerId?: string;
   assetId?: string;
   assignedUserId?: string;
+  /**
+   * Só o que está atribuído e esperando autorização.
+   *
+   * É a fila da aba Autorização. Recorte do servidor, não da página: com vinte por
+   * página, contar no navegador diria "3 pendentes" numa organização com duzentas.
+   */
+  pendingAuthorization?: boolean;
   kind?: OperationKind;
   status?: OperationStatus;
   priority?: OperationPriority;

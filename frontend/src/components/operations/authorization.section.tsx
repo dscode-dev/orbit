@@ -39,6 +39,7 @@ import {
 } from "@/hooks/organization/use-organization";
 import { useSession } from "@/providers/session-provider";
 import type { Organization } from "@/types/organization";
+import { AuthorizationQueuePanel } from "./authorization-queue.panel";
 
 /** Caminho da preferência dentro de `settings`. */
 const SETTINGS_NAMESPACE = "operations";
@@ -83,7 +84,22 @@ function withAuthorization(
   return base;
 }
 
-export function OperationAuthorizationSection() {
+/**
+ * A seção da aba Autorização: a chave e, quando ela está ligada, a fila.
+ *
+ * `showQueue` é falso em Configurações › Operações, onde o que se ajusta é a
+ * preferência: uma fila de trabalho para liberar no meio das configurações seria
+ * trabalho operacional escondido num lugar de ajuste. Em Operações é o contrário — é
+ * lá que o dono decide o dia.
+ */
+export function OperationAuthorizationSection({
+  showQueue = false,
+  timeZone,
+}: {
+  showQueue?: boolean;
+  /** O fuso da unidade, para a fila agrupar por dia civil. */
+  timeZone?: string;
+} = {}) {
   const organization = useOrganization();
 
   if (organization.isPending) return <PanelLoading rows={4} />;
@@ -97,7 +113,22 @@ export function OperationAuthorizationSection() {
   }
   if (!organization.data) return null;
 
-  return <AuthorizationForm organization={organization.data} />;
+  const enabled = readRequiresAuthorization(organization.data.settings);
+
+  return (
+    <div className="space-y-6">
+      <AuthorizationForm organization={organization.data} />
+
+      {/*
+        A fila só existe onde a exigência existe.
+        Desligada, nenhum atendimento espera autorização — a atribuição carimba
+        sozinha —, e uma fila sempre vazia faria parecer que algo está travado.
+      */}
+      {showQueue && enabled ? (
+        <AuthorizationQueuePanel timeZone={timeZone ?? "America/Sao_Paulo"} />
+      ) : null}
+    </div>
+  );
 }
 
 function AuthorizationForm({ organization }: { organization: Organization }) {
@@ -170,8 +201,8 @@ function AuthorizationForm({ organization }: { organization: Organization }) {
           </p>
           <ul className="space-y-1 text-xs text-muted-foreground">
             <li>
-              · Um atendimento atribuído só aparece na fila do aplicativo
-              depois de autorizado.
+              · Um atendimento atribuído só aparece na fila do aplicativo depois
+              de autorizado.
             </li>
             <li>
               · A liberação fica no próprio atendimento, na aba Equipe, para

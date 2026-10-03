@@ -28,6 +28,7 @@ import {
 } from '../subscription-plans/plan-access';
 import {
   AssignOperationUserDto,
+  AuthorizeOperationsDto,
   AddAuxiliaryTechnicianDto,
   ChangeOperationStatusDto,
   CreateOperationDto,
@@ -210,6 +211,30 @@ export class OperationController {
    * é quem responde por liberar o trabalho. Uma permissão separada criaria um
    * segundo papel que nenhuma organização pediu.
    */
+  /**
+   * Autoriza várias atribuições de uma vez.
+   *
+   * Declarada **antes** de `:id/authorization` porque o Nest resolve na ordem de
+   * declaração, e `authorizations` casaria com `:id` se viesse depois.
+   *
+   * Mesma permissão da autorização individual: é o mesmo ato, repetido. O corpo leva
+   * os ids que a tela mostrou — ver `AuthorizeOperationsDto` para por que não é
+   * "todas do técnico X".
+   */
+  @Post('authorizations')
+  @Capabilities('operations.manage')
+  @Permissions('operations.assign')
+  authorizeMany(
+    @Req() request: IdentityRequest,
+    @Body() input: AuthorizeOperationsDto,
+  ) {
+    return this.operations.authorizeMany(
+      this.organizationId(request),
+      request.identity!.id,
+      input.operationIds,
+    );
+  }
+
   @Post(':id/authorization')
   @Capabilities('operations.manage')
   @Permissions('operations.assign')

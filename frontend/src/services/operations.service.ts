@@ -121,6 +121,20 @@ export const operationsService = {
       ? apiClient.post<Operation>(`${item(id)}/authorization`, {})
       : apiClient.delete<Operation>(`${item(id)}/authorization`),
 
+  /**
+   * Autoriza várias atribuições de uma vez.
+   *
+   * Leva os ids que a tela mostrou, e não um critério como "todas do técnico X": o
+   * dono autoriza o que ele viu. Resolver o conjunto no servidor liberaria para o
+   * campo um atendimento criado entre a tela carregar e o botão ser clicado.
+   */
+  authorizeMany: (
+    operationIds: readonly string[],
+  ): Promise<{ authorized: number }> =>
+    apiClient.post<{ authorized: number }>("/operations/authorizations", {
+      operationIds,
+    }),
+
   /* ---------------------------------------------------------------- */
   /* Equipe do atendimento (PR-28)                                     */
   /* ---------------------------------------------------------------- */

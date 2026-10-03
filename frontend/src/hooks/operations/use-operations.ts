@@ -244,6 +244,22 @@ export function useSetOperationAuthorization(id: string) {
   );
 }
 
+/**
+ * Autoriza várias atribuições numa chamada.
+ *
+ * Invalida o módulo inteiro, e não as chaves de uma operação: o lote mexe em várias,
+ * e a fila de pendências precisa perder as que acabaram de sair dela. Invalidar por
+ * id exigiria saber de antemão quais mudaram — que é justamente o que o servidor
+ * decide.
+ */
+export function useAuthorizeOperations() {
+  return useApiMutation(
+    (operationIds: readonly string[]) =>
+      operationsService.authorizeMany(operationIds),
+    { invalidate: [queryKeys.module("operations")] },
+  );
+}
+
 export function useUnassignOperationUser(id: string) {
   return useApiMutation(
     (userId: string) => operationsService.unassign(id, userId),

@@ -365,6 +365,74 @@ export class OperationService {
     );
   }
 
+  /**
+   * Autoriza várias atribuições numa chamada.
+   *
+   * ## Por que não é um laço de `setAuthorization`
+   *
+   * Porque a exigência da organização e a existência de cada operação seriam
+   * consultadas uma vez por id: autorizar trinta atendimentos faria sessenta
+   * consultas para responder duas perguntas. A exigência é da organização e se lê
+   * uma vez; a existência vira uma consulta que confere os trinta juntos.
+   *
+   * ## Já autorizado não é erro
+   *
+   * Duas pessoas podem clicar no mesmo botão, e o segundo clique não deve falhar —
+   * o estado desejado já é o que está lá. O resultado diz quantos mudaram, que é a
+   * pergunta que a tela faz.
+   *
+   * ## Um id de fora da organização derruba a chamada inteira
+   *
+   * E não é rigor: autorizar parcialmente e devolver "26 de 30" deixaria o dono sem
+   * saber quais quatro ficaram de fora nem por quê. O que não existe aqui é erro de
+   * quem chamou, não um caso a tolerar.
+   */
+  async authorizeMany(
+    organizationId: string,
+    actorId: string,
+    operationIds: readonly string[],
+  ): Promise<{ authorized: number }> {
+    if (!(await this.requiresAuthorization(organizationId))) {
+      throw new ValidationException(
+        'This organization does not require assignment authorization',
+      );
+    }
+
+    const encontrados = await this.repository.findIdsWithin(
+      organizationId,
+      operationIds,
+    );
+    if (encontrados.length !== new Set(operationIds).size) {
+      throw new EntityNotFoundException('Operation');
+    }
+
+    /*
+     * Só o que está atribuído é autorizável.
+     *
+     * Carimbar um atendimento sem responsável liberaria para o campo um trabalho que
+     * não é de ninguém — e ele some da fila de pendências sem nunca ter chegado a um
+     * técnico.
+     */
+    const semResponsavel = encontrados.filter(
+      (operation) => !operation.responsibleFieldTechnicianId,
+    );
+    if (semResponsavel.length) {
+      throw new ValidationException(
+        'Only assigned operations can be authorized: assign a responsible technician first',
+      );
+    }
+
+    return {
+      authorized: await this.repository.authorizeMany(
+        organizationId,
+        actorId,
+        encontrados
+          .filter((operation) => operation.authorizedAt === null)
+          .map((operation) => operation.id),
+      ),
+    };
+  }
+
   /** A organização exige autorização depois da atribuição? */
   async requiresAuthorization(organizationId: string): Promise<boolean> {
     return requiresAssignmentAuthorization(

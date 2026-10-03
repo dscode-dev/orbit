@@ -120,32 +120,77 @@ export class OperationRepository {
       kind: query.kind,
       status: query.status,
       priority: query.priority,
-      ...(query.assignedUserId
-        ? {
-            OR: [
-              { responsibleFieldTechnicianId: query.assignedUserId },
-              {
-                auxiliaryTechnicians: {
-                  some: { userId: query.assignedUserId, removedAt: null },
-                },
-              },
-              { users: { some: { userId: query.assignedUserId } } },
-            ],
-          }
-        : {}),
       scheduledStart:
         query.scheduledFrom || query.scheduledTo
           ? { gte: query.scheduledFrom, lte: query.scheduledTo }
           : undefined,
-      ...(query.search
+      /**
+       * Atribuída e ainda não autorizada — a fila da aba Autorização.
+       *
+       * "Atribuída" é ter responsável: é o responsável que executa, e é a
+       * autorização dele que o aplicativo exige. Auxiliar sem responsável não
+       * existe (o serviço recusa), então não há caso a cobrir.
+       *
+       * O recorte é do servidor para a contagem ser verdade: filtrar uma página no
+       * navegador diria "3 pendentes" numa organização com duzentas.
+       */
+      ...(query.pendingAuthorization
         ? {
-            OR: [
-              { code: { contains: query.search, mode: 'insensitive' } },
-              { title: { contains: query.search, mode: 'insensitive' } },
-              { description: { contains: query.search, mode: 'insensitive' } },
-            ],
+            authorizedAt: null,
+            responsibleFieldTechnicianId: { not: null },
           }
         : {}),
+      /**
+       * Dois filtros, duas condições — e as duas valem.
+       *
+       * Atribuição e busca escreviam a mesma chave `OR` no mesmo objeto, e a
+       * segunda apagava a primeira: pedir "os de Eduardo" **e** um termo devolvia
+       * qualquer atendimento que combinasse com o termo, de quem fosse. Dentro de
+       * `AND` cada uma continua sendo um `OR` próprio, e as duas são exigidas.
+       */
+      AND: [
+        ...(query.assignedUserId
+          ? [
+              {
+                OR: [
+                  { responsibleFieldTechnicianId: query.assignedUserId },
+                  {
+                    auxiliaryTechnicians: {
+                      some: { userId: query.assignedUserId, removedAt: null },
+                    },
+                  },
+                  { users: { some: { userId: query.assignedUserId } } },
+                ],
+              },
+            ]
+          : []),
+        ...(query.search
+          ? [
+              {
+                OR: [
+                  {
+                    code: {
+                      contains: query.search,
+                      mode: 'insensitive' as const,
+                    },
+                  },
+                  {
+                    title: {
+                      contains: query.search,
+                      mode: 'insensitive' as const,
+                    },
+                  },
+                  {
+                    description: {
+                      contains: query.search,
+                      mode: 'insensitive' as const,
+                    },
+                  },
+                ],
+              },
+            ]
+          : []),
+      ],
     };
     return this.rls.run(async (transaction) => {
       const data = await transaction.operation.findMany({
@@ -481,6 +526,103 @@ export class OperationRepository {
         });
       }
       return operation;
+    });
+  }
+
+  /**
+   * Os atendimentos pedidos que são desta organização, com o que decide a autorização.
+   *
+   * Uma consulta para conferir trinta ids. Perguntar um por um faria o lote custar
+   * trinta viagens para responder "existem e são meus?".
+   */
+  findIdsWithin(organizationId: string, ids: readonly string[]) {
+    return this.rls.run((tx) =>
+      tx.operation.findMany({
+        where: { organizationId, deletedAt: null, id: { in: [...ids] } },
+        select: {
+          id: true,
+          authorizedAt: true,
+          responsibleFieldTechnicianId: true,
+        },
+      }),
+    );
+  }
+
+  /**
+   * Carimba a autorização de vários atendimentos numa transação.
+   *
+   * ## Por que a trilha é por atendimento
+   *
+   * Porque é por atendimento que alguém vai perguntar depois: "quem liberou este
+   * trabalho, e quando". Um registro único de "autorizou 30" responderia a pergunta
+   * do lote e nenhuma das trinta. Então cada um recebe histórico, auditoria e evento
+   * de domínio — o evento é o que avisa o técnico.
+   *
+   * ## Por que uma transação só
+   *
+   * Autorizar é liberar trabalho para o campo. Metade liberada, com a tela dizendo
+   * que falhou, deixaria o dono sem saber o que já está no celular de quem.
+   */
+  authorizeMany(
+    organizationId: string,
+    actorId: string,
+    ids: readonly string[],
+  ): Promise<number> {
+    if (ids.length === 0) return Promise.resolve(0);
+    return this.rls.run(async (tx) => {
+      const authorizedAt = new Date();
+      const alvos = await tx.operation.findMany({
+        where: { id: { in: [...ids] } },
+        select: { id: true, businessUnitId: true },
+      });
+
+      await tx.operation.updateMany({
+        where: { id: { in: [...ids] } },
+        data: { authorizedAt, authorizedById: actorId },
+      });
+
+      const details = {
+        authorizedAt: authorizedAt.toISOString(),
+        previousAuthorizedAt: null,
+      };
+
+      await tx.operationHistory.createMany({
+        data: alvos.map((alvo) => ({
+          operationId: alvo.id,
+          userId: actorId,
+          action: 'ASSIGNMENT_AUTHORIZED',
+          details,
+        })),
+      });
+
+      await tx.auditLog.createMany({
+        data: alvos.map((alvo) => ({
+          organizationId,
+          businessUnitId: alvo.businessUnitId,
+          userId: actorId,
+          action: 'operation.assignment.authorized',
+          entityType: 'OPERATION',
+          entityId: alvo.id,
+          before: { authorizedAt: null },
+          after: { authorizedAt: details.authorizedAt },
+        })),
+      });
+
+      /* O evento é o que faz o atendimento aparecer para quem vai executar; um por
+         atendimento, como na autorização individual. */
+      for (const alvo of alvos) {
+        await this.events.emit(tx, {
+          type: 'operation.assignment.authorized',
+          organizationId,
+          businessUnitId: alvo.businessUnitId,
+          actorId,
+          entityType: 'OPERATION',
+          entityId: alvo.id,
+          payload: details,
+        });
+      }
+
+      return alvos.length;
     });
   }
 

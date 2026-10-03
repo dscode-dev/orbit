@@ -39,6 +39,7 @@ import { PmocCenter } from "@/components/pmoc/pmoc-center";
 import { RvtCenter } from "@/components/rvt/rvt-center";
 import { useSession } from "@/providers/session-provider";
 import { TabBoundary } from "@/workspace";
+import { useSchedulingTimeZone } from "@/components/scheduling/use-scheduling-timezone";
 import { OperationAuthorizationSection } from "./authorization.section";
 import { OPERATIONS_SECTIONS } from "./sections";
 import { OperationsList } from "./operations-list";
@@ -63,6 +64,9 @@ function Sections() {
   const session = useSession();
 
   const canPmoc = session.hasCapability("pmoc.read");
+  /* O fuso da unidade: a fila de autorização agrupa por dia civil, e dia civil
+     depende de fuso — ver `authorization-queue`. */
+  const { timeZone } = useSchedulingTimeZone();
   const canRvt = session.hasCapability("rvt.read");
 
   /*
@@ -132,11 +136,15 @@ function Sections() {
       ) : null}
 
       <TabsContent value={OPERATIONS_SECTIONS.authorization}>
-        {/* A página já provê o container; aqui basta limitar a largura. */}
         {section.current === OPERATIONS_SECTIONS.authorization ? (
-          <div className="max-w-3xl">
-            <OperationAuthorizationSection />
-          </div>
+          /*
+            Sem limite de largura: a fila de pendências mora aqui, e ela é uma
+            lista com botões por linha. Em `max-w-3xl` o nome do atendimento e o
+            botão disputavam a mesma faixa estreita.
+          */
+          <TabBoundary id="operations-authorization" label="a autorização">
+            <OperationAuthorizationSection showQueue timeZone={timeZone} />
+          </TabBoundary>
         ) : null}
       </TabsContent>
     </Tabs>
