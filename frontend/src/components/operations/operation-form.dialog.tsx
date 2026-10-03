@@ -53,7 +53,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { ReferencePicker } from "@/components/scheduling/reference-picker";
 import { schedulingReferencesService } from "@/services/scheduling-references.service";
 import {
+  useAddOperationAuxiliary,
   useCreateOperation,
+  useRemoveOperationAuxiliary,
+  useReplaceOperationResponsible,
   useUpdateOperation,
 } from "@/hooks/operations/use-operations";
 import { instantFromZoned, zonedParts } from "@/lib/scheduling";
@@ -74,6 +77,7 @@ import {
   type OperationListItem,
 } from "@/types/operations";
 import { operationKindLabel, operationPriorityLabel } from "./operation-badges";
+import { comandosDeAtribuicao } from "./operation-assignment-commands";
 import { OperationAddressField } from "./operation-address.field";
 import { OperationChecklistField } from "./operation-checklist.field";
 import { OperationEquipmentField } from "./operation-equipment.field";
@@ -168,7 +172,26 @@ function OperationForm({
   const create = useCreateOperation();
   const checklist = useStartOperationChecklist();
   const update = useUpdateOperation(editing?.id ?? "");
+  /* Os três comandos de atribuição: o `PATCH` não troca técnicos. */
+  const replaceResponsible = useReplaceOperationResponsible(editing?.id ?? "");
+  const addAuxiliary = useAddOperationAuxiliary(editing?.id ?? "");
+  const removeAuxiliary = useRemoveOperationAuxiliary(editing?.id ?? "");
   const mutation = editing ? update : create;
+
+  /*
+   * O estado dos comandos de atribuição conta junto.
+   *
+   * Sem isto, uma falha ao trocar o responsável não apareceria — o `PATCH` teria
+   * dado certo, `mutation.error` ficaria nulo, e a tela fecharia como se a equipe
+   * tivesse sido salva. O botão também precisa continuar desabilitado enquanto a
+   * sequência roda.
+   */
+  const equipePendente =
+    replaceResponsible.isPending ||
+    addAuxiliary.isPending ||
+    removeAuxiliary.isPending;
+  const erroDeEquipe =
+    replaceResponsible.error ?? addAuxiliary.error ?? removeAuxiliary.error;
 
   const [form, setForm] = useState<FormState>(() =>
     initialState(
@@ -192,6 +215,40 @@ function OperationForm({
   const edit = (patch: Partial<FormState>) =>
     setForm((current) => ({ ...current, ...patch }));
 
+  /**
+   * Aplica a mudança de equipe pelos comandos de atribuição.
+   *
+   * Em série, e não em paralelo: a troca de responsável retira o escolhido dos
+   * auxiliares no servidor, e as chamadas seguintes precisam ver esse estado. Em
+   * paralelo, remover um auxiliar e promovê-lo disputariam a mesma linha.
+   *
+   * Erros não são silenciados — `useApiMutation` os publica, e o diálogo já mostra o
+   * erro da mutação. O que não acontece é fechar a tela com a equipe pela metade: o
+   * `await` garante que o fechamento venha depois da última chamada.
+   */
+  const aplicarEquipe = async () => {
+    if (!editing) return;
+    const comandos = comandosDeAtribuicao(
+      {
+        responsavel: editing.responsibleFieldTechnicianId ?? "",
+        auxiliares: (editing.auxiliaryTechnicians ?? []).map(
+          (item) => item.userId,
+        ),
+      },
+      { responsavel: form.responsibleId, auxiliares: form.auxiliaryIds },
+    );
+
+    for (const comando of comandos) {
+      if (comando.tipo === "responsavel") {
+        await replaceResponsible.mutateAsync(comando.userId);
+      } else if (comando.tipo === "adicionar-auxiliar") {
+        await addAuxiliary.mutateAsync(comando.userId);
+      } else {
+        await removeAuxiliary.mutateAsync(comando.userId);
+      }
+    }
+  };
+
   /** O modelo de checklist do tipo escolhido, quando existe. */
   const [checklistTemplateId, setChecklistTemplateId] = useState<string | null>(
     null,
@@ -204,13 +261,24 @@ function OperationForm({
     form.kind.length > 0;
 
   const submit = () => {
-    const payload = buildPayload(form, timeZone);
     if (editing) {
-      update.mutate(payload, { onSuccess: onClose });
+      /*
+       * Salvar a edição é duas coisas, nesta ordem.
+       *
+       * Os campos do atendimento vão no `PATCH`; a mudança de equipe vai pelos
+       * comandos de atribuição, que o `PATCH` recusa de propósito. A equipe é aplicada
+       * **depois** porque o comando devolve o atendimento já atualizado — e porque um
+       * erro nele não deve desfazer o que o `PATCH` gravou, que é informação boa.
+       */
+      update.mutate(buildPayload(form, timeZone, "editar"), {
+        onSuccess: () => {
+          void aplicarEquipe().then(onClose);
+        },
+      });
       return;
     }
 
-    create.mutate(payload, {
+    create.mutate(buildPayload(form, timeZone, "criar"), {
       /**
        * O checklist começa **depois** da operação, porque precisa do id dela.
        *
@@ -394,6 +462,8 @@ function OperationForm({
         <div className="sm:col-span-2">
           <TechnicianAssignment
             businessUnitId={form.businessUnitId}
+            /* O que está gravado, para a tela avisar o que não dá para desfazer. */
+            persistedResponsibleId={editing?.responsibleFieldTechnicianId ?? ""}
             responsibleId={form.responsibleId}
             auxiliaryIds={form.auxiliaryIds}
             onChange={(patch) => edit(patch)}
@@ -429,14 +499,17 @@ function OperationForm({
         </div>
       </div>
 
-      <MutationError error={mutation.error} />
+      <MutationError error={mutation.error ?? erroDeEquipe} />
 
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
           Cancelar
         </Button>
-        <Button onClick={submit} disabled={!valid || mutation.isPending}>
-          {mutation.isPending
+        <Button
+          onClick={submit}
+          disabled={!valid || mutation.isPending || equipePendente}
+        >
+          {mutation.isPending || equipePendente
             ? "Salvando…"
             : editing
               ? "Salvar alterações"
@@ -544,7 +617,25 @@ function initialState(
   };
 }
 
-function buildPayload(form: FormState, timeZone: string): CreateOperationInput {
+/**
+ * O corpo da requisição.
+ *
+ * ## A atribuição só viaja na criação
+ *
+ * `POST /operations` aceita responsável e auxiliares; `PATCH /operations/:id`
+ * **recusa** — e o 400 era literal: "use os comandos explícitos para trocar os
+ * técnicos do atendimento". O motivo é bom: trocar o responsável retira o escolhido
+ * dos auxiliares, atualiza as alocações do evento na agenda, grava histórico e
+ * registra participação. Um `PATCH` silencioso mudaria a coluna e deixaria o resto.
+ *
+ * Então na edição os dois campos ficam fora do corpo, e a mudança de equipe vai
+ * pelas portas dela — ver `operation-assignment-commands`.
+ */
+function buildPayload(
+  form: FormState,
+  timeZone: string,
+  modo: "criar" | "editar",
+): CreateOperationInput {
   return {
     businessUnitId: form.businessUnitId,
     code: form.code.trim(),
@@ -553,9 +644,13 @@ function buildPayload(form: FormState, timeZone: string): CreateOperationInput {
     description: form.description.trim() || undefined,
     priority: form.priority as CreateOperationInput["priority"],
     scheduledStart: toInstant(form.startLocal, timeZone),
-    responsibleFieldTechnicianId: form.responsibleId || undefined,
-    auxiliaryTechnicianIds:
-      form.auxiliaryIds.length > 0 ? form.auxiliaryIds : undefined,
+    ...(modo === "criar"
+      ? {
+          responsibleFieldTechnicianId: form.responsibleId || undefined,
+          auxiliaryTechnicianIds:
+            form.auxiliaryIds.length > 0 ? form.auxiliaryIds : undefined,
+        }
+      : {}),
     customerId: form.customerId || undefined,
     assetIds: form.assetIds.length > 0 ? form.assetIds : undefined,
     customerAddressId: form.customerAddressId || undefined,
@@ -587,10 +682,13 @@ function buildPayload(form: FormState, timeZone: string): CreateOperationInput {
  */
 function TechnicianAssignment({
   businessUnitId,
+  persistedResponsibleId = "",
   responsibleId,
   auxiliaryIds,
   onChange,
 }: {
+  /** O responsável já gravado. Vazio na criação, onde não há o que desfazer. */
+  persistedResponsibleId?: string;
   /// A unidade do atendimento, não a do contexto: é por ela que o servidor
   /// confere a atribuição, e é dela que as duas listas têm de sair.
   businessUnitId: string;
@@ -669,15 +767,30 @@ function TechnicianAssignment({
           habilitar o perfil profissional da pessoa. Quem cadastrou o técnico
           cinco minutos antes não tinha como adivinhar.
         */}
-        <p className="text-xs text-muted-foreground">
-          {semUnidade
-            ? "Escolha a unidade de negócio para ver quem atende nela."
-            : technicians.isPending
-              ? "Carregando quem atende nesta unidade…"
-              : pessoas.length === 0
-                ? "Ninguém desta unidade tem o perfil de técnico de campo. Habilite em Equipe › o membro › Perfil profissional."
-                : "Executa o atendimento no aplicativo de campo."}
-        </p>
+        {/*
+          Tirar o responsável não é possível, e a tela diz isso.
+
+          Os comandos de atribuição exigem um `userId`: a API não tem "desatribuir
+          responsável", porque atendimento sem dono é o estado que a atribuição existe
+          para evitar. Deixar o campo esvaziar em silêncio faria quem salvou acreditar
+          que tirou — e o técnico continuaria recebendo no celular.
+        */}
+        {persistedResponsibleId && !responsibleId ? (
+          <p className="text-xs text-warning">
+            Este atendimento já tem responsável, e ele não pode ficar sem um.
+            Para mudar, escolha outra pessoa; deixar em branco mantém quem está.
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {semUnidade
+              ? "Escolha a unidade de negócio para ver quem atende nela."
+              : technicians.isPending
+                ? "Carregando quem atende nesta unidade…"
+                : pessoas.length === 0
+                  ? "Ninguém desta unidade tem o perfil de técnico de campo. Habilite em Equipe › o membro › Perfil profissional."
+                  : "Executa o atendimento no aplicativo de campo."}
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
