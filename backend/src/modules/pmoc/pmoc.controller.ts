@@ -277,6 +277,29 @@ export class PmocController {
    * Um `PATCH /plans/:id { status }` genérico permitiria escrever `EXPIRED` à
    * mão — e vencimento não é decisão de ninguém, é constatação do calendário.
    */
+  /**
+   * Gera o link de assinatura do contrato para o contratante.
+   *
+   * `pmoc.manage` porque é ato de administrar o contrato — e porque o segredo devolvido
+   * abre o contrato para quem o tiver.
+   *
+   * Declarada antes de rotas com `:id` que possam colidir não é necessário aqui, mas o
+   * `POST` tem corpo vazio de propósito: o que define o link é o plano, e dar opções ao
+   * chamador (validade, destinatário) seria contrato que o produto ainda não tem.
+   */
+  @Post('plans/:id/signature-link')
+  @Capabilities('pmoc.manage')
+  @Permissions('pmoc.manage')
+  @ApiOperation({
+    summary: 'Gera um link temporário para o contratante assinar o contrato',
+  })
+  createSignatureLink(
+    @Param('id', ParseUUIDv7Pipe) id: string,
+    @Req() request: IdentityRequest,
+  ) {
+    return this.pmoc.createSignatureLink(id, this.actor(request));
+  }
+
   @Post('plans/:id/activate')
   @Capabilities('pmoc.manage')
   @Permissions('pmoc.manage')

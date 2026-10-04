@@ -128,9 +128,13 @@ function servico(
   storage: { get: jest.Mock } = {
     get: jest.fn().mockResolvedValue(PNG_DE_UM_PIXEL),
   },
+  assinaturaColetada: unknown = null,
 ) {
   const repository = {
     documentSource: jest.fn().mockResolvedValue(fonteDoPlano),
+    /* Sem assinatura do contratante por padrão: é o estado de um contrato recém
+       criado, e é nele que a maioria dos testes deste arquivo trabalha. */
+    latestSignature: jest.fn().mockResolvedValue(assinaturaColetada),
   };
   const service = new PmocService(
     repository as never,
@@ -274,6 +278,97 @@ describe('documento do plano de PMOC', () => {
 
     expect(documento.bytes.length).toBeGreaterThan(0);
     expect(pdfText(documento.bytes)).toContain('Eng. Helena Braga');
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* A assinatura do contratante, coletada pelo link público           */
+  /* ---------------------------------------------------------------- */
+
+  const assinaturaDoContratante = {
+    signerName: 'Maria Contratante',
+    signerDocument: '123.456.789-00',
+    signedAt: new Date('2026-10-04T14:30:00.000Z'),
+    signatureFile: {
+      bucket: 'orbit',
+      objectKey: 'pmoc-contract-signatures/abc.png',
+      mimeType: 'image/png',
+    },
+  };
+
+  /**
+   * O fim da linha do recurso de assinatura pública.
+   *
+   * Coletar a assinatura sem ela sair no contrato deixaria o contratante assinando
+   * para nada — e é no contrato que a assinatura tem valor.
+   */
+  it('a assinatura do contratante nomeia quem assinou', async () => {
+    const { service } = servico(
+      fonte(),
+      { get: jest.fn().mockResolvedValue(PNG_DE_UM_PIXEL) },
+      assinaturaDoContratante,
+    );
+
+    const texto = pdfText((await service.document('plan-1', ATOR)).bytes);
+
+    /* O nome de quem apertou "assinar" vence o do cadastro: o documento deve nomear
+       a pessoa que assinou, não a que estava na ficha. */
+    expect(texto).toContain('Maria Contratante');
+  });
+
+  it('registra quando foi assinado, no fuso da unidade', async () => {
+    const { service } = servico(
+      fonte(),
+      { get: jest.fn().mockResolvedValue(PNG_DE_UM_PIXEL) },
+      assinaturaDoContratante,
+    );
+
+    const texto = pdfText((await service.document('plan-1', ATOR)).bytes);
+
+    /* 14:30 UTC é 11:30 em São Paulo, que é o fuso da unidade da fixture. Imprimir em
+       UTC diria ao contratante que ele assinou três horas depois. */
+    expect(texto).toContain('11:30');
+    expect(texto).toContain('04/10/2026');
+  });
+
+  it('busca a imagem da assinatura coletada', async () => {
+    const storage = { get: jest.fn().mockResolvedValue(PNG_DE_UM_PIXEL) };
+    const { service } = servico(fonte(), storage, assinaturaDoContratante);
+
+    await service.document('plan-1', ATOR);
+
+    expect(storage.get).toHaveBeenCalledWith({
+      bucket: 'orbit',
+      objectKey: 'pmoc-contract-signatures/abc.png',
+    });
+  });
+
+  /**
+   * Sem os bytes, o nome e a data sobrevivem.
+   *
+   * É informação que o documento tem e que a linha em branco perderia: "assinado por
+   * Maria em 04/10" vale mesmo sem o traço desenhado.
+   */
+  it('falha ao ler a imagem não apaga quem assinou', async () => {
+    const { service } = servico(
+      fonte(),
+      { get: jest.fn().mockRejectedValue(new Error('bucket fora do ar')) },
+      assinaturaDoContratante,
+    );
+
+    const texto = pdfText((await service.document('plan-1', ATOR)).bytes);
+
+    expect(texto).toContain('Maria Contratante');
+    expect(texto).toContain('04/10/2026');
+  });
+
+  /** Contrato sem assinatura coletada sai como sempre: linha em branco para assinar. */
+  it('sem assinatura coletada, o contrato nomeia o cliente', async () => {
+    const { service } = servico(fonte());
+
+    const texto = pdfText((await service.document('plan-1', ATOR)).bytes);
+
+    expect(texto).toContain('Ed. Aurora');
+    expect(texto).not.toContain('Maria Contratante');
   });
 
   it('recusa plano de outra organização como inexistente', async () => {

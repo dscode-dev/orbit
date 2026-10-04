@@ -68,6 +68,17 @@ export interface PmocPlanDocumentInput {
     readonly address?: string;
     readonly contactName?: string;
     readonly contactPhone?: string;
+    /**
+     * A assinatura do contratante, coletada pelo link público.
+     *
+     * Ausente, a linha sai em branco para assinar à mão — que é como o contrato
+     * sempre funcionou e continua funcionando.
+     */
+    readonly signature?: Buffer;
+    readonly signatureMimeType?: string;
+    /** Quem declarou assinar, e quando. Substitui o nome do cliente na linha. */
+    readonly signedBy?: string;
+    readonly signedAtLabel?: string;
   };
   readonly equipment: readonly {
     readonly sector?: string;
@@ -297,8 +308,16 @@ function responsabilidade(
       },
       {
         label: 'Contratante',
-        signerName: input.customer.contactName ?? input.customer.name,
+        /* Quem assinou de fato vence o contato cadastrado: o documento deve nomear a
+           pessoa que apertou "assinar", não a que estava no cadastro. */
+        signerName:
+          input.customer.signedBy ??
+          input.customer.contactName ??
+          input.customer.name,
         roleLabel: 'Contratante',
+        signedAtLabel: input.customer.signedAtLabel,
+        image: input.customer.signature,
+        imageMimeType: input.customer.signatureMimeType,
       },
     ],
     theme,

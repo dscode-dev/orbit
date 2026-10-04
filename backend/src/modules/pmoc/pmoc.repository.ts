@@ -26,7 +26,11 @@ import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { RequestContextService } from '../../context';
 import { ConflictException } from '../../exceptions';
-import { PaginationHelper, RlsTransaction } from '../../database';
+import {
+  PaginationHelper,
+  PrismaService,
+  RlsTransaction,
+} from '../../database';
 import type { PrismaTransactionClient } from '../../database/prisma.types';
 import { generateUuidV7 } from '../../utils';
 import { DomainEventEmitter } from '../automations/domain-event.emitter';
@@ -233,7 +237,140 @@ export class PmocRepository {
      * soube.
      */
     private readonly events: DomainEventEmitter,
+    /**
+     * Conexão sem contexto de inquilino, para o acesso por token.
+     *
+     * Quem abre o link de assinatura não tem sessão: não há organização no contexto,
+     * e a política de `pmoc_plan_signature_links` não teria como ser satisfeita. As
+     * duas funções `SECURITY DEFINER` da PR-58 são o caminho estreito disso, e elas
+     * são chamadas por aqui — fora da transação de RLS, porque não há inquilino a
+     * declarar. A credencial é o token, e a validação dele é dentro da função.
+     */
+    private readonly prisma: PrismaService,
   ) {}
+
+  /* ---------------------------------------------------------------- */
+  /* Link de assinatura do contrato                                    */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Cria o link e revoga o anterior, na mesma transação.
+   *
+   * A revogação vem antes por necessidade, não por estilo: o índice parcial
+   * `pmoc_signature_links_pending_unique` recusa um segundo link pendente do mesmo
+   * plano, e é ele que garante a regra quando duas telas pedem link ao mesmo tempo.
+   * Revogar depois de inserir seria tentar inserir contra o índice.
+   *
+   * Links já assinados não são tocados: eles são a prova de uma assinatura coletada,
+   * e gerar um link novo não apaga o que o contratante assinou.
+   */
+  createSignatureLink(data: {
+    organizationId: string;
+    planId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    createdById: string;
+  }) {
+    return this.rls.run(async (tx) => {
+      await tx.pmocPlanSignatureLink.updateMany({
+        where: {
+          planId: data.planId,
+          organizationId: data.organizationId,
+          revokedAt: null,
+          signedAt: null,
+        },
+        data: { revokedAt: new Date() },
+      });
+      return tx.pmocPlanSignatureLink.create({
+        data: {
+          organizationId: data.organizationId,
+          planId: data.planId,
+          tokenHash: data.tokenHash,
+          expiresAt: data.expiresAt,
+          createdById: data.createdById,
+        },
+        select: { id: true, expiresAt: true, createdAt: true },
+      });
+    });
+  }
+
+  /** A assinatura coletada mais recente do plano — a que vai no contrato. */
+  latestSignature(planId: string, organizationId: string) {
+    return this.rls.run((tx) =>
+      tx.pmocPlanSignatureLink.findFirst({
+        where: { planId, organizationId, signedAt: { not: null } },
+        orderBy: { signedAt: 'desc' },
+        select: {
+          signerName: true,
+          signerDocument: true,
+          signedAt: true,
+          signatureFile: {
+            select: { bucket: true, objectKey: true, mimeType: true },
+          },
+        },
+      }),
+    );
+  }
+
+  /**
+   * O contrato que o token abre — pela função estreita, sem inquilino no contexto.
+   *
+   * Linha ausente significa token que não existe. A função distingue isso de token
+   * malformado, que ela recusa com erro: um `LIKE` acidental não varre a tabela.
+   */
+  async signatureLinkByToken(tokenHash: string) {
+    const rows = await this.prisma.$queryRaw<
+      {
+        state: string;
+        plan_code: string;
+        plan_name: string;
+        starts_on: Date;
+        ends_on: Date | null;
+        frequency_amount: number;
+        frequency_unit: string;
+        customer_name: string;
+        emitter_name: string;
+        covered_equipment: number;
+        technical_responsible: string | null;
+        signer_name: string | null;
+        signed_at: Date | null;
+        expires_at: Date;
+      }[]
+    >`SELECT * FROM app_pmoc_signature_link_read(${tokenHash})`;
+    return rows[0] ?? null;
+  }
+
+  /** Registra a assinatura do contratante — arquivo e marca, na mesma transação. */
+  async signByToken(input: {
+    tokenHash: string;
+    signerName: string;
+    signerDocument?: string;
+    signerEmail?: string;
+    ip?: string;
+    userAgent?: string;
+    bucket: string;
+    objectKey: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+  }): Promise<{ state: string; signed: boolean }> {
+    const rows = await this.prisma.$queryRaw<
+      { state: string; signed: boolean }[]
+    >`SELECT * FROM app_pmoc_signature_link_sign(
+        ${input.tokenHash},
+        ${input.signerName},
+        ${input.signerDocument ?? null},
+        ${input.signerEmail ?? null},
+        ${input.ip ?? null},
+        ${input.userAgent ?? null},
+        ${input.bucket},
+        ${input.objectKey},
+        ${input.mimeType},
+        ${input.sizeBytes}::bigint,
+        ${input.sha256}
+      )`;
+    return rows[0] ?? { state: 'INEXISTENTE', signed: false };
+  }
 
   /* ---------------------------------------------------------------- */
   /* Planos                                                            */

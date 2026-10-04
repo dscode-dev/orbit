@@ -106,6 +106,7 @@ model User {
   professionalProfiles               ProfessionalProfile[]
   professionalCredentials            ProfessionalCredential[]
   professionalSignatures             UserSignature[]                @relation("ProfessionalSignatureUser")
+  pmocSignatureLinks                 PmocPlanSignatureLink[]        @relation("PmocSignatureLinkCreator")
   fieldEvidenceUploads               FieldEvidenceUpload[]          @relation("FieldEvidenceUploadActor")
   fieldEvidenceCaptured              FieldEvidence[]                @relation("FieldEvidenceCapturedBy")
   customerPortalInvitationsSent      CustomerPortalInvitation[]     @relation("CustomerPortalInvitationInviter")
@@ -317,6 +318,7 @@ model Organization {
   automationExecutions          AutomationExecution[]
   managementReports             ManagementReport[]
   pmocPlans                     PmocPlan[]
+  pmocSignatureLinks            PmocPlanSignatureLink[]
   pmocCoverages                 PmocEquipmentCoverage[]
   pmocExecutions                PmocExecution[]
   professionalProfiles          ProfessionalProfile[]
@@ -2117,6 +2119,7 @@ model StorageFile {
 
   memberCertifications   MemberCertification[]
   professionalSignatures UserSignature[]
+  pmocSignatureLinks     PmocPlanSignatureLink[]
   userAvatars            User[]                @relation("UserAvatarFile")
   fieldEvidenceUploads   FieldEvidenceUpload[]
   fieldEvidence          FieldEvidence[]
@@ -4012,6 +4015,7 @@ model PmocPlan {
   executions          PmocExecution[]
   equipmentExecutions PmocEquipmentExecution[]
   units               PmocPlanUnit[]
+  signatureLinks      PmocPlanSignatureLink[]
 
   @@index([organizationId, status, nextDueOn])
   @@index([organizationId, businessUnitId, status])
@@ -4114,6 +4118,65 @@ model PmocUnit {
 }
 
 /// As unidades declaradas por um plano.
+/// Link temporário para o contratante ler o contrato e assiná-lo.
+///
+/// ## Por que um registro, e não só um token assinado
+///
+/// Porque ele guarda a prova. Um JWT diria "este token é válido"; o que o contrato
+/// precisa responder depois é "quem assinou, quando, de onde" — e isso é linha de
+/// banco. A assinatura coletada vive aqui, e é daqui que o documento do PMOC a lê.
+///
+/// ## Um pendente por plano
+///
+/// `pmoc_signature_links_pending_unique` é parcial: vale só enquanto o link não foi
+/// revogado nem assinado. Gerar um link novo revoga o anterior — pedido explícito do
+/// produto, e a razão é de segurança: um link antigo circulando por e-mail continuaria
+/// abrindo o contrato depois de o dono ter decidido gerar outro.
+///
+/// Links já assinados não entram no índice, então eles permanecem como histórico e não
+/// impedem uma nova coleta.
+///
+/// ## O token não é guardado
+///
+/// Só o SHA-256 dele, como em `customer_portal_invitations`. Vazando o banco, ninguém
+/// assina em nome de ninguém: o segredo existe uma vez, na resposta que o dono copia.
+model PmocPlanSignatureLink {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  planId         String    @map("plan_id") @db.Uuid
+  tokenHash      String    @unique @map("token_hash") @db.Char(64)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  createdById    String    @map("created_by_id") @db.Uuid
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  /// Quando o contratante assinou. Nulo enquanto o link está pendente.
+  signedAt DateTime? @map("signed_at") @db.Timestamptz(3)
+  /// Quem declarou assinar — nome e documento são digitados por ele.
+  signerName     String? @map("signer_name") @db.VarChar(180)
+  signerDocument String? @map("signer_document") @db.VarChar(40)
+  signerEmail    String? @map("signer_email") @db.VarChar(180)
+  /// Evidência de onde veio o aceite. Não identifica ninguém sozinha, e é o que
+  /// sobra para contestar uma assinatura meses depois.
+  signedIp        String? @map("signed_ip") @db.VarChar(64)
+  signedUserAgent String? @map("signed_user_agent") @db.VarChar(400)
+
+  /// A imagem da assinatura, no storage — como as assinaturas profissionais.
+  signatureFileId String? @map("signature_file_id") @db.Uuid
+  signatureSha256 String? @map("signature_sha256") @db.Char(64)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan          PmocPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  createdBy     User         @relation("PmocSignatureLinkCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  signatureFile StorageFile? @relation(fields: [signatureFileId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, planId, createdAt])
+  @@index([planId, signedAt])
+  @@map("pmoc_plan_signature_links")
+}
+
 model PmocPlanUnit {
   id        String   @id @default(uuid(7)) @db.Uuid
   planId    String   @map("plan_id") @db.Uuid

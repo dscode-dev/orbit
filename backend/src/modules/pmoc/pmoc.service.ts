@@ -22,6 +22,13 @@
  * seu lugar.
  */
 import { Inject, Injectable } from '@nestjs/common';
+import { createHash, randomBytes } from 'node:crypto';
+import { HashHelper } from '../../helpers';
+import {
+  MOTIVO_DO_ESTADO,
+  validadeDoLink,
+  type EstadoDoLink,
+} from './pmoc-signature-link';
 import {
   ConflictException,
   EntityNotFoundException,
@@ -257,6 +264,223 @@ export class PmocService {
        contrato — a mesma dependência que o orçamento usa, pelo mesmo motivo. */
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
   ) {}
+
+  /* ---------------------------------------------------------------- */
+  /* Link de assinatura do contrato                                    */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Gera o link para o contratante ler e assinar o contrato.
+   *
+   * ## O segredo existe uma vez
+   *
+   * O banco guarda só o SHA-256. O token em claro volta nesta resposta e nunca mais:
+   * é por isso que a tela mostra o endereço para copiar em vez de oferecer "ver o
+   * link de novo" — oferecer isso exigiria guardar o segredo, que é exatamente o que
+   * não se faz.
+   *
+   * ## Gerar um revoga o anterior
+   *
+   * Pedido do produto, e a razão é de segurança: um link antigo circulando por
+   * e-mail continuaria abrindo o contrato depois de o dono ter decidido gerar outro.
+   * A revogação e a criação estão na mesma transação, e o índice parcial é o que
+   * garante a regra quando duas telas pedem link ao mesmo tempo.
+   *
+   * Links já assinados não são tocados: são a prova do que o contratante assinou.
+   */
+  async createSignatureLink(id: string, actor: PmocActor) {
+    const plan = await this.plan(id, actor);
+    if (plan._count.coverages === 0) {
+      throw new ConflictException(
+        'A PMOC plan needs at least one covered equipment before it can be signed',
+      );
+    }
+
+    const token = randomBytes(48).toString('base64url');
+    const link = await this.repository.createSignatureLink({
+      organizationId: actor.organizationId,
+      planId: plan.id,
+      tokenHash: HashHelper.sha256(token),
+      expiresAt: validadeDoLink(),
+      createdById: actor.actorId,
+    });
+
+    return {
+      token,
+      expiresAt: link.expiresAt.toISOString(),
+      planCode: plan.code,
+    };
+  }
+
+  /**
+   * O contrato que o token abre, para a página pública.
+   *
+   * Token inexistente e token recusado respondem diferente de propósito: inexistente
+   * é 404 — não há contrato nenhum ali —, e recusado é o contrato existindo com um
+   * motivo que a página mostra. "Link inválido" para os dois mandaria o contratante
+   * perguntar ao dono o que ele mesmo podia ler na tela.
+   */
+  async publicContract(token: string) {
+    const linha = await this.repository.signatureLinkByToken(
+      HashHelper.sha256(token),
+    );
+    if (!linha) throw new EntityNotFoundException('PmocContract');
+
+    const estado = linha.state as EstadoDoLink;
+    return {
+      state: estado,
+      reason: MOTIVO_DO_ESTADO[estado] || null,
+      plan: {
+        code: linha.plan_code,
+        name: linha.plan_name,
+        startsOn: toDateOnly(linha.starts_on),
+        endsOn: linha.ends_on ? toDateOnly(linha.ends_on) : null,
+        frequency: frequencyLabel({
+          amount: linha.frequency_amount,
+          unit: linha.frequency_unit as FrequencyUnit,
+        }),
+        coveredEquipment: linha.covered_equipment,
+        technicalResponsible: linha.technical_responsible,
+      },
+      customer: { name: linha.customer_name },
+      emitter: { name: linha.emitter_name },
+      signature: linha.signed_at
+        ? {
+            signerName: linha.signer_name,
+            signedAt: linha.signed_at.toISOString(),
+          }
+        : null,
+      expiresAt: linha.expires_at.toISOString(),
+    };
+  }
+
+  /**
+   * Registra a assinatura do contratante.
+   *
+   * ## O arquivo sobe antes de ser registrado
+   *
+   * Primeiro o objeto vai para o bucket, depois a função grava a linha. Registrar
+   * antes de subir deixaria o contrato apontando para um objeto que não existe — e
+   * essa é a falha que ninguém percebe até o fiscal pedir o papel.
+   *
+   * A ordem inversa tem o próprio custo: subindo e falhando o registro, sobra um
+   * objeto órfão no bucket. É o lado certo de errar — bytes sem referência custam
+   * armazenamento; referência sem bytes custa o documento.
+   *
+   * ## A recusa não é erro
+   *
+   * Link expirado, substituído ou já assinado devolvem o estado, e a página mostra a
+   * frase. Lançar exceção para "já assinado" transformaria o fim feliz em falha.
+   */
+  async signPublicContract(
+    token: string,
+    input: {
+      signerName: string;
+      signerDocument?: string;
+      signerEmail?: string;
+      signature: Buffer;
+      mimeType: string;
+      ip?: string;
+      userAgent?: string;
+    },
+  ) {
+    const tokenHash = HashHelper.sha256(token);
+    const linha = await this.repository.signatureLinkByToken(tokenHash);
+    if (!linha) throw new EntityNotFoundException('PmocContract');
+
+    const estadoAtual = linha.state as EstadoDoLink;
+    if (estadoAtual !== 'VALIDO') {
+      return { state: estadoAtual, reason: MOTIVO_DO_ESTADO[estadoAtual] };
+    }
+
+    const sha256 = createHash('sha256').update(input.signature).digest('hex');
+    /* A chave carrega o hash do token, e não o id do plano: ela não pode revelar
+       qual contrato é, porque o bucket é compartilhado pela organização. */
+    const objectKey = `pmoc-contract-signatures/${tokenHash}.png`;
+    const bucket = this.storage.defaultBucket;
+
+    await this.storage.put({
+      bucket,
+      objectKey,
+      body: input.signature,
+      mimeType: input.mimeType,
+      metadata: { source: 'PMOC_CONTRACT_SIGNATURE' },
+    });
+
+    const resultado = await this.repository.signByToken({
+      tokenHash,
+      signerName: input.signerName,
+      signerDocument: input.signerDocument,
+      signerEmail: input.signerEmail,
+      ip: input.ip,
+      userAgent: input.userAgent,
+      bucket,
+      objectKey,
+      mimeType: input.mimeType,
+      sizeBytes: input.signature.byteLength,
+      sha256,
+    });
+
+    const estado = resultado.state as EstadoDoLink;
+    return {
+      state: estado,
+      reason: resultado.signed ? null : (MOTIVO_DO_ESTADO[estado] ?? null),
+    };
+  }
+
+  /**
+   * A assinatura que o contratante deixou pelo link público.
+   *
+   * A mais recente, quando há mais de uma: gerar um link novo depois de uma
+   * assinatura é refazer o aceite, e o contrato imprime o último.
+   *
+   * Falha ao ler não derruba a emissão, pela mesma razão da assinatura do
+   * responsável: o contrato é o papel que o fiscal pede, e não pode deixar de existir
+   * por causa de um arquivo de imagem.
+   */
+  private async contratanteAssinatura(
+    planId: string,
+    organizationId: string,
+    timezone: string,
+  ): Promise<{
+    bytes?: Buffer;
+    mimeType?: string;
+    signerName?: string;
+    signedAtLabel?: string;
+  }> {
+    const coletada = await this.repository.latestSignature(
+      planId,
+      organizationId,
+    );
+    if (!coletada?.signatureFile || !coletada.signerName) return {};
+
+    const assinadoEm = coletada.signedAt
+      ? new Intl.DateTimeFormat('pt-BR', {
+          dateStyle: 'short',
+          timeStyle: 'short',
+          timeZone: timezone,
+        }).format(coletada.signedAt)
+      : undefined;
+
+    try {
+      return {
+        bytes: await this.storage.get({
+          bucket: coletada.signatureFile.bucket,
+          objectKey: coletada.signatureFile.objectKey,
+        }),
+        mimeType: coletada.signatureFile.mimeType,
+        signerName: coletada.signerName,
+        signedAtLabel: assinadoEm ? `Assinado em ${assinadoEm}` : undefined,
+      };
+    } catch {
+      /* Sem os bytes, ainda vale dizer quem assinou e quando: é informação que o
+         documento tem e que a linha em branco perderia. */
+      return {
+        signerName: coletada.signerName,
+        signedAtLabel: assinadoEm ? `Assinado em ${assinadoEm}` : undefined,
+      };
+    }
+  }
 
   /**
    * A assinatura ativa do Responsável Técnico, para o contrato.
@@ -810,6 +1034,11 @@ export class PmocService {
     const assinaturaDoResponsavel = await this.responsavelTecnicoAssinatura(
       plan.technicalResponsible,
     );
+    const assinaturaDoContratante = await this.contratanteAssinatura(
+      id,
+      actor.organizationId,
+      fuso,
+    );
 
     const bytes = await this.planDocument.render({
       timezone: fuso,
@@ -858,6 +1087,12 @@ export class PmocService {
             plan.customer?.documentType,
             plan.customer?.documentNumber,
           ),
+          /* A assinatura coletada pelo link público, quando houve uma. Sem ela a
+             linha sai em branco para assinar à mão, como sempre funcionou. */
+          signature: assinaturaDoContratante.bytes,
+          signatureMimeType: assinaturaDoContratante.mimeType,
+          signedBy: assinaturaDoContratante.signerName,
+          signedAtLabel: assinaturaDoContratante.signedAtLabel,
         },
         equipment: coverages.map((coverage) => ({
           name: coverage.asset?.name ?? undefined,

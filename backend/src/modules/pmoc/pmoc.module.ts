@@ -16,6 +16,7 @@ import { SubscriptionPlansModule } from '../subscription-plans/subscription-plan
 import { WorkforceModule } from '../workforce/workforce.module';
 import { ArtifactRenderingModule } from '../artifact-rendering/artifact-rendering.module';
 import { PmocDueProcessor } from './pmoc-due.processor';
+import { PmocPublicContractController } from './pmoc-public-contract.controller';
 import { PmocController } from './pmoc.controller';
 import { PmocMapper } from './pmoc.mapper';
 import { PmocRepository } from './pmoc.repository';
@@ -28,7 +29,7 @@ import { PmocService } from './pmoc.service';
     WorkforceModule,
     ArtifactRenderingModule,
   ],
-  controllers: [PmocController],
+  controllers: [PmocController, PmocPublicContractController],
   providers: [PmocRepository, PmocMapper, PmocService, PmocDueProcessor],
   exports: [PmocService, PmocRepository],
 })

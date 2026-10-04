@@ -581,3 +581,51 @@ export class UpdatePmocUnitDto extends PartialType(CreatePmocUnitDto) {
   @IsBoolean()
   isActive?: boolean;
 }
+
+/* ------------------------------------------------------------------ */
+/* Assinatura pública do contrato                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O que o contratante declara ao assinar.
+ *
+ * Nome é obrigatório porque é ele que sai no documento ao lado da assinatura — uma
+ * imagem sem nome não identifica ninguém. Documento e e-mail são opcionais: nem todo
+ * contratante é pessoa jurídica com CNPJ à mão, e travar o aceite nisso impediria a
+ * assinatura de acontecer, que é o que o recurso existe para conseguir.
+ */
+export class SignPmocContractDto {
+  @ApiProperty()
+  @Transform(trim)
+  @IsString()
+  @MinLength(3)
+  @MaxLength(180)
+  signerName!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(40)
+  signerDocument?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(180)
+  signerEmail?: string;
+
+  /**
+   * A assinatura em PNG, base64 — sem o prefixo `data:`.
+   *
+   * O limite de tamanho é o do corpo: 1MB no `main.ts`. Uma assinatura desenhada à
+   * mão pesa alguns quilobytes, e o teto existe para o caso de alguém mandar uma
+   * foto no lugar do traço.
+   */
+  @ApiProperty()
+  @IsString()
+  @MinLength(64)
+  @MaxLength(700_000)
+  signatureBase64!: string;
+}

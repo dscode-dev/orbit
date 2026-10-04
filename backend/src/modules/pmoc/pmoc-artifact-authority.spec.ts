@@ -44,6 +44,8 @@ function bancada(responsibleFieldTechnicianId: string | null) {
     rls as never,
     {} as never,
     { publish: jest.fn() } as never,
+    /* Prisma sem inquilino: só o acesso por token o usa. */
+    undefined as never,
   );
   return { repository, tx };
 }
