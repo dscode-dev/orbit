@@ -53,6 +53,7 @@ import {
   useCreatePmocPlan,
   usePmocCodeSuggestion,
   usePmocPreview,
+  usePmocPlanActivation,
   usePmocPlanNameOptions,
 } from "@/hooks/pmoc/use-pmoc";
 import {
@@ -142,6 +143,17 @@ export function PmocPlanWizard({
   /** O que está marcado no seletor — um rótulo do catálogo, ou "Outros". */
   const [nomeEscolhido, setNomeEscolhido] = useState("");
   const create = useCreatePmocPlan();
+  /* O plano nasce ativo: a revisão é o momento de conferir, e depois dela rascunho
+     é um estado que ninguém pediu. */
+  const activation = usePmocPlanActivation();
+  /**
+   * O plano que acabou de ser criado, quando a ativação dele falhou.
+   *
+   * Enquanto está preenchido, o rodapé oferece **ativar de novo** em vez de criar:
+   * o plano já existe, e um segundo "Criar PMOC" produziria um duplicado para
+   * resolver um erro que não é de criação.
+   */
+  const [criadoSemAtivar, setCriadoSemAtivar] = useState<string | null>(null);
   const preview = usePmocPreview();
 
   const [etapa, setEtapa] = useState(0);
@@ -373,10 +385,26 @@ export function PmocPlanWizard({
     /* Volta ao padrão: `null` é "ainda não houve escolha", e é o que faz o dono
        ser pré-selecionado de novo no próximo plano. */
     setRtEscolhido(null);
+    setCriadoSemAtivar(null);
     onOpenChange(false);
   };
 
   /** Só a última etapa cria. Avançar de etapa nunca escreve nada. */
+  /**
+   * Ativa o plano e só fecha dando certo.
+   *
+   * Falhando, o diálogo **fica aberto** com o erro: um plano em rascunho na listagem,
+   * sem explicação, é o sintoma que não se diagnostica — a pessoa configurou tudo,
+   * clicou em criar, e o PMOC não gera ciclo nem entra na agenda. Aqui ela lê o
+   * motivo e tenta de novo sem recriar nada.
+   */
+  const ativar = (planoId: string) => {
+    activation.mutate(planoId, {
+      onSuccess: fechar,
+      onError: () => setCriadoSemAtivar(planoId),
+    });
+  };
+
   const criar = () => {
     if (!businessUnitId || !projecao) return;
     create.mutate(
@@ -400,7 +428,23 @@ export function PmocPlanWizard({
         assetIds: selecionados.map((asset) => asset.id),
         ...(unidades.length > 0 ? { unitIds: [...unidades] } : {}),
       },
-      { onSuccess: fechar },
+      {
+        /**
+         * Criar e ativar, nessa ordem.
+         *
+         * O plano nascia em rascunho e ficava lá: o wizard coleta tudo — cliente,
+         * equipamentos, programação, responsáveis, unidades — e termina numa revisão,
+         * que **é** o momento de conferir antes de o plano produzir trabalho. Depois
+         * dela, rascunho é um estado que ninguém pediu e que nada na tela mandava
+         * sair: o PMOC não gerava ciclo, não entrava na agenda e não avisava por quê.
+         *
+         * Ativar não é trocar um campo: abre a primeira execução, cria o evento na
+         * agenda e agenda as checagens de vencimento. Por isso é uma chamada própria,
+         * e por isso ela vem **depois** — uma falha aqui não desfaz o plano, que
+         * continua existindo em rascunho com a ação "Ativar" na listagem.
+         */
+        onSuccess: (plano) => ativar(plano.id),
+      },
     );
   };
 
@@ -906,17 +950,29 @@ export function PmocPlanWizard({
         {/* Junto do rodapé e sem encolher: o erro de criação é o que explica por
             que o botão não terminou o trabalho, e precisa estar visível com ele. */}
         <div className="shrink-0">
-          <MutationError error={create.error ?? preview.error} />
+          <MutationError
+            error={create.error ?? activation.error ?? preview.error}
+          />
         </div>
 
         <DialogFooter className="shrink-0 gap-2 sm:justify-between">
+          {/*
+            Criado o plano, não há mais para onde voltar.
+
+            Enquanto a ativação falha o plano **já existe**, e deixar "Voltar" ali
+            convidaria a editar a configuração sem que a edição fosse a lugar
+            nenhum — o que o botão aplicaria era criar outro plano. Então sobra
+            fechar, e o plano fica na listagem com a ação "Ativar".
+          */}
           <Button
             variant="ghost"
             onClick={() =>
-              etapa === 0 ? fechar() : setEtapa((atual) => atual - 1)
+              criadoSemAtivar || etapa === 0
+                ? fechar()
+                : setEtapa((atual) => atual - 1)
             }
           >
-            {etapa === 0 ? "Cancelar" : "Voltar"}
+            {criadoSemAtivar ? "Fechar" : etapa === 0 ? "Cancelar" : "Voltar"}
           </Button>
 
           {etapa < ETAPAS.length - 1 ? (
@@ -924,8 +980,23 @@ export function PmocPlanWizard({
               Continuar
             </Button>
           ) : (
-            <Button disabled={!projecao || create.isPending} onClick={criar}>
-              {create.isPending ? "Criando…" : "Criar PMOC"}
+            <Button
+              disabled={
+                (!projecao && !criadoSemAtivar) ||
+                create.isPending ||
+                activation.isPending
+              }
+              onClick={() =>
+                criadoSemAtivar ? ativar(criadoSemAtivar) : criar()
+              }
+            >
+              {create.isPending
+                ? "Criando…"
+                : activation.isPending
+                  ? "Ativando…"
+                  : criadoSemAtivar
+                    ? "Ativar de novo"
+                    : "Criar PMOC"}
             </Button>
           )}
         </DialogFooter>

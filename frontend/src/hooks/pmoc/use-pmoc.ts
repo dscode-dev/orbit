@@ -179,6 +179,22 @@ export function useActivatePmocPlan(id: string) {
   });
 }
 
+/**
+ * Ativa um plano cujo id só existe depois de criá-lo.
+ *
+ * O par de cima prende o id na chamada do hook, que serve para um plano já na tela.
+ * O wizard precisa do contrário: ele cria e ativa na sequência, e o id chega no
+ * `onSuccess` da criação — depois de qualquer hook ter sido montado.
+ *
+ * Invalida o módulo inteiro em vez das chaves de um plano: na criação não há cache
+ * daquele id para invalidar, e o que precisa mudar é a listagem.
+ */
+export function usePmocPlanActivation() {
+  return useApiMutation((id: string) => pmocService.activate(id), {
+    invalidate: [queryKeys.module("pmoc")],
+  });
+}
+
 export function useSuspendPmocPlan(id: string) {
   return useApiMutation(() => pmocService.suspend(id), {
     invalidate: transitionKeys(id),
