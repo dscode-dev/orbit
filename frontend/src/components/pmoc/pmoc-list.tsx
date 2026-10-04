@@ -31,6 +31,8 @@ import {
 import { usePmocPlans } from "@/hooks/pmoc/use-pmoc";
 import { formatDate } from "@/lib/formatters";
 import { ROUTES } from "@/lib/routes";
+import { PROFESSIONAL_ROLES } from "@/registry";
+import { PmocPlanRowActions } from "./pmoc-plan-row-actions";
 import { PLAN_STATUS } from "@/registry";
 import { useSession } from "@/providers/session-provider";
 import type { PmocPlanQuery } from "@/types/pmoc";
@@ -136,9 +138,12 @@ export function PmocList({ onCreate }: { onCreate: () => void }) {
                   <TableHead>Cliente</TableHead>
                   <TableHead>Periodicidade</TableHead>
                   <TableHead>Equipamentos</TableHead>
-                  <TableHead>Responsável Técnico</TableHead>
+                  <TableHead>
+                    {PROFESSIONAL_ROLES.TECHNICAL_RESPONSIBLE.label}
+                  </TableHead>
                   <TableHead>Próximo vencimento</TableHead>
                   <TableHead>Situação</TableHead>
+                  <TableHead className="w-24 text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -164,25 +169,52 @@ export function PmocList({ onCreate }: { onCreate: () => void }) {
                     <TableCell className="tabular-nums">
                       {plan.coveredEquipment}
                     </TableCell>
-                    <TableCell className="max-w-[12rem] truncate text-sm">
-                      {plan.technician?.displayName ?? (
-                        <span className="text-muted-foreground">
-                          Não definido
+                    {/*
+                      A coluna mostrava `technician` — o Técnico Operacional — sob o
+                      título "Responsável Técnico". Dois papéis, um com o nome do
+                      outro, e num PMOC a diferença é concreta: um executa no
+                      cliente, o outro responde pelo contrato e assina o documento.
+
+                      Agora mostra o Responsável Técnico, com quem executa embaixo:
+                      a listagem de contrato pergunta primeiro quem responde por ele.
+                    */}
+                    <TableCell className="max-w-[12rem] text-sm">
+                      <span className="block truncate">
+                        {plan.technicalResponsible?.displayName ?? (
+                          <span className="text-muted-foreground">
+                            Não definido
+                          </span>
+                        )}
+                      </span>
+                      {plan.technician ? (
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {`Campo: ${plan.technician.displayName}`}
                         </span>
-                      )}
+                      ) : null}
                     </TableCell>
+                    {/*
+                      Sem data, só o selo.
+
+                      A célula imprimia um travessão **e** o selo "Sem vencimento":
+                      duas formas de dizer a mesma ausência, uma delas um traço largo
+                      que parecia defeito de renderização. O selo já é a resposta; a
+                      data só aparece quando existe.
+                    */}
                     <TableCell>
                       <div className="flex flex-col gap-1">
-                        <span className="text-sm">
-                          {plan.compliance.nextDueOn
-                            ? formatDate(plan.compliance.nextDueOn)
-                            : "—"}
-                        </span>
+                        {plan.compliance.nextDueOn ? (
+                          <span className="text-sm tabular-nums">
+                            {formatDate(plan.compliance.nextDueOn)}
+                          </span>
+                        ) : null}
                         <ComplianceBadge status={plan.compliance.status} />
                       </div>
                     </TableCell>
                     <TableCell>
                       <PlanStatusBadge status={plan.status} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <PmocPlanRowActions plan={plan} />
                     </TableCell>
                   </TableRow>
                 ))}

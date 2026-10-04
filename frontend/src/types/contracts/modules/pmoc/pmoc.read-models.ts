@@ -143,8 +143,25 @@ export interface PmocPlanSummaryReadModel {
   compliance: PmocComplianceReadModel;
   businessUnit: { id: string; name: string };
   customer: { id: string; name: string };
+  /** Quem executa no cliente — o Técnico Operacional. */
   technician: { id: string; displayName: string } | null;
+  /**
+   * Quem responde tecnicamente pelo contrato e assina o documento.
+   *
+   * No resumo porque é a pergunta que a listagem de PMOC faz: a coluna mostrava
+   * `technician` sob o título "Responsável Técnico" — dois papéis, um com o nome do
+   * outro.
+   */
+  technicalResponsible: { id: string; displayName: string } | null;
   coveredEquipment: number;
+  /**
+   * Transições que **este** plano aceita agora.
+   *
+   * No resumo porque a listagem também age sobre o plano. Deduzir
+   * `status === 'DRAFT' → pode ativar` reconstruiria no navegador a máquina de
+   * estados que o servidor resolve.
+   */
+  allowedTransitions: readonly string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -184,7 +201,6 @@ export interface PmocUnitReadModel extends PmocPlanUnitReadModel {
 
 export interface PmocPlanReadModel extends PmocPlanSummaryReadModel {
   notes: string | null;
-  technicalResponsible: { id: string; displayName: string } | null;
   configuration: {
     serviceLocation: unknown;
     scope: unknown;
@@ -202,8 +218,6 @@ export interface PmocPlanReadModel extends PmocPlanSummaryReadModel {
   currentExecution: PmocExecutionReadModel | null;
   /** As últimas execuções, da mais recente para a mais antiga. */
   recentExecutions: readonly PmocExecutionReadModel[];
-  /** Transições que **este** plano aceita agora. */
-  allowedTransitions: readonly string[];
 }
 
 /**

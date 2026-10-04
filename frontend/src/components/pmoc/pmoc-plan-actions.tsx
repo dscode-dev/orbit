@@ -55,7 +55,7 @@ import { PmocPlanEditDialog } from "./pmoc-plan-edit.dialog";
  * O efeito descrito é o que o domínio garante — nada além. "Suspender" não
  * promete pausar a agenda nem avisar ninguém, porque o contrato não diz isso.
  */
-const TRANSITIONS: Readonly<
+export const PLAN_TRANSITION_PROMPTS: Readonly<
   Record<
     string,
     { label: string; title: string; body: string; destructive?: boolean }
@@ -94,13 +94,15 @@ export function PmocPlanActions({ plan }: { plan: PmocPlan }) {
 
   /** Só o que o servidor publicou como transição possível agora. */
   const transitions = canManage
-    ? plan.allowedTransitions.filter((status) => status in TRANSITIONS)
+    ? plan.allowedTransitions.filter(
+        (status) => status in PLAN_TRANSITION_PROMPTS,
+      )
     : [];
 
   const mutationFor = (status: string) =>
     status === "ACTIVE" ? activate : status === "SUSPENDED" ? suspend : cancel;
 
-  const current = pending ? TRANSITIONS[pending] : null;
+  const current = pending ? PLAN_TRANSITION_PROMPTS[pending] : null;
   const mutation = pending ? mutationFor(pending) : null;
 
   return (
@@ -147,12 +149,12 @@ export function PmocPlanActions({ plan }: { plan: PmocPlan }) {
                   key={status}
                   onSelect={() => setPending(status)}
                   className={
-                    TRANSITIONS[status]?.destructive
+                    PLAN_TRANSITION_PROMPTS[status]?.destructive
                       ? "text-destructive focus:text-destructive"
                       : undefined
                   }
                 >
-                  {TRANSITIONS[status]?.label}
+                  {PLAN_TRANSITION_PROMPTS[status]?.label}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>

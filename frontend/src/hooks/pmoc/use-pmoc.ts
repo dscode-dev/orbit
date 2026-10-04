@@ -56,11 +56,19 @@ export function usePmocPlans(query: PmocPlanQuery) {
   );
 }
 
+/**
+ * Um plano, pelo id.
+ *
+ * `enabled` pelo id porque há dois chamadores que o passam vazio: a tela de detalhe
+ * enquanto o parâmetro da rota não resolveu, e as ações da linha, que só buscam o
+ * detalhe depois do clique em Editar. Sem a porta, os dois pediriam `/pmoc/plans/` e
+ * receberiam 404 — um erro de tela para uma pergunta que ninguém fez.
+ */
 export function usePmocPlan(id: string) {
   return useApiQuery(
     pmocService.keys.plan(id),
     ({ signal }) => pmocService.get(id, { signal }),
-    PMOC_REFRESH.plan,
+    { ...PMOC_REFRESH.plan, enabled: Boolean(id) },
   );
 }
 

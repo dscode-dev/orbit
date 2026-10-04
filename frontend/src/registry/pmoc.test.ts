@@ -147,11 +147,45 @@ describe("apresentação do ciclo de vida", () => {
     expect(planStatus("CANCELLED").label).toBe("Cancelado");
   });
 
-  it("suspensão é aviso, cancelamento é fim — e a aparência diz isso", () => {
-    expect(planStatus("SUSPENDED").tone).toBe("warning");
+  /**
+   * A cor responde "este plano está trabalhando?".
+   *
+   * Cancelado era `neutral`, com o argumento de que é histórico e não erro — nada a
+   * corrigir, nada a alarmar. O argumento continua verdadeiro, e perdeu: com ele,
+   * três dos cinco estados eram cinza, e na coluna Situação não se distinguia um
+   * contrato morto de um rascunho que nunca começou. A cor ali não é alarme, é
+   * estado — e os dois casos pedem decisões opostas.
+   *
+   * Atraso continua sendo o selo de conformidade, que é outro chip na mesma linha.
+   */
+  it("cada estado do contrato tem o tom do que ele é", () => {
     expect(planStatus("ACTIVE").tone).toBe("success");
-    /** Cancelado é histórico, não erro: nada a corrigir, nada a alarmar. */
-    expect(planStatus("CANCELLED").tone).toBe("neutral");
+    expect(planStatus("SUSPENDED").tone).toBe("warning");
+    expect(planStatus("CANCELLED").tone).toBe("critical");
+  });
+
+  /**
+   * Rascunho e Encerrado ficam quietos.
+   *
+   * Um é "ainda não", o outro é "já foi"; nenhum pede atenção, e pintá-los gastaria
+   * cor onde não há decisão a tomar.
+   */
+  it("os estados sem decisão a tomar não gastam cor", () => {
+    expect(planStatus("DRAFT").tone).toBe("neutral");
+    expect(planStatus("EXPIRED").tone).toBe("neutral");
+  });
+
+  /**
+   * Nenhum tom serve a dois estados que pedem decisões diferentes.
+   *
+   * É a propriedade que faz a coluna ser legível de longe — e a que reprova se
+   * alguém reaproximar os tons.
+   */
+  it("ativo, suspenso e cancelado não compartilham tom", () => {
+    const tons = ["ACTIVE", "SUSPENDED", "CANCELLED"].map(
+      (status) => planStatus(status).tone,
+    );
+    expect(new Set(tons).size).toBe(3);
   });
 
   it("o plano suspenso descreve o impacto que o domínio garante", () => {

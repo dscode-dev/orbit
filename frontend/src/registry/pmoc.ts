@@ -44,6 +44,20 @@ export interface PmocPresentation {
  *
  * Um plano suspenso continua existindo e continua com histórico; o que ele
  * deixa de fazer é gerar ciclo novo. Por isso "Suspenso" é aviso, não erro.
+ *
+ * ## O que o tom responde
+ *
+ * "Este plano está trabalhando?" — e é essa pergunta que a cor responde na coluna
+ * Situação, de longe:
+ *
+ * - **Ativo** verde: gerando ciclo.
+ * - **Suspenso** âmbar: parado, e volta.
+ * - **Cancelado** vermelho: parado, e não volta. Vermelho aqui não é atraso — atraso
+ *   é o selo de conformidade, que é outro chip na mesma linha. É encerramento por
+ *   decisão, e distingui-lo de "Encerrado" importa: um é escolha, o outro é prazo.
+ * - **Rascunho** e **Encerrado** cinza: não estão trabalhando e nada há a fazer. Um é
+ *   "ainda não", o outro é "já foi"; nenhum dos dois pede atenção, e pintá-los
+ *   gastaria cor onde não há decisão a tomar.
  */
 export const PLAN_STATUS: Readonly<Record<PmocPlanStatus, PmocPresentation>> = {
   DRAFT: {
@@ -68,7 +82,7 @@ export const PLAN_STATUS: Readonly<Record<PmocPlanStatus, PmocPresentation>> = {
   },
   CANCELLED: {
     label: "Cancelado",
-    tone: "neutral",
+    tone: "critical",
     description: "Encerrado definitivamente. Os ciclos cumpridos permanecem.",
   },
 };

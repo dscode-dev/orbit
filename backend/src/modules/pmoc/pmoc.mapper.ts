@@ -68,6 +68,10 @@ export class PmocMapper {
             displayName: source.technician.displayName,
           }
         : null,
+      technicalResponsible: source.technicalResponsible,
+      /* Derivado do status, e não guardado: a máquina de estados é do domínio, e
+         publicá-la pronta evita a listagem reconstruir a regra. */
+      allowedTransitions: PLAN_TRANSITIONS[source.status as PlanStatus] ?? [],
       coveredEquipment: source._count.coverages,
       createdAt: source.createdAt.toISOString(),
       updatedAt: source.updatedAt.toISOString(),
@@ -87,7 +91,6 @@ export class PmocMapper {
     return {
       ...this.summary(source, now),
       notes: source.notes,
-      technicalResponsible: source.technicalResponsible,
       configuration: {
         serviceLocation: source.serviceLocation,
         scope: source.scope,
@@ -110,7 +113,6 @@ export class PmocMapper {
         this.execution(execution),
       ),
       /** O que **este** plano aceita agora — a máquina de estados, publicada. */
-      allowedTransitions: PLAN_TRANSITIONS[source.status as PlanStatus] ?? [],
     };
   }
 
