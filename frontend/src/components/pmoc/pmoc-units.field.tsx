@@ -114,9 +114,15 @@ export function PmocUnitsField({
         </Button>
       </div>
 
-      {/* Altura limitada: o catálogo cresce, e o diálogo não deve crescer com
-          ele até empurrar os botões para fora da tela. */}
-      <ul className="max-h-72 divide-y overflow-y-auto rounded-lg border">
+      {/*
+        Sem teto próprio de altura.
+
+        Havia um `max-h-72` aqui porque o diálogo crescia com o catálogo até empurrar
+        os botões para fora da tela. O diálogo passou a ter teto e um único corpo que
+        rola, então este teto virou um segundo scroll dentro do primeiro — duas
+        barras, e a de dentro é a que ninguém encontra.
+      */}
+      <ul className="divide-y rounded-lg border">
         {lista.map((unidade) => (
           <li key={unidade.id}>
             <label className="flex cursor-pointer items-start gap-3 p-3">

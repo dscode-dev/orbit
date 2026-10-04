@@ -368,7 +368,22 @@ export function PmocPlanWizard({
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : fechar())}>
       <DialogContent
-        className="max-w-2xl"
+        /*
+          Cresce na horizontal, e nunca passa da tela na vertical.
+
+          O diálogo base é uma grade sem teto de altura: a revisão ficou mais
+          informativa, a caixa cresceu com ela e o rodapé saiu da tela — ficava
+          impossível concluir o PMOC depois de configurá-lo todo.
+
+          `max-h-[90dvh]` com coluna flex resolve: cabeçalho e rodapé não encolhem,
+          e a sobra fica para o corpo da etapa, que é o único a rolar. `dvh` e não
+          `vh` porque no celular a barra do navegador muda a altura visível, e `vh`
+          mede a maior — a conta erra exatamente na direção que esconde o rodapé.
+
+          A largura sobe para `4xl`: a revisão tem informação que cabe em duas
+          colunas, e usar a horizontal é o que a tira da vertical.
+        */
+        className="flex max-h-[90dvh] max-w-4xl flex-col gap-4"
         /*
           Clicar fora não fecha, e `Esc` também não.
 
@@ -381,14 +396,14 @@ export function PmocPlanWizard({
         onInteractOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => event.preventDefault()}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>Novo PMOC</DialogTitle>
           <DialogDescription>
             {`Etapa ${etapa + 1} de ${ETAPAS.length} — ${ETAPAS[etapa]}`}
           </DialogDescription>
         </DialogHeader>
 
-        <ol className="flex flex-wrap gap-2" aria-label="Etapas">
+        <ol className="flex shrink-0 flex-wrap gap-2" aria-label="Etapas">
           {ETAPAS.map((rotulo, indice) => (
             <li
               key={rotulo}
@@ -406,7 +421,14 @@ export function PmocPlanWizard({
           ))}
         </ol>
 
-        <div className="min-h-[18rem] space-y-4 py-2">
+        {/*
+          O único que rola.
+
+          `min-h-0` é o que faz o `overflow` valer dentro de uma coluna flex: sem
+          ele o item adota a altura do conteúdo e volta a empurrar o rodapé, que é
+          o bug que esta linha existe para não deixar voltar.
+        */}
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-2 pr-1">
           {etapa === 0 && (
             <>
               <div className="space-y-2">
@@ -534,7 +556,12 @@ export function PmocPlanWizard({
                 }}
               >
                 {(linhas) => (
-                  <div className="max-h-72 space-y-1 overflow-y-auto">
+                  <div
+                    /* Sem teto próprio de altura: o corpo da etapa já é o único
+                       que rola, e um segundo scroll aqui dentro é o que ninguém
+                       encontra. */
+                    className="space-y-1"
+                  >
                     <label className="flex items-center gap-3 border-b px-1 py-2 text-sm font-medium">
                       <Checkbox
                         checked={paginaInteiraMarcada}
@@ -767,9 +794,13 @@ export function PmocPlanWizard({
           )}
         </div>
 
-        <MutationError error={create.error ?? preview.error} />
+        {/* Junto do rodapé e sem encolher: o erro de criação é o que explica por
+            que o botão não terminou o trabalho, e precisa estar visível com ele. */}
+        <div className="shrink-0">
+          <MutationError error={create.error ?? preview.error} />
+        </div>
 
-        <DialogFooter className="gap-2 sm:justify-between">
+        <DialogFooter className="shrink-0 gap-2 sm:justify-between">
           <Button
             variant="ghost"
             onClick={() =>
@@ -849,12 +880,24 @@ function RevisaoDoPlano({
   const avisos = avisosDaRevisao(projecao, unidadesMarcadas);
 
   return (
-    <div className="space-y-5">
+    /*
+      Duas colunas a partir de `lg`, e uma empilhada abaixo disso.
+
+      A revisão inteira numa coluna só ficava mais alta que a tela e empurrava os
+      botões para fora. O conteúdo são blocos independentes — programação, datas,
+      responsáveis —, e blocos independentes é exatamente o que cabe em colunas: o
+      diálogo cresce na horizontal, que é a direção que sobra.
+
+      `items-start` porque as colunas têm alturas diferentes e nenhuma precisa
+      esticar até a altura da outra; `lg:col-span-2` nos blocos que são cabeçalho ou
+      aviso, porque eles falam do conjunto e não de uma coluna.
+    */
+    <div className="grid items-start gap-5 lg:grid-cols-2">
       {/*
         Identificação primeiro: é o cabeçalho do que está sendo criado, e responde
         "é este cliente mesmo?" antes de qualquer número.
       */}
-      <header className="space-y-1 rounded-lg border bg-surface-strong/40 p-4">
+      <header className="space-y-1 rounded-lg border bg-surface-strong/40 p-4 lg:col-span-2">
         <p className="text-sm text-muted-foreground">{clienteNome}</p>
         <h3 className="font-display text-lg font-semibold">{planoNome}</h3>
         <p className="font-mono text-xs text-muted-foreground">
@@ -952,7 +995,7 @@ function RevisaoDoPlano({
         serve de nada.
       */}
       {avisos.length > 0 ? (
-        <ul className="space-y-1.5 rounded-lg border border-warning/40 bg-warning/5 p-3">
+        <ul className="space-y-1.5 rounded-lg border border-warning/40 bg-warning/5 p-3 lg:col-span-2">
           {avisos.map((aviso) => (
             <li key={aviso} className="text-xs text-warning">
               {aviso}
@@ -961,7 +1004,7 @@ function RevisaoDoPlano({
         </ul>
       ) : null}
 
-      <details className="rounded-lg border">
+      <details className="rounded-lg border lg:col-span-2">
         <summary className="cursor-pointer p-3 text-sm font-medium">
           {`Atendimentos por equipamento (${projecao.matrix.length})`}
         </summary>
