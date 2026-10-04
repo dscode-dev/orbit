@@ -55,9 +55,17 @@ import {
   usePmocPreview,
   usePmocPlanNameOptions,
 } from "@/hooks/pmoc/use-pmoc";
-import { useFieldTechnicians } from "@/hooks/workforce/use-workforce";
+import {
+  useFieldTechnicians,
+  useTechnicalResponsibles,
+} from "@/hooks/workforce/use-workforce";
+import { useSession } from "@/providers/session-provider";
 import { useActiveScope } from "@/providers/use-active-scope";
 import type { Asset, AssetQuery } from "@/types/assets";
+import {
+  avisoDoResponsavelTecnico,
+  responsavelTecnicoPadrao,
+} from "./pmoc-technical-responsible";
 import {
   CADENCIAS,
   cadenciaDoIntervalo,
@@ -124,6 +132,8 @@ export function PmocPlanWizard({
   onOpenChange: (open: boolean) => void;
 }) {
   const { businessUnitId } = useActiveScope();
+  /* O dono é o Responsável Técnico padrão; a sessão é quem sabe quem ele é. */
+  const session = useSession();
   const customers = useCustomersList({ limit: 100 });
   const tecnicos = useFieldTechnicians();
   const nomeOpcoes = usePmocPlanNameOptions();
@@ -273,6 +283,30 @@ export function PmocPlanWizard({
     setFrequenciaUnit(intervalo.unit);
   };
 
+  /**
+   * Os candidatos a Responsável Técnico desta unidade.
+   *
+   * Seletor próprio, e não o mesmo dos técnicos de campo: são dois papéis e duas
+   * perguntas — quem vai ao local, e quem responde tecnicamente pelo contrato. Ver
+   * `pmoc-technical-responsible`.
+   */
+  const responsaveisTecnicos = useTechnicalResponsibles(
+    businessUnitId ? { businessUnitId } : undefined,
+  );
+  const candidatosRT = responsaveisTecnicos.data ?? [];
+
+  /**
+   * A escolha, e o padrão aplicado uma vez.
+   *
+   * `null` significa "ainda não houve escolha nem padrão"; assim a lista chegando
+   * depois consegue preencher sem sobrescrever quem o usuário já escolheu.
+   */
+  const [rtEscolhido, setRtEscolhido] = useState<string | null>(null);
+  const rtId =
+    rtEscolhido ??
+    responsavelTecnicoPadrao(candidatosRT, session.user?.id ?? null);
+  const avisoRT = avisoDoResponsavelTecnico(candidatosRT, rtId);
+
   const entradaDoPreview = useMemo(
     () => ({
       businessUnitId: businessUnitId ?? "",
@@ -335,6 +369,9 @@ export function PmocPlanWizard({
     setEtapa(0);
     setProjecao(null);
     setUnidades([]);
+    /* Volta ao padrão: `null` é "ainda não houve escolha", e é o que faz o dono
+       ser pré-selecionado de novo no próximo plano. */
+    setRtEscolhido(null);
     onOpenChange(false);
   };
 
@@ -358,6 +395,7 @@ export function PmocPlanWizard({
         frequencyAmount: Number(frequenciaAmount),
         frequencyUnit: frequenciaUnit,
         ...(tecnicoId ? { technicianUserId: tecnicoId } : {}),
+        ...(rtId ? { technicalResponsibleUserId: rtId } : {}),
         assetIds: selecionados.map((asset) => asset.id),
         ...(unidades.length > 0 ? { unitIds: [...unidades] } : {}),
       },
@@ -767,9 +805,66 @@ export function PmocPlanWizard({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                O Responsável Técnico profissional é definido no detalhe do
-                plano, antes da ativação.
+                Quem vai ao local: abre a execução e preenche o roteiro.
               </p>
+            </div>
+          )}
+
+          {etapa === 3 && (
+            <div className="space-y-2">
+              <Label htmlFor="pmoc-rt">Responsável Técnico</Label>
+              {/*
+                Outro papel, outro seletor.
+
+                O de cima é quem vai ao local. Este é quem responde tecnicamente
+                pelo contrato, costuma ter a credencial de conselho esperada pelo
+                PMOC e é, na maioria das organizações, o próprio dono — que por isso
+                vem pré-selecionado.
+
+                A coluna existia no plano desde sempre e o wizard não a oferecia:
+                dizia "definido no detalhe do plano", e quem criava um PMOC saía com
+                um plano que não iniciava execução nenhuma, sem saber por quê.
+              */}
+              <Select
+                value={rtId || SEM_TECNICO}
+                onValueChange={(valor) =>
+                  setRtEscolhido(valor === SEM_TECNICO ? "" : valor)
+                }
+              >
+                <SelectTrigger id="pmoc-rt">
+                  <SelectValue placeholder="Definir depois" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SEM_TECNICO}>Definir depois</SelectItem>
+                  {candidatosRT.map((pessoa) => (
+                    <SelectItem key={pessoa.id} value={pessoa.id}>
+                      {/* O estado da assinatura ao lado do nome: é ela que sai no
+                          documento, e sem ela a execução não abre. Descobrir isso
+                          aqui é melhor que no dia do atendimento. */}
+                      {pessoa.signatureAvailable
+                        ? pessoa.name
+                        : `${pessoa.name} — sem assinatura`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <p className="text-xs text-muted-foreground">
+                Responde tecnicamente pelo contrato. É a assinatura dele que sai
+                no documento do PMOC.
+              </p>
+
+              {avisoRT ? (
+                <p
+                  className={
+                    avisoRT.bloqueia
+                      ? "text-xs text-warning"
+                      : "text-xs text-muted-foreground"
+                  }
+                >
+                  {avisoRT.texto}
+                </p>
+              ) : null}
             </div>
           )}
 
@@ -790,6 +885,13 @@ export function PmocPlanWizard({
                   ?.name ?? null
               }
               unidadesMarcadas={unidades.length}
+              responsavelTecnicoNome={
+                candidatosRT.find((pessoa) => pessoa.id === rtId)?.name ?? null
+              }
+              assinaturaDoRT={
+                candidatosRT.find((pessoa) => pessoa.id === rtId)
+                  ?.signatureAvailable ?? null
+              }
             />
           )}
         </div>
@@ -852,6 +954,8 @@ function RevisaoDoPlano({
   planoNome,
   tecnicoNome,
   unidadesMarcadas,
+  responsavelTecnicoNome,
+  assinaturaDoRT,
 }: {
   carregando: boolean;
   projecao: PmocPreview | null;
@@ -861,6 +965,9 @@ function RevisaoDoPlano({
   planoNome: string;
   tecnicoNome: string | null;
   unidadesMarcadas: number;
+  responsavelTecnicoNome: string | null;
+  /** `null` quando não há Responsável Técnico escolhido. */
+  assinaturaDoRT: boolean | null;
 }) {
   if (carregando) {
     return (
@@ -977,12 +1084,23 @@ function RevisaoDoPlano({
               </span>
             </dd>
           </div>
-          <div className="flex items-baseline justify-between gap-4 p-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 p-3">
             <dt className="text-sm text-muted-foreground">
               Responsável Técnico
             </dt>
-            <dd className="text-right text-xs text-muted-foreground">
-              Definido no plano, antes da ativação
+            <dd className="text-right">
+              <span className="text-sm font-medium">
+                {responsavelTecnicoNome ?? "A definir"}
+              </span>
+              {/* O estado da assinatura, porque é ela que sai no documento — e é a
+                  última chance de ver isso antes de criar o plano. */}
+              <span className="block text-xs text-muted-foreground">
+                {assinaturaDoRT === null
+                  ? "Sem Responsável Técnico, a execução não abre."
+                  : assinaturaDoRT
+                    ? "Assinatura cadastrada"
+                    : "Sem assinatura — a execução não abre"}
+              </span>
             </dd>
           </div>
         </dl>

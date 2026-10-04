@@ -172,16 +172,28 @@ export class OrganizationRepository {
        * perfil do membro (Equipe › o membro › Perfil profissional) e desligar tira
        * o nome dos seletores sem mexer em permissão nenhuma.
        *
-       * `technical_responsible_enabled` fica falso aqui, como em qualquer cadastro:
-       * responsabilidade técnica é designação legal com credencial de conselho
-       * atrás, e presumi-la seria afirmar o que ninguém verificou.
+       * ## E responsabilidade técnica também
+       *
+       * Aqui o dono é a exceção, e foi decisão de produto. Em qualquer outro cadastro
+       * `technical_responsible_enabled` nasce falso, porque responsabilidade técnica
+       * é designação legal com credencial de conselho atrás e presumi-la afirmaria o
+       * que ninguém verificou. No dono a conta é outra: o PMOC exige um Responsável
+       * Técnico para a execução começar, e numa empresa de uma pessoa é ele — nascer
+       * falso deixaria o produto inutilizável no primeiro plano, obrigando a
+       * descobrir um interruptor escondido no perfil do próprio usuário.
+       *
+       * O que o sistema **não** afirma é que a credencial existe: ele registra a
+       * declaração de quem criou a conta, e a credencial se cadastra no perfil
+       * profissional. A assinatura, que é o que sai no documento, continua sendo
+       * exigida de verdade — na abertura da execução, por `assertTechnicalResponsible`
+       * com `requireSignature`.
        */
       await transaction.professionalProfile.create({
         data: {
           organizationId,
           userId: ownerUserId,
           fieldTechnicianEnabled: true,
-          technicalResponsibleEnabled: false,
+          technicalResponsibleEnabled: true,
           active: true,
         },
       });
