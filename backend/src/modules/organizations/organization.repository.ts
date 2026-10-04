@@ -152,6 +152,40 @@ export class OrganizationRepository {
           roleId: ownerRole.id,
         },
       });
+
+      /**
+       * O dono nasce habilitado como técnico de campo.
+       *
+       * ## Por que verdadeiro por padrão
+       *
+       * Porque no primeiro dia a organização é uma pessoa. Quem acabou de criar a
+       * conta é quem vai ao local, assina o PMOC e responde pelo atendimento — e sem
+       * esta linha ele não aparecia em nenhum seletor de técnico: nem na atribuição
+       * de operação, nem no responsável operacional do PMOC. O curinga de permissões
+       * do dono não resolve isso, porque o perfil profissional é requisito de
+       * domínio separado do RBAC: ter todas as permissões não torna ninguém
+       * profissional.
+       *
+       * ## E por que continua sendo desligável
+       *
+       * A organização cresce e o dono deixa de ir a campo. O interruptor está no
+       * perfil do membro (Equipe › o membro › Perfil profissional) e desligar tira
+       * o nome dos seletores sem mexer em permissão nenhuma.
+       *
+       * `technical_responsible_enabled` fica falso aqui, como em qualquer cadastro:
+       * responsabilidade técnica é designação legal com credencial de conselho
+       * atrás, e presumi-la seria afirmar o que ninguém verificou.
+       */
+      await transaction.professionalProfile.create({
+        data: {
+          organizationId,
+          userId: ownerUserId,
+          fieldTechnicianEnabled: true,
+          technicalResponsibleEnabled: false,
+          active: true,
+        },
+      });
+
       return transaction.organization.findUniqueOrThrow({
         where: { id: organizationId },
         include: organizationView,

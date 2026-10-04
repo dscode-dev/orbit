@@ -58,11 +58,29 @@ import {
 import { useFieldTechnicians } from "@/hooks/workforce/use-workforce";
 import { useActiveScope } from "@/providers/use-active-scope";
 import type { Asset, AssetQuery } from "@/types/assets";
+import {
+  CADENCIAS,
+  cadenciaDoIntervalo,
+  descricaoDaCadencia,
+  intervaloDaCadencia,
+  type CadenciaKey,
+} from "./pmoc-cadence";
 import { PmocFrequencyUnit } from "@/types/contracts";
 import type { PmocPreview } from "@/types/pmoc";
+import {
+  avisosDaRevisao,
+  dataCivil,
+  fatosDaProgramacao,
+  primeirasVisitas,
+} from "./pmoc-review";
 import { Package } from "lucide-react";
 
-import { ListState, Pagination, SearchField, useListController } from "@/workspace";
+import {
+  ListState,
+  Pagination,
+  SearchField,
+  useListController,
+} from "@/workspace";
 
 const FREQUENCY_LABELS: Readonly<Record<string, string>> = {
   DAYS: "dia(s)",
@@ -70,6 +88,18 @@ const FREQUENCY_LABELS: Readonly<Record<string, string>> = {
   MONTHS: "mês(es)",
   YEARS: "ano(s)",
 };
+
+/**
+ * A periodicidade com que um PMOC nasce.
+ *
+ * Mensal porque é a mais comum em contrato de manutenção predial — e porque abrir
+ * em "Personalizada" obrigaria todo mundo a preencher dois campos para dizer o caso
+ * mais frequente.
+ */
+const FREQUENCIA_PADRAO = {
+  amount: 1,
+  unit: PmocFrequencyUnit.MONTHS,
+} as const;
 
 /** `Select` não aceita item de valor vazio; este é o "ninguém ainda". */
 const SEM_TECNICO = "__none__";
@@ -124,9 +154,23 @@ export function PmocPlanWizard({
   const [vigenciaUnit, setVigenciaUnit] = useState<string>(
     PmocFrequencyUnit.MONTHS,
   );
-  const [frequenciaAmount, setFrequenciaAmount] = useState("1");
+  /**
+   * A periodicidade escolhida por nome.
+   *
+   * O par (número, unidade) continua sendo o que vai ao servidor; a cadência é o
+   * atalho que o contrato usa — mensal, trimestral, semestral. Ver `pmoc-cadence`
+   * para por que "1 mês(es)" num campo numérico lia-se como "quantas vezes no mês".
+   */
+  const [frequenciaAmount, setFrequenciaAmount] = useState(
+    String(FREQUENCIA_PADRAO.amount),
+  );
   const [frequenciaUnit, setFrequenciaUnit] = useState<string>(
-    PmocFrequencyUnit.MONTHS,
+    FREQUENCIA_PADRAO.unit,
+  );
+  /* Derivada do par, e não um terceiro literal: três constantes que precisam
+     concordar é uma a mais do que precisa existir. */
+  const [cadencia, setCadencia] = useState<CadenciaKey>(() =>
+    cadenciaDoIntervalo(FREQUENCIA_PADRAO.amount, FREQUENCIA_PADRAO.unit),
   );
   const [tecnicoId, setTecnicoId] = useState("");
   const [selecionados, setSelecionados] = useState<readonly Asset[]>([]);
@@ -213,6 +257,21 @@ export function PmocPlanWizard({
   const cliente = (customers.data?.data ?? []).find(
     (item) => item.id === customerId,
   );
+
+  /**
+   * Escolher a cadência preenche o par que vai ao servidor.
+   *
+   * O par continua sendo a verdade — é ele que o contrato aceita e o que a projeção
+   * recebe. A cadência só escreve nele, e "Personalizada" para de escrever para
+   * devolver os dois campos a quem digita.
+   */
+  const escolherCadencia = (proxima: CadenciaKey) => {
+    setCadencia(proxima);
+    const intervalo = intervaloDaCadencia(proxima);
+    if (!intervalo) return;
+    setFrequenciaAmount(String(intervalo.amount));
+    setFrequenciaUnit(intervalo.unit);
+  };
 
   const entradaDoPreview = useMemo(
     () => ({
@@ -308,7 +367,20 @@ export function PmocPlanWizard({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : fechar())}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent
+        className="max-w-2xl"
+        /*
+          Clicar fora não fecha, e `Esc` também não.
+
+          São seis etapas de configuração — cliente, equipamentos, programação,
+          responsável, unidades — e nada disso é rascunho salvo: fechar descarta
+          tudo. Num diálogo de uma pergunta, fechar por clique fora é conveniência;
+          aqui é perder dez minutos de trabalho por mirar mal o mouse.
+          Sai pelo "Cancelar", que é uma decisão.
+        */
+        onInteractOutside={(event) => event.preventDefault()}
+        onEscapeKeyDown={(event) => event.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Novo PMOC</DialogTitle>
           <DialogDescription>
@@ -462,45 +534,45 @@ export function PmocPlanWizard({
                 }}
               >
                 {(linhas) => (
-                <div className="max-h-72 space-y-1 overflow-y-auto">
-                  <label className="flex items-center gap-3 border-b px-1 py-2 text-sm font-medium">
-                    <Checkbox
-                      checked={paginaInteiraMarcada}
-                      onCheckedChange={(valor) => {
-                        for (const asset of pagina) {
-                          alternar(asset, valor === true);
-                        }
-                      }}
-                      aria-label="Selecionar todos desta página"
-                    />
-                    Selecionar todos desta página
-                  </label>
-
-                  {linhas.map((asset) => (
-                    <label
-                      key={asset.id}
-                      className="flex items-start gap-3 rounded-md px-1 py-2 text-sm hover:bg-muted/60"
-                    >
+                  <div className="max-h-72 space-y-1 overflow-y-auto">
+                    <label className="flex items-center gap-3 border-b px-1 py-2 text-sm font-medium">
                       <Checkbox
-                        checked={selecionadoIds.has(asset.id)}
-                        onCheckedChange={(valor) =>
-                          alternar(asset, valor === true)
-                        }
-                        aria-label={asset.name}
+                        checked={paginaInteiraMarcada}
+                        onCheckedChange={(valor) => {
+                          for (const asset of pagina) {
+                            alternar(asset, valor === true);
+                          }
+                        }}
+                        aria-label="Selecionar todos desta página"
                       />
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium">
-                          {asset.name}
-                        </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {[asset.manufacturer, asset.model, asset.location]
-                            .filter(Boolean)
-                            .join(" · ") || "Sem detalhes cadastrados"}
-                        </span>
-                      </span>
+                      Selecionar todos desta página
                     </label>
-                  ))}
-                </div>
+
+                    {linhas.map((asset) => (
+                      <label
+                        key={asset.id}
+                        className="flex items-start gap-3 rounded-md px-1 py-2 text-sm hover:bg-muted/60"
+                      >
+                        <Checkbox
+                          checked={selecionadoIds.has(asset.id)}
+                          onCheckedChange={(valor) =>
+                            alternar(asset, valor === true)
+                          }
+                          aria-label={asset.name}
+                        />
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">
+                            {asset.name}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {[asset.manufacturer, asset.model, asset.location]
+                              .filter(Boolean)
+                              .join(" · ") || "Sem detalhes cadastrados"}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                 )}
               </ListState>
 
@@ -561,33 +633,80 @@ export function PmocPlanWizard({
                 <p className="text-xs text-muted-foreground">
                   De quanto em quanto tempo a equipe vai ao local.
                 </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Input
-                    id="pmoc-frequencia"
-                    type="number"
-                    min={1}
-                    value={frequenciaAmount}
-                    aria-label="Intervalo entre atendimentos"
-                    onChange={(event) =>
-                      setFrequenciaAmount(event.target.value)
-                    }
-                  />
-                  <Select
-                    value={frequenciaUnit}
-                    onValueChange={setFrequenciaUnit}
+
+                {/*
+                  Pelo nome do contrato, não por número solto.
+
+                  "3" e "mês(es)" é literalmente de três em três meses, mas ninguém
+                  lê assim: parecia *quantas vezes* no mês, e quem queria trimestral
+                  não achava onde dizer. Personalizada continua existindo porque
+                  "a cada 45 dias" é contrato real.
+                */}
+                <Select
+                  value={cadencia}
+                  onValueChange={(valor) =>
+                    escolherCadencia(valor as CadenciaKey)
+                  }
+                >
+                  <SelectTrigger
+                    id="pmoc-cadencia"
+                    aria-label="Periodicidade do atendimento"
                   >
-                    <SelectTrigger aria-label="Unidade da frequência">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.values(PmocFrequencyUnit).map((valor) => (
-                        <SelectItem key={valor} value={valor}>
-                          {FREQUENCY_LABELS[valor] ?? valor}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CADENCIAS.map((item) => (
+                      <SelectItem key={item.key} value={item.key}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="PERSONALIZADA">
+                      Personalizada…
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {cadencia === "PERSONALIZADA" ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Input
+                      id="pmoc-frequencia"
+                      type="number"
+                      min={1}
+                      value={frequenciaAmount}
+                      aria-label="Intervalo entre atendimentos"
+                      onChange={(event) =>
+                        setFrequenciaAmount(event.target.value)
+                      }
+                    />
+                    <Select
+                      value={frequenciaUnit}
+                      onValueChange={setFrequenciaUnit}
+                    >
+                      <SelectTrigger aria-label="Unidade da frequência">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.values(PmocFrequencyUnit).map((valor) => (
+                          <SelectItem key={valor} value={valor}>
+                            {FREQUENCY_LABELS[valor] ?? valor}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+
+                {/* A frase confirma o que foi escolhido: o nome da cadência sozinho
+                    ainda deixa dúvida para quem não usa o termo todo dia. */}
+                <p className="text-xs font-medium">
+                  A equipe vai ao local{" "}
+                  {descricaoDaCadencia(
+                    cadencia,
+                    Number(frequenciaAmount),
+                    frequenciaUnit as PmocFrequencyUnit,
+                  )}
+                  .
+                </p>
               </fieldset>
             </>
           )}
@@ -638,6 +757,12 @@ export function PmocPlanWizard({
               clienteNome={cliente?.tradeName ?? cliente?.legalName ?? ""}
               codigo={codigoEditado ? code.trim() : codigoExibido}
               codigoEditado={codigoEditado}
+              planoNome={name.trim() || "Plano sem nome"}
+              tecnicoNome={
+                (tecnicos.data ?? []).find((pessoa) => pessoa.id === tecnicoId)
+                  ?.name ?? null
+              }
+              unidadesMarcadas={unidades.length}
             />
           )}
         </div>
@@ -659,10 +784,7 @@ export function PmocPlanWizard({
               Continuar
             </Button>
           ) : (
-            <Button
-              disabled={!projecao || create.isPending}
-              onClick={criar}
-            >
+            <Button disabled={!projecao || create.isPending} onClick={criar}>
               {create.isPending ? "Criando…" : "Criar PMOC"}
             </Button>
           )}
@@ -673,10 +795,21 @@ export function PmocPlanWizard({
 }
 
 /**
- * A revisão — e a matriz que o servidor projetou.
+ * A revisão: o que vai ser criado, em frases que se conferem.
  *
- * Em telas estreitas a matriz é uma lista, não uma tabela horizontal: doze
- * colunas de números em 375 pixels não se lê, e rolagem lateral dentro de um
+ * ## O que mudou, e por quê
+ *
+ * Era uma lista de sete `rótulo: valor` e, embaixo, os equipamentos com os números
+ * das execuções colados por ponto — `1 · 2 · 3 · 4`. Três problemas de conteúdo,
+ * nenhum de enfeite: "Execuções: 4" e "Execuções previstas: 48" não se distinguiam
+ * pelo nome; as **datas** vinham no contrato (`dueOn`) e eram descartadas, de modo
+ * que a pergunta que traz a pessoa até aqui — "quando a equipe vai?" — era a única
+ * sem resposta; e `48` aparecia sem o `4 × 12` que o explica.
+ *
+ * Os fatos e as frases vêm de `pmoc-review`, onde são testados. Aqui é só arranjo:
+ * identificação em cima, programação no meio, avisos antes do botão.
+ *
+ * Em telas estreitas nada vira tabela horizontal: rolagem lateral dentro de um
  * diálogo é a pior forma de esconder informação.
  */
 function RevisaoDoPlano({
@@ -685,12 +818,18 @@ function RevisaoDoPlano({
   clienteNome,
   codigo,
   codigoEditado,
+  planoNome,
+  tecnicoNome,
+  unidadesMarcadas,
 }: {
   carregando: boolean;
   projecao: PmocPreview | null;
   clienteNome: string;
   codigo: string;
   codigoEditado: boolean;
+  planoNome: string;
+  tecnicoNome: string | null;
+  unidadesMarcadas: number;
 }) {
   if (carregando) {
     return (
@@ -705,39 +844,131 @@ function RevisaoDoPlano({
     );
   }
 
-  const linhas: readonly [string, string][] = [
-    ["Cliente", clienteNome],
-    ["Código", codigoEditado ? codigo : `${codigo} (gerado ao salvar)`],
-    [
-      "Vigência",
-      `${projecao.startsOn} a ${projecao.endsOn ?? "sem prazo final"}`,
-    ],
-    ["Frequência", projecao.frequency.label],
-    ["Equipamentos", String(projecao.equipmentCount)],
-    ["Execuções", String(projecao.cycleCount)],
-    ["Execuções previstas", String(projecao.projectedExecutions)],
-  ];
+  const fatos = fatosDaProgramacao(projecao);
+  const visitas = primeirasVisitas(projecao);
+  const avisos = avisosDaRevisao(projecao, unidadesMarcadas);
 
   return (
-    <div className="space-y-4">
-      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-        {linhas.map(([rotulo, valor]) => (
-          <div key={rotulo} className="flex justify-between gap-3 border-b py-1">
-            <dt className="text-sm text-muted-foreground">{rotulo}</dt>
-            <dd className="text-sm font-medium tabular-nums">{valor}</dd>
-          </div>
-        ))}
-      </dl>
-
-      {projecao.truncated && (
-        <p className="text-xs text-muted-foreground">
-          A vigência é aberta; a projeção mostra as primeiras execuções.
+    <div className="space-y-5">
+      {/*
+        Identificação primeiro: é o cabeçalho do que está sendo criado, e responde
+        "é este cliente mesmo?" antes de qualquer número.
+      */}
+      <header className="space-y-1 rounded-lg border bg-surface-strong/40 p-4">
+        <p className="text-sm text-muted-foreground">{clienteNome}</p>
+        <h3 className="font-display text-lg font-semibold">{planoNome}</h3>
+        <p className="font-mono text-xs text-muted-foreground">
+          {codigoEditado ? codigo : `${codigo} · gerado ao salvar`}
         </p>
-      )}
+      </header>
 
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold">Execuções por equipamento</h3>
-        <ul className="space-y-2">
+      <section className="space-y-2">
+        <h4 className="text-sm font-semibold">Programação</h4>
+        <dl className="divide-y rounded-lg border">
+          {fatos.map((fato) => (
+            <div
+              key={fato.rotulo}
+              className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 p-3"
+            >
+              <dt className="text-sm text-muted-foreground">{fato.rotulo}</dt>
+              <dd className="text-right">
+                <span className="text-sm font-medium tabular-nums">
+                  {fato.valor}
+                </span>
+                {/* A nota é o que separa revisar de aceitar: ela diz de onde o
+                    número vem, ou o que ele significa. */}
+                {fato.nota ? (
+                  <span className="block text-xs text-muted-foreground">
+                    {fato.nota}
+                  </span>
+                ) : null}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      {visitas.datas.length > 0 ? (
+        <section className="space-y-2">
+          <h4 className="text-sm font-semibold">Quando a equipe vai</h4>
+          <ul className="flex flex-wrap gap-1.5">
+            {visitas.datas.map((data, indice) => (
+              <li
+                key={data}
+                className="rounded-md border px-2 py-1 text-xs tabular-nums"
+              >
+                <span className="text-muted-foreground">{indice + 1}ª</span>{" "}
+                {data}
+              </li>
+            ))}
+          </ul>
+          {visitas.restantes > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              {`+ ${visitas.restantes} depois dessas, dentro da vigência.`}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      <section className="space-y-2">
+        <h4 className="text-sm font-semibold">Responsáveis e unidades</h4>
+        <dl className="divide-y rounded-lg border">
+          <div className="flex items-baseline justify-between gap-4 p-3">
+            <dt className="text-sm text-muted-foreground">
+              Responsável operacional
+            </dt>
+            <dd className="text-sm font-medium">
+              {tecnicoNome ?? "A definir"}
+            </dd>
+          </div>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 p-3">
+            <dt className="text-sm text-muted-foreground">
+              Unidades atendidas
+            </dt>
+            <dd className="text-right">
+              <span className="text-sm font-medium tabular-nums">
+                {unidadesMarcadas}
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                O relatório descreve o serviço por unidade.
+              </span>
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-4 p-3">
+            <dt className="text-sm text-muted-foreground">
+              Responsável Técnico
+            </dt>
+            <dd className="text-right text-xs text-muted-foreground">
+              Definido no plano, antes da ativação
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      {/*
+        Os avisos ficam **antes** do botão, e não no fim da página.
+        "Plano sem equipamento" é o defeito que encheu o banco de setenta e cinco
+        planos que não mandam ninguém a lugar nenhum; avisar depois do clique não
+        serve de nada.
+      */}
+      {avisos.length > 0 ? (
+        <ul className="space-y-1.5 rounded-lg border border-warning/40 bg-warning/5 p-3">
+          {avisos.map((aviso) => (
+            <li key={aviso} className="text-xs text-warning">
+              {aviso}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <details className="rounded-lg border">
+        <summary className="cursor-pointer p-3 text-sm font-medium">
+          {`Atendimentos por equipamento (${projecao.matrix.length})`}
+        </summary>
+        {/* Recolhido por padrão: com doze equipamentos e quatro visitas são
+            quarenta e oito linhas, e elas não são a pergunta da revisão — são a
+            conferência de quem desconfia do total. */}
+        <ul className="space-y-2 border-t p-3">
           {projecao.matrix.map((linha) => (
             <li key={linha.equipment.id} className="rounded-md border p-3">
               <p className="truncate text-sm font-medium">
@@ -745,13 +976,13 @@ function RevisaoDoPlano({
               </p>
               <p className="mt-1 text-xs tabular-nums text-muted-foreground">
                 {linha.executions
-                  .map((execucao) => execucao.executionNumber)
+                  .map((execucao) => dataCivil(execucao.dueOn))
                   .join(" · ")}
               </p>
             </li>
           ))}
         </ul>
-      </div>
+      </details>
     </div>
   );
 }

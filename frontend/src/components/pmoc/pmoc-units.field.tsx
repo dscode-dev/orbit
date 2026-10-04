@@ -13,12 +13,14 @@
  * relatório sem nada a descrever — e não descobrir isso na emissão.
  */
 
-import Link from "next/link";
+import { useState } from "react";
+import { Plus } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ROUTES } from "@/lib/routes";
 import { usePmocUnits } from "@/hooks/pmoc/use-pmoc";
 import type { PmocUnit } from "@/types/pmoc";
+import { PmocUnitFormDialog } from "./pmoc-unit-form.dialog";
 
 export function PmocUnitsField({
   selecionadas,
@@ -29,6 +31,20 @@ export function PmocUnitsField({
 }) {
   const unidades = usePmocUnits();
   const lista = (unidades.data ?? []).filter((unidade) => unidade.isActive);
+
+  /**
+   * O cadastro acontece **aqui**, por cima do wizard.
+   *
+   * Antes era um link para o catálogo. Clicar nele desmontava o wizard e levava para
+   * outra página: cliente escolhido, equipamentos marcados, programação definida —
+   * tudo perdido para cadastrar uma unidade. E a pessoa voltava para uma tela em
+   * branco, sem entender que o caminho de ida era de mão única.
+   *
+   * O diálogo de unidade é o mesmo do catálogo, aberto sobre este. O wizard não
+   * desmonta, então nada se perde; e `useCreatePmocUnit` invalida a lista, então a
+   * unidade nova aparece marcável assim que o diálogo fecha.
+   */
+  const [cadastrando, setCadastrando] = useState(false);
 
   const alternar = (id: string) => {
     onChange(
@@ -46,30 +62,56 @@ export function PmocUnitsField({
 
   if (lista.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed p-6 text-center">
-        <p className="text-sm font-medium">Nenhuma unidade cadastrada</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          As unidades e os roteiros de cada uma são cadastrados uma vez e
-          reaproveitados por todos os planos.
-        </p>
-        <Link
-          href={`${ROUTES.catalogs}?secao=pmoc`}
-          className="mt-3 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
-        >
-          Cadastrar unidades
-        </Link>
-      </div>
+      <>
+        <div className="rounded-lg border border-dashed p-6 text-center">
+          <p className="text-sm font-medium">Nenhuma unidade cadastrada</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            As unidades e os roteiros de cada uma são cadastrados uma vez e
+            reaproveitados por todos os planos.
+          </p>
+          <Button
+            size="sm"
+            className="mt-3"
+            onClick={() => setCadastrando(true)}
+          >
+            <Plus className="size-4" />
+            Cadastrar a primeira unidade
+          </Button>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Dá para seguir sem nenhuma: o relatório sai com o plano, mas sem o
+            detalhamento por unidade.
+          </p>
+        </div>
+
+        <PmocUnitFormDialog
+          unit={null}
+          open={cadastrando}
+          onOpenChange={setCadastrando}
+        />
+      </>
     );
   }
 
   return (
     <div className="space-y-3">
-      <div>
-        <p className="text-sm font-medium">Unidades atendidas</p>
-        <p className="text-sm text-muted-foreground">
-          O relatório final descreve o serviço por unidade. Marque as que este
-          PMOC atende.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium">Unidades atendidas</p>
+          <p className="text-sm text-muted-foreground">
+            O relatório final descreve o serviço por unidade. Marque as que este
+            PMOC atende.
+          </p>
+        </div>
+        {/* Também com lista cheia: falta uma unidade no meio da configuração e
+            sair daqui para cadastrá-la descartaria o plano. */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setCadastrando(true)}
+        >
+          <Plus className="size-4" />
+          Nova unidade
+        </Button>
       </div>
 
       {/* Altura limitada: o catálogo cresce, e o diálogo não deve crescer com
@@ -106,6 +148,12 @@ export function PmocUnitsField({
           ? "Sem unidades, o relatório sai com o plano mas sem o detalhamento por unidade."
           : `${selecionadas.length} de ${lista.length} marcada(s).`}
       </p>
+
+      <PmocUnitFormDialog
+        unit={null}
+        open={cadastrando}
+        onOpenChange={setCadastrando}
+      />
     </div>
   );
 }
