@@ -21,13 +21,17 @@
  * exatamente onde as autorizações se perdem, se cada uma não for conferida no
  * seu lugar.
  */
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   ConflictException,
   EntityNotFoundException,
   ForbiddenException,
   ValidationException,
 } from '../../exceptions';
+import {
+  STORAGE_PROVIDER,
+  type StorageProvider,
+} from '../storage/storage.types';
 import { BackgroundJobQueue } from '../jobs/background-job.queue';
 import { JOB_QUEUES } from '../jobs/background-job.types';
 import { Prisma } from '@prisma/client';
@@ -249,7 +253,49 @@ export class PmocService {
     private readonly workforce: WorkforceService,
     private readonly rendering: ArtifactRenderService,
     private readonly planDocument: PmocPlanDocumentService,
+    /* Para ler os bytes da assinatura do Responsável Técnico ao imprimir o
+       contrato — a mesma dependência que o orçamento usa, pelo mesmo motivo. */
+    @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
   ) {}
+
+  /**
+   * A assinatura ativa do Responsável Técnico, para o contrato.
+   *
+   * ## Por que a falha não derruba o documento
+   *
+   * O objeto pode estar inacessível — bucket fora do ar, chave apagada à mão. O
+   * contrato do PMOC é o papel que o fiscal pede na porta, e não pode deixar de
+   * existir por causa de um arquivo de imagem: sai com a linha em branco, que é o
+   * mesmo resultado de quem nunca cadastrou assinatura.
+   */
+  private async responsavelTecnicoAssinatura(
+    responsible:
+      | {
+          professionalSignatures: readonly {
+            storageObject: {
+              bucket: string;
+              objectKey: string;
+              mimeType: string;
+            };
+          }[];
+        }
+      | null
+      | undefined,
+  ): Promise<{ bytes?: Buffer; mimeType?: string }> {
+    const assinatura = responsible?.professionalSignatures[0];
+    if (!assinatura) return {};
+    try {
+      return {
+        bytes: await this.storage.get({
+          bucket: assinatura.storageObject.bucket,
+          objectKey: assinatura.storageObject.objectKey,
+        }),
+        mimeType: assinatura.storageObject.mimeType,
+      };
+    } catch {
+      return {};
+    }
+  }
 
   /* ---------------------------------------------------------------- */
   /* Planos                                                            */
@@ -761,6 +807,9 @@ export class PmocService {
 
     const { plan, coverages, planUnits } = source;
     const fuso = plan.businessUnit?.timezone ?? 'America/Sao_Paulo';
+    const assinaturaDoResponsavel = await this.responsavelTecnicoAssinatura(
+      plan.technicalResponsible,
+    );
 
     const bytes = await this.planDocument.render({
       timezone: fuso,
@@ -796,6 +845,9 @@ export class PmocService {
           notes: plan.notes ?? undefined,
           technicalResponsible:
             plan.technicalResponsible?.displayName ?? undefined,
+          technicalResponsibleSignature: assinaturaDoResponsavel.bytes,
+          technicalResponsibleSignatureMimeType:
+            assinaturaDoResponsavel.mimeType,
           fieldTechnician: plan.technician?.displayName ?? undefined,
           nextDueOn: dataSimples(plan.nextDueOn),
           lastExecutedAt: dataSimples(plan.lastExecutedAt),

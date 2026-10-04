@@ -54,6 +54,8 @@ function servico(resposta: unknown) {
     undefined as never,
     undefined as never,
     undefined as never,
+    /* Storage: estes testes não imprimem documento, e o dublê diz isso. */
+    undefined as never,
   );
   return { service, repository };
 }
@@ -107,6 +109,8 @@ describe('autoridade para abrir o próprio atendimento', () => {
       undefined as never,
       undefined as never,
       undefined as never,
+      undefined as never,
+      /* Storage: estes testes não imprimem documento, e o dublê diz isso. */
       undefined as never,
     );
     return { service, repository };
@@ -203,6 +207,8 @@ describe('autoridade para emitir o relatório da execução', () => {
       undefined as never,
       undefined as never,
       undefined as never,
+      undefined as never,
+      /* Storage: estes testes não imprimem documento, e o dublê diz isso. */
       undefined as never,
     );
     return { service, repository };

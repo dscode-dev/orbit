@@ -46,6 +46,18 @@ export interface PmocPlanDocumentInput {
     readonly notes?: string;
     readonly technicalResponsible?: string;
     readonly technicalResponsibleCredential?: string;
+    /**
+     * A assinatura do Responsável Técnico, em bytes.
+     *
+     * O bloco de assinatura sempre desenhou imagem quando recebia uma — e ninguém
+     * passava: a linha do responsável saía em branco mesmo com assinatura
+     * cadastrada. É ela que dá valor ao documento que o fiscal pede.
+     *
+     * Ausente continua valendo: o plano costuma ser impresso e assinado à mão, e a
+     * linha em branco é o lugar disso.
+     */
+    readonly technicalResponsibleSignature?: Buffer;
+    readonly technicalResponsibleSignatureMimeType?: string;
     readonly fieldTechnician?: string;
     readonly nextDueOn?: string;
     readonly lastExecutedAt?: string;
@@ -280,6 +292,8 @@ function responsabilidade(
         signerName: input.plan.technicalResponsible,
         roleLabel: 'Responsável técnico',
         credential: input.plan.technicalResponsibleCredential,
+        image: input.plan.technicalResponsibleSignature,
+        imageMimeType: input.plan.technicalResponsibleSignatureMimeType,
       },
       {
         label: 'Contratante',

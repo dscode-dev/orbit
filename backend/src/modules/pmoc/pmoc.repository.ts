@@ -2040,7 +2040,34 @@ export class PmocRepository {
           lastExecutedAt: true,
           nextDueOn: true,
           technician: { select: { displayName: true } },
-          technicalResponsible: { select: { displayName: true } },
+          /**
+           * O Responsável Técnico, com a assinatura ativa dele.
+           *
+           * É a assinatura que sai no contrato impresso — o documento do PMOC a
+           * pedia ao compositor e ninguém a carregava, então a linha saía sempre em
+           * branco. `active` e `revokedAt: null` no filtro porque uma assinatura
+           * revogada é exatamente a que não pode sair impressa; `take: 1` porque o
+           * índice único garante uma ativa por pessoa.
+           */
+          technicalResponsible: {
+            select: {
+              displayName: true,
+              professionalSignatures: {
+                where: { active: true, revokedAt: null },
+                orderBy: { version: 'desc' as const },
+                take: 1,
+                select: {
+                  storageObject: {
+                    select: {
+                      bucket: true,
+                      objectKey: true,
+                      mimeType: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
           customer: {
             select: {
               legalName: true,

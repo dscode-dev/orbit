@@ -41,6 +41,7 @@ function fonte(
     coberturas?: number;
     procedure?: unknown;
     serviceTypes?: unknown;
+    semAssinatura?: boolean;
   } = {},
 ) {
   return {
@@ -61,7 +62,21 @@ function fonte(
       lastExecutedAt: new Date('2026-03-10T12:00:00Z'),
       nextDueOn: '2026-06-10',
       technician: { displayName: 'Rafael Nunes' },
-      technicalResponsible: { displayName: 'Eng. Helena Braga' },
+      technicalResponsible: {
+        displayName: 'Eng. Helena Braga',
+        /* Como o `documentSource` agora seleciona: a ativa, uma só. */
+        professionalSignatures: overrides.semAssinatura
+          ? []
+          : [
+              {
+                storageObject: {
+                  bucket: 'orbit',
+                  objectKey: 'signatures/helena.png',
+                  mimeType: 'image/png',
+                },
+              },
+            ],
+      },
       customer: {
         legalName: 'Condomínio Edifício Aurora',
         tradeName: 'Ed. Aurora',
@@ -96,7 +111,24 @@ function fonte(
   };
 }
 
-function servico(fonteDoPlano: unknown) {
+/**
+ * Um PNG de um pixel, para a assinatura do responsável.
+ *
+ * Imagem real e não `Buffer.from('x')`: o compositor entrega os bytes ao PDFKit, que
+ * recusa o que não é imagem — e um dublê inválido faria o teste passar pelo caminho
+ * de erro em vez do caminho que interessa.
+ */
+const PNG_DE_UM_PIXEL = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC',
+  'base64',
+);
+
+function servico(
+  fonteDoPlano: unknown,
+  storage: { get: jest.Mock } = {
+    get: jest.fn().mockResolvedValue(PNG_DE_UM_PIXEL),
+  },
+) {
   const repository = {
     documentSource: jest.fn().mockResolvedValue(fonteDoPlano),
   };
@@ -107,8 +139,9 @@ function servico(fonteDoPlano: unknown) {
     undefined as never,
     undefined as never,
     new PmocPlanDocumentService(),
+    storage as never,
   );
-  return { service, repository };
+  return { service, repository, storage };
 }
 
 describe('documento do plano de PMOC', () => {
@@ -173,6 +206,74 @@ describe('documento do plano de PMOC', () => {
     expect(texto).toContain('(continuação)');
     expect(texto).not.toContain('ITEM (');
     expect(texto).toContain('MOD-59');
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* A assinatura do Responsável Técnico                               */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * O defeito relatado: a assinatura não saía no contrato.
+   *
+   * O bloco de assinatura do compositor sempre desenhou imagem quando recebia uma;
+   * o serviço nunca carregava os bytes, então a linha do responsável saía em branco
+   * mesmo com assinatura cadastrada — e é ela que dá valor ao papel que o fiscal
+   * pede na porta.
+   *
+   * O que se pode afirmar sobre bytes de PDF é que a imagem foi **buscada e
+   * entregue**: o conteúdo visual não se testa aqui, e o PDF cresce com ela.
+   */
+  it('busca a assinatura ativa do Responsável Técnico', async () => {
+    const { service, storage } = servico(fonte());
+
+    await service.document('plan-1', ATOR);
+
+    expect(storage.get).toHaveBeenCalledWith({
+      bucket: 'orbit',
+      objectKey: 'signatures/helena.png',
+    });
+  });
+
+  it('a assinatura entra no documento', async () => {
+    const { service } = servico(fonte());
+    const comAssinatura = await service.document('plan-1', ATOR);
+
+    const { service: outro } = servico(fonte({ semAssinatura: true }));
+    const semAssinatura = await outro.document('plan-1', ATOR);
+
+    /* A imagem embutida pesa: um PDF com ela é maior que o mesmo sem ela. É o que
+       dá para afirmar sem interpretar o desenho. */
+    expect(comAssinatura.bytes.length).toBeGreaterThan(
+      semAssinatura.bytes.length,
+    );
+  });
+
+  /** Sem assinatura cadastrada o contrato sai — a linha em branco é para assinar à mão. */
+  it('sem assinatura cadastrada, o contrato sai igual', async () => {
+    const { service, storage } = servico(fonte({ semAssinatura: true }));
+
+    const documento = await service.document('plan-1', ATOR);
+
+    expect(storage.get).not.toHaveBeenCalled();
+    expect(pdfText(documento.bytes)).toContain('Eng. Helena Braga');
+  });
+
+  /**
+   * Storage fora do ar não derruba o contrato.
+   *
+   * O objeto pode estar inacessível — bucket caído, chave apagada à mão. O contrato
+   * do PMOC é o papel que o fiscal pede, e não pode deixar de existir por causa de
+   * um arquivo de imagem: sai com a linha em branco, como quem nunca cadastrou.
+   */
+  it('falha ao ler a assinatura não impede a emissão', async () => {
+    const { service } = servico(fonte(), {
+      get: jest.fn().mockRejectedValue(new Error('bucket indisponível')),
+    });
+
+    const documento = await service.document('plan-1', ATOR);
+
+    expect(documento.bytes.length).toBeGreaterThan(0);
+    expect(pdfText(documento.bytes)).toContain('Eng. Helena Braga');
   });
 
   it('recusa plano de outra organização como inexistente', async () => {
