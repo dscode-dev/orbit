@@ -27,7 +27,7 @@
  * existia. A consequência não era estética: sem perfil de técnico de campo a
  * pessoa não pode ser atribuída a um atendimento, não aparece entre os técnicos e
  * não ganha comissão. Dava para cadastrar um membro com papel de acesso
- * "Técnico operador" e ele continuar invisível para a operação.
+ * "Técnico Operacional" e ele continuar invisível para a operação.
  *
  * Credencial e assinatura continuam em leitura: a credencial tem endpoint
  * próprio com validação de conselho, e a assinatura é pessoal — quem assina é

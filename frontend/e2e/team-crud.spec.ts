@@ -70,9 +70,7 @@ test("cadastra o técnico, mostra a senha uma vez e força a troca", async ({
    */
   await page.locator("#member-email").fill(nomeDeEntrada);
 
-  const sufixo = await page
-    .getByTestId("member-email-domain")
-    .textContent();
+  const sufixo = await page.getByTestId("member-email-domain").textContent();
   expect(sufixo, "o domínio da organização precisa aparecer").toMatch(
     /^@[a-z0-9-]+\.[a-z]+$/,
   );
@@ -83,11 +81,23 @@ test("cadastra o técnico, mostra a senha uma vez e força a troca", async ({
    * percorre os quatro. Ele pulava direto para "Cadastrar", que só existe no último:
    * o seletor de papel nem está montado no primeiro.
    */
-  const continuar = page.getByRole("button", { name: "Continuar", exact: true });
+  const continuar = page.getByRole("button", {
+    name: "Continuar",
+    exact: true,
+  });
   await continuar.click();
 
   await page.locator("#member-role").click();
-  await page.getByRole("option", { name: "Técnico operacional" }).click();
+  /*
+   * O nome do papel é o que a tela mostra, e ele mudou.
+   *
+   * O catálogo dizia "Técnico operador" e este teste procurava "Técnico
+   * operacional": nunca achava a opção. O produto passou a usar "Técnico
+   * Operacional" nos dois lugares — papel de acesso e papel profissional —, porque
+   * "Técnico responsável" e "Responsável Técnico" coexistindo em telas diferentes era
+   * a mesma palavra para coisas opostas.
+   */
+  await page.getByRole("option", { name: "Técnico Operacional" }).click();
 
   /// O papel se explica antes de ser concedido, não depois.
   await expect(page.getByText(/Executa o atendimento em campo/)).toBeVisible();
@@ -133,7 +143,10 @@ test("cadastra o técnico, mostra a senha uma vez e força a troca", async ({
   const cadastrado = corpo.data.data.find(
     (membro) => membro.email === emailTecnico,
   );
-  expect(cadastrado, "o técnico cadastrado precisa estar na equipe").toBeTruthy();
+  expect(
+    cadastrado,
+    "o técnico cadastrado precisa estar na equipe",
+  ).toBeTruthy();
   expect(cadastrado?.role.key).toBe("FIELD_TECHNICIAN");
 
   /**
@@ -178,9 +191,9 @@ test("cadastra o técnico, mostra a senha uma vez e força a troca", async ({
    * e a recusa acontece **depois** de conferir a senha: antes disso seria um
    * oráculo dizendo quais endereços existem e são de campo.
    */
-  await expect(
-    page.getByText(/aplicativo Orbit de campo/i),
-  ).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/aplicativo Orbit de campo/i)).toBeVisible({
+    timeout: 20_000,
+  });
 
   /** E continua no login: nenhuma sessão foi criada. */
   await expect(page).toHaveURL(/\/login/);

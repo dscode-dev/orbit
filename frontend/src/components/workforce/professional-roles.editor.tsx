@@ -11,7 +11,7 @@
  * era estética: **sem perfil de técnico de campo a pessoa não pode ser atribuída
  * a um atendimento** (`validateTechnicianAssignments` recusa), não aparece na
  * lista de técnicos e não ganha comissão. Dava para cadastrar um membro com o
- * papel de acesso "Técnico operador" e ele continuar invisível para a operação.
+ * papel de acesso "Técnico Operacional" e ele continuar invisível para a operação.
  *
  * ## Papel de acesso e papel profissional são coisas diferentes
  *

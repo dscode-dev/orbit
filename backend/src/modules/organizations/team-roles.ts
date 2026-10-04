@@ -298,9 +298,22 @@ export const ASSIGNABLE_TEAM_ROLES: readonly TeamRoleSeed[] = [
   },
   {
     key: FIELD_TECHNICIAN_ROLE_KEY,
-    name: 'Técnico operador',
+    /*
+     * "Técnico Operacional", e não "Técnico operador".
+     *
+     * O produto tinha três expressões para dois papéis — "Técnico em Campo",
+     * "Técnico responsável" e "Responsável Técnico" —, as duas últimas usando as
+     * mesmas palavras em ordens diferentes para dizer coisas opostas. Num PMOC a
+     * diferença é concreta: um vai ao local, o outro responde pelo contrato e assina
+     * com a credencial que a norma exige.
+     *
+     * O nome aqui é o do papel de acesso, e ele se alinha ao do papel profissional
+     * (`registry/professional`) porque é o mesmo nome que a pessoa lê nos dois
+     * lugares. O `key` não muda — é ele que o código e as permissões usam.
+     */
+    name: 'Técnico Operacional',
     description:
-      'Executa atendimentos em campo, registra evidências, materiais e documentos relacionados.',
+      'Executa o serviço no cliente: atendimento, roteiro, evidências e materiais.',
     permissions: [
       ...FIELD_READ,
       'operations.update',

@@ -17,22 +17,58 @@ import {
   credentialLabel,
   professionalRoleLabel,
   professionalRoleLabels,
+  PROFESSIONAL_ROLES,
   signatureStatusLabel,
 } from "./professional";
 import type { ProfessionalCredential } from "@/types/workforce";
 
 describe("papéis profissionais", () => {
   it("usa os nomes do produto, não os do contrato", () => {
-    expect(professionalRoleLabel("FIELD_TECHNICIAN")).toBe("Técnico em Campo");
+    expect(professionalRoleLabel("FIELD_TECHNICIAN")).toBe(
+      "Técnico Operacional",
+    );
     expect(professionalRoleLabel("TECHNICAL_RESPONSIBLE")).toBe(
       "Responsável Técnico",
+    );
+  });
+
+  /**
+   * Um nome não é a reordenação do outro.
+   *
+   * O produto tinha "Técnico responsável" no formulário de operação e "Responsável
+   * Técnico" no PMOC: as **mesmas duas palavras**, em ordens diferentes, para coisas
+   * opostas — um executa no cliente, o outro responde pelo contrato e assina com a
+   * credencial que a norma exige. Trocar a ordem das palavras não é nomear.
+   *
+   * Os dois compartilham "técnico" por natureza, e isso é certo: os dois são
+   * técnicos. O que não pode é o conjunto de palavras ser o mesmo — é essa a
+   * armadilha, e é ela que a asserção tranca.
+   */
+  it("um rótulo não é a reordenação do outro", () => {
+    const palavras = (texto: string) =>
+      [...new Set(texto.toLocaleLowerCase("pt-BR").split(/\s+/))].sort();
+    expect(palavras(professionalRoleLabel("FIELD_TECHNICIAN"))).not.toEqual(
+      palavras(professionalRoleLabel("TECHNICAL_RESPONSIBLE")),
+    );
+  });
+
+  /** Cada papel se explica sem a tela: é o texto que a dica de contexto mostra. */
+  it("cada papel tem descrição própria", () => {
+    expect(PROFESSIONAL_ROLES.FIELD_TECHNICIAN.description).toContain(
+      "executa",
+    );
+    expect(PROFESSIONAL_ROLES.TECHNICAL_RESPONSIBLE.description).toContain(
+      "assina",
+    );
+    expect(PROFESSIONAL_ROLES.FIELD_TECHNICIAN.description).not.toBe(
+      PROFESSIONAL_ROLES.TECHNICAL_RESPONSIBLE.description,
     );
   });
 
   it("quem acumula os dois papéis recebe os dois rótulos", () => {
     expect(
       professionalRoleLabels(["FIELD_TECHNICIAN", "TECHNICAL_RESPONSIBLE"]),
-    ).toEqual(["Técnico em Campo", "Responsável Técnico"]);
+    ).toEqual(["Técnico Operacional", "Responsável Técnico"]);
   });
 
   it("sem papel não inventa um terceiro nome", () => {
@@ -69,9 +105,7 @@ describe("motivos de bloqueio", () => {
   });
 
   it("motivo desconhecido cai no texto genérico, nunca no código", () => {
-    const label = blockedReasonLabel(
-      "ALGO_QUE_O_BACKEND_INVENTOU" as never,
-    );
+    const label = blockedReasonLabel("ALGO_QUE_O_BACKEND_INVENTOU" as never);
     expect(label).toBeTruthy();
     expect(label).not.toContain("ALGO_QUE_O_BACKEND_INVENTOU");
   });

@@ -59,6 +59,7 @@ import {
   useFieldTechnicians,
   useTechnicalResponsibles,
 } from "@/hooks/workforce/use-workforce";
+import { PROFESSIONAL_ROLES } from "@/registry";
 import { useSession } from "@/providers/session-provider";
 import { useActiveScope } from "@/providers/use-active-scope";
 import type { Asset, AssetQuery } from "@/types/assets";
@@ -778,7 +779,9 @@ export function PmocPlanWizard({
 
           {etapa === 3 && (
             <div className="space-y-2">
-              <Label htmlFor="pmoc-tecnico">Responsável operacional</Label>
+              <Label htmlFor="pmoc-tecnico">
+                {PROFESSIONAL_ROLES.FIELD_TECHNICIAN.label}
+              </Label>
               {/*
                 Seletor, e não campo livre.
 
@@ -804,15 +807,20 @@ export function PmocPlanWizard({
                   ))}
                 </SelectContent>
               </Select>
+              {/* A descrição vem do registry: é a mesma em toda tela que nomeia o
+                  papel, e dois textos para o mesmo conceito divergem na primeira
+                  mudança. */}
               <p className="text-xs text-muted-foreground">
-                Quem vai ao local: abre a execução e preenche o roteiro.
+                {PROFESSIONAL_ROLES.FIELD_TECHNICIAN.description}
               </p>
             </div>
           )}
 
           {etapa === 3 && (
             <div className="space-y-2">
-              <Label htmlFor="pmoc-rt">Responsável Técnico</Label>
+              <Label htmlFor="pmoc-rt">
+                {PROFESSIONAL_ROLES.TECHNICAL_RESPONSIBLE.label}
+              </Label>
               {/*
                 Outro papel, outro seletor.
 
@@ -850,8 +858,7 @@ export function PmocPlanWizard({
               </Select>
 
               <p className="text-xs text-muted-foreground">
-                Responde tecnicamente pelo contrato. É a assinatura dele que sai
-                no documento do PMOC.
+                {PROFESSIONAL_ROLES.TECHNICAL_RESPONSIBLE.description}
               </p>
 
               {avisoRT ? (
@@ -1065,7 +1072,7 @@ function RevisaoDoPlano({
         <dl className="divide-y rounded-lg border">
           <div className="flex items-baseline justify-between gap-4 p-3">
             <dt className="text-sm text-muted-foreground">
-              Responsável operacional
+              {PROFESSIONAL_ROLES.FIELD_TECHNICIAN.label}
             </dt>
             <dd className="text-sm font-medium">
               {tecnicoNome ?? "A definir"}
@@ -1086,7 +1093,7 @@ function RevisaoDoPlano({
           </div>
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 p-3">
             <dt className="text-sm text-muted-foreground">
-              Responsável Técnico
+              {PROFESSIONAL_ROLES.TECHNICAL_RESPONSIBLE.label}
             </dt>
             <dd className="text-right">
               <span className="text-sm font-medium">

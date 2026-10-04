@@ -41,17 +41,31 @@ export interface ProfessionalRolePresentation {
  * Um mesmo profissional pode ter os dois — e aí aparecem os dois rótulos.
  * Não existe "híbrido": inventar um terceiro papel para representar a soma
  * criaria um conceito que o backend não tem.
+ *
+ * ## Por que os nomes são estes
+ *
+ * "Técnico em Campo" e "Técnico responsável" conviviam com "Responsável Técnico" em
+ * telas diferentes, e as três expressões usam as mesmas duas palavras em ordens
+ * diferentes para dizer coisas opostas. Num PMOC isso não é detalhe: um é quem vai
+ * ao local, o outro é quem responde pelo contrato e assina o documento com a
+ * credencial que a norma exige.
+ *
+ * **Técnico Operacional** não se confunde com **Responsável Técnico** nem lido
+ * rápido, e é o nome que o resto do produto passa a usar — aqui, no catálogo de
+ * papéis de acesso e nos formulários.
  */
 export const PROFESSIONAL_ROLES: Readonly<
   Record<PublicProfessionalRole, ProfessionalRolePresentation>
 > = {
   FIELD_TECHNICIAN: {
-    label: "Técnico em Campo",
-    description: "Executa o atendimento presencialmente.",
+    label: "Técnico Operacional",
+    description:
+      "Técnico em refrigeração que executa o serviço no cliente: abre o atendimento, cumpre o roteiro e registra o que foi feito.",
   },
   TECHNICAL_RESPONSIBLE: {
     label: "Responsável Técnico",
-    description: "Responde tecnicamente pelo documento emitido.",
+    description:
+      "Responde tecnicamente pelo contrato de manutenção e assina o documento emitido, com a credencial que o PMOC exige.",
   },
 };
 

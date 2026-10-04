@@ -77,6 +77,7 @@ import {
   type OperationListItem,
 } from "@/types/operations";
 import { operationKindLabel, operationPriorityLabel } from "./operation-badges";
+import { PROFESSIONAL_ROLES } from "@/registry";
 import { comandosDeAtribuicao } from "./operation-assignment-commands";
 import { OperationAddressField } from "./operation-address.field";
 import { OperationChecklistField } from "./operation-checklist.field";
@@ -733,7 +734,18 @@ function TechnicianAssignment({
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2">
-        <Label htmlFor="operation-responsible">Técnico responsável</Label>
+        {/*
+          "Técnico Operacional", e não "Técnico responsável".
+
+          O produto usava "Técnico responsável" aqui e "Responsável Técnico" no
+          PMOC — as mesmas palavras em ordens diferentes, para coisas opostas: um
+          executa no cliente, o outro responde pelo contrato e assina o documento
+          com a credencial que a norma exige. O rótulo vem do registry, que é onde
+          os dois papéis têm nome.
+        */}
+        <Label htmlFor="operation-responsible">
+          {PROFESSIONAL_ROLES.FIELD_TECHNICIAN.label}
+        </Label>
         <Select
           value={responsibleId || SEM_RESPONSAVEL}
           onValueChange={(value) =>

@@ -10,7 +10,7 @@
  * recusa qualquer outro. O **papel de acesso** não entra nessa conta.
  *
  * Isso cria uma armadilha que esta aba passa a expor em vez de esconder: dá para
- * cadastrar um membro com o papel "Técnico operador" e ele continuar invisível
+ * cadastrar um membro com o papel "Técnico Operacional" e ele continuar invisível
  * para a operação — não aparece no seletor de atribuição, não recebe comissão, e
  * a lista de técnicos vem vazia. Era exatamente o que acontecia, e a tela não
  * dizia nada.
