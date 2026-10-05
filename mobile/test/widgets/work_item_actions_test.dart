@@ -1,0 +1,246 @@
+/// As ações da tela de atendimento.
+///
+/// ## O que está preso aqui
+///
+/// Que a tela ofereça **duas** decisões — começar, ou avisar que não dá — e não
+/// a lista inteira de `allowedActions`. Ela desenhava um botão por ação
+/// publicada, e o resultado era uma pilha de botões soltos, parte deles
+/// desabilitada, com o único que importava perdido no meio.
+///
+/// O servidor continua mandando: sem a ação na lista, o botão não existe. O que
+/// mudou é que a tela parou de tratar a lista como um menu.
+library;
+
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:orbit_operator/app/providers.dart';
+import 'package:orbit_operator/core/config/environment.dart';
+import 'package:orbit_operator/core/network/orbit_api_client.dart';
+import 'package:orbit_operator/core/observability/orbit_logger.dart';
+import 'package:orbit_operator/core/theme/orbit_theme.dart';
+import 'package:orbit_operator/features/field/presentation/work_item_detail_screen.dart';
+
+import '../support/fakes.dart';
+import '../support/scripted_adapter.dart';
+
+void main() {
+  /* A tela imprime data e hora em pt-BR; sem isto o `DateFormat` levanta antes
+     de qualquer asserção, e a falha não é da tela. */
+  setUpAll(() => initializeDateFormatting('pt_BR'));
+
+  /*
+   * Superfície alta de propósito.
+   *
+   * O conteúdo vive num `ListView`, que só constrói o que cabe na viewport — e
+   * as ações ficam no fim. Num telefone a pessoa rola até elas; aqui, rolar a
+   * cada asserção testaria o `ListView`, não a tela.
+   */
+  setUp(() {
+    final view = TestWidgetsFlutterBinding.instance.platformDispatcher.views
+        .first;
+    view.physicalSize = const Size(1200, 4000);
+    view.devicePixelRatio = 1;
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+  });
+
+  testWidgets('oferece iniciar e cancelar, e nada além', (tester) async {
+    await tester.pumpWidget(
+      _host(acoes: const ['VIEW', 'START', 'ADD_EVIDENCE', 'SCAN_EQUIPMENT',
+          'REQUEST_CANCELLATION']),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Iniciar o Atendimento'), findsOneWidget);
+    expect(find.text('Cancelar o Atendimento'), findsOneWidget);
+
+    /*
+     * As que sobraram na lista publicada **não** viram botão aqui: elas têm
+     * lugar próprio no roteiro de execução, que é onde fazem sentido. Era essa
+     * pilha que a tela despejava.
+     */
+    expect(find.text('Registrar evidência'), findsNothing);
+    expect(find.text('Ler etiqueta'), findsNothing);
+    expect(find.text('Abrir'), findsNothing);
+  });
+
+  testWidgets('sem a ação publicada, não há botão de cancelar', (tester) async {
+    /* O servidor manda. A tela não inventa a ação porque "faria sentido". */
+    await tester.pumpWidget(_host(acoes: const ['VIEW', 'START']));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Iniciar o Atendimento'), findsOneWidget);
+    expect(find.text('Cancelar o Atendimento'), findsNothing);
+  });
+
+  testWidgets('retomar troca o rótulo, não o lugar', (tester) async {
+    await tester.pumpWidget(
+      _host(acoes: const ['VIEW', 'RESUME', 'REQUEST_CANCELLATION']),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Retomar o Atendimento'), findsOneWidget);
+    expect(find.text('Iniciar o Atendimento'), findsNothing);
+  });
+
+  testWidgets('pedido já enviado ocupa o lugar do botão', (tester) async {
+    /*
+     * A asserção que evita o pedido em duplicata. Sem ela o técnico tocaria de
+     * novo a cada vez que abrisse o atendimento, sem sinal de que o primeiro
+     * chegou — e o servidor devolveria o mesmo pedido em silêncio.
+     */
+    await tester.pumpWidget(
+      _host(
+        acoes: const ['VIEW', 'START', 'REQUEST_CANCELLATION'],
+        pedidoPendente: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cancelar o Atendimento'), findsNothing);
+    expect(find.text('CANCELAMENTO PEDIDO'), findsOneWidget);
+    expect(find.textContaining('Portão trancado'), findsOneWidget);
+
+    /* Iniciar continua: o atendimento segue de pé até o responsável decidir. */
+    expect(find.text('Iniciar o Atendimento'), findsOneWidget);
+  });
+
+  testWidgets('mostra o endereço com complemento e ponto de referência', (
+    tester,
+  ) async {
+    /* O que fazia o técnico ligar para o escritório: os dois campos que
+       decidem se ele acha a portaria. */
+    await tester.pumpWidget(_host());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bloco B, 4º andar'), findsOneWidget);
+    expect(find.textContaining('Portão azul nos fundos'), findsOneWidget);
+    expect(find.text('+55 81 98888-0000'), findsOneWidget);
+    expect(find.text('Manutenção'), findsOneWidget);
+  });
+
+  testWidgets('sem liberação, o valor não aparece', (tester) async {
+    /*
+     * Ausência, e não "R$ 0,00": o servidor omite `financialSummary` quando o
+     * responsável não liberou aquele atendimento, e omitir é a única forma de
+     * não afirmar nada sobre o valor.
+     */
+    await tester.pumpWidget(_host(comValor: false));
+    await tester.pumpAndSettle();
+
+    expect(find.text('VALOR DO ATENDIMENTO'), findsNothing);
+  });
+
+  testWidgets('liberado, o valor aparece', (tester) async {
+    await tester.pumpWidget(_host(comValor: true));
+    await tester.pumpAndSettle();
+
+    expect(find.text('VALOR DO ATENDIMENTO'), findsOneWidget);
+  });
+}
+
+Widget _host({
+  List<String> acoes = const ['VIEW', 'START', 'REQUEST_CANCELLATION'],
+  bool pedidoPendente = false,
+  bool comValor = false,
+}) {
+  Future<ResponseBody> handler(RequestOptions options) async {
+    if (options.uri.path.contains('/work-items/')) {
+      return jsonResponse({
+        'success': true,
+        'data': {
+          'workItem': {
+            'id': 'SERVICE_OPERATION:op-1',
+            'kind': 'SERVICE_OPERATION',
+            'sourceId': 'op-1',
+            'title': 'Manutenção preventiva — Chiller 40TR',
+            'businessUnit': {'id': 'bu', 'name': 'Matriz'},
+            'customer': {
+              'id': 'c1',
+              'name': 'Shopping Recife',
+              'contact': {
+                'name': 'Dona Rita',
+                'phone': '+55 81 98888-0000',
+                'email': null,
+              },
+            },
+            'serviceAddress': {
+              'label': 'Matriz',
+              'street': 'Av. Agamenon Magalhães',
+              'number': '1200',
+              'complement': 'Bloco B, 4º andar',
+              'district': 'Boa Vista',
+              'city': 'Recife',
+              'stateCode': 'PE',
+              'postalCode': '50050-000',
+              'reference': 'Portão azul nos fundos; falar com a portaria.',
+              'sector': 'Casa de máquinas',
+            },
+            'serviceType': 'Manutenção',
+            'pendingCancellation': pedidoPendente
+                ? {
+                    'id': 'req-1',
+                    'reason': 'Portão trancado e ninguém atende.',
+                    'requestedAt': '2026-09-08T12:00:00.000Z',
+                  }
+                : null,
+            'timezone': 'America/Recife',
+            'scheduledFor': '2026-09-08T12:30:00.000Z',
+            'dueState': 'DUE_TODAY',
+            'operationalStatus': 'SCHEDULED',
+            'auxiliaryTechnicians': const <Map<String, dynamic>>[],
+            'equipmentSummary': const <Map<String, dynamic>>[],
+            'allowedActions': acoes,
+            'navigationContext': {
+              'kind': 'SERVICE_OPERATION',
+              'sourceId': 'op-1',
+            },
+            'updatedAt': '2026-09-08T10:00:00.000Z',
+          },
+          'request': {'description': null},
+          'procedures': const <Map<String, dynamic>>[],
+          'documentContext': const <Map<String, dynamic>>[],
+          if (comValor)
+            'financialSummary': {
+              'currency': 'BRL',
+              'approvedAmount': '8450.00',
+              'paymentStatus': 'APPROVED',
+            },
+          'snapshotVersion': 3,
+        },
+      });
+    }
+    return jsonResponse({'success': true, 'data': const {}});
+  }
+
+  final dio = Dio()..httpClientAdapter = ScriptedAdapter(handler);
+  final plain = Dio()..httpClientAdapter = ScriptedAdapter(handler);
+  final client = OrbitApiClient.create(
+    environment: OrbitEnvironment.fromDefines(),
+    storage: InMemoryTokenStorage(),
+    logger: const OrbitLogger(isProduction: true),
+    dio: dio,
+    retryDio: plain,
+  );
+
+  return ProviderScope(
+    overrides: [
+      apiClientProvider.overrideWithValue(client),
+      sessionProvider.overrideWithValue(sessionFrom()),
+      /* O repositório de campo guarda a leitura em disco; sem um cache de
+         memória o teste tropeça no canal de plataforma, não na tela. */
+      readCacheProvider.overrideWithValue(InMemoryReadCache()),
+    ],
+    child: MaterialApp(
+      theme: OrbitTheme.light(),
+      home: const WorkItemDetailScreen(
+        workItemId: 'SERVICE_OPERATION:op-1',
+      ),
+    ),
+  );
+}

@@ -59,15 +59,44 @@ Map<String, dynamic> item({
   String dueState = 'DUE_TODAY',
   String status = 'SCHEDULED',
   String? quando = '2026-09-08T12:00:00.000Z',
-  List<String> acoes = const ['VIEW', 'START'],
+  List<String> acoes = const ['VIEW', 'START', 'REQUEST_CANCELLATION'],
   List<Map<String, dynamic>> equipamentos = const [],
+
+  /// O endereço do atendimento, com o que a tela passou a destacar.
+  ///
+  /// Presente por padrão porque é o caso comum — e porque sem ele a captura não
+  /// mostra complemento nem ponto de referência, que são justamente o que o
+  /// redesenho veio resolver.
+  Map<String, dynamic>? endereco = const {
+    'label': 'Matriz',
+    'street': 'Av. Agamenon Magalhães',
+    'number': '1200',
+    'complement': 'Bloco B, 4º andar',
+    'district': 'Boa Vista',
+    'city': 'Recife',
+    'stateCode': 'PE',
+    'postalCode': '50050-000',
+    'reference': 'Portão azul nos fundos; falar com a portaria.',
+    'sector': 'Casa de máquinas',
+  },
+  String? tipo = 'Manutenção',
 }) => {
   'id': 'SERVICE_OPERATION:$id',
   'kind': 'SERVICE_OPERATION',
   'sourceId': id,
   'title': titulo,
   'businessUnit': {'id': 'bu', 'name': unidade},
-  'customer': {'id': 'c$id', 'name': cliente},
+  'customer': {
+    'id': 'c$id',
+    'name': cliente,
+    'contact': {
+      'name': 'Dona Rita',
+      'phone': '+55 81 98888-0000',
+      'email': null,
+    },
+  },
+  if (endereco != null) 'serviceAddress': endereco,
+  if (tipo != null) 'serviceType': tipo,
   'timezone': 'America/Recife',
   'scheduledFor': quando,
   'dueState': dueState,
@@ -758,6 +787,13 @@ void registerCaptures() {
         },
         'procedures': <Map<String, dynamic>>[],
         'documentContext': <Map<String, dynamic>>[],
+        /* O valor só existe quando o responsável liberou aquele atendimento.
+           Presente aqui para a captura mostrar a seção; ausente, ela some. */
+        'financialSummary': {
+          'currency': 'BRL',
+          'approvedAmount': '8450.00',
+          'paymentStatus': 'APPROVED',
+        },
         'snapshotVersion': 3,
       }, const WorkItemDetailScreen(workItemId: 'OPERATION:op-1')),
     );

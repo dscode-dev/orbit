@@ -67,16 +67,17 @@ class OperationExecutionScreen extends ConsumerWidget {
         ),
       },
 
-      /// A ação principal fica ao alcance do polegar, acima da área de gestos.
-      bottomNavigationBar: state.preparation == null
-          ? null
-          : SafeArea(
-              minimum: const EdgeInsets.all(OrbitSpacing.gutter),
-              child: ExecutionPrimaryAction(
-                state: state,
-                controller: controller,
-              ),
-            ),
+      /// **Sem barra fixa.**
+      ///
+      /// Havia uma, com a ação principal do atendimento, e ela competia com o
+      /// "Avançar" do roteiro: na primeira etapa a tela mostrava "Avançar ·
+      /// Execução" no meio e "Iniciar atendimento" colado embaixo, dois botões
+      /// grandes dizendo coisas diferentes sem nada indicando qual vinha
+      /// primeiro.
+      ///
+      /// A ação do domínio passou para **dentro da etapa a que pertence** —
+      /// iniciar na Preparação, concluir na Finalização. O par persistente
+      /// voltou a ser só navegação: Voltar e Avançar.
     );
   }
 }
@@ -100,6 +101,17 @@ class OperationExecutionScreen extends ConsumerWidget {
 ///
 /// Nenhuma etapa é marcada como cumprida por dedução da tela: "cumprida" vem
 /// de `eligible` e do `progress` que o servidor calcula.
+/// A ação publicada é a de começar?
+///
+/// Decide em que etapa o botão do domínio aparece: iniciar e retomar pertencem à
+/// Preparação; concluir, à Finalização. Quem elege a ação continua sendo o
+/// servidor — isto só escolhe o lugar dela na tela.
+bool _comecando(ExecutionState state) {
+  final acao = state.preparation?.primaryAction;
+  return acao == FieldOperationAllowedAction.start ||
+      acao == FieldOperationAllowedAction.resume;
+}
+
 class _Body extends StatelessWidget {
   const _Body({
     required this.state,
@@ -145,6 +157,13 @@ class _Body extends StatelessWidget {
 
             if (!preparation.eligible && preparation.blockers.isNotEmpty)
               _Blockers(blockers: preparation.blockers),
+
+            /// Iniciar mora aqui, e não numa barra fixa: é a ação **desta**
+            /// etapa, logo abaixo do que se confere antes de começar.
+            if (_comecando(state)) ...[
+              const SizedBox(height: OrbitSpacing.md),
+              ExecutionPrimaryAction(state: state, controller: controller),
+            ],
           ],
         ),
       ),
@@ -259,6 +278,12 @@ class _Body extends StatelessWidget {
               ].whereType<String>().join(' · '),
             ),
             _Timeline(operationId: operationId),
+
+            /// Concluir, no fim do roteiro — que é quando o atendimento acaba.
+            if (!_comecando(state)) ...[
+              const SizedBox(height: OrbitSpacing.md),
+              ExecutionPrimaryAction(state: state, controller: controller),
+            ],
           ],
         ),
       ),

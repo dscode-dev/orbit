@@ -75,19 +75,23 @@ class FieldOperationRepository {
   /// disputar. O que volta é o pedido registrado, para a tela mostrar que foi
   /// enviado.
   ///
+  /// As fotos viajam pelo id **local** da captura: no instante do pedido elas
+  /// quase nunca existem no servidor, porque o upload é offline-first. O
+  /// servidor costura as duas coisas quando o arquivo enfim chega.
+  ///
   /// Reenviar é inofensivo: havendo pedido em aberto, o servidor devolve o
   /// mesmo em vez de recusar — o que importa quando a rede cai depois de
   /// gravar.
   Future<MobilePendingCancellationContract?> requestCancellation(
     String operationId, {
     required String reason,
-    List<String> evidenceIds = const [],
+    List<String> evidenceLocalIds = const [],
   }) async {
     final data = await _client.post<Map<String, dynamic>>(
       '${_base(operationId)}/cancellation-request',
       body: {
         'reason': reason,
-        if (evidenceIds.isNotEmpty) 'evidenceIds': evidenceIds,
+        if (evidenceLocalIds.isNotEmpty) 'evidenceLocalIds': evidenceLocalIds,
       },
     );
     return MobilePendingCancellationContract.fromJson(data);
