@@ -10,12 +10,28 @@
 ///
 /// ## O que ele não decide
 ///
-/// Nada de domínio. O roteiro não sabe se uma etapa pode ser pulada, se o
-/// atendimento pode ser concluído, nem o que torna uma etapa completa: quem
-/// chama declara [OrbitWizardStep.complete] e [OrbitWizardStep.enabled] a
-/// partir do que o **servidor** publicou — `allowedActions`, `blockers`,
-/// `eligible`. Uma regra escrita aqui viraria a segunda máquina de estados, a
-/// que diverge da do backend na primeira mudança.
+/// Nada de domínio. O roteiro não sabe se o atendimento pode ser concluído nem o
+/// que torna uma etapa completa: quem chama declara [OrbitWizardStep.complete] e
+/// [OrbitWizardStep.lockedReason] a partir do que o **servidor** publicou —
+/// `allowedActions`, `blockers`, `eligible`. Uma regra escrita aqui viraria a
+/// segunda máquina de estados, a que diverge da do backend na primeira mudança.
+///
+/// ## Nenhuma etapa é pulada
+///
+/// Havia um `enabled` que decidia se a etapa era **alcançável**, e avançar saltava
+/// por cima das desabilitadas. O efeito em campo: um atendimento sem checklist pulava
+/// a etapa 2 — de Preparação para Evidências —, e quem executava via "Etapa 1 de 6"
+/// virar "Etapa 3 de 6" sem nunca saber o que havia na 2. Nos dois roteiros do app
+/// isso acontecia por omissão, porque a condição mais comum em campo é justamente a
+/// que desabilitava: sem checklist previsto, sem execução aberta ainda.
+///
+/// Pior: as etapas já traziam a explicação pronta no próprio conteúdo — "Sem checklist
+/// previsto" — e ela nunca aparecia, porque a etapa era inalcançável.
+///
+/// Agora toda etapa é alcançável, e o que antes a desabilitava virou
+/// [OrbitWizardStep.lockedReason]: a etapa abre, e no lugar do conteúdo mostra **por
+/// que** ainda não há o que fazer ali. O tipo é `String?` e não `bool` de propósito —
+/// não há como travar uma etapa sem dizer o motivo.
 ///
 /// Avançar e voltar são **navegação**, não transição de domínio: nenhum comando
 /// é enviado ao mudar de etapa, e sair no meio não perde nada — o que foi
@@ -25,6 +41,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../theme/orbit_theme.dart';
+import 'orbit_primitives.dart';
 
 /// Uma etapa do roteiro.
 class OrbitWizardStep {
@@ -33,7 +50,7 @@ class OrbitWizardStep {
     required this.child,
     this.hint,
     this.complete = false,
-    this.enabled = true,
+    this.lockedReason,
   });
 
   /// O nome da etapa, como a pessoa a chamaria.
@@ -48,9 +65,17 @@ class OrbitWizardStep {
   /// que o servidor publicou.
   final bool complete;
 
-  /// Se a etapa é alcançável. Uma etapa desabilitada continua visível no
-  /// trilho — esconder faria a pessoa perder a conta de quantas são.
-  final bool enabled;
+  /// Por que ainda não há o que fazer nesta etapa, quando é o caso.
+  ///
+  /// `null` é a etapa normal. Preenchido, a etapa continua **alcançável** e mostra
+  /// esta frase no lugar do conteúdo: o conteúdo pode ser interativo, e deixá-lo
+  /// operável antes da hora é o que o travamento existe para evitar.
+  ///
+  /// A frase é lida por quem está em campo, então diz o que falta acontecer — "abra o
+  /// atendimento para registrar o roteiro" —, e não o estado interno que faltou.
+  final String? lockedReason;
+
+  bool get isLocked => lockedReason != null;
 }
 
 class OrbitWizard extends StatefulWidget {
@@ -90,25 +115,17 @@ class OrbitWizardState extends State<OrbitWizard> {
 
   void _ir(int destino) {
     if (destino < 0 || destino >= widget.steps.length) return;
-    if (!widget.steps[destino].enabled) return;
     setState(() => _atual = destino);
     widget.onStepChanged?.call(destino);
   }
 
-  /// A próxima etapa alcançável, ou `null` quando não há.
-  int? get _proxima {
-    for (var i = _atual + 1; i < widget.steps.length; i++) {
-      if (widget.steps[i].enabled) return i;
-    }
-    return null;
-  }
+  /// A etapa seguinte, ou `null` na última.
+  ///
+  /// Sempre a vizinha — nenhuma busca por "a próxima alcançável". Era essa busca que
+  /// pulava etapas, e com ela "Avançar" deixava de significar "a próxima".
+  int? get _proxima => _atual + 1 < widget.steps.length ? _atual + 1 : null;
 
-  int? get _anterior {
-    for (var i = _atual - 1; i >= 0; i--) {
-      if (widget.steps[i].enabled) return i;
-    }
-    return null;
-  }
+  int? get _anterior => _atual > 0 ? _atual - 1 : null;
 
   @override
   Widget build(BuildContext context) {
@@ -186,7 +203,26 @@ class OrbitWizardState extends State<OrbitWizard> {
         ),
 
         const SizedBox(height: OrbitSpacing.md),
-        etapa.child,
+
+        /// Travada mostra o motivo; não o conteúdo.
+        ///
+        /// Trocar e não apenas avisar: o conteúdo é interativo — checklist, captura de
+        /// evidência, campo de observação —, e deixá-lo operável antes da hora é o que
+        /// o travamento existe para evitar. Antes essa proteção vinha de a etapa ser
+        /// inalcançável, ao custo de ninguém nunca ler o motivo.
+        if (etapa.lockedReason case final String motivo)
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: OrbitSpacing.gutter,
+            ),
+            child: OrbitEmptyState(
+              icon: Icons.lock_clock_outlined,
+              title: 'Ainda não é a hora desta etapa',
+              description: motivo,
+            ),
+          )
+        else
+          etapa.child,
 
         if (widget.footer case final Widget rodape) ...[
           const SizedBox(height: OrbitSpacing.md),
@@ -290,7 +326,7 @@ class _Trilho extends StatelessWidget {
               index: indice,
               total: steps.length,
               current: indice == current,
-              onTap: etapa.enabled ? () => onSelect(indice) : null,
+              onTap: () => onSelect(indice),
             ),
           ],
         ],
@@ -321,20 +357,23 @@ class _Marca extends StatelessWidget {
     final (Color fundo, Color tinta) = switch ((
       current,
       step.complete,
-      step.enabled,
+      step.isLocked,
     )) {
       (true, _, _) => (palette.accentSoft, palette.accentStrong),
       (_, true, _) => (palette.successSoft, palette.success),
-      (_, _, false) => (palette.surfaceMuted, palette.inkDisabled),
+      /* Travada: silenciada no trilho, mas continua um alvo — tocar nela abre a
+         etapa e mostra o motivo, que é a única forma de a pessoa descobri-lo. */
+      (_, _, true) => (palette.surfaceMuted, palette.inkDisabled),
       _ => (palette.surfaceMuted, palette.inkMuted),
     };
 
     return Semantics(
-      button: step.enabled,
+      button: true,
       selected: current,
       label:
           '${step.title}, etapa ${index + 1} de $total'
-          '${step.complete ? ', concluída' : ''}',
+          '${step.complete ? ', concluída' : ''}'
+          '${step.isLocked ? ', aguardando' : ''}',
       excludeSemantics: true,
       child: InkWell(
         onTap: onTap,

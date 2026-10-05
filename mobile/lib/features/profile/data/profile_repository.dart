@@ -22,6 +22,22 @@ import '../../../core/contracts/session_contracts.dart';
 import '../../../core/network/orbit_api_client.dart';
 
 /// O espaço reservado para o arquivo, antes de ele existir.
+///
+/// ## O formato é aninhado, e era lido como se fosse plano
+///
+/// `POST /identity/me/avatar/uploads` responde
+/// `{ fileId, upload: { url, expiresAt, method, requiredHeaders } }` — a mesma forma
+/// que a reserva da assinatura, porque as duas saem do mesmo `files.reserve`.
+///
+/// A leitura anterior procurava `storageObjectId`, `uploadUrl`/`url` e `headers` na
+/// **raiz**. Nenhum dos três existe ali. Com `?? ''` em cada um, o resultado não era
+/// um erro: era um bilhete vazio, que mandava os bytes para `Uri.parse('')` e depois
+/// ativava o arquivo de id `''`. A troca de foto nunca funcionou, e o default
+/// silencioso é o que escondeu isso — um campo ausente virava string vazia em vez de
+/// exceção, e o erro só aparecia como "não consigo adicionar a foto".
+///
+/// Por isso os `!` abaixo, e nenhum default: campo que falta é contrato quebrado, e
+/// contrato quebrado precisa estourar onde foi lido.
 class AvatarUploadTicket {
   const AvatarUploadTicket({
     required this.storageObjectId,
@@ -29,16 +45,19 @@ class AvatarUploadTicket {
     this.headers = const {},
   });
 
-  factory AvatarUploadTicket.fromJson(Map<String, dynamic> json) =>
-      AvatarUploadTicket(
-        storageObjectId: json['storageObjectId'] as String? ?? '',
-        uploadUrl: json['uploadUrl'] as String? ?? json['url'] as String? ?? '',
-        headers:
-            (json['headers'] as Map?)?.map(
-              (chave, valor) => MapEntry('$chave', '$valor'),
-            ) ??
-            const {},
-      );
+  factory AvatarUploadTicket.fromJson(Map<String, dynamic> json) {
+    final upload = json['upload']! as Map<String, Object?>;
+    final headers = upload['requiredHeaders'] as Map<String, Object?>?;
+    return AvatarUploadTicket(
+      /// `fileId` no corpo, `storageObjectId` no comando que ativa: os dois nomes
+      /// são do servidor, e é ele quem os escolhe em cada ponta.
+      storageObjectId: json['fileId']! as String,
+      uploadUrl: upload['url']! as String,
+      headers:
+          headers?.map((chave, valor) => MapEntry(chave, '$valor')) ??
+          const {},
+    );
+  }
 
   final String storageObjectId;
   final String uploadUrl;

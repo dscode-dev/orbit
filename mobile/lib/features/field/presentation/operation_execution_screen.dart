@@ -153,10 +153,16 @@ class _Body extends StatelessWidget {
         title: 'Execução',
         hint: 'Responda o checklist previsto para este atendimento.',
 
-        /// Sem checklist a etapa não some do trilho — fica desabilitada. Some
-        /// faria a contagem de etapas mudar de atendimento para atendimento, e
-        /// "etapa 3 de 5" deixaria de significar a mesma coisa.
-        enabled: checklists.isNotEmpty,
+        /// Sem checklist a etapa **abre** e diz que não há itens.
+        ///
+        /// Era `enabled: checklists.isNotEmpty`, e o roteiro pulava o que estava
+        /// desabilitado: um atendimento sem checklist — o caso mais comum — saltava de
+        /// Preparação direto para Evidências. O `OrbitEmptyState` abaixo já explicava
+        /// a situação e nunca era visto.
+        ///
+        /// Aqui não há travamento: não ter itens a responder não é "ainda não é a
+        /// hora", é a etapa cumprida por não ter conteúdo. Quem precisa saber disso
+        /// lê o estado vazio.
         complete: checklistCumprido,
         child: checklists.isEmpty
             ? const OrbitEmptyState(
@@ -197,9 +203,14 @@ class _Body extends StatelessWidget {
       OrbitWizardStep(
         title: 'Materiais',
         hint: 'Materiais aplicados e observações do atendimento.',
-        enabled:
+        /// Travada quando nem material nem observação estão autorizados: o conteúdo
+        /// são dois botões que abrem folhas de registro, e abri-las sem autorização
+        /// levaria a uma recusa do servidor depois de a pessoa ter digitado tudo.
+        lockedReason:
             preparation.materialPolicy.enabled ||
-            state.allows(FieldOperationAllowedAction.addNote),
+                state.allows(FieldOperationAllowedAction.addNote)
+            ? null
+            : 'Este atendimento não prevê registro de materiais nem observações.',
         child: ExecutionSecondaryActions(
           state: state,
           onNote: () => showNoteSheet(context, controller),

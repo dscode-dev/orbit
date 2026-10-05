@@ -159,11 +159,47 @@ describe('MobileSignatureService', () => {
     ).rejects.toBeInstanceOf(ValidationException);
   });
 
-  it('never permits an inactive/non-professional user to enroll', async () => {
+  /**
+   * O cadastro da própria assinatura não depende de perfil profissional.
+   *
+   * Exigi-lo deixava um membro com acesso ao aplicativo preso: a tela respondia "não
+   * tem permissão", e o perfil profissional é cadastrado por outra pessoa, no painel
+   * web, numa tela que ele não abre. Quem decide se a pessoa entra no aplicativo é
+   * `@Surfaces('MOBILE')`, antes daqui.
+   *
+   * `roles` vazio é a resposta certa, e não um erro: a pessoa tem assinatura e não
+   * tem papel profissional. A tela do app já trata a lista vazia.
+   */
+  it('lets any active member enroll, with or without a professional profile', async () => {
     const repository = {
       context: jest.fn().mockResolvedValue({
         membership: { id: 'm' },
-        profile: { ...profile, fieldTechnicianEnabled: false },
+        profile: null,
+        signature: null,
+      }),
+    };
+    const service = new MobileSignatureService(
+      repository as never,
+      {} as never,
+      storageConfig as never,
+    );
+    await expect(service.status(actor, MOBILE_PREVIEW_PATH)).resolves.toEqual({
+      signatureAvailable: false,
+      version: null,
+      updatedAt: null,
+      roles: [],
+      preview: null,
+    });
+  });
+
+  it('still refuses someone with no active membership', async () => {
+    /* A associação continua obrigatória: `UserSignature` é por organização, e sem
+       vínculo ativo a pessoa não é dela. É o que sobrou do portão — e o que ele
+       deveria ter sido desde o início. */
+    const repository = {
+      context: jest.fn().mockResolvedValue({
+        membership: null,
+        profile,
         signature: null,
       }),
     };

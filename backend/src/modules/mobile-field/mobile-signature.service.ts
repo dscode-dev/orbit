@@ -75,7 +75,7 @@ export class MobileSignatureService {
     actor: MobileFieldActor,
     basePath: string,
   ): Promise<MobileSignatureStatusReadModel> {
-    const context = await this.requireProfessional(actor);
+    const context = await this.requireMember(actor);
     const signature = context.signature;
     return {
       signatureAvailable: Boolean(signature),
@@ -98,7 +98,7 @@ export class MobileSignatureService {
     input: MobileSignatureUploadDto,
     basePath: string,
   ): Promise<MobileSignatureUploadResultReadModel> {
-    const context = await this.requireProfessional(actor);
+    const context = await this.requireMember(actor);
     const reserved = await this.repository.signatureUploadFile(
       actor.organizationId,
       input.storageObjectId,
@@ -157,7 +157,7 @@ export class MobileSignatureService {
     actor: MobileFieldActor,
     input: MobileSignatureUploadReservationDto,
   ): Promise<MobileSignatureUploadReservationReadModel> {
-    await this.requireProfessional(actor);
+    await this.requireMember(actor);
     const { file, signed } = await this.files.reserve({
       organizationId: actor.organizationId,
       businessUnitId: null,
@@ -185,7 +185,7 @@ export class MobileSignatureService {
   async revoke(
     actor: MobileFieldActor,
   ): Promise<MobileSignatureStatusReadModel> {
-    const context = await this.requireProfessional(actor);
+    const context = await this.requireMember(actor);
     await this.repository.revoke(actor.organizationId, actor.id);
     return {
       signatureAvailable: false,
@@ -205,7 +205,7 @@ export class MobileSignatureService {
     actor: MobileFieldActor,
     query: MobileSignaturePreviewQueryDto,
   ): Promise<{ body: Buffer; mimeType: string }> {
-    const context = await this.requireProfessional(actor);
+    const context = await this.requireMember(actor);
     const signature = context.signature;
     if (
       !signature ||
@@ -355,18 +355,44 @@ export class MobileSignatureService {
     };
   }
 
-  private async requireProfessional(actor: MobileFieldActor) {
+  /**
+   * Quem pode cadastrar a **própria** assinatura.
+   *
+   * ## O portão que estava errado
+   *
+   * Exigia perfil profissional ativo com ao menos um papel — Técnico Operacional ou
+   * Responsável Técnico — para quem não fosse o dono. O efeito era um membro com
+   * acesso ao aplicativo recebendo "não tem permissão" na tela da própria assinatura,
+   * sem nada que ele pudesse fazer a respeito: o perfil profissional é cadastrado por
+   * outra pessoa, no painel web, numa tela que ele não abre.
+   *
+   * ## Por que a conta já estava feita
+   *
+   * "Ter acesso ao aplicativo de campo" é uma decisão que o sistema já toma, e toma
+   * noutro lugar: `@Surfaces('MOBILE')` no controller, resolvido por
+   * `allowsSurface` a partir das superfícies do papel. Quem chega até aqui já passou
+   * por ela. O perfil profissional era um segundo portão, mais estrito, perguntando
+   * outra coisa — e respondendo a pergunta errada.
+   *
+   * ## O perfil continua decidindo o que importa
+   *
+   * Ele não deixou de valer; deixou de valer **aqui**. Quem pode ser escolhido como
+   * Responsável Técnico de um PMOC, e portanto de quem a assinatura sai impressa no
+   * contrato, continua sendo filtrado por `technicalResponsibleEnabled`. A assinatura
+   * é a imagem da rubrica de alguém; onde ela aparece é outra decisão, tomada por
+   * quem monta o documento. Trancar o cadastro era trancar a porta errada.
+   *
+   * O que permanece obrigatório é a associação ativa: sem ela a pessoa não é da
+   * organização, e `UserSignature` é por organização.
+   */
+  private async requireMember(actor: MobileFieldActor) {
     const context = await this.repository.context(
       actor.organizationId,
       actor.id,
     );
-    if (
-      !context.membership ||
-      (!actor.isOrganizationOwner &&
-        (!context.profile?.active || this.roles(context.profile).length === 0))
-    )
+    if (!context.membership)
       throw new ForbiddenException(
-        'Perfil profissional ativo é obrigatório para cadastrar assinatura',
+        'Associação ativa à organização é obrigatória para cadastrar assinatura',
       );
     return context;
   }

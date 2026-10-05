@@ -32,12 +32,12 @@ Widget host(
 OrbitWizardStep step(
   String title, {
   bool complete = false,
-  bool enabled = true,
+  String? lockedReason,
   String? hint,
 }) => OrbitWizardStep(
   title: title,
   complete: complete,
-  enabled: enabled,
+  lockedReason: lockedReason,
   hint: hint,
   child: Text('conteúdo de $title'),
 );
@@ -85,37 +85,77 @@ void main() {
     expect(find.text('Voltar'), findsOneWidget);
   });
 
-  testWidgets('etapa desabilitada continua no trilho e é pulada', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      host([
-        step('Preparação'),
-        step('Execução', enabled: false),
-        step('Evidências'),
-      ]),
-    );
+  /// O defeito que este grupo existe para impedir.
+  ///
+  /// O roteiro pulava etapas travadas, e em campo isso acontecia por omissão: sem
+  /// checklist previsto, sem execução aberta ainda. Quem executava via "Etapa 1 de 6"
+  /// virar "Etapa 3 de 6" e nunca soube o que havia na 2.
+  group('nenhuma etapa é pulada', () {
+    testWidgets('avançar vai para a vizinha, mesmo travada', (tester) async {
+      await tester.pumpWidget(
+        host([
+          step('Preparação'),
+          step('Execução', lockedReason: 'Abra o atendimento primeiro.'),
+          step('Evidências'),
+        ]),
+      );
 
-    /// Some faria a contagem mudar de atendimento para atendimento, e
-    /// "etapa 3 de 5" deixaria de significar a mesma coisa.
-    expect(find.text('Etapa 1 de 3'), findsOneWidget);
-    expect(find.text('Execução'), findsOneWidget);
+      /// O rótulo nomeia a vizinha — não "a próxima alcançável".
+      await tester.tap(find.text('Avançar · Execução'));
+      await tester.pumpAndSettle();
+      expect(find.text('Etapa 2 de 3'), findsOneWidget);
+    });
 
-    await tester.tap(find.text('Avançar · Evidências'));
-    await tester.pumpAndSettle();
-    expect(find.text('Etapa 3 de 3'), findsOneWidget);
-  });
+    testWidgets('a etapa travada mostra o motivo no lugar do conteúdo', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        host([
+          step('Preparação'),
+          step('Execução', lockedReason: 'Abra o atendimento primeiro.'),
+        ]),
+      );
 
-  testWidgets('tocar numa etapa desabilitada não leva a lugar nenhum', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      host([step('Preparação'), step('Execução', enabled: false)]),
-    );
+      await tester.tap(find.text('Avançar · Execução'));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Execução'));
-    await tester.pumpAndSettle();
-    expect(find.text('Etapa 1 de 2'), findsOneWidget);
+      expect(find.text('Abra o atendimento primeiro.'), findsOneWidget);
+
+      /// O conteúdo é interativo; travar é trocá-lo, não só avisar por cima.
+      expect(find.text('conteúdo de Execução'), findsNothing);
+    });
+
+    testWidgets('o trilho leva a uma etapa travada', (tester) async {
+      await tester.pumpWidget(
+        host([
+          step('Preparação'),
+          step('Execução', lockedReason: 'Abra o atendimento primeiro.'),
+        ]),
+      );
+
+      /// Tocar na etapa travada é a única forma de descobrir o motivo — antes o
+      /// toque era ignorado, e o motivo não existia em lugar nenhum.
+      await tester.tap(find.text('Execução'));
+      await tester.pumpAndSettle();
+      expect(find.text('Etapa 2 de 2'), findsOneWidget);
+      expect(find.text('Abra o atendimento primeiro.'), findsOneWidget);
+    });
+
+    testWidgets('voltar também não salta', (tester) async {
+      await tester.pumpWidget(
+        host([
+          step('Preparação'),
+          step('Execução', lockedReason: 'Abra o atendimento primeiro.'),
+          step('Evidências'),
+        ]),
+      );
+
+      await tester.tap(find.text('Evidências'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Voltar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Etapa 2 de 3'), findsOneWidget);
+    });
   });
 
   testWidgets('o trilho leva direto a uma etapa alcançável', (tester) async {

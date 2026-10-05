@@ -170,9 +170,15 @@ class _Body extends StatelessWidget {
         title: 'Roteiro',
         hint: 'Percorra os itens previstos no plano e registre as evidências.',
 
-        /// Alcançável só depois de abrir: antes disso não existe execução a que
-        /// anexar evidência, e o roteiro seria leitura solta.
-        enabled: execution != null,
+        /// Travada antes de abrir: sem execução não há a que anexar evidência.
+        ///
+        /// Era `enabled: execution != null`, e o roteiro pulava a etapa — então todo
+        /// atendimento de PMOC ainda não aberto, que é todo atendimento ao chegar
+        /// nesta tela, saltava a etapa 2. A pessoa via "Etapa 1 de 4" virar
+        /// "Etapa 3 de 4" e nenhuma pista do que havia no meio.
+        lockedReason: execution != null
+            ? null
+            : 'Abra o atendimento na etapa anterior para percorrer o roteiro.',
         complete: reviewed,
         child: _Procedure(
           preparation: preparation,
@@ -186,7 +192,9 @@ class _Body extends StatelessWidget {
       OrbitWizardStep(
         title: 'Registrar',
         hint: 'O que foi encontrado e feito. Isto sai impresso no relatório.',
-        enabled: podeConcluir,
+        lockedReason: podeConcluir
+            ? null
+            : 'Percorra o roteiro e confirme a revisão antes de registrar.',
         complete: execution?.status == PmocEquipmentExecutionStatus.completed,
         child: _Register(
           state: state,
@@ -199,8 +207,10 @@ class _Body extends StatelessWidget {
       OrbitWizardStep(
         title: 'Relatório',
         hint: 'Emitir é decisão separada de concluir.',
-        enabled:
-            execution?.status == PmocEquipmentExecutionStatus.completed,
+        lockedReason:
+            execution?.status == PmocEquipmentExecutionStatus.completed
+            ? null
+            : 'O relatório é emitido depois de o atendimento ser concluído.',
         complete: state.isFinished,
         child: _Report(state: state, controller: controller),
       ),

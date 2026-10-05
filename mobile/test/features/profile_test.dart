@@ -1,6 +1,8 @@
 /// Perfil: editar os próprios dados e escolher os avisos.
 library;
 
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,6 +43,24 @@ class Backend {
             'channels': <String>[],
           },
         ],
+      });
+    }
+
+    /// A reserva do avatar, no formato que o servidor devolve de verdade:
+    /// `fileId` na raiz e o resto sob `upload`. É a forma que `files.reserve`
+    /// produz, a mesma da reserva da assinatura.
+    if (options.uri.path.endsWith('/identity/me/avatar/uploads')) {
+      return jsonResponse({
+        'success': true,
+        'data': {
+          'fileId': 'storage-file-7',
+          'upload': {
+            'url': 'https://storage.example.com/avatars/storage-file-7',
+            'expiresAt': '2026-10-04T23:59:00.000Z',
+            'method': 'PUT',
+            'requiredHeaders': {'x-amz-acl': 'private'},
+          },
+        },
       });
     }
 
@@ -127,6 +147,68 @@ void main() {
             .update(displayName: 'marina d. duarte')
             .then((usuario) => usuario.displayName),
         completion('Marina D. Duarte'),
+      );
+    });
+  });
+
+  group('foto de perfil', () {
+    /// A leitura da reserva, que é onde a troca de foto quebrava.
+    ///
+    /// O servidor responde `{ fileId, upload: { url, requiredHeaders } }`, e a
+    /// leitura antiga procurava `storageObjectId`, `uploadUrl` e `headers` na raiz.
+    /// Com `?? ''` em cada campo, o resultado não era erro: era um bilhete vazio.
+    test('lê o id e a URL de dentro de "upload"', () async {
+      final backend = Backend();
+      final container = containerCom(backend);
+
+      final ticket = await container
+          .read(profileRepositoryProvider)
+          .reserveAvatar(
+            fileName: 'avatar.png',
+            mimeType: 'image/png',
+            sizeBytes: 1024,
+          );
+
+      expect(ticket.storageObjectId, 'storage-file-7');
+      expect(
+        ticket.uploadUrl,
+        'https://storage.example.com/avatars/storage-file-7',
+      );
+      expect(ticket.headers, {'x-amz-acl': 'private'});
+    });
+
+    /// O que o bilhete vazio causava, visto de fora.
+    ///
+    /// Esta é a asserção que importa: não que os campos sejam lidos, mas que os
+    /// bytes cheguem ao endereço reservado. Com a leitura antiga, o `PUT` saía para
+    /// string vazia e a ativação mandava id vazio — e nada disso levantava erro
+    /// perto de onde o erro estava.
+    test('manda os bytes para o endereço reservado e ativa aquele arquivo', () async {
+      final backend = Backend();
+      final container = containerCom(backend);
+
+      final ok = await container
+          .read(profileEditControllerProvider.notifier)
+          .changePhoto(
+            bytes: Uint8List.fromList(const [137, 80, 78, 71]),
+            fileName: 'avatar.png',
+            mimeType: 'image/png',
+          );
+
+      expect(ok, isTrue);
+
+      final put = backend.pedidos.firstWhere(
+        (pedido) => pedido.method == 'PUT' && pedido.path.contains('avatars'),
+      );
+      expect(put.path, '/avatars/storage-file-7');
+
+      final ativacao = backend.pedidos.lastWhere(
+        (pedido) =>
+            pedido.method == 'PUT' && pedido.path.endsWith('/identity/me/avatar'),
+      );
+      expect(
+        (ativacao.body as Map<String, dynamic>)['storageObjectId'],
+        'storage-file-7',
       );
     });
   });
