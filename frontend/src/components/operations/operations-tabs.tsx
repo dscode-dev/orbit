@@ -97,8 +97,14 @@ function Sections() {
         {canRvt ? (
           <TabsTrigger value={OPERATIONS_SECTIONS.rvt}>RVT</TabsTrigger>
         ) : null}
+        {/*
+          "Pendências", e não "Autorização": a aba passou a reunir duas filas de
+          decisão do dono — as atribuições a liberar e os pedidos de cancelamento
+          que o campo devolveu. O apelido da URL continua `autorizacao`, porque
+          ele é público e está em link guardado.
+        */}
         <TabsTrigger value={OPERATIONS_SECTIONS.authorization}>
-          Autorização
+          Pendências
         </TabsTrigger>
       </TabsList>
 
@@ -142,7 +148,7 @@ function Sections() {
             lista com botões por linha. Em `max-w-3xl` o nome do atendimento e o
             botão disputavam a mesma faixa estreita.
           */
-          <TabBoundary id="operations-authorization" label="a autorização">
+          <TabBoundary id="operations-authorization" label="as pendências">
             <OperationAuthorizationSection showQueue timeZone={timeZone} />
           </TabBoundary>
         ) : null}

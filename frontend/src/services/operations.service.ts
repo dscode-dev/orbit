@@ -30,6 +30,8 @@ import type {
   StartChecklistInput,
   CreateChecklistTemplateInput,
   UpdateChecklistTemplateInput,
+  OperationCancellationRequest,
+  OperationCancellationDecision,
 } from "@/types/operations";
 
 const RESOURCE = "operations";
@@ -180,10 +182,43 @@ export const operationsService = {
       `${item(id)}/attachments/${encodeURIComponent(attachmentId)}`,
     ),
 
+  /**
+   * Os pedidos de cancelamento vindos do campo.
+   *
+   * Rota própria e não um recorte de `/operations`: a pergunta é "o que o campo me
+   * devolveu?", atravessando atendimentos — e não "o que há neste atendimento?".
+   */
+  cancellationRequests: (
+    status: "PENDING" | "RESOLVED" = "PENDING",
+    options?: RequestOptions,
+  ): Promise<OperationCancellationRequest[]> =>
+    apiClient.get<OperationCancellationRequest[]>(
+      "/operations/cancellation-requests",
+      { ...options, query: { status } },
+    ),
+
+  /**
+   * Registra o desfecho do pedido.
+   *
+   * Só o desfecho. Reagendar e reatribuir são chamadas de operação à parte, com o
+   * histórico e as validações delas — a tela encadeia as duas, e nesta ordem:
+   * resolver primeiro fecha a janela em que dois donos decidem o mesmo pedido.
+   */
+  resolveCancellation: (
+    id: string,
+    input: { resolution: OperationCancellationDecision; notes?: string },
+  ): Promise<{ operationId: string }> =>
+    apiClient.post<{ operationId: string }>(
+      `/operations/cancellation-requests/${encodeURIComponent(id)}/resolve`,
+      input,
+    ),
+
   keys: {
     module: (): QueryKey => queryKeys.module(RESOURCE),
     list: (query?: OperationQuery): QueryKey =>
       queryKeys.list(RESOURCE, asParams(query)),
+    cancellationRequests: (status: string): QueryKey =>
+      queryKeys.query(RESOURCE, "cancellation-requests", { status }),
     detail: (id: string): QueryKey => queryKeys.detail(RESOURCE, id),
     history: (id: string): QueryKey =>
       queryKeys.nested(RESOURCE, id, "history"),

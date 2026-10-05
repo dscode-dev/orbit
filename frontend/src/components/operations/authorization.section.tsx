@@ -40,6 +40,7 @@ import {
 import { useSession } from "@/providers/session-provider";
 import type { Organization } from "@/types/organization";
 import { AuthorizationQueuePanel } from "./authorization-queue.panel";
+import { CancellationQueuePanel } from "./cancellation-queue.panel";
 
 /** Caminho da preferência dentro de `settings`. */
 const SETTINGS_NAMESPACE = "operations";
@@ -127,6 +128,14 @@ export function OperationAuthorizationSection({
       {showQueue && enabled ? (
         <AuthorizationQueuePanel timeZone={timeZone ?? "America/Sao_Paulo"} />
       ) : null}
+
+      {/*
+        Os pedidos de cancelamento vindos do campo.
+        Diferente da fila acima, **não** dependem da exigência de autorização: um
+        técnico pode não conseguir atender em qualquer organização, e o relato dele
+        precisa de um lugar independente dessa preferência.
+      */}
+      {showQueue ? <CancellationQueuePanel /> : null}
     </div>
   );
 }

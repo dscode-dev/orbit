@@ -349,3 +349,24 @@ export interface CreateChecklistTemplateInput {
 
 export type UpdateChecklistTemplateInput =
   Partial<CreateChecklistTemplateInput>;
+
+/* ---------------------------------------------------------------- */
+/* Pedido de cancelamento vindo do campo                             */
+/* ---------------------------------------------------------------- */
+
+export type {
+  OperationCancellationResolution,
+  OperationCancellationStatus,
+} from "./contracts/modules/operations/operation-cancellation.read-models";
+
+import type {
+  OperationCancellationInboxItemReadModel,
+  OperationCancellationResolution as Resolucao,
+} from "./contracts/modules/operations/operation-cancellation.read-models";
+
+/** Um pedido na caixa de entrada do dono. */
+export type OperationCancellationRequest =
+  OperationCancellationInboxItemReadModel;
+
+/** Alias interno, para as assinaturas abaixo não dependerem da re-exportação. */
+export type OperationCancellationDecision = Resolucao;

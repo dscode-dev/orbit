@@ -31,6 +31,7 @@ import type {
   AssignOperationUserInput,
   ChangeOperationStatusInput,
   CreateOperationInput,
+  OperationCancellationDecision,
   OperationQuery,
   StartChecklistInput,
   UpdateOperationInput,
@@ -256,6 +257,46 @@ export function useAuthorizeOperations() {
   return useApiMutation(
     (operationIds: readonly string[]) =>
       operationsService.authorizeMany(operationIds),
+    { invalidate: [queryKeys.module("operations")] },
+  );
+}
+
+/**
+ * Os pedidos de cancelamento esperando decisão.
+ *
+ * Carregado só quando a aba de pendências está aberta — é a mesma razão pela qual as
+ * abas de Operações montam o conteúdo da ativa: abrir a página não deve disparar as
+ * consultas de todas.
+ */
+export function useOperationCancellationRequests(
+  status: "PENDING" | "RESOLVED" = "PENDING",
+  enabled = true,
+) {
+  return useApiQuery(
+    operationsService.keys.cancellationRequests(status),
+    () => operationsService.cancellationRequests(status),
+    { enabled },
+  );
+}
+
+/**
+ * Registra o desfecho do pedido.
+ *
+ * Invalida o módulo inteiro: resolver muda a fila de pedidos e, nas resoluções que
+ * agem sobre o atendimento, o próprio atendimento. Invalidar só a fila deixaria a
+ * lista de operações afirmando o estado anterior.
+ */
+export function useResolveOperationCancellation() {
+  return useApiMutation(
+    (input: {
+      id: string;
+      resolution: OperationCancellationDecision;
+      notes?: string;
+    }) =>
+      operationsService.resolveCancellation(input.id, {
+        resolution: input.resolution,
+        notes: input.notes,
+      }),
     { invalidate: [queryKeys.module("operations")] },
   );
 }
