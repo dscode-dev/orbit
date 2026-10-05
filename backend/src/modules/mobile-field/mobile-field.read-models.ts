@@ -12,6 +12,14 @@ export type MobileFieldAction =
   | 'ADD_EVIDENCE'
   | 'VIEW_DOCUMENT'
   | 'DOWNLOAD_DOCUMENT'
+  /**
+   * Pedir ao dono o cancelamento do atendimento.
+   *
+   * Pedido, e não `CANCEL`: quem está na porta relata, quem decide é o dono. O nome
+   * da ação diz isso, e é o que impede a tela de rotular o botão como se encerrasse
+   * o compromisso.
+   */
+  | 'REQUEST_CANCELLATION'
   | 'EXECUTE_PMOC'
   | 'EXECUTE_RVT'
   | 'SCAN_EQUIPMENT';
@@ -110,6 +118,18 @@ export interface MobileWorkItemReadModel {
   serviceAddress: MobileServiceAddressReadModel | null;
   /** O tipo do atendimento, já em português. A tela não traduz enum. */
   serviceType: string | null;
+  /**
+   * O pedido de cancelamento em aberto, quando existe.
+   *
+   * Publicado para que a tela saiba **parar de oferecer** a ação e mostrar que o
+   * relato já foi enviado. Sem isso o técnico pediria de novo a cada vez que
+   * abrisse o atendimento, sem sinal de que o primeiro chegou.
+   */
+  pendingCancellation: {
+    id: string;
+    reason: string;
+    requestedAt: string;
+  } | null;
   scheduledFor: string | null;
   scheduledEnd: string | null;
   timezone: string;

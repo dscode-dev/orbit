@@ -522,6 +522,13 @@ export class MobileFieldRepository {
         },
         kind: true,
         sector: true,
+        /* O pedido em aberto, para a tela parar de oferecer a ação. No máximo um
+           por atendimento — garantido pelo índice parcial. */
+        cancellationRequests: {
+          where: { status: 'PENDING' },
+          select: { id: true, reason: true, requestedAt: true },
+          take: 1,
+        },
         code: true,
         title: true,
         description: true,

@@ -576,6 +576,14 @@ export class MobileFieldService {
           operation.sector,
         ),
         serviceType: OPERATION_KIND_LABELS[operation.kind] ?? null,
+        pendingCancellation: operation.cancellationRequests?.[0]
+          ? {
+              id: operation.cancellationRequests[0].id,
+              reason: operation.cancellationRequests[0].reason,
+              requestedAt:
+                operation.cancellationRequests[0].requestedAt.toISOString(),
+            }
+          : null,
         scheduledFor: operation.scheduledStart?.toISOString() ?? null,
         scheduledEnd: operation.scheduledEnd?.toISOString() ?? null,
         timezone: unit.timezone,
@@ -648,6 +656,9 @@ export class MobileFieldService {
              endereço fiscal do cliente mandaria o técnico para a contabilidade. */
           serviceAddress: null,
           serviceType: 'Manutenção programada (PMOC)',
+          /* O pedido é da operação. Um ciclo de PMOC sem operação aberta não tem
+             o que cancelar — e, com ela aberta, o pedido aparece pelo item dela. */
+          pendingCancellation: null,
           scheduledFor: cycle.dueOn.toISOString(),
           scheduledEnd: null,
           timezone: unit.timezone,
@@ -715,6 +726,7 @@ export class MobileFieldService {
           null,
         serviceAddress: null,
         serviceType: configuration.visitType ?? 'Visita técnica',
+        pendingCancellation: null,
         scheduledFor: occurrence.scheduledFor?.toISOString() ?? null,
         scheduledEnd: null,
         timezone: configuration.timezone || unit.timezone,
@@ -781,6 +793,19 @@ export class MobileFieldService {
       actions.push('COMPLETE');
     if (this.has(actor, 'operations.attachments.create'))
       actions.push('ADD_EVIDENCE');
+    /*
+     * Pedir o cancelamento não exige permissão de mudar estado — pedir não muda
+     * nada. Exige estar escalado, e a projeção já garante isso: a consulta filtra
+     * por responsável ou auxiliar, e sem isso o item nem aparece.
+     *
+     * Some quando já há pedido em aberto: a tela precisa mostrar "enviado,
+     * aguardando" em vez de um botão que criaria o segundo.
+     */
+    if (
+      !['COMPLETED', 'CANCELLED'].includes(source.status) &&
+      !source.cancellationRequests?.length
+    )
+      actions.push('REQUEST_CANCELLATION');
     if (
       source.artifactExecutions.length &&
       this.has(actor, 'artifact_executions.read')

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { OperationsModule } from '../operations/operations.module';
 import { PrismaModule } from '../../database';
 import { MobileFieldController } from './mobile-field.controller';
 import { MobileFieldRepository } from './mobile-field.repository';
@@ -31,6 +32,9 @@ import { MobileFieldArtifactService } from './mobile-field-artifact.service';
     InventoryModule,
     ArtifactRenderingModule,
     ArtifactManifestModule,
+    /* O pedido de cancelamento nasce no aplicativo, mas a regra de quem pode
+       pedir é do domínio de operações — e é de lá que o serviço vem. */
+    OperationsModule,
   ],
   controllers: [
     MobileFieldController,

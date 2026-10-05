@@ -122,6 +122,8 @@ model User {
 
   @@index([status, deletedAt])
   @@map("users")
+  operationCancellationsRequested OperationCancellationRequest[] @relation("OperationCancellationRequestedBy")
+  operationCancellationsResolved  OperationCancellationRequest[] @relation("OperationCancellationResolvedBy")
 }
 
 model Credential {
@@ -348,6 +350,7 @@ model Organization {
   @@index([ownerUserId, status])
   @@index([planId, subscriptionStatus])
   @@map("organizations")
+  operationCancellationRequests OperationCancellationRequest[]
 }
 
 model BusinessUnit {
@@ -433,6 +436,7 @@ model BusinessUnit {
   @@index([organizationId, status, deletedAt])
   @@index([organizationId, isPrimary])
   @@map("business_units")
+  operationCancellationRequests OperationCancellationRequest[]
 }
 
 model OrganizationMembership {
@@ -1570,6 +1574,7 @@ model Operation {
   /// A fila do técnico filtra por autorização quando a organização a exige.
   @@index([organizationId, authorizedAt])
   @@map("operations")
+  cancellationRequests OperationCancellationRequest[]
 }
 
 // -----------------------------------------------------------------------------
@@ -2196,6 +2201,13 @@ model FieldEvidence {
   operationId              String?   @map("operation_id") @db.Uuid
   pmocEquipmentExecutionId String?   @map("pmoc_equipment_execution_id") @db.Uuid
   rvtExecutionId           String?   @map("rvt_execution_id") @db.Uuid
+  /// O pedido de cancelamento que citou esta foto, quando é o caso.
+  ///
+  /// A evidência continua sendo **da operação** — o alvo não muda e o pipeline de
+  /// upload é o mesmo. Esta coluna só registra que a foto foi apresentada como
+  /// justificativa, para o dono ver as que importam em vez de todas as do
+  /// atendimento.
+  cancellationRequestId    String?   @map("cancellation_request_id") @db.Uuid
   storageFileId            String    @unique @map("storage_file_id") @db.Uuid
   category                 String    @db.VarChar(30)
   source                   String    @db.VarChar(20)
@@ -2214,6 +2226,7 @@ model FieldEvidence {
   businessUnit           BusinessUnit            @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   upload                 FieldEvidenceUpload     @relation(fields: [uploadId], references: [id], onDelete: Restrict)
   operation              Operation?              @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  cancellationRequest    OperationCancellationRequest? @relation(fields: [cancellationRequestId], references: [id], onDelete: SetNull)
   pmocEquipmentExecution PmocEquipmentExecution? @relation(fields: [pmocEquipmentExecutionId], references: [id], onDelete: Restrict)
   rvtExecution           RvtExecution?           @relation(fields: [rvtExecutionId], references: [id], onDelete: Restrict)
   storageFile            StorageFile             @relation(fields: [storageFileId], references: [id], onDelete: Restrict)
@@ -2224,6 +2237,65 @@ model FieldEvidence {
   @@index([pmocEquipmentExecutionId, createdAt])
   @@index([rvtExecutionId, createdAt])
   @@map("field_evidence")
+}
+
+/// O pedido de cancelamento feito em campo.
+///
+/// ## Por que pedido, e não cancelamento
+///
+/// Quem está na porta descobre que não dá para atender — ninguém no local, acesso
+/// negado, equipamento inacessível. Isso precisa de desfecho imediato para o técnico
+/// e **nenhuma** autoridade para encerrar o compromisso: cancelar é decisão
+/// comercial, e o dono pode preferir remarcar ou mandar outra pessoa.
+///
+/// Por isso o pedido é registro próprio, e não um estado da operação. A operação
+/// segue viva enquanto o dono não decide, e o que ele decide — cancelar, reagendar,
+/// reatribuir ou manter — fica em `resolution`, ao lado do motivo que o técnico deu.
+///
+/// ## A justificativa é obrigatória e as fotos não
+///
+/// A frase é o que o dono lê para decidir; sem ela o pedido não diz nada e o
+/// cancelamento vira estatística sem causa. As fotos reforçam e faltam com
+/// frequência legítima — chuva, pressa, bateria —, e exigi-las transformaria uma
+/// recusa justa em impossível de registrar.
+model OperationCancellationRequest {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  businessUnitId String @map("business_unit_id") @db.Uuid
+  operationId    String @map("operation_id") @db.Uuid
+
+  /// O que o técnico encontrou. Obrigatório.
+  reason        String   @db.Text
+  requestedById String   @map("requested_by_id") @db.Uuid
+  requestedAt   DateTime @map("requested_at") @db.Timestamptz(3)
+
+  /// `PENDING` enquanto o dono não decidiu; `RESOLVED` depois.
+  status String @default("PENDING") @db.VarChar(20)
+
+  /// O que o dono decidiu: `CANCELLED`, `RESCHEDULED`, `REASSIGNED` ou `DISMISSED`.
+  ///
+  /// `DISMISSED` é "mantenha como está" — e é uma resposta, não a ausência de uma:
+  /// o técnico precisa saber que foi lido e que o atendimento continua de pé.
+  resolution      String?   @db.VarChar(20)
+  resolutionNotes String?   @map("resolution_notes") @db.Text
+  resolvedById    String?   @map("resolved_by_id") @db.Uuid
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  operation    Operation    @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  requestedBy  User         @relation("OperationCancellationRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  resolvedBy   User?        @relation("OperationCancellationResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  /// As fotos que o técnico apresentou junto do pedido.
+  evidence FieldEvidence[]
+
+  @@index([organizationId, status, requestedAt])
+  @@index([operationId, requestedAt])
+  @@map("operation_cancellation_requests")
 }
 
 /// Documento oficialmente emitido pela plataforma.

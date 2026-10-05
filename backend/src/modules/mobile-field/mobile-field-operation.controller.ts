@@ -22,6 +22,8 @@ import {
   FieldOperationTimelineQueryDto,
 } from './mobile-field-operation.dto';
 import { MobileFieldOperationService } from './mobile-field-operation.service';
+import { RequestOperationCancellationDto } from '../operations/dto/operation-cancellation.dto';
+import { OperationCancellationService } from '../operations/operation-cancellation.service';
 import type { MobileFieldActor } from './mobile-field.service';
 
 @ApiTags('Mobile Field Operations')
@@ -29,7 +31,10 @@ import type { MobileFieldActor } from './mobile-field.service';
 @Surfaces('MOBILE')
 @RequiresActivePlan()
 export class MobileFieldOperationController {
-  constructor(private readonly service: MobileFieldOperationService) {}
+  constructor(
+    private readonly service: MobileFieldOperationService,
+    private readonly cancellations: OperationCancellationService,
+  ) {}
 
   @Get(':operationId/execution-preparation')
   @ApiOperation({
@@ -60,6 +65,29 @@ export class MobileFieldOperationController {
     @Body() input: FieldOperationCommandDto,
   ) {
     return this.service.complete(this.actor(request), operationId, input);
+  }
+
+  /**
+   * Pede o cancelamento do atendimento.
+   *
+   * Pedido, e não comando: o técnico na porta descobre que não dá para atender, e
+   * quem decide o que fazer com o compromisso é o dono — que pode preferir remarcar
+   * ou mandar outra pessoa. Por isso não está em `commands/`, onde moram as
+   * transições que o aplicativo de fato executa.
+   *
+   * Sem `operations.status.update`: a permissão de mudar o estado é de quem decide,
+   * e exigi-la aqui tornaria o relato impossível para quem só tem o aplicativo. A
+   * autoridade exigida é estar escalado, e o serviço a confere.
+   */
+  @Post(':operationId/cancellation-request')
+  @ApiOperation({ summary: 'Pede ao dono o cancelamento do atendimento' })
+  requestCancellation(
+    @Req() request: IdentityRequest,
+    @Param('operationId', ParseUUIDv7Pipe) operationId: string,
+    @Body() input: RequestOperationCancellationDto,
+  ) {
+    const actor = this.actor(request);
+    return this.cancellations.request(actor, operationId, input);
   }
 
   @Post(':operationId/notes')

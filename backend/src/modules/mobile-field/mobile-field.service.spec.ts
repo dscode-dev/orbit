@@ -59,8 +59,22 @@ describe('MobileFieldService', () => {
     } as never);
     const queue = await service.workQueue(actor, {});
     expect(queue.data).toHaveLength(1);
-    expect(queue.data[0]?.allowedActions).toEqual(['VIEW']);
+
+    /*
+     * `REQUEST_CANCELLATION` acompanha `VIEW`, e não contradiz o que este teste
+     * protege: pedir o cancelamento é relatar, não executar. Quem está na porta
+     * precisa poder dizer que não deu para atender mesmo sem
+     * `operations.status.update` — exigir a permissão de mudar estado para enviar um
+     * relato tornaria o relato impossível justamente para quem só tem o aplicativo.
+     */
+    expect(queue.data[0]?.allowedActions).toEqual([
+      'VIEW',
+      'REQUEST_CANCELLATION',
+    ]);
+
+    /* A asserção que dá nome ao teste: estar escalado não autoriza iniciar. */
     expect(queue.data[0]?.allowedActions).not.toContain('START');
+    expect(queue.data[0]?.allowedActions).not.toContain('COMPLETE');
   });
 
   it('reports a rendered document as available, and a failed one as failed', async () => {
