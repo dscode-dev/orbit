@@ -380,6 +380,209 @@ describe('contexto de navegação do PMOC', () => {
   });
 });
 
+/**
+ * O que o técnico precisa saber antes de bater na porta.
+ *
+ * Endereço com complemento e ponto de referência, telefone de quem espera, tipo do
+ * atendimento e — só quando o dono liberou — quanto vale. Cada um destes campos era
+ * uma pergunta que a tela de detalhe não respondia.
+ */
+describe('o contexto do atendimento em campo', () => {
+  function comOperacao(extra: Record<string, unknown> = {}) {
+    const source = emptySource();
+    source.businessUnits.push({
+      id: actor.businessUnitIds[0],
+      legalName: 'Recife',
+      tradeName: null,
+      timezone: 'America/Recife',
+    });
+    source.customers.push({
+      id: '01900000-0000-7000-8000-0000000000cc',
+      legalName: 'Clínica Santa Maria LTDA',
+      tradeName: 'Clínica Santa Maria',
+      address: null,
+      contacts: [
+        { name: 'Dona Rita', phone: '+55 81 98888-0000', email: null },
+      ],
+    });
+    source.operations.push({
+      id: '01900000-0000-7000-8000-000000000004',
+      businessUnitId: actor.businessUnitIds[0],
+      customerId: '01900000-0000-7000-8000-0000000000cc',
+      assetId: null,
+      code: 'OS-1',
+      kind: 'MAINTENANCE',
+      sector: 'Sala de máquinas',
+      title: 'Atendimento',
+      description: null,
+      status: 'OPEN',
+      priority: 'NORMAL',
+      scheduledStart: new Date('2099-01-01T12:00:00Z'),
+      scheduledEnd: null,
+      startedAt: null,
+      completedAt: null,
+      location: null,
+      customerAddress: {
+        label: 'Matriz',
+        street: 'Rua da Aurora',
+        number: '1200',
+        complement: 'Bloco B, 4º andar',
+        district: 'Boa Vista',
+        city: 'Recife',
+        stateCode: 'PE',
+        postalCode: '50050-000',
+        notes: 'Portão azul nos fundos; falar com a portaria.',
+      },
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+      responsibleFieldTechnician: { id: actor.id, displayName: 'João' },
+      auxiliaryTechnicians: [],
+      asset: null,
+      artifactExecutions: [],
+      checklistExecutions: [],
+      ...extra,
+    });
+    return source;
+  }
+
+  async function itemDe(source: ReturnType<typeof emptySource>) {
+    const service = new MobileFieldService({
+      project: jest.fn().mockResolvedValue(source),
+    } as never);
+    const queue = await service.workQueue(actor, {});
+    return queue.data[0]!;
+  }
+
+  it('publica o endereço do atendimento com complemento e referência', async () => {
+    const item = await itemDe(comOperacao());
+
+    /* As partes separadas, e não uma linha pronta: quem procura a portaria lê o
+       ponto de referência antes do CEP. */
+    expect(item.serviceAddress).toEqual({
+      label: 'Matriz',
+      street: 'Rua da Aurora',
+      number: '1200',
+      complement: 'Bloco B, 4º andar',
+      district: 'Boa Vista',
+      city: 'Recife',
+      stateCode: 'PE',
+      postalCode: '50050-000',
+      reference: 'Portão azul nos fundos; falar com a portaria.',
+      sector: 'Sala de máquinas',
+    });
+  });
+
+  it('sem endereço cadastrado devolve nulo, e não um endereço inventado', async () => {
+    /* O endereço fiscal do cliente está em `location` e serve para outra coisa.
+       Promovê-lo a endereço de serviço mandaria o técnico para a contabilidade. */
+    const item = await itemDe(comOperacao({ customerAddress: null }));
+
+    expect(item.serviceAddress).toBeNull();
+  });
+
+  it('o tipo do atendimento sai em português', async () => {
+    /* A tela não traduz enum: ela imprimiria "MAINTENANCE". */
+    const item = await itemDe(comOperacao());
+
+    expect(item.serviceType).toBe('Manutenção');
+  });
+
+  it('o telefone do cliente não depende de permissão de cadastro', async () => {
+    /*
+     * O ator tem só `operations.read` — nada de `customers.read`, que é a permissão
+     * de navegar a carteira de clientes e que o Técnico Operacional não costuma ter.
+     *
+     * O que torna seguro revelar é o recorte da consulta, não uma permissão: a fila
+     * só traz item atribuído a esta pessoa. Escondido, o técnico chegava ao prédio
+     * sem o telefone de quem o espera.
+     */
+    const item = await itemDe(comOperacao());
+
+    expect(item.customer?.contact?.phone).toBe('+55 81 98888-0000');
+  });
+});
+
+describe('o valor do atendimento em campo', () => {
+  const CANONICO = 'SERVICE_OPERATION:01900000-0000-7000-8000-000000000004';
+
+  function servico(operationAmount: unknown) {
+    const source = emptySource();
+    source.businessUnits.push({
+      id: actor.businessUnitIds[0],
+      legalName: 'Recife',
+      tradeName: null,
+      timezone: 'America/Recife',
+    });
+    source.operations.push({
+      id: '01900000-0000-7000-8000-000000000004',
+      businessUnitId: actor.businessUnitIds[0],
+      customerId: null,
+      assetId: null,
+      code: 'OS-1',
+      kind: 'MAINTENANCE',
+      sector: null,
+      title: 'Atendimento',
+      description: null,
+      status: 'OPEN',
+      priority: 'NORMAL',
+      scheduledStart: new Date('2099-01-01T12:00:00Z'),
+      scheduledEnd: null,
+      startedAt: null,
+      completedAt: null,
+      location: null,
+      customerAddress: null,
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+      responsibleFieldTechnician: { id: actor.id, displayName: 'João' },
+      auxiliaryTechnicians: [],
+      asset: null,
+      artifactExecutions: [],
+      checklistExecutions: [],
+    });
+    return new MobileFieldService({
+      project: jest.fn().mockResolvedValue(source),
+      operationAmount: jest.fn().mockResolvedValue(operationAmount),
+    } as never);
+  }
+
+  it('liberado, publica o total do orçamento vinculado', async () => {
+    const service = servico({
+      amountVisibleInField: true,
+      quote: { total: '8000.00', status: 'APPROVED' },
+    });
+
+    const contexto = await service.fieldContext(actor, CANONICO);
+
+    expect(contexto.financialSummary).toEqual({
+      currency: 'BRL',
+      approvedAmount: '8000.00',
+      paymentStatus: 'APPROVED',
+    });
+  });
+
+  it('não liberado, o campo não existe — e não vem zerado', async () => {
+    /*
+     * A asserção central. `{ approvedAmount: null }` diria "este atendimento não tem
+     * valor", que é outra afirmação: a tela mostraria "R$ 0,00" num serviço de oito
+     * mil. Ausência é a única forma de dizer "não cabe a você ver".
+     */
+    const service = servico({
+      amountVisibleInField: false,
+      quote: { total: '8000.00', status: 'APPROVED' },
+    });
+
+    const contexto = await service.fieldContext(actor, CANONICO);
+
+    expect(contexto.financialSummary).toBeUndefined();
+  });
+
+  it('liberado sem orçamento vinculado também omite', async () => {
+    const service = servico({ amountVisibleInField: true, quote: null });
+
+    const contexto = await service.fieldContext(actor, CANONICO);
+
+    expect(contexto.financialSummary).toBeUndefined();
+  });
+});
+
 function emptySource() {
   return {
     businessUnits: [] as any[],

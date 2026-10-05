@@ -1508,6 +1508,19 @@ model Operation {
   /// pode esconder retroativamente o trabalho do dia.
   authorizedAt      DateTime? @map("authorized_at") @db.Timestamptz(3)
   authorizedById    String?   @map("authorized_by_id") @db.Uuid
+
+  /// O técnico em campo pode ver quanto este atendimento vale?
+  ///
+  /// `false` por padrão, e a omissão é deliberada: o valor combinado com o cliente
+  /// não é informação que todo técnico precise ter na mão dentro da casa do cliente,
+  /// e revelá-lo retroativamente em todo atendimento que já existe seria decidir isso
+  /// pelo dono. Ligar é um ato por atendimento, na tela que o configura.
+  ///
+  /// O valor em si não mora aqui: é o total do orçamento vinculado
+  /// (`Quote.operationId`). Esta coluna governa a **visibilidade**, não o número —
+  /// um segundo campo de dinheiro na operação divergiria do orçamento no primeiro
+  /// reajuste.
+  amountVisibleInField Boolean @default(false) @map("amount_visible_in_field")
   startedByUserId   String?   @map("started_by_user_id") @db.Uuid
   completedByUserId String?   @map("completed_by_user_id") @db.Uuid
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)

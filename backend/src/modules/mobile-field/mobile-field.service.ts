@@ -13,6 +13,7 @@ import {
   type MobileFieldProjectionTarget,
 } from './mobile-field.repository';
 import type { ArtifactRenderStatus } from '../artifact-rendering/artifact-render.read-models';
+import type { OperationKind } from '../../contracts/literals';
 import type {
   MobileArtifactSummaryReadModel,
   MobileCustomerSummaryReadModel,
@@ -28,6 +29,7 @@ import type {
   MobileRecentDocumentReadModel,
   MobileFieldCustomerPageReadModel,
   MobileQueueCustomerReadModel,
+  MobileServiceAddressReadModel,
 } from './mobile-field.read-models';
 
 /** Quantos itens cada recorte curto da tela inicial traz. */
@@ -42,6 +44,22 @@ const DOCUMENT_LABELS: Readonly<Record<string, string>> = {
   RELATORIO_VISITA: 'RVT',
   TECHNICAL_REPORT: 'Relatório técnico',
   RELATORIO_TECNICO: 'Relatório técnico',
+};
+
+/**
+ * O tipo do atendimento, em português.
+ *
+ * Fechado sobre `OperationKind` pela mesma razão que `DOCUMENT_STATES`: um tipo novo
+ * no domínio deixa de compilar aqui até alguém decidir como ele se chama para quem
+ * está em campo. A alternativa — o aplicativo traduzir a sigla — espalharia o
+ * vocabulário do produto por duas bases de código.
+ */
+const OPERATION_KIND_LABELS: Record<OperationKind, string> = {
+  INSTALLATION: 'Instalação',
+  MAINTENANCE: 'Manutenção',
+  INSPECTION: 'Inspeção',
+  DELIVERY: 'Entrega',
+  OTHER: 'Outro',
 };
 
 /**
@@ -464,7 +482,46 @@ export class MobileFieldService {
       request: { description: item.description },
       procedures: [],
       documentContext: item.artifacts,
+      ...(await this.financialSummary(actor, canonicalId)),
       snapshotVersion: 1,
+    };
+  }
+
+  /**
+   * Quanto o atendimento vale — só quando o dono liberou aquele atendimento.
+   *
+   * ## Omitir, e não zerar
+   *
+   * O campo sai do objeto quando não há liberação. `{ approvedAmount: null }` diria
+   * ao aplicativo "este atendimento não tem valor", que é uma afirmação diferente de
+   * "não cabe a você ver" — e a tela mostraria "R$ 0,00" num serviço de oito mil.
+   *
+   * ## O número é do orçamento
+   *
+   * `Quote.total`, do orçamento vinculado à operação. A operação não guarda valor
+   * próprio de propósito: dois campos de dinheiro para o mesmo serviço divergem no
+   * primeiro reajuste, e o que o cliente assinou é o orçamento.
+   *
+   * Sem orçamento vinculado não há valor a mostrar, mesmo com a chave ligada — e
+   * isso também é omissão, não zero.
+   */
+  private async financialSummary(
+    actor: MobileFieldActor,
+    canonicalId: string,
+  ): Promise<Pick<MobileFieldContextReadModel, 'financialSummary'> | object> {
+    if (!canonicalId.startsWith('SERVICE_OPERATION:')) return {};
+    const operationId = canonicalId.slice('SERVICE_OPERATION:'.length);
+    const operation = await this.repository.operationAmount(
+      actor.organizationId,
+      operationId,
+    );
+    if (!operation?.amountVisibleInField || !operation.quote) return {};
+    return {
+      financialSummary: {
+        currency: 'BRL',
+        approvedAmount: operation.quote.total.toString(),
+        paymentStatus: operation.quote.status,
+      },
     };
   }
 
@@ -509,11 +566,16 @@ export class MobileFieldService {
         title: operation.title,
         description: operation.description,
         businessUnit: this.party(unit),
-        customer: this.customer(customers.get(operation.customerId), actor),
+        customer: this.customer(customers.get(operation.customerId)),
         location:
           operation.location ??
           customers.get(operation.customerId)?.address ??
           null,
+        serviceAddress: this.serviceAddress(
+          operation.customerAddress,
+          operation.sector,
+        ),
+        serviceType: OPERATION_KIND_LABELS[operation.kind] ?? null,
         scheduledFor: operation.scheduledStart?.toISOString() ?? null,
         scheduledEnd: operation.scheduledEnd?.toISOString() ?? null,
         timezone: unit.timezone,
@@ -576,11 +638,16 @@ export class MobileFieldService {
           title: `${cycle.plan.name} — ${coverage.asset.name}`,
           description: `Ciclo PMOC ${cycle.plan.code}`,
           businessUnit: this.party(unit),
-          customer: this.customer(customers.get(cycle.plan.customerId), actor),
+          customer: this.customer(customers.get(cycle.plan.customerId)),
           location:
             cycle.plan.serviceLocation ??
             customers.get(cycle.plan.customerId)?.address ??
             null,
+          /* O ciclo de PMOC não aponta para um endereço do cadastro: o lugar é o
+             do plano, que viaja em `location`. Inventar um aqui a partir do
+             endereço fiscal do cliente mandaria o técnico para a contabilidade. */
+          serviceAddress: null,
+          serviceType: 'Manutenção programada (PMOC)',
           scheduledFor: cycle.dueOn.toISOString(),
           scheduledEnd: null,
           timezone: unit.timezone,
@@ -641,11 +708,13 @@ export class MobileFieldService {
         title: configuration.name,
         description: configuration.visitType,
         businessUnit: this.party(unit),
-        customer: this.customer(customers.get(configuration.customerId), actor),
+        customer: this.customer(customers.get(configuration.customerId)),
         location:
           configuration.serviceLocation ??
           customers.get(configuration.customerId)?.address ??
           null,
+        serviceAddress: null,
+        serviceType: configuration.visitType ?? 'Visita técnica',
         scheduledFor: occurrence.scheduledFor?.toISOString() ?? null,
         scheduledEnd: null,
         timezone: configuration.timezone || unit.timezone,
@@ -847,20 +916,65 @@ export class MobileFieldService {
       name: value.displayName ?? value.tradeName ?? value.legalName,
     };
   }
-  private customer(
-    value: any,
-    actor: MobileFieldActor,
-  ): MobileCustomerSummaryReadModel | null {
+  /**
+   * O cliente de um item da fila.
+   *
+   * ## O contato não depende mais de `customers.read`
+   *
+   * Dependia, e a pergunta era a errada. `customers.read` governa **navegar o
+   * cadastro de clientes** — uma permissão que o Técnico Operacional não costuma
+   * ter, e não deve mesmo ter. O efeito era o técnico chegar ao prédio sem o
+   * telefone de quem o espera.
+   *
+   * O que torna seguro revelar aqui não é uma permissão: é o recorte da consulta.
+   * Todo item desta projeção já vem filtrado por
+   * `responsibleFieldTechnicianId = ator OR auxiliar` — a cláusula está no
+   * repositório, e sem ela o item sequer aparece. Então o cliente que chega a esta
+   * função é, por construção, o cliente de um atendimento **desta** pessoa. Dar o
+   * telefone dele é dar o telefone do próprio trabalho, não abrir a carteira.
+   *
+   * O que continua fechado é tudo o mais do cadastro: esta função devolve nome,
+   * endereço e **um** contato — o principal —, e nada além.
+   */
+  private customer(value: any): MobileCustomerSummaryReadModel | null {
     if (!value) return null;
-    const revealContact = this.has(actor, 'customers.read');
     return {
       id: value.id,
       name: value.tradeName ?? value.legalName,
       address: value.address ?? null,
-      contact:
-        revealContact && value.contacts[0] ? { ...value.contacts[0] } : null,
+      contact: value.contacts[0] ? { ...value.contacts[0] } : null,
     };
   }
+  /**
+   * O endereço do atendimento, com as partes que importam em campo separadas.
+   *
+   * `null` quando a operação não aponta para um endereço do cadastro — e `null` é a
+   * resposta honesta: montar um a partir do endereço fiscal do cliente mandaria o
+   * técnico para a contabilidade. Nesse caso o aplicativo cai em `location`, que é
+   * o que já existia.
+   *
+   * `sector` vem da operação, não do endereço: é o ponto exato lá dentro
+   * ("Auditório", "Cozinha"), e muda a cada atendimento no mesmo prédio.
+   */
+  private serviceAddress(
+    value: any,
+    sector: string | null,
+  ): MobileServiceAddressReadModel | null {
+    if (!value) return null;
+    return {
+      label: value.label ?? null,
+      street: value.street,
+      number: value.number ?? null,
+      complement: value.complement ?? null,
+      district: value.district ?? null,
+      city: value.city,
+      stateCode: value.stateCode ?? null,
+      postalCode: value.postalCode ?? null,
+      reference: value.notes ?? null,
+      sector: sector ?? null,
+    };
+  }
+
   private equipment(value: any): MobileEquipmentSummaryReadModel {
     return {
       id: value.id,

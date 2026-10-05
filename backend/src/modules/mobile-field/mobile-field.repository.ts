@@ -110,6 +110,25 @@ export class MobileFieldRepository {
    * Aqui é uma leitura separada, limitada e ordenada por conclusão: serve a
    * aba "Concluídos" da home sem tocar na fila.
    */
+  /**
+   * A liberação do valor e o orçamento vinculado de um atendimento.
+   *
+   * Consulta própria, e não um campo a mais na projeção da fila: o valor só é pedido
+   * ao abrir **um** atendimento, e carregá-lo para os cinquenta da fila custaria um
+   * join de orçamentos que nenhuma tela de lista usa.
+   */
+  operationAmount(organizationId: string, operationId: string) {
+    return this.rls.run((tx) =>
+      tx.operation.findFirst({
+        where: { id: operationId, organizationId, deletedAt: null },
+        select: {
+          amountVisibleInField: true,
+          quote: { select: { total: true, status: true } },
+        },
+      }),
+    );
+  }
+
   recentlyCompleted(
     organizationId: string,
     businessUnitIds: readonly string[],
@@ -480,6 +499,28 @@ export class MobileFieldRepository {
         businessUnitId: true,
         customerId: true,
         customerAddressId: true,
+        /**
+         * Para onde o técnico vai, com as partes separadas.
+         *
+         * `location` da operação já existia, mas é um blob livre — e, quando vazio,
+         * cai no endereço **fiscal** do cliente. Nenhum dos dois carrega complemento
+         * e ponto de referência em campo próprio, que é o que decide se a pessoa
+         * acha a portaria.
+         */
+        customerAddress: {
+          select: {
+            label: true,
+            street: true,
+            number: true,
+            complement: true,
+            district: true,
+            city: true,
+            stateCode: true,
+            postalCode: true,
+            notes: true,
+          },
+        },
+        kind: true,
         sector: true,
         code: true,
         title: true,
