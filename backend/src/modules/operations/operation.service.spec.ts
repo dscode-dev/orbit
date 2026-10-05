@@ -78,6 +78,53 @@ describe('OperationService', () => {
     );
   });
 
+  /**
+   * O valor do atendimento não vaza por omissão.
+   *
+   * Quem cria uma ordem sem opinar sobre isso não está liberando o valor
+   * combinado com o cliente para quem está em campo. O padrão da coluna já é
+   * `false`; o serviço é explícito pelo mesmo motivo — a regra fica visível no
+   * único lugar que a aplica.
+   */
+  it('não libera o valor ao campo quando ninguém pediu', async () => {
+    repository.create.mockResolvedValue({ id: 'operation-id' });
+
+    await service.create('organization-id', 'actor-id', {
+      businessUnitId: 'unit-id',
+      code: 'OS-003',
+      kind: OperationKind.MAINTENANCE,
+      title: 'Manutenção preventiva',
+    });
+
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ amountVisibleInField: false }),
+      'actor-id',
+      expect.any(Object),
+      [],
+      [],
+    );
+  });
+
+  it('libera o valor quando o dono marca', async () => {
+    repository.create.mockResolvedValue({ id: 'operation-id' });
+
+    await service.create('organization-id', 'actor-id', {
+      businessUnitId: 'unit-id',
+      code: 'OS-004',
+      kind: OperationKind.MAINTENANCE,
+      title: 'Manutenção preventiva',
+      amountVisibleInField: true,
+    });
+
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ amountVisibleInField: true }),
+      'actor-id',
+      expect.any(Object),
+      [],
+      [],
+    );
+  });
+
   it('rejects an invalid schedule interval', async () => {
     await expect(
       service.create('organization-id', 'actor-id', {

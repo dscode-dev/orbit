@@ -150,6 +150,21 @@ export class CreateOperationDto {
   @MaxLength(120)
   sector?: string;
 
+  /**
+   * O técnico em campo pode ver quanto este atendimento vale?
+   *
+   * `false` por omissão, e a omissão é deliberada: o valor combinado com o cliente
+   * não é informação que todo técnico precise ter na mão dentro da casa dele. Ligar
+   * é um ato consciente, por atendimento.
+   *
+   * O número não vem daqui: é o total do orçamento vinculado. Este campo governa a
+   * visibilidade, e sem orçamento não há o que mostrar mesmo ligado.
+   */
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  amountVisibleInField?: boolean;
+
   @ApiProperty()
   @Transform(trim)
   @IsString()

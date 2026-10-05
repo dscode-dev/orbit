@@ -123,6 +123,13 @@ export interface OperationListItemReadModel {
   customerAddressId: string | null;
   /** O ponto exato dentro do endereço: "Auditório", "Sala 2". */
   sector: string | null;
+  /**
+   * O técnico em campo vê quanto este atendimento vale?
+   *
+   * Governa a visibilidade, não o número: o valor é o total do orçamento
+   * vinculado, e sem orçamento não há o que mostrar mesmo ligado.
+   */
+  amountVisibleInField: boolean;
   code: string;
   /**
    * O número da Ordem de Serviço — contagem própria, por organização.

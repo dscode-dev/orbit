@@ -18,6 +18,14 @@ export type MobileFieldAction =
   | 'ADD_EVIDENCE'
   | 'VIEW_DOCUMENT'
   | 'DOWNLOAD_DOCUMENT'
+  /**
+   * Pedir ao dono o cancelamento do atendimento.
+   *
+   * Pedido, e não `CANCEL`: quem está na porta relata, quem decide é o dono. O nome
+   * da ação diz isso, e é o que impede a tela de rotular o botão como se encerrasse
+   * o compromisso.
+   */
+  | 'REQUEST_CANCELLATION'
   | 'EXECUTE_PMOC'
   | 'EXECUTE_RVT'
   | 'SCAN_EQUIPMENT';
@@ -30,6 +38,33 @@ export interface MobileCustomerSummaryReadModel extends MobilePartySummaryReadMo
   address: unknown;
   contact: { name: string; phone: string | null; email: string | null } | null;
 }
+/**
+ * Para onde o técnico vai — o endereço do atendimento, não o fiscal do cliente.
+ *
+ * Estruturado, e não uma linha pronta: o aplicativo precisa de `complement` e
+ * `reference` em destaque. Quem está com o celular na mão procurando a portaria lê
+ * "fundos, portão azul" antes de ler o CEP, e uma string única os enterraria no meio
+ * do logradouro.
+ *
+ * `reference` é `CustomerAddress.notes`, que é onde moram ponto de referência,
+ * portaria e instruções de acesso.
+ */
+export interface MobileServiceAddressReadModel {
+  /** Como a equipe chama este lugar: "Matriz", "Loja Shopping". */
+  label: string | null;
+  street: string;
+  number: string | null;
+  complement: string | null;
+  district: string | null;
+  city: string;
+  stateCode: string | null;
+  postalCode: string | null;
+  /** Ponto de referência, portaria, instruções de acesso. */
+  reference: string | null;
+  /** O ponto exato dentro do endereço: "Auditório", "Sala 2". */
+  sector: string | null;
+}
+
 export interface MobileEquipmentSummaryReadModel {
   id: string;
   code: string | null;
@@ -78,6 +113,29 @@ export interface MobileWorkItemReadModel {
   businessUnit: MobilePartySummaryReadModel;
   customer: MobileCustomerSummaryReadModel | null;
   location: unknown;
+  /**
+   * O endereço do atendimento, quando a operação aponta para um.
+   *
+   * Convive com `location` e não o substitui: `location` é o blob livre que a
+   * operação carrega — ou, na falta dele, o endereço fiscal do cliente —, e serve
+   * para abrir a rota. Este é o cadastro de para onde se vai, com as partes
+   * separadas.
+   */
+  serviceAddress: MobileServiceAddressReadModel | null;
+  /** O tipo do atendimento, já em português. A tela não traduz enum. */
+  serviceType: string | null;
+  /**
+   * O pedido de cancelamento em aberto, quando existe.
+   *
+   * Publicado para que a tela saiba **parar de oferecer** a ação e mostrar que o
+   * relato já foi enviado. Sem isso o técnico pediria de novo a cada vez que
+   * abrisse o atendimento, sem sinal de que o primeiro chegou.
+   */
+  pendingCancellation: {
+    id: string;
+    reason: string;
+    requestedAt: string;
+  } | null;
   scheduledFor: string | null;
   scheduledEnd: string | null;
   timezone: string;
@@ -200,6 +258,17 @@ export interface MobileFieldContextReadModel {
   request: { description: string | null };
   procedures: readonly { id: string; title: string; status: string }[];
   documentContext: readonly MobileArtifactSummaryReadModel[];
+  /**
+   * Quanto o atendimento vale, quando o dono liberou.
+   *
+   * Ausente é o padrão, e significa "não cabe a esta pessoa ver" — não "zero". A
+   * liberação é por atendimento (`operations.amount_visible_in_field`), e o número é
+   * o total do orçamento vinculado: não há um segundo campo de dinheiro na operação
+   * que pudesse divergir dele.
+   *
+   * O campo existia neste contrato e no aplicativo desde o início, e **nada o
+   * preenchia**. Agora preenche.
+   */
   financialSummary?: {
     currency: string;
     approvedAmount: string | null;

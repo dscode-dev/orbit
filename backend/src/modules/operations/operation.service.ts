@@ -119,6 +119,9 @@ export class OperationService {
               data: input.data as Prisma.InputJsonValue | undefined,
               createdById: actorId,
               responsibleFieldTechnicianId: input.responsibleFieldTechnicianId,
+              /* Omitido vira `false` pelo padrão da coluna; explicitar aqui
+                 mantém a regra visível no único lugar que a aplica. */
+              amountVisibleInField: input.amountVisibleInField ?? false,
             },
             actorId,
             this.json({ code: input.code, title: input.title }),
@@ -192,6 +195,9 @@ export class OperationService {
           scheduledEnd: input.scheduledEnd,
           location: input.location as Prisma.InputJsonValue | undefined,
           data: input.data as Prisma.InputJsonValue | undefined,
+          /* `undefined` quando o campo não veio: é um `PATCH`, e ausente
+             significa "não mexi nisso", não "desligue". */
+          amountVisibleInField: input.amountVisibleInField,
         },
         actorId,
         this.json({ changedFields: Object.keys(input) }),

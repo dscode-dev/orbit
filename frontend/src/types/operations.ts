@@ -98,6 +98,13 @@ export interface CreateOperationInput {
   customerAddressId?: string;
   /** O ponto exato dentro do endereço. */
   sector?: string;
+  /**
+   * O técnico em campo pode ver quanto este atendimento vale?
+   *
+   * Governa a visibilidade, não o número: o valor é o total do orçamento
+   * vinculado. Omitido é `false` — liberar é um ato consciente.
+   */
+  amountVisibleInField?: boolean;
   code: string;
   kind: OperationKind;
   title: string;

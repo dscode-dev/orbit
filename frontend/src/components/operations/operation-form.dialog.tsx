@@ -40,6 +40,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -101,6 +102,8 @@ interface FormState {
   customerAddressId: string;
   /** O ponto exato dentro do endereço. Opcional. */
   sector: string;
+  /** O técnico em campo pode ver quanto este atendimento vale? */
+  amountVisibleInField: boolean;
   responsibleId: string;
   auxiliaryIds: string[];
   /// Itens acrescentados só para este atendimento.
@@ -445,6 +448,41 @@ function OperationForm({
           </p>
         </div>
 
+        {/*
+          A liberação do valor para quem está em campo.
+
+          Fica junto do que descreve o atendimento, e não numa aba de
+          configurações: é uma decisão por atendimento, tomada no mesmo
+          momento em que se escolhe quem vai e para onde.
+
+          O número não é digitado aqui — ele é o total do orçamento vinculado.
+          Este campo decide quem o vê, e o texto abaixo diz isso para que
+          ninguém procure onde preencher o valor.
+        */}
+        <div className="sm:col-span-2">
+          <div className="flex items-start gap-3 rounded-lg border border-border p-3">
+            <Checkbox
+              id="operation-amount-visible"
+              checked={form.amountVisibleInField}
+              onCheckedChange={(checked) =>
+                edit({ amountVisibleInField: checked === true })
+              }
+            />
+            <div className="space-y-1">
+              <Label
+                htmlFor="operation-amount-visible"
+                className="cursor-pointer"
+              >
+                Mostrar o valor ao técnico em campo
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Exibe no aplicativo o total do orçamento vinculado a este
+                atendimento. Sem orçamento, não há valor a mostrar.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="sm:col-span-2">
           <OperationEquipmentField
             customerId={form.customerId}
@@ -584,6 +622,7 @@ function initialState(
       assetIds: (editing.assets ?? []).map((equipamento) => equipamento.id),
       customerAddressId: editing.customerAddressId ?? "",
       sector: editing.sector ?? "",
+      amountVisibleInField: editing.amountVisibleInField ?? false,
     };
   }
 
@@ -615,6 +654,9 @@ function initialState(
     assetIds: prefill?.assetId ? [prefill.assetId] : [],
     customerAddressId: "",
     sector: "",
+    /* Desmarcado ao criar: liberar o valor combinado com o cliente é um ato
+       consciente, não o que acontece quando ninguém olha o campo. */
+    amountVisibleInField: false,
   };
 }
 
@@ -656,6 +698,7 @@ function buildPayload(
     assetIds: form.assetIds.length > 0 ? form.assetIds : undefined,
     customerAddressId: form.customerAddressId || undefined,
     sector: form.sector.trim() || undefined,
+    amountVisibleInField: form.amountVisibleInField,
   };
 }
 

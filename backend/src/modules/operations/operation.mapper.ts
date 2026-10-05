@@ -67,6 +67,7 @@ interface OperationSource {
   customerId: string | null;
   customerAddressId: string | null;
   sector: string | null;
+  amountVisibleInField: boolean;
   code: string;
   serviceOrderNumber: number | null;
   kind: OperationKind;
@@ -180,6 +181,7 @@ export class OperationReadModelMapper {
       customerId: source.customerId,
       customerAddressId: source.customerAddressId,
       sector: source.sector,
+      amountVisibleInField: source.amountVisibleInField,
       code: source.code,
       serviceOrderNumber: source.serviceOrderNumber,
       /* O formato mora num lugar só: o documento, a web e o aplicativo leem o
