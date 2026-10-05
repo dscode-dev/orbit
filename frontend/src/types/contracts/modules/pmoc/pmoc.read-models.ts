@@ -148,18 +148,19 @@ export interface PmocPlanSummaryReadModel {
   /**
    * Quem responde tecnicamente pelo contrato e assina o documento.
    *
-   * No resumo porque é a pergunta que a listagem de PMOC faz: a coluna mostrava
-   * `technician` sob o título "Responsável Técnico" — dois papéis, um com o nome do
-   * outro.
+   * Publicado no resumo, e não só no detalhe, porque é a pergunta que a listagem de
+   * PMOC faz: a coluna mostrava `technician` sob o título "Responsável Técnico" —
+   * dois papéis diferentes, um deles com o nome do outro.
    */
   technicalResponsible: { id: string; displayName: string } | null;
   coveredEquipment: number;
   /**
    * Transições que **este** plano aceita agora.
    *
-   * No resumo porque a listagem também age sobre o plano. Deduzir
-   * `status === 'DRAFT' → pode ativar` reconstruiria no navegador a máquina de
-   * estados que o servidor resolve.
+   * No resumo porque a listagem também age sobre o plano: ativar, suspender,
+   * cancelar. Deduzir `status === 'DRAFT' → pode ativar` reconstruiria no navegador
+   * a máquina de estados que o servidor já resolve, e as duas divergiriam na
+   * primeira mudança do domínio.
    */
   allowedTransitions: readonly string[];
   createdAt: string;
@@ -328,4 +329,82 @@ export interface PmocPreviewReadModel {
   readonly equipmentCount: number;
   readonly matrix: readonly PmocPreviewMatrixRowReadModel[];
   readonly projectedExecutions: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* PR-58 — assinatura do contrato por link temporário                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O estado de um link de assinatura.
+ *
+ * Viaja como união fechada porque a página pública **decide** por ele: cada estado
+ * tem uma tela diferente, e um `string` livre faria o `default` do `switch` virar o
+ * caso mais provável de aparecer na frente do contratante.
+ */
+export type PmocSignatureLinkStateReadModel =
+  'VALIDO' | 'EXPIRADO' | 'REVOGADO' | 'JA_ASSINADO';
+
+/**
+ * O link recém-gerado — a única vez que o token em claro existe.
+ *
+ * O servidor guarda apenas o hash. Perdida esta resposta, não há como recuperar o
+ * token: gera-se outro, e o anterior é revogado no mesmo ato.
+ */
+export interface PmocSignatureLinkReadModel {
+  /** O segredo. Compõe a URL que o contratante recebe; não é persistido em claro. */
+  readonly token: string;
+  readonly expiresAt: string;
+  readonly planCode: string;
+}
+
+/**
+ * O contrato como o contratante o vê.
+ *
+ * Deliberadamente menos do que `PmocPlanReadModel`: quem abre o link não tem sessão,
+ * e o que ele precisa para decidir assinar é quem contrata quem, por quanto tempo, com
+ * que periodicidade e sobre quantos equipamentos. Ids internos, notas de operação e
+ * configuração do plano não entram — cada campo aqui é um campo exposto ao público.
+ *
+ * `reason` é a frase pronta para o estado; vem resolvida do servidor para que a página
+ * não mantenha a sua própria tradução de cada recusa.
+ */
+export interface PmocPublicContractReadModel {
+  readonly state: PmocSignatureLinkStateReadModel;
+  readonly reason: string | null;
+  readonly plan: {
+    readonly code: string;
+    readonly name: string;
+    readonly startsOn: string;
+    readonly endsOn: string | null;
+    /** "a cada 6 meses" — já formatado, como no resto do domínio. */
+    readonly frequency: string;
+    readonly coveredEquipment: number;
+    readonly technicalResponsible: string | null;
+  };
+  readonly customer: { readonly name: string };
+  /** Quem emite o contrato — a organização, pelo nome que o cliente reconhece. */
+  readonly emitter: { readonly name: string };
+  /** Preenchido só depois do aceite; é o que confirma ao contratante que valeu. */
+  readonly signature: {
+    readonly signerName: string | null;
+    readonly signedAt: string;
+  } | null;
+  readonly expiresAt: string;
+}
+
+/**
+ * O resultado do aceite.
+ *
+ * `state: 'VALIDO'` é o sucesso, e é o único critério: o link estava válido e a
+ * assinatura foi gravada. Qualquer outro estado é recusa, e vem com a frase em
+ * `reason`.
+ *
+ * Não confira o sucesso por `reason === null`. A ausência de motivo é consequência de
+ * ter dado certo, não a definição — e um estado sem frase cadastrada produziria o
+ * mesmo formato de uma assinatura aceita.
+ */
+export interface PmocContractSignatureResultReadModel {
+  readonly state: PmocSignatureLinkStateReadModel;
+  readonly reason: string | null;
 }

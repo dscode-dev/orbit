@@ -36,6 +36,7 @@ import type {
   PmocPlanSummary,
   PmocPreview,
   PmocPreviewInput,
+  PmocSignatureLink,
   PmocCodeSuggestion,
   PmocTimelineItem,
   PmocTimelineQuery,
@@ -294,6 +295,18 @@ export const pmocService = {
 
   upcoming: (options?: RequestOptions): Promise<PmocUpcoming[]> =>
     apiClient.get<PmocUpcoming[]>("/pmoc/upcoming", options),
+
+  /**
+   * Gera o link pelo qual o contratante assina.
+   *
+   * **Não é idempotente, e isso é o recurso.** Cada chamada emite um token novo e
+   * revoga o anterior — é o que garante que um link reenviado invalida o que
+   * circulou antes. Por isso não tem cache nem query key: o resultado traz o token
+   * em claro, que existe uma única vez, e guardá-lo no cache do React Query o
+   * deixaria em memória muito depois de ter sido copiado.
+   */
+  createSignatureLink: (id: string): Promise<PmocSignatureLink> =>
+    apiClient.post<PmocSignatureLink>(`${plan(id)}/signature-link`, {}),
 
   keys: {
     module: (): QueryKey => queryKeys.module(PMOC),

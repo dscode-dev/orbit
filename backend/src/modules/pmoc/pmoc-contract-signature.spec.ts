@@ -308,5 +308,26 @@ describe('assinatura pública do contrato de PMOC', () => {
         reason: null,
       });
     });
+
+    /**
+     * O contrato que desaparece no meio do aceite.
+     *
+     * A função devolve `INEXISTENTE` quando a linha sumiu entre a leitura e o `FOR
+     * UPDATE`, ou quando o plano foi removido nesse intervalo. Não é um estado de
+     * link e não tem frase em `MOTIVO_DO_ESTADO`.
+     *
+     * Precisa ser erro, e não recusa, por uma razão que atravessa a camada: a página
+     * reconhece o sucesso por `reason: null`, e um `INEXISTENTE` caindo em
+     * `MOTIVO_DO_ESTADO[estado] ?? null` produzia exatamente esse formato. O
+     * contratante veria "contrato assinado" sem nada gravado — e com os bytes da
+     * assinatura já no bucket, sem referência nenhuma.
+     */
+    it('contrato que desapareceu no meio do aceite é erro, não recusa', async () => {
+      const { service } = montar({
+        assinatura: { state: 'INEXISTENTE', signed: false },
+      });
+
+      await expect(assinar(service)).rejects.toThrow();
+    });
   });
 });

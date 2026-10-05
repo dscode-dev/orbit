@@ -20,6 +20,22 @@ export const ROUTES = {
   forgotPassword: "/recuperar-senha",
   resetPassword: "/redefinir-senha",
   invitation: "/convite",
+  /**
+   * O contrato do PMOC aberto por link temporário.
+   *
+   * **Deliberadamente fora de `PROTECTED_PREFIXES` e do `matcher` do middleware.**
+   * Quem abre é o contratante, que não tem conta: proteger a rota mandaria o cliente
+   * para uma tela de login que ele nunca vai conseguir passar.
+   *
+   * E deliberadamente **fora de `/pmoc`**, que é protegido por prefixo. Pendurar o
+   * contrato em `/pmoc/contrato/:token` o colocaria atrás do portão por herança, e a
+   * causa — um `:path*` no matcher — não apareceria em nenhum lugar desta linha.
+   *
+   * A credencial é o token no caminho, conferido pelo backend a cada chamada. Não há
+   * sessão a validar aqui, e é por isso que também não está em `GUEST_PREFIXES`: um
+   * dono autenticado precisa poder abrir o link que acabou de gerar para conferi-lo.
+   */
+  contract: "/contrato",
   dashboard: "/dashboard",
   operations: "/operacoes",
   pmoc: "/pmoc",
@@ -182,6 +198,16 @@ export const LoginReason = {
 } as const;
 
 export type LoginReason = (typeof LoginReason)[keyof typeof LoginReason];
+
+/**
+ * A URL que o contratante recebe para assinar.
+ *
+ * `origin` é passado por quem chama, e não lido de `window`: o link é montado logo
+ * depois da mutação, e esta função também é usada em teste — onde não há `window`.
+ */
+export function pmocContractUrl(origin: string, token: string): string {
+  return `${origin}${ROUTES.contract}/${encodeURIComponent(token)}`;
+}
 
 export function loginUrl(reason?: LoginReason, redirectTo?: string): string {
   const params = new URLSearchParams();

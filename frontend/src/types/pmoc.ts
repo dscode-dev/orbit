@@ -18,6 +18,10 @@
  */
 import type {
   PmocCodeSuggestionReadModel,
+  PmocContractSignatureResultReadModel,
+  PmocPublicContractReadModel,
+  PmocSignatureLinkReadModel,
+  PmocSignatureLinkStateReadModel,
   PmocPreviewReadModel,
   PmocPreviewMatrixRowReadModel,
   PmocComplianceSummaryReadModel,
@@ -40,6 +44,30 @@ export type PmocPlan = PmocPlanReadModel;
 export type PmocCoverage = PmocCoverageReadModel;
 export type PmocCycle = PmocExecutionReadModel;
 export type PmocEquipmentExecution = PmocEquipmentExecutionReadModel;
+
+/* ---------------------------------------------------------------- */
+/* Assinatura do contrato por link temporário                        */
+/* ---------------------------------------------------------------- */
+
+export type PmocSignatureLink = PmocSignatureLinkReadModel;
+export type PmocSignatureLinkState = PmocSignatureLinkStateReadModel;
+export type PmocPublicContract = PmocPublicContractReadModel;
+export type PmocContractSignatureResult =
+  PmocContractSignatureResultReadModel;
+
+/**
+ * O que a página pública envia ao assinar.
+ *
+ * `signatureBase64` e não um `Blob`: a rota é JSON, e o backend confere o cabeçalho
+ * PNG antes de guardar. O prefixo `data:image/png;base64,` é aceito, que é
+ * exatamente o que `canvas.toDataURL` produz.
+ */
+export interface SignPmocContractInput {
+  signerName: string;
+  signerDocument?: string;
+  signerEmail?: string;
+  signatureBase64: string;
+}
 
 /**
  * Uma linha de `GET .../cycles/:cycleId/equipment-executions`.

@@ -29,6 +29,7 @@ import {
   Loader2,
   MoreHorizontal,
   Pencil,
+  PenLine,
   ShieldCheck,
   SquareArrowOutUpRight,
 } from "lucide-react";
@@ -47,6 +48,7 @@ import {
 import {
   useActivatePmocPlan,
   useCancelPmocPlan,
+  useCreatePmocSignatureLink,
   usePmocPlan,
   useSuspendPmocPlan,
 } from "@/hooks/pmoc/use-pmoc";
@@ -55,6 +57,7 @@ import { useSession } from "@/providers/session-provider";
 import type { PmocPlanSummary } from "@/types/pmoc";
 import { PLAN_TRANSITION_PROMPTS } from "./pmoc-plan-actions";
 import { PmocPlanEditDialog } from "./pmoc-plan-edit.dialog";
+import { PmocSignatureLinkDialog } from "./pmoc-signature-link.dialog";
 
 export function PmocPlanRowActions({ plan }: { plan: PmocPlanSummary }) {
   const session = useSession();
@@ -63,6 +66,7 @@ export function PmocPlanRowActions({ plan }: { plan: PmocPlanSummary }) {
   const activate = useActivatePmocPlan(plan.id);
   const suspend = useSuspendPmocPlan(plan.id);
   const cancel = useCancelPmocPlan(plan.id);
+  const signatureLink = useCreatePmocSignatureLink();
 
   /** Qual transição está esperando confirmação. Nenhuma ação dispara sem passar aqui. */
   const [pending, setPending] = useState<string | null>(null);
@@ -123,6 +127,26 @@ export function PmocPlanRowActions({ plan }: { plan: PmocPlanSummary }) {
                 Editar
               </DropdownMenuItem>
 
+              {/*
+                Enviar para assinatura não pede confirmação, mas **avisa**: a ação
+                não é destrutiva no plano, e sim no link anterior — gerar um novo
+                revoga o que já circulou. O aviso vive no diálogo, junto do link
+                novo, porque é ali que ele é acionável; uma confirmação antes
+                perguntaria sobre um link que o dono talvez nunca tenha gerado.
+
+                Sem cobertura não há contrato a assinar: o backend recusa com 409, e
+                oferecer o item seria oferecer um erro.
+              */}
+              {plan.coveredEquipment > 0 ? (
+                <DropdownMenuItem
+                  onSelect={() => signatureLink.mutate(plan.id)}
+                  disabled={signatureLink.isPending}
+                >
+                  <PenLine className="size-3.5" />
+                  Enviar para assinatura
+                </DropdownMenuItem>
+              ) : null}
+
               {transitions.length > 0 ? <DropdownMenuSeparator /> : null}
 
               {transitions.map((status) => (
@@ -175,6 +199,16 @@ export function PmocPlanRowActions({ plan }: { plan: PmocPlanSummary }) {
           }}
         />
       ) : null}
+
+      <PmocSignatureLinkDialog
+        resultado={signatureLink.data ?? null}
+        error={signatureLink.error}
+        isPending={signatureLink.isPending}
+        /* `reset` e não uma flag de aberto: é o que descarta o token da memória do
+           React Query ao fechar. Mantê-lo em `data` deixaria a credencial do
+           contrato viva pelo resto da navegação. */
+        onOpenChange={() => signatureLink.reset()}
+      />
 
       {/* A falha ao buscar o detalhe não pode ser silenciosa: sem isto, clicar em
           Editar e nada acontecer é indistinguível de um clique que não pegou. */}

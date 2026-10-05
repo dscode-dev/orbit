@@ -421,10 +421,23 @@ export class PmocService {
       sha256,
     });
 
+    /**
+     * `INEXISTENTE` é 404, e não uma recusa com motivo nulo.
+     *
+     * A função devolve esse estado quando a linha sumiu entre a leitura e o `FOR
+     * UPDATE`, ou quando o plano foi removido nesse intervalo. Não é um dos estados
+     * de link — não há frase para ele em `MOTIVO_DO_ESTADO` —, e deixá-lo cair no
+     * `?? null` produzia `{ reason: null }`, que é **o sinal de sucesso**: a página
+     * diria "contrato assinado" sem nada ter sido gravado.
+     */
+    if (resultado.state === 'INEXISTENTE') {
+      throw new EntityNotFoundException('PmocContract');
+    }
+
     const estado = resultado.state as EstadoDoLink;
     return {
       state: estado,
-      reason: resultado.signed ? null : (MOTIVO_DO_ESTADO[estado] ?? null),
+      reason: resultado.signed ? null : MOTIVO_DO_ESTADO[estado],
     };
   }
 

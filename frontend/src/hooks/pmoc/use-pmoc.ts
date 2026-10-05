@@ -195,6 +195,20 @@ export function usePmocPlanActivation() {
   });
 }
 
+/**
+ * Gera o link temporário de assinatura do contrato.
+ *
+ * Sem `invalidate`: gerar o link não muda nada que a tela mostre — o plano continua
+ * com o mesmo status, a mesma cobertura e o mesmo vencimento. O que muda é a
+ * existência de um link válido, e isso não é dado de listagem.
+ *
+ * O token volta no resultado da mutação e **não** entra em cache. Quem chama o usa
+ * ali, no `onSuccess`, para montar a URL e copiá-la.
+ */
+export function useCreatePmocSignatureLink() {
+  return useApiMutation((id: string) => pmocService.createSignatureLink(id));
+}
+
 export function useSuspendPmocPlan(id: string) {
   return useApiMutation(() => pmocService.suspend(id), {
     invalidate: transitionKeys(id),
