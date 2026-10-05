@@ -20,6 +20,7 @@
 library;
 
 import '../../../core/contracts/field_operation_contracts.dart';
+import '../../../core/contracts/mobile_field_contracts.dart';
 import '../../../core/network/orbit_api_client.dart';
 
 class FieldOperationRepository {
@@ -65,6 +66,31 @@ class FieldOperationRepository {
       body: command.toJson(),
     );
     return FieldOperationCommandResultContract.fromJson(data);
+  }
+
+  /// Pede ao dono o cancelamento do atendimento.
+  ///
+  /// **Pedido, e não comando.** Por isso fica fora de `commands/` e não carrega
+  /// `expectedVersion`: nada muda no atendimento, então não há versão a
+  /// disputar. O que volta é o pedido registrado, para a tela mostrar que foi
+  /// enviado.
+  ///
+  /// Reenviar é inofensivo: havendo pedido em aberto, o servidor devolve o
+  /// mesmo em vez de recusar — o que importa quando a rede cai depois de
+  /// gravar.
+  Future<MobilePendingCancellationContract?> requestCancellation(
+    String operationId, {
+    required String reason,
+    List<String> evidenceIds = const [],
+  }) async {
+    final data = await _client.post<Map<String, dynamic>>(
+      '${_base(operationId)}/cancellation-request',
+      body: {
+        'reason': reason,
+        if (evidenceIds.isNotEmpty) 'evidenceIds': evidenceIds,
+      },
+    );
+    return MobilePendingCancellationContract.fromJson(data);
   }
 
   /// Uma observação operacional.

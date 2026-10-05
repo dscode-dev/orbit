@@ -2293,6 +2293,18 @@ model OperationCancellationRequest {
   /// As fotos que o técnico apresentou junto do pedido.
   evidence FieldEvidence[]
 
+  /// Os ids **locais** das capturas citadas, como o aparelho as nomeia.
+  ///
+  /// Guardados porque a foto quase nunca existe no servidor no instante do pedido: a
+  /// captura é offline-first, e o upload acontece minutos ou horas depois. Sem esta
+  /// lista não haveria como saber, na finalização daquele upload, que aquela foto
+  /// pertencia a este pedido — e a citação só funcionaria com rede boa, que é quando
+  /// ela menos importa.
+  ///
+  /// Convive com `evidence` e não a substitui: esta é a intenção declarada pelo
+  /// aparelho; aquela é o que de fato chegou.
+  citedLocalMediaIds String[] @map("cited_local_media_ids")
+
   @@index([organizationId, status, requestedAt])
   @@index([operationId, requestedAt])
   @@map("operation_cancellation_requests")

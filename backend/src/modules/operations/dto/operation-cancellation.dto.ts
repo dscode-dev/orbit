@@ -5,7 +5,6 @@ import {
   IsIn,
   IsOptional,
   IsString,
-  IsUUID,
   Length,
 } from 'class-validator';
 
@@ -24,7 +23,18 @@ export class RequestOperationCancellationDto {
   reason!: string;
 
   /**
-   * As fotos já enviadas contra **este** atendimento que o pedido cita.
+   * As fotos que o pedido apresenta, pelo id **local** da captura.
+   *
+   * ## Por que o id local, e não o da evidência
+   *
+   * Porque no instante do pedido a foto quase nunca existe no servidor. A captura é
+   * offline-first: o arquivo entra numa fila no aparelho e sobe quando dá, de modo
+   * que o `evidenceId` só nasce minutos — ou horas — depois. Pedir o id do servidor
+   * aqui faria a citação funcionar só com rede boa, que é exatamente a situação em
+   * que ela menos importa.
+   *
+   * `localMediaId` é estável desde a captura e já viaja até a linha de evidência. O
+   * servidor carimba o que já chegou e carimba o resto quando chegar.
    *
    * Opcional de propósito: chuva, pressa e bateria fazem a foto faltar com
    * frequência legítima, e exigi-la transformaria uma recusa justa em impossível de
@@ -35,8 +45,9 @@ export class RequestOperationCancellationDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(10)
-  @IsUUID('all', { each: true })
-  evidenceIds?: string[];
+  @IsString({ each: true })
+  @Length(1, 160, { each: true })
+  evidenceLocalIds?: string[];
 }
 
 export const OPERATION_CANCELLATION_RESOLUTIONS = [

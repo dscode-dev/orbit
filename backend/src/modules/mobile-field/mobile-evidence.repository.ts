@@ -253,6 +253,32 @@ export class MobileEvidenceRepository {
       if (count >= maximum) return { kind: 'LIMIT' as const, maximum };
 
       const now = new Date();
+
+      /**
+       * Esta foto foi citada por um pedido de cancelamento em aberto?
+       *
+       * A pergunta é feita **aqui**, e não quando o pedido foi criado, porque no
+       * instante do pedido a foto normalmente ainda não existia: a captura é
+       * offline-first e o upload acontece depois. O pedido guardou o `localMediaId`
+       * que o aparelho declarou; é agora que ele vira referência de verdade.
+       *
+       * Só pedido pendente e só do mesmo atendimento: um pedido já resolvido não
+       * recebe prova nova, e carimbar entre atendimentos juntaria a foto de um ao
+       * relato de outro.
+       */
+      const citado =
+        context.operationId && upload.localMediaId
+          ? await tx.operationCancellationRequest.findFirst({
+              where: {
+                organizationId: actor.organizationId,
+                operationId: context.operationId,
+                status: 'PENDING',
+                citedLocalMediaIds: { has: upload.localMediaId },
+              },
+              select: { id: true },
+            })
+          : null;
+
       const evidence = await tx.fieldEvidence.create({
         data: {
           id: generateUuidV7(),
@@ -271,6 +297,7 @@ export class MobileEvidenceRepository {
           uploadedAt: now,
           capturedByUserId: actor.id,
           localMediaId: upload.localMediaId,
+          cancellationRequestId: citado?.id ?? null,
         },
         include: { capturedBy: true },
       });

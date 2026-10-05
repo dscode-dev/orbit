@@ -49,9 +49,13 @@ export class OperationCancellationRepository {
    * dono lendo a justificativa sem ver o que a sustenta — e marcar fotos sem pedido
    * deixa linhas apontando para nada.
    *
-   * As evidências citadas são conferidas contra a própria operação: o id vem do
-   * aplicativo, e aceitar qualquer um deixaria um pedido apontar para a foto de
-   * outro atendimento.
+   * As fotos são citadas pelo id **local** da captura, e conferidas contra a própria
+   * operação: o id vem do aplicativo, e aceitar qualquer um deixaria um pedido
+   * apontar para a foto de outro atendimento.
+   *
+   * O que ainda não subiu não é carimbado aqui — não existe linha a carimbar. Quem
+   * fecha essa lacuna é a finalização do upload, que pergunta se aquele
+   * `localMediaId` foi citado por um pedido em aberto.
    */
   create(input: {
     organizationId: string;
@@ -59,7 +63,7 @@ export class OperationCancellationRepository {
     operationId: string;
     reason: string;
     requestedById: string;
-    evidenceIds: readonly string[];
+    evidenceLocalIds: readonly string[];
   }) {
     return this.rls.run(async (tx) => {
       const request = await tx.operationCancellationRequest.create({
@@ -73,10 +77,14 @@ export class OperationCancellationRepository {
         },
       });
 
-      if (input.evidenceIds.length > 0) {
+      if (input.evidenceLocalIds.length > 0) {
+        await tx.operationCancellationRequest.update({
+          where: { id: request.id },
+          data: { citedLocalMediaIds: [...input.evidenceLocalIds] },
+        });
         await tx.fieldEvidence.updateMany({
           where: {
-            id: { in: [...input.evidenceIds] },
+            localMediaId: { in: [...input.evidenceLocalIds] },
             organizationId: input.organizationId,
             operationId: input.operationId,
           },

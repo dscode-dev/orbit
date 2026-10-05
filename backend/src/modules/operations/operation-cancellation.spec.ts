@@ -145,17 +145,39 @@ describe('pedir o cancelamento em campo', () => {
     expect(repository.create).not.toHaveBeenCalled();
   });
 
-  it('as fotos citadas viajam para o registro', async () => {
+  it('a citação é por id local, porque a foto ainda não subiu', async () => {
+    /*
+     * No instante do pedido a foto quase nunca existe no servidor: a captura é
+     * offline-first e o upload acontece depois. Citar pelo id do servidor faria a
+     * prova funcionar só com rede boa — que é quando ela menos importa.
+     *
+     * Quem fecha a lacuna é a finalização do upload, que pergunta se aquele
+     * `localMediaId` foi citado por um pedido em aberto daquele atendimento.
+     */
     const { service, repository } = bancada({});
-    const foto = '01900000-0000-7000-8000-0000000000e1';
 
     await service.request(ator, OPERACAO, {
-      reason: 'Equipamento inacessível.',
-      evidenceIds: [foto],
+      reason: 'Equipamento inacessível; portão trancado.',
+      evidenceLocalIds: ['local-media-7f3a'],
     });
 
     expect(repository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ evidenceIds: [foto] }),
+      expect.objectContaining({ evidenceLocalIds: ['local-media-7f3a'] }),
+    );
+  });
+
+  it('as fotos citadas viajam para o registro', async () => {
+    const { service, repository } = bancada({});
+    /* Id local da captura, como o aparelho o nomeia — não um UUID do servidor. */
+    const foto = 'local-media-7f3a';
+
+    await service.request(ator, OPERACAO, {
+      reason: 'Equipamento inacessível.',
+      evidenceLocalIds: [foto],
+    });
+
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ evidenceLocalIds: [foto] }),
     );
   });
 });

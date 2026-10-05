@@ -45,6 +45,13 @@ enum MobileFieldAction {
   executePmoc,
   executeRvt,
   scanEquipment,
+
+  /// Pedir ao dono o cancelamento do atendimento.
+  ///
+  /// Pedido, e não cancelamento: quem está na porta relata, quem decide é o
+  /// dono. O nome carrega isso para que a tela não rotule o botão como se
+  /// encerrasse o compromisso.
+  requestCancellation,
 }
 
 /// Ação publicada em `allowedActions` / `primaryAction`.
@@ -65,8 +72,102 @@ MobileFieldAction? mobileFieldActionFrom(String? value) => switch (value) {
   'EXECUTE_PMOC' => MobileFieldAction.executePmoc,
   'EXECUTE_RVT' => MobileFieldAction.executeRvt,
   'SCAN_EQUIPMENT' => MobileFieldAction.scanEquipment,
+  'REQUEST_CANCELLATION' => MobileFieldAction.requestCancellation,
   _ => null,
 };
+
+/// Para onde o técnico vai — o endereço do atendimento, não o fiscal do cliente.
+///
+/// Estruturado porque `complement` e `reference` precisam de destaque: quem está
+/// com o celular na mão procurando a portaria lê "fundos, portão azul" antes de
+/// ler o CEP.
+class MobileServiceAddressContract {
+  const MobileServiceAddressContract({
+    required this.street,
+    required this.city,
+    this.label,
+    this.number,
+    this.complement,
+    this.district,
+    this.stateCode,
+    this.postalCode,
+    this.reference,
+    this.sector,
+  });
+
+  factory MobileServiceAddressContract.fromJson(Map<String, dynamic> json) =>
+      MobileServiceAddressContract(
+        street: json['street'] as String? ?? '',
+        city: json['city'] as String? ?? '',
+        label: json['label'] as String?,
+        number: json['number'] as String?,
+        complement: json['complement'] as String?,
+        district: json['district'] as String?,
+        stateCode: json['stateCode'] as String?,
+        postalCode: json['postalCode'] as String?,
+        reference: json['reference'] as String?,
+        sector: json['sector'] as String?,
+      );
+
+  final String? label;
+  final String street;
+  final String? number;
+  final String? complement;
+  final String? district;
+  final String city;
+  final String? stateCode;
+  final String? postalCode;
+
+  /// Ponto de referência, portaria, instruções de acesso.
+  final String? reference;
+
+  /// O ponto exato dentro do endereço: "Auditório", "Sala 2".
+  final String? sector;
+
+  /// A linha do logradouro, para o cabeçalho e para abrir a rota.
+  ///
+  /// Complemento e referência **não** entram: eles aparecem em linha própria na
+  /// tela, e enterrá-los aqui é o que a separação dos campos veio desfazer.
+  String get linha {
+    String junta(List<String?> partes, String separador) => partes
+        .where((parte) => parte != null && parte.isNotEmpty)
+        .join(separador);
+
+    return junta([
+      junta([street, number], ', '),
+      district,
+      junta([city, stateCode], ' - '),
+    ], ' · ');
+  }
+}
+
+/// O pedido de cancelamento em aberto deste atendimento.
+class MobilePendingCancellationContract {
+  const MobilePendingCancellationContract({
+    required this.id,
+    required this.reason,
+    required this.requestedAt,
+  });
+
+  static MobilePendingCancellationContract? fromJson(
+    Map<String, dynamic>? json,
+  ) {
+    if (json == null) return null;
+    final id = json['id'] as String?;
+    if (id == null || id.isEmpty) return null;
+    return MobilePendingCancellationContract(
+      id: id,
+      reason: json['reason'] as String? ?? '',
+      requestedAt:
+          DateTime.tryParse(json['requestedAt'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    );
+  }
+
+  final String id;
+  final String reason;
+  final DateTime requestedAt;
+}
 
 class MobilePartySummaryContract {
   const MobilePartySummaryContract({required this.id, required this.name});
@@ -255,6 +356,9 @@ class MobileWorkItemContract {
     this.scheduledEnd,
     this.priority,
     this.primaryAction,
+    this.serviceAddress,
+    this.serviceType,
+    this.pendingCancellation,
   });
 
   /// Identidade canônica do item, **opaca**.
@@ -285,6 +389,22 @@ class MobileWorkItemContract {
   final List<MobileFieldAction> allowedActions;
   final MobileFieldAction? primaryAction;
   final MobileNavigationContextContract navigationContext;
+
+  /// Para onde ir, com complemento e ponto de referência em campo próprio.
+  ///
+  /// Nulo quando o atendimento não aponta para um endereço do cadastro — PMOC e
+  /// visita técnica seguem em [location], que é o lugar do plano.
+  final MobileServiceAddressContract? serviceAddress;
+
+  /// "Manutenção", "Instalação" — já em português, resolvido no servidor.
+  final String? serviceType;
+
+  /// O pedido de cancelamento em aberto, quando existe.
+  ///
+  /// Presente, a tela mostra "enviado, aguardando" no lugar do botão. Sem isso o
+  /// técnico pediria de novo a cada vez que abrisse o atendimento.
+  final MobilePendingCancellationContract? pendingCancellation;
+
   final DateTime updatedAt;
 
   /// Um item cujo tipo, prazo ou contexto o app não entende é descartado.
@@ -348,6 +468,15 @@ class MobileWorkItemContract {
           .toList(growable: false),
       primaryAction: mobileFieldActionFrom(json['primaryAction'] as String?),
       navigationContext: navigation,
+      serviceAddress: json['serviceAddress'] == null
+          ? null
+          : MobileServiceAddressContract.fromJson(
+              json['serviceAddress'] as Map<String, dynamic>,
+            ),
+      serviceType: json['serviceType'] as String?,
+      pendingCancellation: MobilePendingCancellationContract.fromJson(
+        json['pendingCancellation'] as Map<String, dynamic>?,
+      ),
       updatedAt:
           DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),

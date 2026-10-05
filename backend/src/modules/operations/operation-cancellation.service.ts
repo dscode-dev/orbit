@@ -42,7 +42,7 @@ export class OperationCancellationService {
   async request(
     actor: CancellationRequester,
     operationId: string,
-    input: { reason: string; evidenceIds?: readonly string[] },
+    input: { reason: string; evidenceLocalIds?: readonly string[] },
   ): Promise<OperationCancellationRequestReadModel> {
     const operation = await this.repository.operationForRequest(
       actor.organizationId,
@@ -86,7 +86,7 @@ export class OperationCancellationService {
       operationId: operation.id,
       reason: input.reason,
       requestedById: actor.id,
-      evidenceIds: input.evidenceIds ?? [],
+      evidenceLocalIds: input.evidenceLocalIds ?? [],
     });
 
     return {

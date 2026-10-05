@@ -64,6 +64,11 @@ const fieldActionLabels = <MobileFieldAction, FieldLabel>{
   MobileFieldAction.executePmoc: FieldLabel('Executar PMOC'),
   MobileFieldAction.executeRvt: FieldLabel('Executar visita'),
   MobileFieldAction.scanEquipment: FieldLabel('Ler etiqueta'),
+  MobileFieldAction.requestCancellation: FieldLabel(
+    'Cancelar o Atendimento',
+    description: 'Avisa o responsável. Ele decide se remarca, troca o técnico '
+        'ou cancela de fato.',
+  ),
 };
 
 /// Papéis profissionais — os termos oficiais do produto.
